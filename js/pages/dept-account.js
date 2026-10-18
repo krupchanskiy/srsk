@@ -3,6 +3,8 @@
 // Глава департамента видит свой счёт: приходы, расходы, переводы к другим счетам и от них;
 // фильтры и сортировка как в ДДС, ничего менять нельзя. Данные — та же лента ДДС
 // (fin_v_account_ledger), какие счета чьи — fin_department_accounts.
+// ВГ 18.10: вкладки — по валютам, в ленте все счета департамента и его выручка, сданная на другие
+// счета (fin_department_income); итоги «На руках / Заработал / Получил на расходы / Потратил».
 // Пилот — Кухня (kitchen/account.html); другой департамент — такая же страница со своим названием.
 window.DeptAccount = (function() {
 'use strict';
@@ -14,14 +16,14 @@ const tr = (key, fallback) => { const v = t(key); return v === key ? fallback : 
 
 let cfg = null;
 let accounts = [];
-let currentAccount = null;
+let currentCur = null;    // вкладка — валюта: все счета департамента в ней + выручка, сданная на другие счета
 let rows = [];            // все проводки выбранного счёта, по дате (внутри дня — приходы раньше), .bal — остаток после
 const opened = new Set(); // раскрытые строки (posting_id)
 let sort = { key: 'date', dir: 'desc' };
-// «Выручка» (мигр. 706): приходы по статьям департамента с ЛЮБОГО счёта — выручка магазина
-// ложится на Кассу или Гест-хаус, а не на счёт департамента (ВГ 18.10). Валюты не смешиваем.
+// Выручка, сданная на ЧУЖИЕ счета (Касса, Гест-хаус) по статьям департамента (мигр. 706/708):
+// выручку магазина сдают туда, а не на его счёт. ВГ 18.10: все приходы и расходы — в одной ленте.
+// Такие строки (r.ext) входят в «Заработал» и в сводку, но не в «На руках у департамента».
 let incomeRows = [];
-const incomeOpen = new Set();   // раскрытые статьи выручки (category_id)
 
 const money = (v, cur) => FinUtils.fmtMoney(v, cur);
 const signed = (v, cur) => `${Number(v) > 0 ? '+' : Number(v) < 0 ? '−' : ''}${money(Math.abs(Number(v)), cur)}`;
@@ -78,21 +80,24 @@ async function loadRows(accountId) {
     return out;
 }
 
-async function selectAccount(id) {
-    currentAccount = id;
-    const acc = accounts.find(a => a.account_id === id);
-    $('daccAccountName').textContent = acc?.name || '';
-    document.querySelectorAll('[data-dacc-account]').forEach(b => b.classList.toggle('tab-active', b.dataset.daccAccount === id));
+async function selectCurrency(cur) {
+    currentCur = cur;
+    const own = accounts.filter(a => a.currency_code === cur);
+    $('daccAccountName').textContent = own.map(a => a.name).join(', ');
+    document.querySelectorAll('[data-dacc-cur]').forEach(b => b.classList.toggle('tab-active', b.dataset.daccCur === cur));
     $('daccBody').innerHTML = `<tr><td colspan="7" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>`;
     // Остаток после операции — по дате операции (а не по порядку внесения): операцию, внесённую
     // задним числом, ставим на её дату, иначе в столбце «Остаток после» скачки (замечание ВГ 25.09)
     // в пределах одного дня сначала приходы, потом расходы — чтобы не было ложного минуса внутри дня
     const inFirst = r => Number(r.signed_amount) >= 0 ? 0 : 1;
-    const [loaded, groups] = await Promise.all([loadRows(id), Layout.db.rpc('fin_account_op_groups', { p_account: id })]);
-    const base = loaded.sort((a, b) => a.occurred_on.localeCompare(b.occurred_on) || inFirst(a) - inFirst(b) || a.ledger_seq - b.ledger_seq);
-    rows = pairUp(base, groups.data || []);
+    const loaded = await Promise.all(own.map(a => Promise.all([loadRows(a.account_id), Layout.db.rpc('fin_account_op_groups', { p_account: a.account_id })])));
+    const ext = incomeRows.filter(r => r.currency_code === cur).map(r => ({ ...r, ext: true, ledger_seq: 0 }));
+    const base = [...loaded.flatMap(([list]) => list), ...ext]
+        .sort((a, b) => a.occurred_on.localeCompare(b.occurred_on) || inFirst(a) - inFirst(b) || a.ledger_seq - b.ledger_seq);
+    rows = pairUp(base, loaded.flatMap(([, g]) => g.data || []));
+    // «Остаток после» — только по деньгам на руках у департамента: выручка, сданная на другой счёт, его не меняет
     let bal = 0;
-    rows.forEach((r, i) => { bal += Number(r.signed_amount); r.bal = Math.round(bal * 100) / 100; r.ord = i; });
+    rows.forEach((r, i) => { if (!r.ext) bal += Number(r.signed_amount); r.bal = Math.round(bal * 100) / 100; r.ord = i; });
     // пара «перевод + трата» — одна позиция в ленте: grp — место пары, sub — порядок внутри (перевод, потом трата)
     const first = new Map();
     rows.forEach(r => { const k = r.gid || r.posting_id; if (!first.has(k)) first.set(k, r.ord); r.grp = first.get(k); r.sub = r.ord - r.grp; });
@@ -161,32 +166,39 @@ function chip(label, value, cls = '', hint = '') {
 }
 
 function renderTotals(list) {
-    const cur = rows[rows.length - 1]?.currency_code || accounts.find(a => a.account_id === currentAccount)?.currency_code || 'INR';
+    const cur = currentCur || 'INR';
     const from = $('daccFrom').value, to = $('daccTo').value;
     const today = DateUtils.toISO(new Date());
-    const now = rows.length ? rows[rows.length - 1].bal : 0;
-    // остатки — по всем проводкам счёта, без учёта фильтров по статье и поиску
-    const before = from ? rows.filter(r => r.occurred_on < from) : [];
-    const upto = to ? rows.filter(r => r.occurred_on <= to) : rows;
+    const own = rows.filter(r => !r.ext);
+    const now = own.length ? own[own.length - 1].bal : 0;
+    // остатки — по всем проводкам счетов департамента, без учёта фильтров по статье и поиску
+    const before = from ? own.filter(r => r.occurred_on < from) : [];
+    const upto = to ? own.filter(r => r.occurred_on <= to) : own;
     const opening = before.length ? before[before.length - 1].bal : 0;
     const closing = upto.length ? upto[upto.length - 1].bal : 0;
-    // сторно и отменённая операция вместе дают ноль — в «Пришло/Ушло» их не показываем (как в ДДС)
-    let inc = 0, out = 0, rev = 0;
+    // сторно и отменённая операция вместе дают ноль — в итоги их не берём (как в ДДС).
+    // Заработал — приходы (выручка), Получил на расходы — переводы на счёт департамента (ВГ 18.10),
+    // Потратил — расходы по статьям; переводы с его счёта на другие — отдельной строкой
+    let earned = 0, received = 0, spent = 0, passed = 0, rev = 0;
     for (const r of list) {
         const v = Number(r.signed_amount);
-        if (isStorno(r)) rev += Math.abs(v); else if (v >= 0) inc += v; else out -= v;
+        if (isStorno(r)) rev += Math.abs(v);
+        else if (v >= 0) { if (r.type === 'transfer') received += v; else earned += v; }
+        else if (r.type === 'transfer') passed -= v; else spent -= v;
     }
     const filteredNote = $('daccCategory').value || $('daccSearch').value.trim() || $('daccDir').value
         ? ` <span class="text-xs font-normal opacity-60">${e(tr('dacc_by_filter', 'по фильтру'))}</span>` : '';
     $('daccTotals').innerHTML = [
-        chip(tr('dacc_balance_now', 'Сейчас на счёте'), money(now, cur), now < 0 ? 'text-error' : ''),
-        chip(tr('dacc_in', 'Пришло'), `<span class="text-blue-600">${money(inc, cur)}</span>${filteredNote}`),
-        chip(tr('dacc_out', 'Ушло'), `<span class="text-red-600">${money(out, cur)}</span>${filteredNote}`)
+        chip(tr('dacc_on_hand', 'На руках у департамента'), money(now, cur), now < 0 ? 'text-error' : ''),
+        chip(tr('dacc_earned', 'Заработал'), `<span class="text-blue-600">${money(earned, cur)}</span>${filteredNote}`, '', tr('dacc_earned_hint', 'Выручка и другие приходы по статьям — и на счёт департамента, и сданные в Кассу или Гест-хаус')),
+        chip(tr('dacc_received', 'Получил на расходы'), `<span class="text-teal-600">${money(received, cur)}</span>${filteredNote}`, '', tr('dacc_received_hint', 'Деньги, выданные департаменту из общей кассы или с других счетов')),
+        chip(tr('dacc_spent', 'Потратил'), `<span class="text-red-600">${money(spent, cur)}</span>${filteredNote}`)
     ].join('');
-    // «было → стало» — только для прошлых периодов: если период доходит до сегодня, «стало» = «сейчас на счёте»
+    // «было → стало» — только для прошлых периодов: если период доходит до сегодня, «стало» = «на руках сейчас»
     const parts = [];
     if (from && to && to < today) parts.push(`${fmtDay(from)}: ${money(opening, cur)} → ${fmtDay(to)}: <b>${money(closing, cur)}</b>`);
     else if (from) parts.push(`${tr('dacc_opening', 'На начало')} ${fmtDay(from)}: ${money(opening, cur)}`);
+    if (passed) parts.push(`${e(tr('dacc_passed_on', 'передано на другие счета'))}: ${money(passed, cur)}`);
     if (rev) parts.push(`<span title="${e(tr('dacc_storno_hint', 'Отменённые операции и их отмены — вместе дают ноль, в «Пришло» и «Ушло» не входят'))}" class="cursor-help">${e(tr('fin_totals_reversed', 'Сторнировано'))}: ${money(rev, cur)}</span>`);
     $('daccPeriodLine').innerHTML = parts.join(' · ');
 }
@@ -220,7 +232,7 @@ function summaryGroups(list, sign) {
 }
 
 function renderSummary() {
-    const cur = rows[rows.length - 1]?.currency_code || accounts.find(a => a.account_id === currentAccount)?.currency_code || 'INR';
+    const cur = currentCur || 'INR';
     const from = $('daccFrom').value, to = $('daccTo').value;
     const inPeriod = rows.filter(r => (!from || r.occurred_on >= from) && (!to || r.occurred_on <= to));
     const curCat = $('daccCategory').value, curQ = $('daccSearch').value.trim(), curDir = $('daccDir').value;
@@ -262,82 +274,6 @@ function renderSummary() {
 async function loadIncome() {
     const { data, error } = await Layout.db.rpc('fin_department_income', { p_department: cfg.department });
     return error ? [] : (data || []);
-}
-
-const CUR_RANK = ['INR', 'RUB', 'USD', 'EUR'];
-const curRank = c => { const i = CUR_RANK.indexOf(c); return i < 0 ? CUR_RANK.length : i; };
-
-// суммы по валютам: «₹88 100 · ₽23 000 · €100» — валюты не складываем
-function byCurrency(list) {
-    const m = new Map();
-    for (const r of list) m.set(r.currency_code, (m.get(r.currency_code) || 0) + Number(r.amount));
-    return [...m.entries()].filter(([, v]) => v).sort((a, b) => curRank(a[0]) - curRank(b[0]))
-        .map(([c, v]) => money(v, c)).join(' · ') || money(0, 'INR');
-}
-const baseSum = list => list.reduce((s, r) => s + Number(r.amount_base), 0);
-
-function renderIncome() {
-    const box = $('daccIncome');
-    if (!incomeRows.length) { box.classList.add('hidden'); return; }
-    const from = $('daccFrom').value, to = $('daccTo').value;
-    const list = incomeRows.filter(r => (!from || r.occurred_on >= from) && (!to || r.occurred_on <= to));
-    const cats = new Map();
-    for (const r of list) (cats.get(r.category_id) || cats.set(r.category_id, { name: r.category_name, rows: [] }).get(r.category_id)).rows.push(r);
-    const lines = [...cats.entries()].sort((a, b) => baseSum(b[1].rows) - baseSum(a[1].rows)).map(([id, g]) => {
-        const open = incomeOpen.has(id);
-        const ops = open ? `<div class="pl-4 pb-2 text-sm">${g.rows.slice().reverse().map(r => `
-            <div class="flex items-baseline gap-2 py-0.5">
-                <span class="opacity-60 w-16 shrink-0">${fmtDay(r.occurred_on)}</span>
-                <span class="opacity-60 shrink-0">${e(r.account_name)}</span>
-                <span class="truncate flex-1 opacity-70">${e(r.comment || '')}</span>
-                <span class="font-mono whitespace-nowrap ${Number(r.amount) < 0 ? 'text-error' : ''}">${signed(r.amount, r.currency_code)}</span>
-            </div>`).join('')}</div>` : '';
-        return `<div><button type="button" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-base-200" data-dacc-income="${e(id)}">
-                <div class="flex items-baseline gap-2 text-sm">
-                    <span class="flex-1 ${open ? 'font-semibold' : ''}">${e(g.name)}</span>
-                    <span class="font-mono whitespace-nowrap text-blue-600">${byCurrency(g.rows)}</span>
-                </div>
-                <div class="text-xs opacity-50 text-right">≈ ${money(baseSum(g.rows), 'INR')}</div>
-            </button>${ops}</div>`;
-    }).join('');
-    box.innerHTML = `<div class="bg-base-100 rounded-xl shadow-sm p-3">
-        <div class="flex items-baseline justify-between gap-3 px-2 mb-1">
-            <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('dacc_income', 'Выручка — с любого счёта'))}</div>
-            <div class="text-right"><span class="font-mono font-semibold text-blue-600">${byCurrency(list)}</span>
-                <span class="text-xs opacity-50 ml-1">≈ ${money(baseSum(list), 'INR')}</span></div>
-        </div>
-        ${lines || `<div class="px-2 py-3 text-sm opacity-60">${e(tr('dacc_sum_empty', 'Нет операций'))}</div>`}
-        <div class="px-2 pt-1 text-xs opacity-60">${e(tr('dacc_income_hint', 'Приходы по статьям департамента, на какой бы счёт их ни сдали. Сторно — с минусом. «≈» — в рупиях по курсу дня. Нажмите статью — покажу операции'))}</div>
-    </div>`;
-    box.classList.remove('hidden');
-}
-
-// выручка в аналитике — по статьям, в рупиях по курсу (валюты в одной строке иначе не сложить)
-function incomeSection(d) {
-    if (!incomeRows.length) return '';
-    const idx = new Map(d.buckets.map((b, i) => [b, i]));
-    const groups = new Map();
-    const totals = d.buckets.map(() => 0);
-    for (const r of incomeRows) {
-        const i = idx.get(bucketOf(r.occurred_on));
-        if (i === undefined) continue;
-        const g = groups.get(r.category_id) || groups.set(r.category_id, { label: r.category_name, cells: d.buckets.map(() => 0), sum: 0 }).get(r.category_id);
-        const v = Number(r.amount_base);
-        g.cells[i] += v; g.sum += v; totals[i] += v;
-    }
-    const n = d.buckets.length;
-    const fmt = v => v ? money(v, 'INR') : '<span class="opacity-30">—</span>';
-    const all = totals.reduce((a, b) => a + b, 0);
-    return `<tr class="bg-base-200/60 font-semibold">
-            <td class="sticky left-0 bg-base-200">${e(tr('dacc_income_an', 'Выручка, ≈ ₹'))}</td>
-            ${totals.map(v => `<td class="text-right font-mono whitespace-nowrap text-blue-600">${fmt(v)}</td>`).join('')}
-            <td class="text-right font-mono whitespace-nowrap text-blue-600">${fmt(all)}</td>
-            <td class="text-right font-mono whitespace-nowrap opacity-70">${fmt(all / n)}</td></tr>`
-        + [...groups.values()].sort((a, b) => b.sum - a.sum).map(g => `<tr>
-            <td class="sticky left-0 bg-base-100 max-w-[16rem]"><div class="truncate" title="${e(g.label)}">${e(g.label)}</div></td>
-            ${g.cells.map(v => `<td class="text-right font-mono whitespace-nowrap">${fmt(v)}</td>`).join('')}
-            <td class="text-right font-mono whitespace-nowrap font-semibold">${fmt(g.sum)}</td>
-            <td class="text-right font-mono whitespace-nowrap opacity-70">${fmt(g.sum / n)}</td></tr>`).join('');
 }
 
 // ---------- аналитика: статьи по месяцам / кварталам / годам (ВГ 18.10) ----------
@@ -426,7 +362,7 @@ function analyticsData() {
 
 function renderAnalytics() {
     const box = $('daccAnalytics');
-    const cur = rows[rows.length - 1]?.currency_code || accounts.find(a => a.account_id === currentAccount)?.currency_code || 'INR';
+    const cur = currentCur || 'INR';
     const d = analyticsData();
     const n = d.buckets.length;
     const stepBtn = (s, key, ru) => `<button class="btn btn-sm join-item ${step === s ? 'btn-active' : ''}" data-dacc-step="${s}">${e(tr(key, ru))}</button>`;
@@ -477,7 +413,6 @@ function renderAnalytics() {
                 <tbody>
                     ${section(tr('dacc_sum_out', 'Ушло — на что'), d.out, 'out', 'text-red-600')}
                     ${section(tr('dacc_sum_in', 'Пришло — откуда'), d.inc, 'in', 'text-blue-600')}
-                    ${incomeSection(d)}
                 </tbody>
             </table>
         </div>`;
@@ -535,7 +470,8 @@ function kindCell(r) {
     const arrow = r.contra_account
         ? ` <span class="opacity-70 whitespace-nowrap">${r.direction === 'out' ? '→' : '←'} ${e(r.contra_account)}</span>` : '';
     const badge = r.is_reversed ? ` <span class="badge badge-ghost badge-xs">${e(tr('fin_reversed_badge', 'сторнировано'))}</span>` : '';
-    return `${e(FinUtils.typeLabel(r.type))}${arrow}${badge}`;
+    const ext = r.ext ? ` <span class="badge badge-outline badge-xs whitespace-nowrap" title="${e(tr('dacc_ext_hint', 'Выручка сдана на другой счёт — входит в «Заработал», но не в «На руках»'))}">${e(tr('dacc_handed_to', 'сдано'))}: ${e(r.account_name)}</span>` : '';
+    return `${e(FinUtils.typeLabel(r.type))}${arrow}${ext}${badge}`;
 }
 
 function detailHtml(r) {
@@ -543,6 +479,7 @@ function detailHtml(r) {
     const canDds = window.hasPermission?.('fin_admin') || window.hasPermission?.('fin_observer');
     return `<div class="grid md:grid-cols-2 gap-x-6 gap-y-1 text-sm py-2">
         ${item(tr('fin_kind', 'Вид'), FinUtils.typeLabel(r.type))}
+        ${item(tr('dacc_handed_to', 'сдано'), r.ext ? r.account_name : '')}
         ${item(tr('dacc_contra', 'Другой счёт'), r.contra_account ? `${r.direction === 'out' ? tr('dacc_to', 'куда') : tr('dacc_from', 'откуда')} — ${r.contra_account}` : '')}
         ${item(tr('fin_category', 'Статья'), r.category_name)}
         ${item(tr('fin_retreat_object', 'Ретрит'), r.object_name)}
@@ -596,7 +533,7 @@ function renderTable(list) {
             <td class="max-w-md"><div class="truncate opacity-70" title="${e(r.comment || r.reason || '')}">${e(r.comment || r.reason || '')}</div>${
                 r.participant_name || r.contractor_name ? `<div class="text-xs opacity-60 truncate">${e(r.participant_name || r.contractor_name)}</div>` : ''}</td>
             <td class="text-right font-mono whitespace-nowrap ${v < 0 ? 'text-red-600' : 'text-blue-600'}">${signed(v, r.currency_code)}</td>
-            <td class="text-right font-mono whitespace-nowrap ${r.bal < 0 ? 'text-error' : ''}">${money(r.bal, r.currency_code)}</td>
+            <td class="text-right font-mono whitespace-nowrap ${r.bal < 0 ? 'text-error' : ''} ${r.ext ? 'opacity-30' : ''}">${r.ext ? '—' : money(r.bal, r.currency_code)}</td>
         </tr>${open ? `<tr class="bg-base-200/40"><td></td><td colspan="6">${detailHtml(r)}</td></tr>` : ''}`;
     }).join('');
 }
@@ -604,7 +541,6 @@ function renderTable(list) {
 function render() {
     const list = filtered();
     renderTotals(list);
-    renderIncome();
     if (view === 'analytics') { renderAnalytics(); return; }
     renderSummary();
     renderTable(list);
@@ -614,8 +550,8 @@ function render() {
 function exportCsv() {
     const list = filtered();
     const header = ['Дата', 'Вид', 'Другой счёт', 'Статья', 'Ретрит', 'От кого / кому', 'Комментарий', 'Сумма', 'Валюта', 'Остаток после'];
-    const data = list.map(r => [r.occurred_on, FinUtils.typeLabel(r.type), r.contra_account || '', r.category_name || '', r.object_name || '',
-        r.participant_name || r.contractor_name || '', r.comment || r.reason || '', r.signed_amount, r.currency_code, r.bal]);
+    const data = list.map(r => [r.occurred_on, FinUtils.typeLabel(r.type), r.ext ? `${tr('dacc_handed_to', 'сдано')}: ${r.account_name}` : (r.contra_account || ''), r.category_name || '', r.object_name || '',
+        r.participant_name || r.contractor_name || '', r.comment || r.reason || '', r.signed_amount, r.currency_code, r.ext ? '' : r.bal]);
     const csv = '﻿' + [header, ...data].map(x => x.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -631,30 +567,23 @@ async function init(options) {
     if (accounts === null) { $('daccNoAccess').classList.remove('hidden'); return; }
     $('daccContent').classList.remove('hidden');
     incomeRows = await loadIncome();
-    $('daccIncome').addEventListener('click', ev => {
-        const btn = ev.target.closest('[data-dacc-income]');
-        if (!btn) return;
-        const id = btn.dataset.daccIncome;
-        if (incomeOpen.has(id)) incomeOpen.delete(id); else incomeOpen.add(id);
-        renderIncome();
-    });
-    if (!accounts.length) {
-        renderIncome();
+    // вкладка — валюта: в ней все счета департамента этой валюты и выручка, сданная в Кассу / Гест-хаус.
+    // Появляется вместе с первой операцией; порядок у всех департаментов один: ₹ → ₽ → $ → € → остальные (ВГ 25.09)
+    const CUR_ORDER = ['INR', 'RUB', 'USD', 'EUR'];
+    const rank = c => { const i = CUR_ORDER.indexOf(c); return i < 0 ? CUR_ORDER.length : i; };
+    const curs = [...new Set([...accounts.map(a => a.currency_code), ...incomeRows.map(r => r.currency_code)])]
+        .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    if (!curs.length) {
         $('daccBody').innerHTML = `<tr><td colspan="7" class="text-center py-6 opacity-60">${e(tr('dacc_no_accounts', 'У департамента пока нет счёта'))}</td></tr>`;
         return;
     }
-    // у каждого счёта (валюты) — своя вкладка со своими «на счёте / пришло / ушло»; валюты не смешиваются.
-    // Вкладка появляется вместе с первой операцией по счёту; порядок у всех департаментов один: ₹ → ₽ → $ → € → остальные (ВГ 25.09)
-    const CUR_ORDER = ['INR', 'RUB', 'USD', 'EUR'];
-    const rank = c => { const i = CUR_ORDER.indexOf(c); return i < 0 ? CUR_ORDER.length : i; };
-    accounts.sort((a, b) => rank(a.currency_code) - rank(b.currency_code) || a.currency_code.localeCompare(b.currency_code)
-        || Number(b.is_active) - Number(a.is_active) || a.name.localeCompare(b.name, 'ru'));
-    $('daccTabs').innerHTML = accounts.map(a => `<a role="tab" class="tab" data-dacc-account="${a.account_id}">${e(a.name)}${a.is_active ? '' : ` <span class="opacity-60">(${e(tr('dacc_closed', 'закрыт'))})</span>`}</a>`).join('');
+    const sym = c => ({ INR: '₹', RUB: '₽', USD: '$', EUR: '€' }[c] || '');
+    $('daccTabs').innerHTML = curs.map(c => `<a role="tab" class="tab" data-dacc-cur="${e(c)}">${e(`${sym(c)} ${c}`.trim())}</a>`).join('');
     $('daccTabs').classList.remove('hidden');
 
     $('daccTabs').addEventListener('click', ev => {
-        const tab = ev.target.closest('[data-dacc-account]');
-        if (tab && tab.dataset.daccAccount !== currentAccount) selectAccount(tab.dataset.daccAccount);
+        const tab = ev.target.closest('[data-dacc-cur]');
+        if (tab && tab.dataset.daccCur !== currentCur) selectCurrency(tab.dataset.daccCur);
     });
     ['daccDir', 'daccCategory'].forEach(id => $(id).addEventListener('change', render));
     // свои даты — сразу полями: ввели дату, подсветка пресета снимается
@@ -713,7 +642,7 @@ async function init(options) {
         if (localStorage.getItem('dept_account_view') === 'analytics') setView('analytics');
     } catch { /* нет хранилища */ }
     if (!['month', 'quarter', 'year'].includes(step)) step = 'month';
-    await selectAccount(accounts[0].account_id);
+    await selectCurrency(curs[0]);
 }
 
 return { init };
