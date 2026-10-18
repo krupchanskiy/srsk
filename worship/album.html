@@ -19,6 +19,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/common.css?v=8">
+    <style>
+        /* Ручки у снимка появляются при наведении; на телефоне наведения нет,
+           поэтому там они видны всегда. */
+        .группа .ручки { opacity: 0; transition: opacity .15s; }
+        .группа:hover .ручки, .группа:focus-within .ручки { opacity: 1; }
+        @media (hover: none) { .группа .ручки { opacity: 1; } }
+    </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -31,12 +38,15 @@
             <a href="search.html" class="link link-hover opacity-70">Поиск по модулю</a>
         </div>
 
-        <div class="flex flex-wrap items-start gap-3 mb-4">
+        <div class="flex flex-wrap items-start gap-3 mb-5">
             <div class="flex-1 min-w-full desktop:min-w-0">
                 <h1 class="text-2xl font-bold tracking-tight" id="название">&nbsp;</h1>
                 <p class="text-sm mt-1" id="подзаголовок"></p>
+                <!-- теги строкой под описанием: нужны редко, отдельной полосы
+                     поперёк экрана не заслуживают -->
+                <div class="flex flex-wrap items-center gap-2 mt-2 text-sm" id="теги"></div>
             </div>
-            <div class="flex flex-wrap gap-2" id="actions"></div>
+            <div class="flex items-center gap-2" id="actions"></div>
         </div>
 
         <div id="предупреждение" hidden
@@ -56,16 +66,7 @@
             </div>
         </div>
 
-        <div class="card bg-base-100 shadow mb-4">
-            <div class="card-body p-4">
-                <div class="flex flex-wrap items-center gap-2">
-                    <span class="text-sm opacity-60 mr-1" data-i18n="worship_tags_title">Теги</span>
-                    <span class="flex flex-wrap items-center gap-2" id="теги"></span>
-                </div>
-            </div>
-        </div>
-
-        <div id="снимки" class="grid grid-cols-2 desktop:grid-cols-4 gap-3"></div>
+        <div id="снимки" class="grid grid-cols-2 sm:grid-cols-3 desktop:grid-cols-4 gap-4"></div>
     </main>
 
     <input type="file" id="файлы" accept="image/*" multiple hidden>
@@ -115,7 +116,7 @@
     <script src="../js/auth-check.js?v=13"></script>
     <script src="../js/media.js?v=2"></script>
     <script src="../js/worship-tags.js?v=4"></script>
-    <script src="../js/pages/worship-album.js?v=6"></script>
+    <script src="../js/pages/worship-album.js?v=7"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_gallery' });

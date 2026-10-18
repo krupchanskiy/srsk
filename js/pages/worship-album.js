@@ -53,21 +53,40 @@ const WorshipAlbum = (() => {
             ${набор.is_archived ? ' · <span class="opacity-70">в архиве</span>' : ''}
             ${набор.description ? `<span class="block opacity-70 mt-1">${e(набор.description)}</span>` : ''}`;
 
-        const кнопки = [];
+        // На экран приходят смотреть снимки. Поэтому наверху — одно действие,
+        // которым пользуются («добавить»), а редкие решения о наборе собраны
+        // под «ещё»: раньше четыре равнозначные кнопки стояли в ряд, и глаз
+        // не понимал, какая из них обычная работа, а какая — раскрытие отдела.
+        const редкие = [];
         if (можноПисать() && !набор.is_archived) {
-            кнопки.push(`<button class="btn btn-sm" id="добавить"
-                style="background: var(--current-color); color:#fff;">Добавить снимки</button>`);
-            кнопки.push('<button class="btn btn-sm btn-outline" id="правка">Изменить набор</button>');
+            редкие.push('<li><button id="правка">Изменить название и дату</button></li>');
         }
         if (можноПисать()) {
-            кнопки.push(`<button class="btn btn-sm btn-ghost" id="видимость">${
-                набор.is_private ? 'Открыть ашраму' : 'Закрыть для отдела'}</button>`);
+            редкие.push(`<li><button id="видимость">${
+                набор.is_private ? 'Открыть всему ашраму' : 'Закрыть для отдела'}</button></li>`);
         }
         if (можноУтверждать()) {
-            кнопки.push(`<button class="btn btn-sm btn-ghost" id="архив">${
-                набор.is_archived ? 'Вернуть из архива' : 'В архив'}</button>`);
+            редкие.push(`<li><button id="архив">${
+                набор.is_archived ? 'Вернуть из архива' : 'Убрать в архив'}</button></li>`);
         }
-        $('#actions').innerHTML = кнопки.join('');
+
+        $('#actions').innerHTML = `
+            ${можноПисать() && !набор.is_archived
+                ? `<button class="btn btn-sm" id="добавить"
+                        style="background: var(--current-color); color:#fff;">Добавить снимки</button>`
+                : ''}
+            ${редкие.length ? `
+            <div class="dropdown dropdown-end">
+                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
+                        <circle cx="12" cy="19" r="1.7"></circle>
+                    </svg>
+                </button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
+                    ${редкие.join('')}
+                </ul>
+            </div>` : ''}`;
 
         // закрытый набор нельзя молча положить в стандарт или подборку —
         // об этом честно сказано здесь, а не только в момент отказа
@@ -82,30 +101,42 @@ const WorshipAlbum = (() => {
 
     function рисоватьСнимки() {
         $('#снимки').innerHTML = снимки.map((с, i) => `
-            <figure class="card bg-base-100 shadow overflow-hidden">
-                <div class="aspect-square bg-base-200 cursor-zoom-in" data-смотреть="${i}">
+            <figure class="группа relative rounded-xl overflow-hidden bg-base-200">
+                <div class="aspect-[4/5] cursor-zoom-in" data-смотреть="${i}">
                     ${ссылки[с.storage_path]
                         ? `<img src="${ссылки[с.storage_path]}" alt="${e(с.caption)}" loading="lazy"
                                 class="w-full h-full object-cover">`
                         : '<span class="text-xs opacity-50 p-2 block">снимок не загрузился</span>'}
                 </div>
-                <figcaption class="p-2">
+
+                ${набор.cover_image_id === с.id
+                    ? `<span class="absolute top-2 left-2 badge badge-sm bg-base-100/90 border-0">обложка</span>`
+                    : ''}
+
+                <!-- Ручки появляются при наведении: на экран приходят смотреть,
+                     как наряжали, а не переставлять кадры. Раньше под каждым
+                     снимком стояли четыре кнопки и поле ввода — они занимали
+                     больше места, чем сам снимок. -->
+                ${можноПисать() && !набор.is_archived ? `
+                <div class="ручки absolute top-2 right-2 flex gap-1">
+                    <button class="btn btn-xs btn-circle bg-base-100/90 border-0" data-двигать="-1"
+                            data-id="${с.id}" title="Левее">←</button>
+                    <button class="btn btn-xs btn-circle bg-base-100/90 border-0" data-двигать="1"
+                            data-id="${с.id}" title="Правее">→</button>
+                    <button class="btn btn-xs btn-circle bg-base-100/90 border-0" data-обложка="${с.id}"
+                            title="Сделать обложкой" ${набор.cover_image_id === с.id ? 'disabled' : ''}>★</button>
+                    <button class="btn btn-xs btn-circle bg-base-100/90 border-0 text-error"
+                            data-убрать="${с.id}" title="Убрать снимок">✕</button>
+                </div>` : ''}
+
+                <figcaption class="px-1 pt-2 pb-1">
                     ${можноПисать() && !набор.is_archived
-                        ? `<input class="input input-xs input-bordered w-full" data-подпись="${с.id}"
-                                  value="${e(с.caption)}" placeholder="Подпись" maxlength="200">`
+                        ? `<input class="w-full bg-transparent border-0 border-b border-transparent
+                                        hover:border-base-300 focus:border-base-300 focus:outline-none
+                                        text-sm py-0.5 px-0 placeholder:opacity-40"
+                                  data-подпись="${с.id}" value="${e(с.caption)}"
+                                  placeholder="Подписать снимок" maxlength="200">`
                         : `<span class="text-sm opacity-70">${e(с.caption)}</span>`}
-                    ${можноПисать() && !набор.is_archived ? `
-                    <div class="flex flex-wrap gap-1 mt-1">
-                        <button class="btn btn-ghost btn-sm px-2" data-двигать="-1" data-id="${с.id}"
-                                title="Левее">←</button>
-                        <button class="btn btn-ghost btn-sm px-2" data-двигать="1" data-id="${с.id}"
-                                title="Правее">→</button>
-                        <button class="btn btn-ghost btn-sm px-2" data-обложка="${с.id}"
-                                title="Сделать обложкой"
-                                ${набор.cover_image_id === с.id ? 'disabled' : ''}>★</button>
-                        <button class="btn btn-ghost btn-sm px-2 text-error" data-убрать="${с.id}"
-                                title="Убрать снимок">✕</button>
-                    </div>` : ''}
                 </figcaption>
             </figure>`).join('') ||
             `<div class="desktop:col-span-4 card bg-base-100 shadow"><div class="card-body items-start">
