@@ -626,7 +626,11 @@ const WorshipEdit = (() => {
             setTimeout(() => location.href = 'standards.html', 1200);
             return;
         }
-        if (!await загрузить()) return;
+        // ссылка может вести в никуда: не оставляем человека наедине с пустой формой
+        if (!await загрузить()) {
+            setTimeout(() => location.href = 'standards.html', 1500);
+            return;
+        }
         рисоватьШапку();
         рисоватьБлоки();
         слушать();

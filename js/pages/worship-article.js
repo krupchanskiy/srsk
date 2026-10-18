@@ -422,9 +422,26 @@ const WorshipArticle = (() => {
         });
     }
 
+    /** Ссылка из чата может вести в никуда: статью удалили или прав не хватило. */
+    function пусто(сообщение) {
+        document.querySelector('main').innerHTML = `
+            <div class="card bg-base-100 shadow max-w-xl">
+                <div class="card-body items-start">
+                    <h1 class="card-title text-xl">${e(сообщение)}</h1>
+                    <p class="text-sm opacity-70">Возможно, статью отменили и удалили,
+                        либо ссылка ведёт на чужой черновик.</p>
+                    <a href="standards.html" class="btn btn-sm mt-2"
+                       style="background: var(--current-color); color:#fff;">К списку стандартов</a>
+                </div>
+            </div>`;
+    }
+
     async function init() {
         слушать();
-        if (!await загрузить()) return;
+        if (!await загрузить()) {
+            пусто(id ? 'Статья не найдена' : 'Статья не указана');
+            return;
+        }
         await дополнитьСнимками();
         рисовать();
         // «недавно открытое» ведётся функцией: она же подрезает список до семи строк.
