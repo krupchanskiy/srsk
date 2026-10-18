@@ -211,6 +211,9 @@ const WorshipSchedule = (() => {
         }
 
         const начало = деньНедели(0), конец = деньНедели(6);
+        // на бумаге нет кнопок и подписей сверху: период печатается в шапке листа
+        const лист = $('#печатьПериод');
+        if (лист) лист.textContent = `${DateUtils.formatShort(начало)} — ${DateUtils.formatShort(конец)}`;
         $('#периодНадпись').textContent = вид === 'день'
             ? DateUtils.formatWithWeekday(DateUtils.parseDate(выбранныйДень))
             : `${DateUtils.formatShort(начало)} — ${DateUtils.formatShort(конец)}`;

@@ -18,19 +18,24 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=16">
+    <link rel="stylesheet" href="../css/common.css?v=17">
     <style>
         /* Печать: лист уходит на стену алтарной, поэтому на бумаге остаётся
            только текст стандарта и строка, по какой версии служат. */
+        /* Лист со стандартом вешают у алтаря: на бумаге остаются только
+           заголовок, кем и когда утверждён, и сам текст. */
         @media print {
-            #header-placeholder, #footer-placeholder, #actions,
-            #toc, #historyCard, #remarksCard, #returned, .no-print { display: none !important; }
-            main { max-width: none !important; padding: 0 !important; }
-            #printHeader { display: block !important; text-align: right; }
-            .card { box-shadow: none !important; border: 0 !important; }
-            body { background: #fff !important; }
+            @page { size: A4 portrait; margin: 14mm; }
+            /* #state на бумаге не нужен: кем и когда утверждено, уже стоит
+               в строке #printHeader, а ссылки на правки на листе бесполезны */
+            #actions, #toc, #historyCard, #remarksCard, #returned,
+            #openRemark, #теги, #соседи, #crumb, #state { display: none !important; }
+            #printHeader { display: block !important; font-size: 11px; }
+            #title { font-size: 22px !important; margin-bottom: .5rem; }
+            .card-body { padding: 0 !important; }
+            #текст { max-width: none !important; font-size: 13px; line-height: 1.5; }
             h2, h3 { break-after: avoid; }
-            li, figure { break-inside: avoid; }
+            li, figure, p { break-inside: avoid; }
         }
             /* оглавление держится под шапкой, какой бы высоты та ни была */
         .оглавление { position: sticky; top: calc(var(--высота-шапки, 116px) + 1rem); }
@@ -240,7 +245,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="../js/worship-doc.js?v=5"></script>
     <script src="../js/worship-tags.js?v=6"></script>
-    <script src="../js/pages/worship-article.js?v=23"></script>
+    <script src="../js/pages/worship-article.js?v=24"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

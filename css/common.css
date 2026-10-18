@@ -540,7 +540,28 @@ body.user-type-guest .edit-action {
     /* закрытые окна DaisyUI спрятаны прозрачностью — без этого правило выше выводит их на бумагу */
     .modal:not([open]):not(.modal-open) { display: none !important; }
     ::placeholder { color: #000 !important; }
+
+    /* Шапка и подвал заменяют собой #header-placeholder и #footer-placeholder,
+       то есть их id до печати не доживает — страницы прятали пустоту, а на
+       бумагу уходили логотип, меню и мантра из подвала. Прячем по тегу. */
+    body > header, body > footer, #header-placeholder, #footer-placeholder { display: none !important; }
+
+    /* бумаге не нужны тени, скруглённые карточки и серая подложка */
+    body { background: #fff !important; }
+    main { max-width: none !important; padding: 0 !important; }
+    .card, .shadow, .shadow-sm, .shadow-md { box-shadow: none !important; }
+    .card { border: 0 !important; }
+
+    /* печатный заголовок листа: на экране не показывается */
+    .дляПечати { display: block !important; }
+    .no-print, .ручкиСтроки, .ручкиПункта, .ещёВКлетку, .снятьВКлетке { display: none !important; }
+
+    /* ссылки на бумаге подчёркиванием не выделяем — это не ссылки больше */
+    a { text-decoration: none !important; }
 }
+
+/* блок, который существует только на бумаге */
+.дляПечати { display: none; }
 
 
 /* Таблицы в узком экране разворачиваются карточками: заголовок столбца

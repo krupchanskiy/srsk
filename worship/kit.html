@@ -18,17 +18,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=16">
+    <link rel="stylesheet" href="../css/common.css?v=17">
     <style>
         /* Человек едет в ашрам, где со связью бывает по-разному: бумажная
            подборка там уместнее ссылки. */
+        /* Подборку печатают, чтобы дать приехавшему волонтёру на руки:
+           остаются название, описание и сам список по порядку. */
         @media print {
-            #header-placeholder, #footer-placeholder, #actions, #добавление,
-            #выдача, .no-print { display: none !important; }
-            main { max-width: none !important; padding: 0 !important; }
-            .card { box-shadow: none !important; border: 0 !important; }
-            body { background: #fff !important; }
+            @page { size: A4 portrait; margin: 14mm; }
+            #actions, #добавление, #выдача { display: none !important; }
+            .card-body { padding: 0 !important; }
+            #название { font-size: 22px !important; }
+            #описание { font-size: 12px; }
             li { break-inside: avoid; }
+            .пунктДорожки { padding: .35rem 0 !important; }
         }
         /* Ручки пункта появляются при наведении: подборку читают чаще,
            чем пересобирают, и ряды кнопок рвали порядок 1 → 2 → 3.
@@ -188,7 +191,7 @@
     <script src="../js/layout.js?v=116"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-kit.js?v=9"></script>
+    <script src="../js/pages/worship-kit.js?v=10"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_kits' });
