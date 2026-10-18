@@ -233,7 +233,30 @@ const WorshipAlbum = (() => {
         setTimeout(() => пометкаСохранения(поле, ''), 2000);
     }
 
+    // Подписи, которые ещё пишутся. Щелчок по «обложке» или «закрыть папку»
+    // сразу после набора подписи перечитывал папку раньше, чем подпись
+    // доходила до базы, — и поле показывало старый текст, будто правка пропала.
+    const подписиВПути = new Set();
+    const таймеры = new Map();
+
+    function записатьПодпись(поле) {
+        clearTimeout(таймеры.get(поле.dataset.подпись));
+        таймеры.delete(поле.dataset.подпись);
+        const путь = сохранитьПодпись(поле).finally(() => подписиВПути.delete(путь));
+        подписиВПути.add(путь);
+        return путь;
+    }
+
+    async function дописатьПодписи() {
+        for (const id of [...таймеры.keys()]) {
+            const поле = document.querySelector(`[data-подпись="${CSS.escape(id)}"]`);
+            if (поле) записатьПодпись(поле);
+        }
+        await Promise.all([...подписиВПути]);
+    }
+
     async function перечитать() {
+        await дописатьПодписи();
         if (await загрузить()) { рисоватьШапку(); рисоватьСнимки(); window.applyPermissions?.(); }
     }
 
@@ -248,21 +271,19 @@ const WorshipAlbum = (() => {
         // У каждого поля свой таймер: один общий debounce гасил предыдущий,
         // и при подписывании двадцати снимков подряд выживали единицы —
         // причём молча, человек был уверен, что всё записалось.
-        const таймеры = new Map();
         document.addEventListener('input', ev => {
             const поле = ev.target.closest('[data-подпись]');
             if (!поле) return;
             const id = поле.dataset.подпись;
             clearTimeout(таймеры.get(id));
             пометкаСохранения(поле, 'пишу…');
-            таймеры.set(id, setTimeout(() => сохранитьПодпись(поле), 600));
+            таймеры.set(id, setTimeout(() => записатьПодпись(поле), 600));
         });
         // уход с поля сохраняет сразу: не ждать таймера, если человек уже дальше
         document.addEventListener('focusout', ev => {
             const поле = ev.target.closest('[data-подпись]');
             if (!поле) return;
-            clearTimeout(таймеры.get(поле.dataset.подпись));
-            сохранитьПодпись(поле);
+            записатьПодпись(поле);
         });
 
         document.addEventListener('click', async ev => {
