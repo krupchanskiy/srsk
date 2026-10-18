@@ -36,9 +36,9 @@ const WorshipAlbum = (() => {
     async function обновитьСсылки() {
         ссылки = {};
         if (!снимки.length) return;
-        const { data } = await Layout.db.storage.from('worship')
-            .createSignedUrls(снимки.map(с => с.storage_path), 3600);
-        (data || []).forEach(з => { if (з.signedUrl) ссылки[з.path] = з.signedUrl; });
+        // запомненные ссылки: при каждом действии в папке перечитываются все
+        // снимки, и без этого браузер заново качал их целиком
+        ссылки = await WorshipLinks.подписать(Layout.db, снимки.map(с => с.storage_path));
     }
 
     // ---------- отрисовка ----------
@@ -318,6 +318,7 @@ const WorshipAlbum = (() => {
                     { p_image: убрать.dataset.убрать });
                 if (error) return Layout.handleError(error, 'Удаление снимка');
                 if (data?.путь) {
+                    WorshipLinks.забыть(data.путь);
                     Layout.db.storage.from('worship').remove([data.путь])
                         .then(({ error: ош }) => { if (ош) console.debug('файл остался:', ош.message); });
                 }

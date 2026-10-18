@@ -473,11 +473,10 @@ const WorshipEdit = (() => {
             .upload(путь, готовый.тело, { contentType: 'image/jpeg' });
         if (error) { Layout.handleError(error, 'Загрузка фото'); return; }
 
-        const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
-        if (!data?.signedUrl) {
+        ссылки[путь] = await WorshipLinks.одна(Layout.db, путь);
+        if (!ссылки[путь]) {
             Layout.showNotification('Фото загрузилось, но не показывается — обновите страницу', 'warning');
         }
-        ссылки[путь] = data?.signedUrl || '';
         свои.push(путь);
         вставитьФото(путь);
     }
@@ -520,11 +519,8 @@ const WorshipEdit = (() => {
                 return;
             }
 
-            const { data: адреса } = await Layout.db.storage.from('worship')
-                .createSignedUrls(снимки.map(с => с.storage_path), 1800);
+            const карта = await WorshipLinks.подписать(Layout.db, снимки.map(с => с.storage_path));
             if (моё !== поколение) return;
-            const карта = Object.fromEntries((адреса || [])
-                .filter(а => а.signedUrl).map(а => [а.path, а.signedUrl]));
 
             окно.innerHTML = снимки.map(с => `
                 <button class="relative aspect-square rounded-lg overflow-hidden bg-base-200
@@ -555,8 +551,7 @@ const WorshipEdit = (() => {
                 'Эта папка закрыта: снимок нельзя вставить в стандарт, который читают все', 'warning');
         }
 
-        const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
-        ссылки[путь] = data?.signedUrl || '';
+        ссылки[путь] = await WorshipLinks.одна(Layout.db, путь);
         $('#галереяМодал').close();
         вставитьФото(путь);
     }

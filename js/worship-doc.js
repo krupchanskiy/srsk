@@ -220,6 +220,9 @@ const WorshipDoc = (() => {
     async function ссылкиНаСнимки(db, документ, секунд = 3600) {
         const список = пути(документ);
         if (!список.length) return {};
+        // ссылки с запасом срока берём из запомненных: тот же адрес — тот же
+        // снимок из кэша браузера, а не новая закачка (см. worship-links.js)
+        if (typeof WorshipLinks !== 'undefined') return WorshipLinks.подписать(db, список, секунд);
         const { data, error } = await db.storage.from('worship').createSignedUrls(список, секунд);
         if (error) return {};
         const карта = {};

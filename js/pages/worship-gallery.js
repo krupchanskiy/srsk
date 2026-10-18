@@ -43,10 +43,7 @@ const WorshipGallery = (() => {
 
             обложки = {};
             if (пути.length) {
-                const { data: ссылки } = await Layout.db.storage.from('worship')
-                    .createSignedUrls(пути, 3600);
-                const карта = Object.fromEntries((ссылки || [])
-                    .filter(з => з.signedUrl).map(з => [з.path, з.signedUrl]));
+                const карта = await WorshipLinks.подписать(Layout.db, пути);
                 наборы.forEach(н => {
                     const выбрана = (снимки || []).find(с => с.id === н.cover_image_id);
                     const путь = (выбрана || первый[н.id])?.storage_path;
