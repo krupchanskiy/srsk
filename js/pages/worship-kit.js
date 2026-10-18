@@ -65,7 +65,7 @@ const WorshipKit = (() => {
             статьи.length ? Layout.db.from('worship_articles')
                 .select('id, title, kind, status, summary').in('id', статьи) : Promise.resolve({ data: [] }),
             наборы.length ? Layout.db.from('worship_albums')
-                .select('id, title, event_date, is_private, is_archived').in('id', наборы) : Promise.resolve({ data: [] }),
+                .select('id, title, is_private, is_archived').in('id', наборы) : Promise.resolve({ data: [] }),
             люди.length ? Layout.db.from('vaishnavas')
                 .select('id, spiritual_name, first_name, last_name').in('id', люди) : Promise.resolve({ data: [] }),
             ретриты.length ? Layout.db.from('retreats')
@@ -139,10 +139,8 @@ const WorshipKit = (() => {
                     <a class="link link-hover font-semibold" href="album.html?id=${н.id}">${e(н.title)}</a>
                     <span class="text-sm opacity-70">фото</span>
                     ${н.is_private
-                        ? '<span class="badge badge-sm badge-error">закрытый набор — выдать нельзя</span>' : ''}
+                        ? '<span class="badge badge-sm badge-error">закрытая папка — выдать нельзя</span>' : ''}
                 </div>
-                <div class="text-sm opacity-70 mt-0.5">${
-                    DateUtils.formatShort(DateUtils.parseDate(н.event_date))}</div>
             </div>
             ${ручки(п)}
         </li>`;
@@ -222,12 +220,11 @@ const WorshipKit = (() => {
         let строки = [];
         if (вид === 'album') {
             const { data } = await Layout.db.from('worship_albums')
-                .select('id, title, event_date, is_private, is_archived')
-                .eq('is_archived', false).order('event_date', { ascending: false });
+                .select('id, title, is_private, is_archived')
+                .eq('is_archived', false).order('title');
             строки = (data || []).map(н => ({
-                id: н.id, имя: н.title,
-                подпись: DateUtils.formatShort(DateUtils.parseDate(н.event_date)),
-                нельзя: н.is_private ? 'закрытый набор' : null,
+                id: н.id, имя: н.title, подпись: '',
+                нельзя: н.is_private ? 'закрытая папка' : null,
             }));
         } else {
             const { data } = await Layout.db.from('worship_articles')

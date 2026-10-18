@@ -38,7 +38,8 @@ const WorshipTags = (() => {
             ${свои.map(с => `
                 <span class="badge badge-outline gap-1">
                     <a class="link link-hover" href="search.html?tag=${с.tag_id}">${e(имена[с.tag_id])}</a>
-                    ${можноПравить ? `<button class="text-error" data-снять="${с.id}" title="Убрать">✕</button>` : ''}
+                    ${можноПравить ? `<button class="opacity-50 hover:opacity-100 hover:text-error transition-opacity"
+                                      data-снять="${с.id}" title="Убрать" aria-label="Убрать тег">✕</button>` : ''}
                 </span>`).join('')}
             ${можноПравить ? `
                 <span class="join">
@@ -127,7 +128,7 @@ const WorshipTags = (() => {
                 ? Layout.db.from('worship_articles').select('id, title, kind').in('id', статьиIds)
                 : Promise.resolve({ data: [] }),
             наборыIds.length
-                ? Layout.db.from('worship_albums').select('id, title, event_date').in('id', наборыIds)
+                ? Layout.db.from('worship_albums').select('id, title').in('id', наборыIds)
                 : Promise.resolve({ data: [] }),
         ]);
         return { статьи: статьи.data || [], наборы: наборы.data || [] };

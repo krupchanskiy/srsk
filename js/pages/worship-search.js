@@ -16,7 +16,7 @@ const WorshipSearch = (() => {
     const ГРУППЫ = [
         { вид: 'standard', имя: 'Стандарты', куда: id => `article.html?id=${id}` },
         { вид: 'material', имя: 'Библиотека', куда: id => `material.html?id=${id}` },
-        { вид: 'album', имя: 'Наборы фото', куда: id => `album.html?id=${id}` },
+        { вид: 'album', имя: 'Папки со снимками', куда: id => `album.html?id=${id}` },
     ];
 
     const ПРЕДЕЛ = 60;              // столько строк просит функция поиска
@@ -69,7 +69,7 @@ const WorshipSearch = (() => {
             Layout.db.from('worship_articles')
                 .select('id, title, summary, kind, status').in('id', ids),
             Layout.db.from('worship_albums')
-                .select('id, title, description, event_date').in('id', ids),
+                .select('id, title, description').in('id', ids),
         ]);
         const из = [];
         (статьи.data || []).forEach(а => из.push({
@@ -79,7 +79,7 @@ const WorshipSearch = (() => {
         }));
         (наборы.data || []).forEach(н => из.push({
             вид: 'album', id: н.id, заголовок: н.title, кусок: н.description || '',
-            добавочно: DateUtils.formatShort(DateUtils.parseDate(н.event_date)), вес: 1,
+            добавочно: null, вес: 1,
         }));
         return из;
     }

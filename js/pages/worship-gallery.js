@@ -14,12 +14,12 @@ const WorshipGallery = (() => {
     const можноПисать = () => !!window.hasPermission?.('worship_write');
 
     let наборы = [], обложки = {};
-    let фильтр = { поиск: '', год: '', архив: false };
+    let фильтр = { поиск: '', архив: false };
 
     async function загрузить() {
         const { data, error } = await Layout.db.from('worship_albums')
-            .select('id, title, description, event_date, is_private, is_guide, is_archived, cover_image_id, created_by')
-            .order('event_date', { ascending: false });
+            .select('id, title, description, is_private, is_guide, is_archived, cover_image_id, created_by, created_at')
+            .order('title');
         if (error) { Layout.handleError(error, 'Загрузка галереи'); return false; }
         наборы = data || [];
 
@@ -61,7 +61,6 @@ const WorshipGallery = (() => {
 
     function подходит(н) {
         if (!фильтр.архив && н.is_archived) return false;
-        if (фильтр.год && String(new Date(н.event_date + 'T00:00:00').getFullYear()) !== фильтр.год) return false;
         const q = фильтр.поиск.trim().toLowerCase();
         return !q || (н.title || '').toLowerCase().includes(q)
                   || (н.description || '').toLowerCase().includes(q);
@@ -70,25 +69,29 @@ const WorshipGallery = (() => {
     function карточка(н) {
         const обложка = обложки[н.id];
         return `
-        <a href="album.html?id=${н.id}" class="card bg-base-100 shadow hover:shadow-md transition-shadow">
-            <figure class="aspect-[4/3] bg-base-200 overflow-hidden">
+        <a href="album.html?id=${н.id}" class="group block">
+            <div class="aspect-[4/3] rounded-xl bg-base-300 overflow-hidden flex items-center
+                        justify-center shadow-sm group-hover:shadow-md transition-shadow">
                 ${обложка
-                    ? `<img src="${обложка}" alt="" loading="lazy" class="w-full h-full object-cover">`
-                    : '<span class="text-sm opacity-50">пока без снимков</span>'}
-            </figure>
-            <div class="card-body p-4">
-                <h2 class="font-semibold leading-tight">${e(н.title)}</h2>
-                <div class="text-sm opacity-60">
-                    ${DateUtils.formatShort(DateUtils.parseDate(н.event_date))}
-                    ${н.снимков ? ' · ' + Layout.pluralize(н.снимков, {
-                        ru: ['снимок', 'снимка', 'снимков'], en: ['photo', 'photos'], hi: 'चित्र' }) : ''}
+                    ? `<img src="${обложка}" alt="" loading="lazy"
+                           class="w-full h-full object-cover">`
+                    : `<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5" class="opacity-40" aria-hidden="true">
+                           <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                           <circle cx="8.5" cy="10" r="1.5"></circle>
+                           <path d="M21 16l-5-5-4 4-2-2-4 4"></path>
+                       </svg>`}
+            </div>
+            <div class="px-0.5 pt-2">
+                <div class="font-semibold leading-tight group-hover:text-[color:var(--current-color)]
+                            transition-colors">${e(н.title)}</div>
+                <div class="text-sm opacity-70 mt-0.5">
+                    ${Layout.pluralize(н.снимков || 0, {
+                        ru: ['снимок', 'снимка', 'снимков'], en: ['photo', 'photos'], hi: 'चित्र' })}
+                    ${н.is_private ? ' · только для отдела' : ''}
+                    ${н.is_guide ? ' · инструкция' : ''}
+                    ${н.is_archived ? ' · архив' : ''}
                 </div>
-                <div class="flex flex-wrap gap-1 mt-1">
-                    ${н.is_private ? '<span class="badge badge-sm badge-warning">только для отдела</span>' : ''}
-                    ${н.is_guide ? '<span class="badge badge-sm badge-ghost">инструкция</span>' : ''}
-                    ${н.is_archived ? '<span class="badge badge-sm">архив</span>' : ''}
-                </div>
-                ${н.description ? `<p class="text-sm opacity-70 mt-1">${e(н.description)}</p>` : ''}
             </div>
         </a>`;
     }
@@ -100,53 +103,43 @@ const WorshipGallery = (() => {
         if (!наборы.length) {
             тело.className = '';
             тело.innerHTML = `
-                <div class="card bg-base-100 shadow"><div class="card-body items-start">
-                    <h2 class="card-title text-lg">Наборов пока нет</h2>
-                    <p class="text-sm opacity-70 max-w-lg">Набор — это снимки одного события:
-                        как наряжали на Гаура-пурниму, как уложена ткань, как выглядел алтарь.
-                        У набора обязательна дата события — по ней их потом и находят.</p>
+                <div class="bg-base-100 rounded-xl shadow-sm p-8 text-center">
+                    <div class="font-semibold mb-1">Папок пока нет</div>
+                    <p class="text-sm opacity-70 max-w-md mx-auto">Папка — это снимки на одну тему:
+                        как наряжали на Гаура-пурниму, как уложена ткань, как выглядел алтарь.</p>
                     ${можноПисать()
-                        ? '<button class="btn btn-sm mt-2" id="newAlbumEmpty" style="background: var(--current-color); color:#fff;">Создать первый набор</button>'
+                        ? '<button class="btn btn-sm mt-3" id="newAlbumEmpty" style="background: var(--current-color); color:#fff;">Создать первую папку</button>'
                         : ''}
-                </div></div>`;
+                </div>`;
             return;
         }
 
-        тело.className = 'grid grid-cols-1 desktop:grid-cols-3 gap-4';
+        // плитки одного размера и столько в ряд, сколько влезает: при трёх
+        // жёстких колонках одна папка растягивалась на весь экран
+        тело.className = 'grid gap-x-4 gap-y-5';
+        тело.style.gridTemplateColumns = 'repeat(auto-fill, minmax(160px, 1fr))';
         тело.innerHTML = видимые.map(карточка).join('') ||
-            `<div class="card bg-base-100 shadow desktop:col-span-3"><div class="card-body text-center opacity-60">${
-                фильтр.поиск || фильтр.год ? 'Ничего не нашлось' : 'Наборов пока нет'}</div></div>`;
-    }
-
-    function рисоватьГоды() {
-        const годы = [...new Set(наборы.map(н =>
-            new Date(н.event_date + 'T00:00:00').getFullYear()))].sort((a, b) => b - a);
-        $('#год').innerHTML = '<option value="">Любой год</option>' +
-            годы.map(г => `<option value="${г}">${г}</option>`).join('');
+            `<div class="bg-base-100 rounded-xl shadow-sm p-8 text-center opacity-70"
+                  style="grid-column: 1 / -1;">${
+                фильтр.поиск ? 'Ничего не нашлось' : 'Папок пока нет'}</div>`;
     }
 
     async function создатьНабор() {
         const название = $('#названиеНабора').value.trim();
-        const дата = $('#датаНабора').value;
         if (!название) {
-            Layout.showNotification('Без названия набор не найти', 'warning');
+            Layout.showNotification('Без названия папку не найти', 'warning');
             return $('#названиеНабора').focus();
-        }
-        if (!дата) {
-            Layout.showNotification('Поставьте дату события — когда наряжали', 'warning');
-            return $('#датаНабора').focus();
         }
 
         const { data, error } = await Layout.db.from('worship_albums').insert({
             title: название,
-            event_date: дата,
             description: $('#описаниеНабора').value.trim() || null,
             is_private: $('#закрытыйНабор').checked,
             is_guide: $('#инструкцияНабор').checked,
             created_by: window.currentUser?.id || null,
         }).select('id').maybeSingle();
-        if (error) return Layout.handleError(error, 'Создание набора');
-        if (!data) return Layout.showNotification('Не сохранилось: наборы заводит пуджари', 'error');
+        if (error) return Layout.handleError(error, 'Создание папки');
+        if (!data) return Layout.showNotification('Не сохранилось: папки заводит пуджари', 'error');
 
         $('#albumModal').close();
         location.href = `album.html?id=${data.id}`;
@@ -154,18 +147,16 @@ const WorshipGallery = (() => {
 
     function слушать() {
         $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисовать(); });
-        $('#год').addEventListener('change', ev => { фильтр.год = ev.target.value; рисовать(); });
         $('#showArchive').addEventListener('change', ev => { фильтр.архив = ev.target.checked; рисовать(); });
 
         document.addEventListener('click', ev => {
             if (ev.target.closest('#newAlbum') || ev.target.closest('#newAlbumEmpty')) {
-                // поля сбрасываем целиком: иначе второй набор заводится с чужим
-        // названием и чужими галками, оставшимися от закрытой модалки
-        $('#названиеНабора').value = '';
-        $('#описаниеНабора').value = '';
-        const закрытый = $('#закрытыйНабор'); if (закрытый) закрытый.checked = false;
-        const инструкция = $('#инструкцияНабор'); if (инструкция) инструкция.checked = false;
-        $('#датаНабора').value = DateUtils.toISO(new Date());
+                // поля сбрасываем целиком: иначе вторая папка заводится
+                // с чужим названием и галками, оставшимися от закрытого окна
+                $('#названиеНабора').value = '';
+                $('#описаниеНабора').value = '';
+                const закрытый = $('#закрытыйНабор'); if (закрытый) закрытый.checked = false;
+                const инструкция = $('#инструкцияНабор'); if (инструкция) инструкция.checked = false;
                 $('#albumModal').showModal();
                 return;
             }
@@ -176,7 +167,6 @@ const WorshipGallery = (() => {
     async function init() {
         слушать();
         if (!await загрузить()) return;
-        рисоватьГоды();
         рисовать();
         window.applyPermissions?.();
     }

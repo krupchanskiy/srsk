@@ -437,15 +437,14 @@ const WorshipEdit = (() => {
 
     async function открытьГалерею() {
         const { data: наборы, error } = await Layout.db.from('worship_albums')
-            .select('id, title, event_date, is_private, is_archived')
-            .eq('is_archived', false).order('event_date', { ascending: false });
+            .select('id, title, is_private, is_archived')
+            .eq('is_archived', false).order('title');
         if (error) return Layout.handleError(error, 'Галерея');
-        if (!наборы?.length) return Layout.showNotification('Наборов снимков пока нет', 'info');
+        if (!наборы?.length) return Layout.showNotification('Папок со снимками пока нет', 'info');
 
         $('#выборНабора').innerHTML = наборы.map(н =>
-            `<option value="${н.id}">${e(н.title)} · ${
-                DateUtils.formatShort(DateUtils.parseDate(н.event_date))}${
-                н.is_private ? ' — закрытый' : ''}</option>`).join('');
+            `<option value="${н.id}">${e(н.title)}${
+                н.is_private ? ' — закрытая' : ''}</option>`).join('');
 
         const показать = async () => {
             const н = наборы.find(x => x.id === $('#выборНабора').value);

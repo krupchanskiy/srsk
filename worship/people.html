@@ -24,7 +24,7 @@
 
     <div id="header-placeholder"></div>
 
-    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1060px;">
+    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 820px;">
 
         <div role="tablist" class="tabs tabs-bordered mb-4 w-fit">
             <a role="tab" class="tab" href="schedule.html" data-i18n="worship_schedule_title">Расписание</a>
@@ -43,15 +43,38 @@
                     style="background: var(--current-color); color:#fff;">Добавить человека</button>
         </div>
 
-        <!-- один носитель права утверждения — это служба без пуджари, когда он уехал -->
-        <div id="одинСтарший" hidden class="alert alert-warning mb-4 text-sm">
-            <span>В отделе один человек с правом утверждения. Уехал — очередь встала, расписание
-                не двигается. Нужен второй.</span>
+        <!-- один носитель права утверждения — это служба без пуджари, когда он уехал.
+             Подсказка без выхода на действие бесполезна: право даётся в правах
+             пользователя, а не здесь, поэтому рядом ссылка туда -->
+        <div id="одинСтарший" hidden
+             class="rounded-xl border border-warning/40 bg-warning/10 p-3 mb-4 text-sm
+                    flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span id="одинСтаршийТекст"></span>
+            <a href="../settings/user-management.html" class="link whitespace-nowrap"
+               data-permission="manage_users">Выдать право</a>
         </div>
+
+        <!-- поиск появляется, когда список перестаёт читаться целиком -->
+        <label class="input input-bordered input-sm flex items-center gap-2 mb-3" id="поискБлок" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" class="opacity-50" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
+            </svg>
+            <input id="поиск" type="search" class="grow" placeholder="Имя">
+        </label>
 
         <div class="card bg-base-100 shadow">
             <ul class="list-none m-0 p-0" id="список"></ul>
         </div>
+
+        <!-- вышедшие из отдела лежат отдельно: они не участвуют в расписании,
+             но их карточки нужны, чтобы видеть прошлые службы -->
+        <section id="вышлиБлок" hidden class="mt-5">
+            <h2 class="надзаголовок mb-1.5">Вышли из отдела</h2>
+            <div class="card bg-base-100 shadow">
+                <ul class="list-none m-0 p-0" id="вышли"></ul>
+            </div>
+        </section>
     </main>
 
     <!-- карточка человека -->
@@ -182,10 +205,10 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=112"></script>
+    <script src="../js/layout.js?v=113"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-people.js?v=6"></script>
+    <script src="../js/pages/worship-people.js?v=7"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_people' });

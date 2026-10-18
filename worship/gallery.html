@@ -29,12 +29,12 @@
         <div class="mb-5 flex flex-wrap items-end gap-3">
             <div class="flex-1 min-w-full desktop:min-w-0">
                 <h1 class="text-3xl font-bold tracking-tight" data-i18n="worship_gallery_title">Галерея</h1>
-                <p class="text-sm opacity-60 mt-1" data-i18n="worship_gallery_hint">Как наряжали, как украшали,
-                    как выглядел алтарь. По дате события, а не по дате загрузки.</p>
+                <p class="text-sm opacity-70 mt-1" data-i18n="worship_gallery_hint">Папки со снимками:
+                    как наряжали, как украшали, как выглядел алтарь.</p>
             </div>
             <button class="btn btn-sm" id="newAlbum" data-permission="worship_write"
                     style="background: var(--current-color); color: #fff;"
-                    data-i18n="worship_new_album">Новый набор</button>
+                    data-i18n="worship_new_album">Новая папка</button>
         </div>
 
         <div class="flex flex-wrap gap-3 items-center mb-4">
@@ -44,32 +44,25 @@
                     <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
                 </svg>
                 <input id="q" name="q" type="search" class="grow"
-                       data-i18n-placeholder="worship_gallery_search" placeholder="Искать по названию и описанию…">
+                       data-i18n-placeholder="worship_gallery_search" placeholder="Название папки">
             </label>
-            <select id="год" class="select select-bordered select-sm"></select>
             <label class="label cursor-pointer justify-start gap-2" data-permission="worship_write">
                 <input type="checkbox" class="checkbox" id="showArchive">
                 <span class="label-text text-sm">Показывать архив</span>
             </label>
         </div>
 
-        <div id="list" class="grid grid-cols-1 desktop:grid-cols-3 gap-4"></div>
+        <div id="list"></div>
     </main>
 
-    <!-- новый набор: дата события обязательна, иначе через три года по тегу
-         «Гаура-пурнима» будет десять наборов без признака года -->
+    <!-- папка со снимками: название и, если нужно, пара слов о том, что внутри -->
     <dialog id="albumModal" class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg mb-4" data-i18n="worship_new_album">Новый набор</h3>
+            <h3 class="font-bold text-lg mb-4" data-i18n="worship_new_album">Новая папка</h3>
             <label class="form-control mb-3">
                 <div class="label py-1"><span class="label-text">Название</span></div>
                 <input id="названиеНабора" type="text" class="input input-bordered"
                        placeholder="Например: Гаура-пурнима, вечернее одевание" maxlength="200">
-            </label>
-            <label class="form-control mb-3">
-                <div class="label py-1"><span class="label-text">Дата события</span></div>
-                <input id="датаНабора" type="date" class="input input-bordered">
-                <div class="label py-1"><span class="label-text-alt opacity-60">Когда наряжали, а не когда загружаете снимки.</span></div>
             </label>
             <label class="form-control mb-3">
                 <div class="label py-1"><span class="label-text">Описание</span></div>
@@ -97,11 +90,11 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=112"></script>
+    <script src="../js/layout.js?v=113"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
     <script src="../js/media.js?v=2"></script>
-    <script src="../js/pages/worship-gallery.js?v=4"></script>
+    <script src="../js/pages/worship-gallery.js?v=5"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_gallery' });

@@ -45,8 +45,7 @@ const WorshipAlbum = (() => {
     function рисоватьШапку() {
         $('#название').textContent = набор.title;
         $('#подзаголовок').innerHTML = `
-            ${DateUtils.formatShort(DateUtils.parseDate(набор.event_date))}
-            · ${Layout.pluralize(снимки.length, {
+            ${Layout.pluralize(снимки.length, {
                 ru: ['снимок', 'снимка', 'снимков'], en: ['photo', 'photos'], hi: 'चित्र' })}
             ${набор.is_private ? ' · <span class="text-warning font-semibold">только для отдела</span>' : ''}
             ${набор.is_guide ? ' · инструкция к стандарту' : ''}
@@ -102,7 +101,7 @@ const WorshipAlbum = (() => {
     function рисоватьСнимки() {
         $('#снимки').innerHTML = снимки.map((с, i) => `
             <figure class="группа relative rounded-xl overflow-hidden bg-base-200">
-                <div class="aspect-[4/5] cursor-zoom-in" data-смотреть="${i}">
+                <div class="aspect-square cursor-zoom-in" data-смотреть="${i}">
                     ${ссылки[с.storage_path]
                         ? `<img src="${ссылки[с.storage_path]}" alt="${e(с.caption)}" loading="lazy"
                                 class="w-full h-full object-cover">`
@@ -129,21 +128,25 @@ const WorshipAlbum = (() => {
                             data-убрать="${с.id}" title="Убрать снимок">✕</button>
                 </div>` : ''}
 
-                <figcaption class="px-1 pt-2 pb-1">
+                <!-- Подпись есть не у каждого снимка, и приглашение «подписать»
+                     под каждой плиткой складывалось в колонку одинаковых серых
+                     строк. Поле появляется при наведении, пустая подпись места
+                     не занимает. -->
+                <figcaption class="px-1 pt-2 pb-1 ${с.caption ? '' : 'подписьПустая'}">
                     ${можноПисать() && !набор.is_archived
                         ? `<input class="w-full bg-transparent border-0 border-b border-transparent
                                         hover:border-base-300 focus:border-base-300 focus:outline-none
-                                        text-sm py-0.5 px-0 placeholder:opacity-40"
+                                        text-sm py-0.5 px-0 placeholder:opacity-50"
                                   data-подпись="${с.id}" value="${e(с.caption)}"
-                                  placeholder="Подписать снимок" maxlength="200">`
+                                  placeholder="Подписать" maxlength="200">`
                         : `<span class="text-sm opacity-70">${e(с.caption)}</span>`}
                 </figcaption>
             </figure>`).join('') ||
-            `<div class="desktop:col-span-4 card bg-base-100 shadow"><div class="card-body items-start">
-                <h2 class="card-title text-lg">Снимков пока нет</h2>
+            `<div class="bg-base-100 rounded-xl shadow-sm p-8 text-center" style="grid-column: 1 / -1;">
+                <div class="font-semibold mb-1">Снимков пока нет</div>
                 <p class="text-sm opacity-70">Можно выбрать сразу несколько файлов —
                     они загрузятся по очереди, с подсчётом.</p>
-            </div></div>`;
+            </div>`;
     }
 
     // ---------- загрузка ----------
@@ -332,7 +335,6 @@ const WorshipAlbum = (() => {
 
     async function править() {
         $('#правкаНазвание').value = набор.title;
-        $('#правкаДата').value = набор.event_date;
         $('#правкаОписание').value = набор.description || '';
         $('#правкаИнструкция').checked = набор.is_guide;
 
@@ -353,17 +355,14 @@ const WorshipAlbum = (() => {
 
     async function сохранитьПравку() {
         const название = $('#правкаНазвание').value.trim();
-        const дата = $('#правкаДата').value;
-        if (!название) { Layout.showNotification('Без названия набор не найти', 'warning'); return; }
-        if (!дата) { Layout.showNotification('Поставьте дату события', 'warning'); return; }
+        if (!название) { Layout.showNotification('Без названия папку не найти', 'warning'); return; }
 
-        // через функцию: политика пускает только завёдшего набор или старшего,
+        // через функцию: политика пускает только завёдшего папку или старшего,
         // а обычный update вернул бы ноль строк без ошибки
         const { error } = await Layout.db.rpc('worship_album_update', {
             p_album: id,
             p_payload: {
                 title: название,
-                event_date: дата,
                 description: $('#правкаОписание').value.trim(),
                 article_id: $('#правкаСтатья').value || '',
                 is_guide: $('#правкаИнструкция').checked,

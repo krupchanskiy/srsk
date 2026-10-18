@@ -13,6 +13,7 @@ const WorshipPeople = (() => {
     const $ = s => document.querySelector(s);
     const e = str => Layout.escapeHtml(str ?? '');
     const можноВести = () => !!window.hasPermission?.('worship_approve');
+    const ПОРОГ_ПОИСКА = 10;             // до стольких человек список читается целиком
 
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
 
@@ -90,40 +91,59 @@ const WorshipPeople = (() => {
     const служб = id => назначения.filter(н => н.person_id === id).length;
 
     // ---------- список ----------
+    /** Строка списка: имя с состоянием слева, нагрузка справа. */
+    function строкаЧеловека(ч) {
+        const отъезд = отъездВпереди(ч.id);
+        return `
+        <li class="border-b border-base-200 last:border-0">
+            <button class="w-full text-left px-5 py-3 hover:bg-base-200/60 transition-colors
+                           flex flex-wrap items-baseline gap-x-3 gap-y-1
+                           ${ч.is_active ? '' : 'opacity-70'}"
+                    data-человек="${ч.id}">
+                <span class="flex-1 min-w-0">
+                    <span class="font-semibold">${e(ч.имя)}</span>
+                    ${ч.мой ? '<span class="badge badge-sm ml-1">это вы</span>' : ''}
+                    ${ч.is_active ? '' : '<span class="badge badge-sm ml-1">не в отделе</span>'}
+                    ${вОтъездеСейчас(ч.id)
+                        ? '<span class="badge badge-sm badge-warning ml-1">в отъезде</span>'
+                        : отъезд
+                            ? `<span class="badge badge-sm ml-1">уезжает ${
+                                DateUtils.formatShort(DateUtils.parseDate(отъезд.date_from))}</span>`
+                            : ''}
+                    ${ч.безВхода
+                        ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>' : ''}
+                    ${ч.active_to
+                        ? `<span class="block text-sm opacity-70">участвует по ${
+                            DateUtils.formatShort(DateUtils.parseDate(ч.active_to))}</span>` : ''}
+                </span>
+                <span class="text-sm opacity-70 whitespace-nowrap tabular-nums">
+                    ${Layout.pluralize(служб(ч.id), {
+                        ru: ['служба впереди', 'службы впереди', 'служб впереди'],
+                        en: ['duty ahead', 'duties ahead'], hi: 'सेवा' })}
+                </span>
+            </button>
+        </li>`;
+    }
+
     function рисовать() {
         $('#яНеСмогу').hidden = !яЧеловек;
 
-        $('#список').innerHTML = люди.map(ч => `
-            <li class="border-b border-base-200 last:border-0">
-                <button class="w-full text-left px-5 py-3 hover:bg-base-200/60 transition-colors
-                               flex flex-col desktop:flex-row desktop:items-center gap-1 desktop:gap-3
-                               ${ч.is_active ? '' : 'opacity-50'}"
-                        data-человек="${ч.id}">
-                    <span class="flex-1 min-w-0">
-                        <span class="font-semibold">${e(ч.имя)}</span>
-                        ${ч.мой ? '<span class="badge badge-sm ml-1">это вы</span>' : ''}
-                        ${ч.is_active ? '' : '<span class="badge badge-sm ml-1">не в отделе</span>'}
-                        ${вОтъездеСейчас(ч.id)
-                            ? '<span class="badge badge-sm badge-warning ml-1">в отъезде</span>'
-                            : отъездВпереди(ч.id)
-                                ? `<span class="badge badge-sm ml-1">уезжает ${
-                                    DateUtils.formatShort(DateUtils.parseDate(отъездВпереди(ч.id).date_from))}</span>`
-                                : ''}
-                        ${ч.безВхода
-                            ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>' : ''}
-                        ${ч.active_to
-                            ? `<span class="block text-sm opacity-60">участвует по ${
-                                DateUtils.formatShort(DateUtils.parseDate(ч.active_to))}</span>` : ''}
-                    </span>
-                    <span class="text-sm opacity-60 whitespace-nowrap">
-                        ${Layout.pluralize(служб(ч.id), {
-                            ru: ['служба впереди', 'службы впереди', 'служб впереди'],
-                            en: ['duty ahead', 'duties ahead'], hi: 'सेवा' })}
-                    </span>
-                </button>
-            </li>`).join('') ||
-            `<li class="px-5 py-6 text-sm opacity-60">В отделе пока никого. ${
-                можноВести() ? 'Добавьте людей кнопкой выше.' : 'Состав ведёт старший пуджари.'}</li>`;
+        // поиск нужен не всегда: на семерых он только отнимает строку
+        $('#поискБлок').hidden = люди.length <= ПОРОГ_ПОИСКА;
+        const q = $('#поиск').value.trim().toLowerCase();
+        const подходит = ч => !q || (ч.имя || '').toLowerCase().includes(q);
+
+        const вОтделе = люди.filter(ч => ч.is_active !== false).filter(подходит);
+        const вышли = люди.filter(ч => ч.is_active === false).filter(подходит);
+
+        $('#список').innerHTML = вОтделе.map(строкаЧеловека).join('') ||
+            `<li class="px-5 py-6 text-sm opacity-70">${
+                q ? 'Никого с таким именем'
+                  : `В отделе пока никого. ${можноВести()
+                        ? 'Добавьте людей кнопкой выше.' : 'Состав ведёт старший пуджари.'}`}</li>`;
+
+        $('#вышлиБлок').hidden = !вышли.length;
+        $('#вышли').innerHTML = вышли.map(строкаЧеловека).join('');
 
         window.applyPermissions?.();
     }
@@ -137,7 +157,7 @@ const WorshipPeople = (() => {
         const сколько = data ?? 2;
         $('#одинСтарший').hidden = сколько > 1;
         if (сколько <= 1) {
-            $('#одинСтарший').textContent = сколько === 0
+            $('#одинСтаршийТекст').textContent = сколько === 0
                 ? 'Права утверждения нет ни у кого: очередь правок и расписание стоят. Нужен старший пуджари.'
                 : 'В отделе один человек с правом утверждения. Уехал — очередь встала, расписание ' +
                   'не двигается. Нужен второй.';
@@ -476,6 +496,7 @@ const WorshipPeople = (() => {
         });
 
         $('#дПоиск').addEventListener('input', Layout.debounce(искатьЛюдей, 300));
+        $('#поиск').addEventListener('input', Layout.debounce(рисовать, 200));
     }
 
     async function init() {
