@@ -305,11 +305,15 @@ const WorshipAlbum = (() => {
 
         // связь со статьёй: ТЗ просит её, и по ней на странице стандарта
         // видно, что к нему есть набор снимков
+        // архивные тоже в списке: иначе набор, привязанный к отменённому
+        // стандарту, при любой правке описания тихо терял эту связь
         const { data: статьи } = await Layout.db.from('worship_articles')
-            .select('id, title').eq('kind', 'standard').eq('status', 'published').order('title');
+            .select('id, title, status').eq('kind', 'standard')
+            .in('status', ['published', 'archived']).order('title');
         $('#правкаСтатья').innerHTML = '<option value="">Ни к чему не привязан</option>' +
             (статьи || []).map(а => `<option value="${а.id}" ${
-                набор.article_id === а.id ? 'selected' : ''}>${e(а.title)}</option>`).join('');
+                набор.article_id === а.id ? 'selected' : ''}>${e(а.title)}${
+                а.status === 'archived' ? ' (не действует)' : ''}</option>`).join('');
 
         $('#правкаМодал').showModal();
     }

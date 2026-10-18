@@ -27,6 +27,9 @@ const WorshipTags = (() => {
             Layout.db.from('worship_tags').select('id, name').order('name'),
         ]);
         if (связи.error) { Layout.handleError(связи.error, 'Теги'); return; }
+        // без этой проверки сбой второго запроса давал пустой словарь имён,
+        // и все расставленные теги молча исчезали с карточки
+        if (словарь.error) { Layout.handleError(словарь.error, 'Словарь тегов'); return; }
 
         const имена = Object.fromEntries((словарь.data || []).map(т => [т.id, т.name]));
         const свои = (связи.data || []).filter(с => имена[с.tag_id]);

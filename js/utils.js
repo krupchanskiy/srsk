@@ -267,6 +267,50 @@ function pickResident(было, стало, { retreatId, date } = {}) {
 window.getVaishnavName = getVaishnavName;
 window.getVaishnavFullName = getVaishnavFullName;
 
+/**
+ * Спросить «да или нет» своей модалкой.
+ *
+ * confirm() во встроенных браузерах не показывается вовсе, поэтому вопрос
+ * задаётся разметкой страницы. Тонкость, на которой уже обожглись: showModal()
+ * у открытого диалога ничего не делает и не бросает исключения — значит два
+ * быстрых вопроса подряд показали бы один диалог с двумя обработчиками,
+ * и одно «Да» выполнило бы оба действия. Поэтому второй вопрос ждёт,
+ * пока ответят на первый.
+ */
+let вопросВРаботе = null;
+
+function спросить(заголовок, текст) {
+    const окно = document.querySelector('#подтверждение');
+    const да = document.querySelector('#пдДа');
+    if (!окно || !да) return Promise.resolve(false);
+
+    const задать = () => new Promise(готово => {
+        document.querySelector('#пдЗаголовок').textContent = заголовок;
+        document.querySelector('#пдТекст').textContent = текст || '';
+
+        let ответил = false;
+        const ответить = значение => {
+            if (ответил) return;
+            ответил = true;
+            да.removeEventListener('click', наДа);
+            окно.removeEventListener('close', наЗакрытие);
+            готово(значение);
+        };
+        const наДа = () => { окно.close(); ответить(true); };
+        const наЗакрытие = () => ответить(false);
+
+        да.addEventListener('click', наДа);
+        окно.addEventListener('close', наЗакрытие);
+        окно.showModal();
+    });
+
+    // очередь: пока предыдущий вопрос не закрыт, новый не показываем
+    вопросВРаботе = (вопросВРаботе || Promise.resolve()).then(задать, задать);
+    return вопросВРаботе;
+}
+
+window.спросить = спросить;
+
 // Глобальный debug-логгер доступен без префикса — используется часто, как console.log.
 window.debug = debug;
 window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName, pickResident };

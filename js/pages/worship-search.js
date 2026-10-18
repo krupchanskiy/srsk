@@ -22,17 +22,26 @@ const WorshipSearch = (() => {
     const ПРЕДЕЛ = 60;              // столько строк просит функция поиска
     const ТЕГОВ_СРАЗУ = 16;         // остальные — под «ещё»
 
+    let поколение = 0;              // чтобы ответ на старое слово не перетёр свежий
     let запрос = new URLSearchParams(location.search).get('q') || '';
     let тег = new URLSearchParams(location.search).get('tag') || '';
     let теги = [], строки = [], всеТеги = false;
 
     async function найти() {
+        const моё = ++поколение;
+        const устарело = () => моё !== поколение;
         if (!запрос.trim() && !тег) { строки = []; return; }
 
         if (запрос.trim()) {
             const { data, error } = await Layout.db.rpc('worship_search',
                 { p_query: запрос.trim(), p_limit: ПРЕДЕЛ });
-            if (error) { Layout.handleError(error, 'Поиск'); return; }
+            if (error) {
+                // оставить прежнюю выдачу под новым словом хуже, чем показать пусто
+                строки = [];
+                Layout.handleError(error, 'Поиск');
+                return;
+            }
+            if (устарело()) return;         // пока ждали, человек набрал другое
             строки = data || [];
         } else {
             строки = [];

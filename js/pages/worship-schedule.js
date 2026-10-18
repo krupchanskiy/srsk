@@ -579,20 +579,6 @@ const WorshipSchedule = (() => {
         return true;
     }
 
-    function спросить(заголовок, текст) {
-        return new Promise(готово => {
-            $('#пдЗаголовок').textContent = заголовок;
-            $('#пдТекст').textContent = текст || '';
-            const окно = $('#подтверждение'), да = $('#пдДа');
-            const обработчик = () => { окно.close(); готово(true); };
-            да.addEventListener('click', обработчик, { once: true });
-            окно.addEventListener('close', () => {
-                да.removeEventListener('click', обработчик);
-                готово(false);
-            }, { once: true });
-            окно.showModal();
-        });
-    }
 
     // ---------- отклонения ----------
     function открытьОтклонение(какое) {
@@ -707,6 +693,7 @@ const WorshipSchedule = (() => {
             const вкл = ev.target.closest('[data-служба-включение]');
             if (вкл) {
                 const с = службы.find(x => x.id === вкл.getAttribute('data-служба-включение'));
+                if (!с) return перечитать();     // кнопка от прежней отрисовки
                 const ок = await записать(Layout.db.from('worship_services')
                     .update({ is_active: !с.is_active, updated_at: new Date().toISOString(),
                               updated_by: window.currentUser?.id || null })

@@ -17,22 +17,6 @@ const WorshipKit = (() => {
     const id = new URLSearchParams(location.search).get('id');
     let подборка = null, пункты = [], выдачи = [], имена = {};
 
-    /** confirm() во встроенном браузере всегда отвечает «нет» — спрашиваем своей модалкой. */
-    function спросить(заголовок, текст) {
-        return new Promise(готово => {
-            $('#пдЗаголовок').textContent = заголовок;
-            $('#пдТекст').textContent = текст || '';
-            const окно = $('#подтверждение');
-            const да = $('#пдДа');
-            const обработчик = () => { окно.close(); готово(true); };
-            да.addEventListener('click', обработчик, { once: true });
-            окно.addEventListener('close', () => {
-                да.removeEventListener('click', обработчик);
-                готово(false);
-            }, { once: true });
-            окно.showModal();
-        });
-    }
 
     /**
      * RLS-отказ на UPDATE — это ноль строк, а не ошибка: без .select() человек

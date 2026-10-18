@@ -146,6 +146,7 @@ const WorshipGallery = (() => {
             created_by: window.currentUser?.id || null,
         }).select('id').maybeSingle();
         if (error) return Layout.handleError(error, 'Создание набора');
+        if (!data) return Layout.showNotification('Не сохранилось: наборы заводит пуджари', 'error');
 
         $('#albumModal').close();
         location.href = `album.html?id=${data.id}`;
@@ -158,7 +159,13 @@ const WorshipGallery = (() => {
 
         document.addEventListener('click', ev => {
             if (ev.target.closest('#newAlbum') || ev.target.closest('#newAlbumEmpty')) {
-                $('#датаНабора').value = DateUtils.toISO(new Date());
+                // поля сбрасываем целиком: иначе второй набор заводится с чужим
+        // названием и чужими галками, оставшимися от закрытой модалки
+        $('#названиеНабора').value = '';
+        $('#описаниеНабора').value = '';
+        const закрытый = $('#закрытыйНабор'); if (закрытый) закрытый.checked = false;
+        const инструкция = $('#инструкцияНабор'); if (инструкция) инструкция.checked = false;
+        $('#датаНабора').value = DateUtils.toISO(new Date());
                 $('#albumModal').showModal();
                 return;
             }

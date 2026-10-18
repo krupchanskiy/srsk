@@ -239,20 +239,6 @@ const WorshipPeople = (() => {
     }
 
     // ---------- действия ----------
-    function спросить(заголовок, текст) {
-        return new Promise(готово => {
-            $('#пдЗаголовок').textContent = заголовок;
-            $('#пдТекст').textContent = текст || '';
-            const окно = $('#подтверждение'), да = $('#пдДа');
-            const обработчик = () => { окно.close(); готово(true); };
-            да.addEventListener('click', обработчик, { once: true });
-            окно.addEventListener('close', () => {
-                да.removeEventListener('click', обработчик);
-                готово(false);
-            }, { once: true });
-            окно.showModal();
-        });
-    }
 
     async function переключитьДопуск(serviceId, включить) {
         const запрос = включить

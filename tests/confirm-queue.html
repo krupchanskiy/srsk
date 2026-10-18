@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8"><title>Проверка очереди вопросов</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script></head>
+<body class="p-6">
+<!-- Два вопроса подряд раньше показывали один диалог с двумя обработчиками,
+     и одно «Да» выполняло оба действия. Здесь это проверяется. -->
+<dialog id="подтверждение" class="modal"><div class="modal-box">
+  <h3 id="пдЗаголовок" class="font-bold"></h3><p id="пдТекст"></p>
+  <div class="modal-action"><form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+  <button class="btn btn-sm" id="пдДа">Да</button></div></div></dialog>
+<pre id="итоги" class="bg-base-200 p-4 rounded"></pre>
+<script src="../js/utils.js?v=14"></script>
+<script>
+window.прогон = async () => {
+    const итоги = [];
+    // два вопроса подряд, как при двух быстрых кликах «✕»
+    const первый = спросить('Снять назначение A?');
+    const второй = спросить('Снять назначение B?');
+    await new Promise(r => setTimeout(r, 200));
+    итоги.push('показан вопрос: ' + document.querySelector('#пдЗаголовок').textContent);
+
+    document.querySelector('#пдДа').click();          // отвечаем «да» один раз
+    await new Promise(r => setTimeout(r, 200));
+    итоги.push('после первого «Да» показан: ' + document.querySelector('#пдЗаголовок').textContent);
+
+    document.querySelector('#подтверждение').close(); // второй закрываем без согласия
+    const [a, b] = await Promise.all([первый, второй]);
+    итоги.push(`ответы: A=${a}, B=${b}`);
+    итоги.push((a === true && b === false) ? '✓ одно «Да» выполнило ровно одно действие'
+                                           : '✗ одно нажатие ответило за оба вопроса');
+    document.querySelector('#итоги').textContent = итоги.join('\n');
+    return итоги;
+};
+</script></body></html>

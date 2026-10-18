@@ -88,6 +88,7 @@ const WorshipKits = (() => {
             created_by: window.currentUser?.id || null,
         }).select('id').maybeSingle();
         if (error) return Layout.handleError(error, 'Создание подборки');
+        if (!data) return Layout.showNotification('Не сохранилось: подборки собирает пуджари', 'error');
         location.href = `kit.html?id=${data.id}`;
     }
 
