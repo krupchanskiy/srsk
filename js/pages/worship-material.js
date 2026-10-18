@@ -134,8 +134,42 @@ const WorshipMaterial = (() => {
 
     /** Оформление идёт через execCommand: только так правка попадает
         в историю браузера, то есть работает обычный Ctrl+Z. */
+
+    /**
+     * Где стоял курсор в тексте. Любое окно — ссылка, выбор снимка, вопрос —
+     * забирает фокус, и выделение гаснет: дальше execCommand применялся
+     * к началу поля, и вставка уходила в первый абзац вместо выбранного места.
+     */
+    let последнийДиапазон = null;
+
+    function вПоле(узел) {
+        const эл = узел?.nodeType === 1 ? узел : узел?.parentElement;
+        return !!эл && !!$('#текст') && $('#текст').contains(эл);
+    }
+
+    function следитьЗаКурсором() {
+        document.addEventListener('selectionchange', () => {
+            const в = getSelection();
+            if (!в || !в.rangeCount) return;
+            const д = в.getRangeAt(0);
+            if (вПоле(д.commonAncestorContainer)) последнийДиапазон = д.cloneRange();
+        });
+    }
+
+    /** Вернуть курсор туда, где он был до окна. */
+    function вернутьсяВПоле() {
+        const п = $('#текст');
+        if (!п) return;
+        п.focus();
+        const в = getSelection();
+        if (в.rangeCount && вПоле(в.getRangeAt(0).commonAncestorContainer)) return;
+        if (!последнийДиапазон) return;
+        в.removeAllRanges();
+        в.addRange(последнийДиапазон);
+    }
+
     function команда(имя, значение = null) {
-        $('#текст').focus();
+        вернутьсяВПоле();
         document.execCommand(имя, false, значение);
         пометить();
     }
@@ -411,9 +445,16 @@ const WorshipMaterial = (() => {
             if (!выделение.rangeCount || выделение.isCollapsed) {
                 return Layout.showNotification('Выделите слова, которые станут ссылкой', 'info');
             }
+            // окно ввода забирает фокус и гасит выделение: без этого ссылка
+            // вставлялась в начало текста, а не на выделенное слово
+            const диапазон = выделение.getRangeAt(0).cloneRange();
+
             const куда = await спроситьСтроку({ заголовок: 'Адрес ссылки' });
             const чистый = куда && WorshipDoc.адрес(куда);
             if (!чистый) return куда && Layout.showNotification('Такой адрес не годится', 'warning');
+
+            последнийДиапазон = диапазон;
+            вернутьсяВПоле();
             document.execCommand('createLink', false, чистый);
             пометить();
         });
@@ -482,6 +523,7 @@ const WorshipMaterial = (() => {
         рисоватьВложения();
         наполнитьПоле();
         слушать();
+        следитьЗаКурсором();
         window.applyPermissions?.();
         if (id) WorshipTags.нарисовать($('#теги'), { article_id: id }, { можноПравить: можноПисать() });
         состояние('');
