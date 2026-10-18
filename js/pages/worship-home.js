@@ -189,7 +189,7 @@ const WorshipHome = (() => {
      * «покажи оглавление». Следующая по времени выделена.
      */
     async function деньСегодня(дата, завтрашний) {
-        const сегодня = дата || DateUtils.toISO(new Date());
+        const сегодня = дата || DateUtils.todayAshramISO();
         const [с, о, н] = await Promise.all([
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, article_id')
@@ -246,14 +246,14 @@ const WorshipHome = (() => {
                 кто: назначения.filter(д => д.override_id === о2.id), разовая: true })),
         ].sort((a, b) => (a.время || '').localeCompare(b.время || ''));
 
-        const сейчас = завтрашний ? '00:00:00' : new Date().toTimeString().slice(0, 8);
+        const сейчас = завтрашний ? '00:00:00' : DateUtils.nowAshram().toTimeString().slice(0, 8);
         const следующая = строки.find(с2 => (с2.время || '') >= сейчас);
 
         // день кончился — показывать прошедшие службы с «никто не поставлен»
         // значит упрекать задним числом за то, чего уже не исправить.
         // Человеку в этот час нужен завтрашний день
         if (!следующая && !завтрашний) {
-            const завтра = new Date();
+            const завтра = DateUtils.nowAshram();
             завтра.setDate(завтра.getDate() + 1);
             return деньСегодня(DateUtils.toISO(завтра), true);
         }
@@ -301,7 +301,7 @@ const WorshipHome = (() => {
         const { data: я } = await Layout.db.rpc('worship_my_person');
         if (!я) return;
 
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         const { data: свои } = await Layout.db.from('worship_duties')
             .select('id, duty_date, service_id, override_id, role')
             .eq('person_id', я).gte('duty_date', сегодня).order('duty_date').limit(5);
@@ -342,7 +342,7 @@ const WorshipHome = (() => {
     /** Старшему — пустые клетки на завтра: их закрывают сегодня, а не утром. */
     async function пустыеЗавтра() {
         if (!можноУтверждать()) return;
-        const завтра = DateUtils.toISO(DateUtils.addDays(new Date(), 1));
+        const завтра = DateUtils.toISO(DateUtils.addDays(DateUtils.nowAshram(), 1));
         const [с, о, н, л, от] = await Promise.all([
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day').eq('is_active', true).order('time_of_day'),

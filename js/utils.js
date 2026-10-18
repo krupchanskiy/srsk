@@ -380,7 +380,8 @@ window.спроситьСтроку = спроситьСтроку;
  */
 function деньПоЧеловечески(датаISO) {
     const д = DateUtils.parseDate(датаISO);
-    const сегодня = new Date(); сегодня.setHours(0, 0, 0, 0);
+    // «сегодня» — по часам ашрама, а не устройства (см. DateUtils.nowAshram)
+    const сегодня = window.DateUtils?.nowAshram?.() || new Date(); сегодня.setHours(0, 0, 0, 0);
     const разница = Math.round((д - сегодня) / 86400000);
     if (разница === 0) return 'сегодня';
     if (разница === 1) return 'завтра';

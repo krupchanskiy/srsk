@@ -23,11 +23,11 @@ const WorshipSchedule = (() => {
     // движением старший жал «›». Теперь слева всегда сегодня, справа — то,
     // что предстоит расписать.
     let началоНедели = (() => {
-        const д = new Date();
+        const д = DateUtils.nowAshram();
         д.setHours(0, 0, 0, 0);
         return д;
     })();
-    let выбранныйДень = DateUtils.toISO(new Date());
+    let выбранныйДень = DateUtils.todayAshramISO();
     let вид = window.matchMedia('(max-width: 900px)').matches ? 'день' : 'неделя';
 
     let службы = [], люди = [], назначения = [], отклонения = [], отметки = [], стандарты = [];
@@ -142,7 +142,7 @@ const WorshipSchedule = (() => {
         мои = [];
         моиОтклонения = [];
         if (!яЧеловек) return;
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         const { data } = await Layout.db.from('worship_duties')
             .select('id, duty_date, service_id, override_id, role')
             .eq('person_id', яЧеловек.id).gte('duty_date', сегодня)
@@ -221,7 +221,7 @@ const WorshipSchedule = (() => {
 
         // неделя, которую не вели, и неделя, которую не закрыли, — разные вещи:
         // пустая шахматка в прошлом не должна читаться как обвинение
-        const прошлая = дни()[6] < DateUtils.toISO(new Date());
+        const прошлая = дни()[6] < DateUtils.todayAshramISO();
         // Счётчик незакрытых клеток отсюда убран: это же самое видно по самой
         // шахматке — жёлтые клетки и строка «закрыто за день» внизу
         const поле = $('#подзаголовок');
@@ -298,7 +298,7 @@ const WorshipSchedule = (() => {
 
     function рисоватьНеделю() {
         const список = дни();
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         $('#шапкаДней').innerHTML = '<th class="w-44">Служба</th>' + список.map((д, i) => `
             <th class="${д === сегодня ? 'сегодня text-[color:var(--current-color)]' : ''}">
                 ${ДНИ[(DateUtils.parseDate(д).getDay() + 6) % 7]}<span class="block text-xs font-normal">${
@@ -352,7 +352,7 @@ const WorshipSchedule = (() => {
     }
 
     function клеткаHTML(день, служба, разовая) {
-        const сегодня = день === DateUtils.toISO(new Date()) ? ' сегодня' : '';
+        const сегодня = день === DateUtils.todayAshramISO() ? ' сегодня' : '';
 
         if (служба && отменена(служба.id, день)) {
             const о = отклонения.find(x => x.service_id === служба.id && x.duty_date === день);
@@ -380,7 +380,7 @@ const WorshipSchedule = (() => {
 
         if (!свои.length) {
             // в прошедшем дне дыра — не дело, а история: подсвечивать нечего
-            const прошло = день < DateUtils.toISO(new Date());
+            const прошло = день < DateUtils.todayAshramISO();
             if (прошло) {
                 return `<td class="клетка прошлаяПустая${сегодня}
                             ${можноВести() ? 'cursor-pointer' : ''}"
@@ -443,7 +443,7 @@ const WorshipSchedule = (() => {
      */
     function рисоватьИтогДней() {
         const список = дни();
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         const активные = службы.filter(с => с.is_active);
         if (!активные.length && !отклонения.some(о => о.title)) {
             $('#итогДней').innerHTML = '';
@@ -524,7 +524,7 @@ const WorshipSchedule = (() => {
             // день читается теми же цветами, что и неделя: закрыто — зелёным,
             // некому служить — жёлтым, иначе на телефоне состояние пришлось бы
             // вычитывать из слов «никто не поставлен»
-            const прошло = д < DateUtils.toISO(new Date());
+            const прошло = д < DateUtils.todayAshramISO();
             const закрыта = свои.some(н => кто_придёт(н, д));
             const командой = свои.some(н => кто_придёт(н, д)
                 && (человек(н.person_id)?.kind || 'team') === 'team');
@@ -558,11 +558,11 @@ const WorshipSchedule = (() => {
                             ${можноВести()
                                 ? `<button class="btn btn-ghost btn-sm px-2" data-снять="${н.id}" aria-label="Снять">✕</button>` : ''}`;
                         }).join('')
-                        : `<span class="text-sm ${отмена || д < DateUtils.toISO(new Date())
+                        : `<span class="text-sm ${отмена || д < DateUtils.todayAshramISO()
                                 ? 'opacity-40' : 'opacity-60'}">${
-                            отмена ? '' : (д < DateUtils.toISO(new Date())
+                            отмена ? '' : (д < DateUtils.todayAshramISO()
                                 ? 'никого не ставили' : 'никто не поставлен')}</span>`}
-                    ${можноВести() && !отмена && д >= DateUtils.toISO(new Date())
+                    ${можноВести() && !отмена && д >= DateUtils.todayAshramISO()
                         ? `<button class="btn btn-xs btn-outline" data-клетка="${д}"
                                    data-служба="${служба?.id || ''}"
                                    data-разовая="${разовая?.id || ''}">поставить</button>` : ''}
@@ -891,8 +891,8 @@ const WorshipSchedule = (() => {
                 return перечитать(false);
             }
             if (b.id === 'сегодня') {
-                началоНедели = началоОт(new Date());
-                выбранныйДень = DateUtils.toISO(new Date());
+                началоНедели = началоОт(DateUtils.nowAshram());
+                выбранныйДень = DateUtils.todayAshramISO();
                 return перечитать(false);
             }
             if (b.dataset.вид) {
@@ -909,7 +909,7 @@ const WorshipSchedule = (() => {
             if (b.id === 'копияНедели') return открытьПовтор();
             if (b.id === 'повторПустить') return копияНедели();
             if (b.id === 'яНеСмогу') {
-                $('#оtС').value = DateUtils.toISO(new Date());
+                $('#оtС').value = DateUtils.todayAshramISO();
                 $('#оtПо').value = '';
                 $('#оtПричина').value = '';
                 return $('#отметкаМодал').showModal();
@@ -1026,7 +1026,7 @@ const WorshipSchedule = (() => {
         узел.textContent = 'Считаю…';
 
         // повтор в прошлое бессмыслен: клетки, которые уже прошли, никто не закроет
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         const вПрошлое = DateUtils.toISO(началоНедели) < сегодня;
         $('#повторПустить').disabled = вПрошлое;
         if (вПрошлое) {

@@ -22,7 +22,7 @@ const WorshipPeople = (() => {
 
     // ---------- загрузка ----------
     async function загрузить() {
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
 
         const [л, с, н, о] = await Promise.all([
             Layout.db.from('worship_people')
@@ -76,14 +76,14 @@ const WorshipPeople = (() => {
     }
 
     const вОтъездеСейчас = id => {
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         return отметки.some(а => а.person_id === id
             && а.date_from <= сегодня && (!а.date_to || а.date_to >= сегодня));
     };
 
     /** Ближайший отъезд впереди: расписывают неделю, а не сегодняшний день. */
     const отъездВпереди = id => {
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         return отметки.filter(а => а.person_id === id && а.date_from > сегодня)
             .sort((a, b) => a.date_from.localeCompare(b.date_from))[0];
     };
@@ -296,7 +296,7 @@ const WorshipPeople = (() => {
 
     function открытьОтметку(personId) {
         $('#отметкаМодал').dataset.кому = personId;
-        $('#оtС').value = DateUtils.toISO(new Date());
+        $('#оtС').value = DateUtils.todayAshramISO();
         $('#оtПо').value = '';
         $('#оtПричина').value = '';
         $('#отметкаМодал').showModal();
@@ -485,7 +485,7 @@ const WorshipPeople = (() => {
                 updated_by: window.currentUser?.id || null }).eq('id', был.id)
             : Layout.db.from('worship_people').insert({
                 vaishnava_id: vaishnavaId, kind: новыйВид, active_to: срок,
-                active_from: DateUtils.toISO(new Date()),
+                active_from: DateUtils.todayAshramISO(),
                 created_by: window.currentUser?.id || null });
 
         const { data, error } = await запрос.select('id');

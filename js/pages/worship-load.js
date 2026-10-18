@@ -34,7 +34,7 @@ const WorshipLoad = (() => {
 
     // ---------- период ----------
     function границы() {
-        const сегодня = new Date();
+        const сегодня = DateUtils.nowAshram();
         if (период === 'неделя') {
             const пн = new Date(сегодня);
             const сдвиг = (пн.getDay() + 6) % 7;        // неделя начинается с понедельника
