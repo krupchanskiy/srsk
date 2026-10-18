@@ -169,14 +169,16 @@ const WorshipSchedule = (() => {
         // пуджари — посмотреть свои службы и, если заболел, отметиться.
         // Остальное — обслуживание, ему место под «ещё».
         const редкие = [];
-        if (можноВести()) редкие.push('<li><button id="вестиСлужбы">Службы и время</button></li>');
         редкие.push('<li><button id="печать">Распечатать неделю</button></li>');
         if (яЧеловек && можноВести()) редкие.push('<li><button id="яНеСмогу">Меня не будет</button></li>');
 
         $('#actions').innerHTML = `
             ${можноВести()
                 ? `<button class="btn btn-sm" id="копияНедели"
-                        style="background: var(--current-color); color:#fff;">Как на прошлой неделе</button>`
+                        style="background: var(--current-color); color:#fff;">Как на прошлой неделе</button>
+                   <!-- состав служб и их время правят не каждый день, но ищут
+                        именно здесь: под «ещё» эту кнопку не находили -->
+                   <button class="btn btn-sm btn-outline" id="вестиСлужбы">Службы и время</button>`
                 : яЧеловек
                     ? '<button class="btn btn-sm btn-outline" id="яНеСмогу">Меня не будет</button>'
                     : ''}

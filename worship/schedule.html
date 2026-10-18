@@ -117,6 +117,7 @@
             <a role="tab" class="tab tab-active" href="schedule.html"
                data-i18n="worship_schedule_title">Расписание</a>
             <a role="tab" class="tab" href="people.html" data-i18n="worship_people_title">Люди отдела</a>
+            <a role="tab" class="tab" href="load.html" data-i18n="worship_load_title">Загрузка</a>
         </div>
 
         <div id="старшийОтъезд" hidden class="alert alert-warning mb-4 text-sm no-print"></div>
@@ -183,18 +184,22 @@
             </div>
         </div>
 
-        <!-- отклонения дня: праздник или отмена -->
+        <!-- Правки конкретных дней. Обе кнопки — про один день, а не про состав
+             служб: «Отменить службу» читалось как «убрать её из расписания
+             насовсем», хотя это отметка «в такой-то день не проводится».
+             Сам состав служб правят кнопкой «Службы и время» наверху. -->
         <div class="card bg-base-100 shadow" id="отклонения" data-permission="worship_approve">
             <div class="card-body p-5">
-                <h2 class="card-title text-lg mb-1" data-i18n="worship_overrides_title">Отклонения дня</h2>
-                <p class="text-sm opacity-60 mb-3" data-i18n="worship_overrides_hint">Праздник или
-                    экадаши — это не второе расписание, а точечная правка: разовая служба
-                    либо отметка «сегодня не проводится».</p>
-                <ul class="list-none m-0 p-0 mb-3" id="отклоненияСписок"></ul>
-                <div class="flex flex-wrap gap-2">
-                    <button class="btn btn-sm btn-outline" id="разовая">Разовая служба</button>
-                    <button class="btn btn-sm btn-outline" id="отменить">Отменить службу</button>
+                <div class="flex flex-wrap items-center gap-3 mb-1">
+                    <h2 class="card-title text-lg" data-i18n="worship_overrides_title">Праздники и отмены</h2>
+                    <span class="flex-1"></span>
+                    <button class="btn btn-sm btn-outline" id="разовая">+ Служба на один день</button>
+                    <button class="btn btn-sm btn-outline" id="отменить">Отменить на день</button>
                 </div>
+                <p class="text-sm opacity-70 mb-3" data-i18n="worship_overrides_hint">Праздник или
+                    экадаши — это не второе расписание, а точечная правка одного дня: добавить
+                    службу либо отметить, что она в этот день не проводится.</p>
+                <ul class="list-none m-0 p-0" id="отклоненияСписок"></ul>
             </div>
         </div>
     </main>
@@ -331,10 +336,10 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=115"></script>
+    <script src="../js/layout.js?v=116"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-schedule.js?v=21"></script>
+    <script src="../js/pages/worship-schedule.js?v=22"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
