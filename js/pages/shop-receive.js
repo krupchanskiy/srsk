@@ -83,10 +83,10 @@ const ShopReceive = (() => {
                 </td>
                 <td data-label="${t('shop_qty')}" class="text-right">
                     <input class="input input-bordered input-sm w-24 text-right nums" inputmode="numeric"
-                           data-qty="${i}" value="${e(с.qty)}"></td>
+                           aria-label="${t('shop_qty')}" data-qty="${i}" value="${e(с.qty)}"></td>
                 <td data-label="${t('shop_cost_col')}" class="text-right cost-col" ${вид === 'own' ? 'hidden' : ''}>
                     <input class="input input-bordered input-sm w-28 text-right nums" inputmode="numeric"
-                           data-cost="${i}" value="${e(с.cost)}"></td>
+                           aria-label="${t('shop_cost_col')}" data-cost="${i}" value="${e(с.cost)}"></td>
                 <td data-label="${t('shop_last_time')}" class="text-right cost-col opacity-60 nums" ${вид === 'own' ? 'hidden' : ''}>
                     ${прошлая ? деньги(прошлая) : '—'}</td>
                 <td data-label="">

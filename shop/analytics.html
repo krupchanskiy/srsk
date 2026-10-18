@@ -49,8 +49,8 @@
                     <button class="btn btn-sm join-item" data-days="30" data-i18n="shop_month">Месяц</button>
                     <button class="btn btn-sm join-item" data-days="365" data-i18n="shop_year">Год</button>
                 </div>
-                <input type="date" class="input input-bordered input-sm" id="from">
-                <input type="date" class="input input-bordered input-sm" id="to">
+                <input type="date" class="input input-bordered input-sm" id="from" aria-label="С какого дня">
+                <input type="date" class="input input-bordered input-sm" id="to" aria-label="По какой день">
             </div>
         </div>
 
@@ -77,7 +77,7 @@
                     <h2 class="card-title text-base" data-i18n="shop_what_sells">Что продаётся</h2>
                     <p class="text-sm opacity-60" data-i18n="shop_top_ten">Десять позиций по выручке за период</p>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto" tabindex="0">
                     <table class="table table-sm stack" id="topTbl">
                         <thead><tr><th data-i18n="shop_item_col">Товар</th><th class="text-right" data-i18n="shop_pcs_col">Штук</th>
                             <th class="text-right" data-i18n="shop_revenue">Выручка</th>
@@ -92,7 +92,7 @@
                     <h2 class="card-title text-base" data-i18n="shop_donations_by_goal">Пожертвования по целям</h2>
                     <p class="text-sm opacity-60" data-i18n="shop_donations_by_goal_hint">Сдача, которую гости оставили на служение</p>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto" tabindex="0">
                     <table class="table table-sm stack" id="goalsTbl">
                         <thead><tr><th data-i18n="shop_goal_col">Цель</th><th class="text-right" data-i18n="shop_collected">Собрано</th></tr></thead>
                         <tbody></tbody>
@@ -106,7 +106,7 @@
                     <p class="text-sm opacity-60" data-i18n="shop_stale_hint">Лежит дольше трёх месяцев и не продавалось.
                         Чужое стоит вернуть владельцу, своё — уценить.</p>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto" tabindex="0">
                     <table class="table table-sm stack" id="deadTbl">
                         <thead><tr><th data-i18n="shop_item_col">Товар</th><th class="text-right" data-i18n="shop_stock_col">На полке</th>
                             <th class="text-right" data-i18n="shop_lying">Лежит</th></tr></thead>

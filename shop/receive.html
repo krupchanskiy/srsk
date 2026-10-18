@@ -65,7 +65,7 @@
                 </div>
 
                 <datalist id="itemsList"></datalist>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto" tabindex="0">
                     <table class="table table-sm stack" id="rowsTbl">
                         <thead>
                             <tr>
@@ -95,7 +95,7 @@
                     <h2 class="card-title text-base" data-i18n="shop_recent_receipts">Последние поступления</h2>
                     <span class="text-sm opacity-60" id="historyCount"></span>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto" tabindex="0">
                     <table class="table table-sm stack" id="historyTbl">
                         <thead>
                             <tr><th>№</th><th data-i18n="shop_date">Дата</th><th data-i18n="shop_from_col">Откуда</th><th class="text-right" data-i18n="shop_lines_col">Позиций</th>
@@ -118,7 +118,7 @@
     <script src="../js/auth-check.js?v=14"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/shop-utils.js?v=2"></script>
-    <script src="../js/pages/shop-receive.js?v=3"></script>
+    <script src="../js/pages/shop-receive.js?v=4"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_receive' });

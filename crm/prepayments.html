@@ -59,14 +59,14 @@
             <div class="flex flex-wrap gap-3 items-end">
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_retreat">Ретрит</span></label>
-                    <select id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select aria-label="Ретрит" id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="all">Все</option>
                     </select>
                 </div>
 
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_prepayment_confirmation_status">Статус подтверждения</span></label>
-                    <select id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select aria-label="Статус" id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="crm_all_statuses">Все статусы</option>
                         <option value="confirmed" data-i18n="crm_prepayment_confirmed">Подтверждена</option>
                         <option value="not_confirmed" data-i18n="crm_prepayment_not_confirmed">Не подтверждена</option>
@@ -76,14 +76,14 @@
 
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_payment_system">Платёжная система</span></label>
-                    <select id="filterSystem" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select id="filterSystem" aria-label="Система оплаты" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="crm_all_systems">Все системы</option>
                     </select>
                 </div>
 
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_filter_operation_type">Тип операции</span></label>
-                    <select id="filterOpType" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select id="filterOpType" aria-label="Вид операции" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="all">Все</option>
                         <option value="transfer" data-i18n="crm_operation_transfer">Перенос на ретрит</option>
                         <option value="refund" data-i18n="crm_operation_refund">Возврат</option>

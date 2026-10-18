@@ -62,7 +62,7 @@
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_add_to_queue">Добавить в очередь</span></label>
                     <div class="flex gap-2">
-                        <select id="addToQueueSelect" class="select select-bordered flex-1">
+                        <select aria-label="Добавить менеджера в очередь" id="addToQueueSelect" class="select select-bordered flex-1">
                             <option value="" data-i18n="crm_select_manager">Выберите менеджера...</option>
                         </select>
                         <button class="btn btn-primary" onclick="addToQueue()" data-permission="edit_crm_settings" data-i18n="add">
@@ -244,6 +244,7 @@ function renderQueue() {
                 <div class="flex gap-1">
                     <label class="swap" title="${q.is_active ? t('crm_active_status') : t('crm_paused_status')}">
                         <input type="checkbox" ${q.is_active ? 'checked' : ''}
+                               aria-label="${q.is_active ? 'Принимает новые сделки' : 'На паузе'}"
                                onchange="toggleQueueActive('${q.id}', this.checked)"
                                data-permission="edit_crm_settings">
                         <span class="swap-on text-success">${CrmUtils.UI_ICONS.checkCircle}</span>

@@ -114,19 +114,19 @@
             </div>
 
             <!-- Ретрит -->
-            <select id="filterRetreat" class="select select-bordered select-sm" onchange="loadDeals()">
+            <select aria-label="Ретрит" id="filterRetreat" class="select select-bordered select-sm" onchange="loadDeals()">
                 <option value="" data-i18n="crm_all_retreats">Все ретриты</option>
             </select>
 
             <!-- Менеджер -->
-            <select id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
+            <select aria-label="Менеджер" id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="" data-i18n="crm_all_managers">Все менеджеры</option>
                 <option value="my" data-i18n="crm_my">Мои</option>
                 <option value="unassigned" data-i18n="crm_unassigned">Не назначен</option>
             </select>
 
             <!-- Режим -->
-            <select id="filterMode" class="select select-bordered select-sm" onchange="applyFilters()">
+            <select id="filterMode" aria-label="Режим" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="" data-i18n="crm_all_modes">Все режимы</option>
                 <option value="active" data-i18n="crm_mode_active">Активные</option>
                 <option value="long_term" data-i18n="crm_mode_long_term">Долгий дожим</option>
@@ -134,7 +134,7 @@
             </select>
 
             <!-- Маркеры (ТЗ 1.7): показываются только когда требуют внимания -->
-            <select id="filterMarker" class="select select-bordered select-sm" onchange="applyFilters()">
+            <select id="filterMarker" aria-label="Отметка" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="">Все маркеры</option>
                 <option value="dates" data-i18n="crm_marker_dates">Даты не уточнены</option>
                 <option value="terms" data-i18n="crm_filter_has_terms">Инд. условия</option>

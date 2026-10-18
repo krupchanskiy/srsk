@@ -32,19 +32,19 @@
         <h1 class="text-2xl font-bold" data-i18n="nav_crm_tasks">Мои задачи</h1>
 
         <div class="flex gap-3 flex-wrap">
-            <select id="filterAssignee" class="select select-bordered select-sm" onchange="loadTasks()">
+            <select aria-label="Исполнитель" id="filterAssignee" class="select select-bordered select-sm" onchange="loadTasks()">
                 <option value="my" data-i18n="crm_my">Мои</option>
                 <option value="all" data-i18n="crm_all_tasks">Все задачи</option>
                 <!-- Менеджеры подгружаются динамически -->
             </select>
 
-            <select id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
+            <select aria-label="Статус" id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="active" data-i18n="crm_filter_active">Активные</option>
                 <option value="all" data-i18n="all">Все</option>
                 <option value="completed" data-i18n="crm_filter_completed">Завершённые</option>
             </select>
 
-            <select id="filterPriority" class="select select-bordered select-sm" onchange="applyFilters()">
+            <select aria-label="Приоритет" id="filterPriority" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="" data-i18n="crm_all_priorities">Все приоритеты</option>
                 <option value="urgent" data-i18n="crm_priority_urgent">Срочные</option>
                 <option value="high" data-i18n="crm_priority_high">Высокие</option>
@@ -436,7 +436,7 @@ function renderTaskCard(task) {
              style="border-left-color: ${priorityColor};">
             <div class="card-body p-4">
                 <div class="flex items-start gap-3">
-                    <input type="checkbox" class="checkbox checkbox-primary mt-1"
+                    <input type="checkbox" class="checkbox checkbox-primary mt-1" aria-label="Задача выполнена"
                            ${isCompleted ? 'checked' : ''}
                            onchange="toggleTask('${task.id}', this.checked)">
                     <div class="flex-1">

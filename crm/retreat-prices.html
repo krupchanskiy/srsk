@@ -52,7 +52,7 @@
         <div class="card-body p-4">
             <div class="form-control max-w-md">
                 <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_retreat">Ретрит</span></label>
-                <select id="retreatSelect" class="select select-bordered select-sm" onchange="loadPrices()"></select>
+                <select aria-label="Ретрит" id="retreatSelect" class="select select-bordered select-sm" onchange="loadPrices()"></select>
             </div>
         </div>
     </div>
@@ -219,11 +219,11 @@ function buildingLabel(sv) {
     }
     // Редактору — селект здания и вместимость прямо в строке
     return `<div class="flex items-center gap-1 mt-0.5">
-        <select class="select select-xs select-bordered ${sv.building_id ? '' : 'border-warning'}" data-svc="${sv.id}" data-svcfield="building_id">
+        <select class="select select-xs select-bordered ${sv.building_id ? '' : 'border-warning'}" data-svc="${sv.id}" data-svcfield="building_id" aria-label="Корпус">
             <option value="">${t('crm_price_no_building')}</option>
             ${buildings.map(b => `<option value="${b.id}" ${b.id === sv.building_id ? 'selected' : ''}>${e(Layout.getName(b))}</option>`).join('')}
         </select>
-        <input type="number" class="input input-xs input-bordered w-14" data-svc="${sv.id}" data-svcfield="room_capacity"
+        <input type="number" class="input input-xs input-bordered w-14" aria-label="${t('crm_price_capacity')}" data-svc="${sv.id}" data-svcfield="room_capacity"
                value="${sv.room_capacity ?? ''}" min="1" max="12" title="${t('crm_price_capacity')}">
         ${sv.room_number_pattern ? `<span class="text-xs opacity-50" title="${t('crm_price_pattern')}">${e(sv.room_number_pattern)}</span>` : ''}
     </div>`;
@@ -245,8 +245,8 @@ function renderTransport() {
     document.getElementById('transportAddWrap').style.display = canEdit() ? '' : 'none';
     body.innerHTML = rows.length ? rows.map(sv => `
         <tr data-service="${sv.id}">
-            <td><input type="text" class="input input-bordered input-sm w-full" data-tfield="name_ru" value="${e(sv.name_ru || '')}" ${ro}></td>
-            <td class="text-right"><input type="number" class="input input-bordered input-sm price-input" data-tfield="default_price" value="${sv.default_price ?? ''}" step="1" min="0" ${ro}></td>
+            <td><input type="text" class="input input-bordered input-sm w-full" aria-label="Название" data-tfield="name_ru" value="${e(sv.name_ru || '')}" ${ro}></td>
+            <td class="text-right"><input type="number" class="input input-bordered input-sm price-input" aria-label="Цена по умолчанию" data-tfield="default_price" value="${sv.default_price ?? ''}" step="1" min="0" ${ro}></td>
             <td>${canEdit() ? `<button class="btn btn-ghost btn-xs text-error" data-taction="del" title="${t('delete')}">✕</button>` : ''}</td>
         </tr>`).join('')
         : `<tr><td colspan="3" class="text-center py-8 opacity-60">${t('crm_no_prices')}</td></tr>`;
@@ -314,8 +314,9 @@ function renderTable() {
                 <td class="font-medium">${e(s ? Layout.getName(s) : '—')}${buildingLabel(s)}</td>
                 ${['price', 'price_rub', 'price_usd', 'price_eur'].map(f => `
                 <td class="text-right"><input type="number" class="input input-bordered input-sm price-input"
+                    aria-label="${e((s ? Layout.getName(s) : 'Цена') + ' — ' + ({ price: '₹', price_rub: '₽', price_usd: '$', price_eur: '€' })[f])}"
                     data-field="${f}" value="${p[f] ?? ''}" step="0.01" min="0" ${ro}></td>`).join('')}
-                <td><input type="text" class="input input-bordered input-sm w-full" data-field="note" value="${e(p.note || '')}" ${ro}></td>
+                <td><input type="text" class="input input-bordered input-sm w-full" aria-label="Примечание" data-field="note" value="${e(p.note || '')}" ${ro}></td>
                 <td>${canEdit() ? `<button class="btn btn-ghost btn-xs text-error" data-action="del" title="${t('delete')}">✕</button>` : ''}</td>
             </tr>${s?.category === 'meals' ? mealSplitRow(p) : ''}`;
         }).join('');

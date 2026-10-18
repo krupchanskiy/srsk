@@ -40,7 +40,7 @@
                 <!-- Ретрит -->
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_retreat">Ретрит</span></label>
-                    <select id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select aria-label="Ретрит" id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="all">Все</option>
                     </select>
                 </div>
@@ -48,7 +48,7 @@
                 <!-- Статус -->
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="col_status">Статус</span></label>
-                    <select id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select aria-label="Статус" id="filterStatus" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="all">Все</option>
                         <option value="active" data-i18n="crm_filter_active">Активные</option>
                         <option value="cancelled" data-i18n="crm_filter_cancelled">Отменённые</option>
@@ -59,7 +59,7 @@
                 <!-- Менеджер -->
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_manager">Менеджер</span></label>
-                    <select id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select aria-label="Менеджер" id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="all">Все</option>
                         <option value="my" data-i18n="crm_my">Мои</option>
                         <option value="unassigned" data-i18n="crm_unassigned">Не назначен</option>
@@ -113,7 +113,7 @@
                 <table class="table">
                     <thead>
                         <tr>
-                            <th class="w-8"><input type="checkbox" class="checkbox checkbox-xs" onchange="toggleAllCheckboxes(this.checked)"></th>
+                            <th class="w-8"><input type="checkbox" class="checkbox checkbox-xs" aria-label="Выбрать все" onchange="toggleAllCheckboxes(this.checked)"></th>
                             <th class="w-8"></th>
                             <th class="cursor-pointer hover:bg-base-200" onclick="setSort('guest')">
                                 <span class="inline-flex items-center gap-1" data-i18n="crm_guest">Гость <span id="sort-guest" class="text-xs opacity-50"></span></span>
@@ -561,7 +561,7 @@ function renderTable() {
 
         return `
             <tr class="deal-row ${isOverdue ? 'overdue' : ''}" onclick="openDeal('${d.id}')">
-                <td onclick="event.stopPropagation()"><input type="checkbox" class="checkbox checkbox-xs deal-checkbox" data-id="${d.id}" onchange="updateBulkPanel()"></td>
+                <td onclick="event.stopPropagation()"><input type="checkbox" class="checkbox checkbox-xs deal-checkbox" aria-label="Выбрать сделку" data-id="${d.id}" onchange="updateBulkPanel()"></td>
                 <td class="w-8">${isOverdue ? `<span title="${t('crm_no_contact_24h')}" class="text-error">${CrmUtils.UI_ICONS.exclamationCircle}</span>` : ''}${d.is_group_main ? `<span title="${t('crm_group_main')}">${CrmUtils.UI_ICONS.user}</span>` : ''}</td>
                 <td>
                     <div class="font-medium">${CrmUtils.getGuestDualName(guest)}</div>

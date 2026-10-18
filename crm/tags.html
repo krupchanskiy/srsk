@@ -140,9 +140,9 @@ function renderGrid() {
                         ${e(Layout.getName(tag))}
                     </span>
                     <div class="flex gap-1">
-                        <button class="btn btn-ghost btn-xs" onclick="editTag('${tag.id}')"
+                        <button class="btn btn-ghost btn-xs" aria-label="Изменить" onclick="editTag('${tag.id}')"
                                 data-permission="edit_crm_settings">${CrmUtils.UI_ICONS.edit}</button>
-                        <button class="btn btn-ghost btn-xs text-error" onclick="deleteTag('${tag.id}')"
+                        <button class="btn btn-ghost btn-xs text-error" aria-label="Удалить" onclick="deleteTag('${tag.id}')"
                                 data-permission="edit_crm_settings">${CrmUtils.UI_ICONS.trash}</button>
                     </div>
                 </div>

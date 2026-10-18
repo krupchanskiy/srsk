@@ -33,7 +33,7 @@
                 <!-- Период -->
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_period">Период</span></label>
-                    <select id="filterPeriod" class="select select-bordered select-sm" onchange="loadLog()">
+                    <select aria-label="Период" id="filterPeriod" class="select select-bordered select-sm" onchange="loadLog()">
                         <option value="today" data-i18n="crm_period_today">Сегодня</option>
                         <option value="week" selected data-i18n="crm_period_week">Неделя</option>
                         <option value="month" data-i18n="crm_period_month">Месяц</option>
@@ -44,7 +44,7 @@
                 <!-- Менеджер -->
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_manager">Менеджер</span></label>
-                    <select id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select aria-label="Менеджер" id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="all">Все</option>
                     </select>
                 </div>
@@ -52,7 +52,7 @@
                 <!-- Тип действия -->
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_action_type">Тип действия</span></label>
-                    <select id="filterAction" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select aria-label="Действие" id="filterAction" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="all">Все</option>
                         <option value="status_change" data-i18n="crm_action_status_change">Смена статуса</option>
                         <option value="payment_added" data-i18n="crm_action_payment_added">Добавление оплаты</option>
@@ -65,7 +65,7 @@
                 <!-- Ретрит -->
                 <div class="form-control">
                     <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_retreat">Ретрит</span></label>
-                    <select id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
+                    <select aria-label="Ретрит" id="filterRetreat" class="select select-bordered select-sm" onchange="applyFilters()">
                         <option value="" data-i18n="all">Все</option>
                     </select>
                 </div>

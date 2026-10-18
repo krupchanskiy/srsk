@@ -25,7 +25,7 @@
     <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
         <h1 class="text-2xl font-bold" data-i18n="nav_crm_task_templates">Шаблоны автозадач</h1>
         <div class="flex gap-3 items-center flex-wrap">
-            <select id="filterRetreat" class="select select-bordered select-sm" onchange="onRetreatChange()">
+            <select aria-label="Ретрит" id="filterRetreat" class="select select-bordered select-sm" onchange="onRetreatChange()">
                 <option value="" data-i18n="crm_task_templates_default">По умолчанию</option>
             </select>
             <button id="btnCopyDefaults" class="btn btn-sm btn-ghost hidden"
@@ -256,16 +256,16 @@ function renderRow(tpl) {
                 </span>
             </td>
             <td class="text-center">
-                <input type="checkbox" class="toggle toggle-sm toggle-primary"
+                <input type="checkbox" class="toggle toggle-sm toggle-primary" aria-label="Шаблон включён"
                        ${tpl.is_active ? 'checked' : ''}
                        onchange="toggleActive('${tpl.id}', this.checked)"
                        data-permission="edit_crm_settings">
             </td>
             <td>
                 <div class="flex gap-1 justify-end">
-                    <button class="btn btn-ghost btn-xs" onclick="editTemplate('${tpl.id}')"
+                    <button class="btn btn-ghost btn-xs" aria-label="Изменить" onclick="editTemplate('${tpl.id}')"
                             data-permission="edit_crm_settings">${CrmUtils.UI_ICONS.edit}</button>
-                    <button class="btn btn-ghost btn-xs text-error" onclick="deleteTemplate('${tpl.id}')"
+                    <button class="btn btn-ghost btn-xs text-error" aria-label="Удалить" onclick="deleteTemplate('${tpl.id}')"
                             data-permission="edit_crm_settings">${CrmUtils.UI_ICONS.trash}</button>
                 </div>
             </td>

@@ -43,12 +43,12 @@
                 <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <div class="group flex items-center gap-2 min-w-0">
                         <h1 class="text-xl sm:text-2xl font-bold text-white truncate" id="guestName">—</h1>
-                        <button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0 text-white/60 hover:text-white" onclick="startEditName()">
+                        <button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0 text-white/60 hover:text-white" aria-label="Изменить имя" onclick="startEditName()">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                         </button>
                         <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden shrink-0" data-i18n="crm_repeat_guest">повторный</span>
                     </div>
-                    <select id="statusSelect" class="select select-sm font-bold text-sm min-w-[140px] shrink-0" onchange="changeStatus(this.value)">
+                    <select aria-label="Стадия сделки" id="statusSelect" class="select select-sm font-bold text-sm min-w-[140px] shrink-0" onchange="changeStatus(this.value)">
                     </select>
                 </div>
                 <!-- Нижняя строка: контакты + режим/менеджер -->
@@ -58,12 +58,12 @@
                         <div class="flex gap-1 shrink-0" id="quickContactButtons"></div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 shrink-0">
-                        <select id="workModeSelect" class="select select-xs text-xs min-w-[90px]" onchange="changeWorkMode(this.value)" data-i18n-title="crm_work_mode_hint" title="Температура — насколько активно работаем с гостем">
+                        <select aria-label="Темп работы с гостем" id="workModeSelect" class="select select-xs text-xs min-w-[90px]" onchange="changeWorkMode(this.value)" data-i18n-title="crm_work_mode_hint" title="Температура — насколько активно работаем с гостем">
                             <option value="active" data-i18n="crm_mode_hot">🔥 Горячий</option>
                             <option value="long_term" data-i18n="crm_mode_warm">🌡 Тёплый</option>
                             <option value="paused" data-i18n="crm_mode_cold">❄️ Холодный</option>
                         </select>
-                        <select id="managerSelect" class="select select-xs text-xs min-w-[110px]" onchange="changeManager(this.value)">
+                        <select aria-label="Менеджер сделки" id="managerSelect" class="select select-xs text-xs min-w-[110px]" onchange="changeManager(this.value)">
                         </select>
                     </div>
                 </div>
@@ -171,13 +171,13 @@
                     <div class="grid grid-cols-2 gap-x-3 gap-y-0.5" id="checklistGrid">
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_accommodation">Проживание</span></label>
-                            <select class="select select-xs w-full" onchange="handleAccommodationChange(this.value)" id="cl_accommodation">
+                            <select aria-label="Проживание" class="select select-xs w-full" onchange="handleAccommodationChange(this.value)" id="cl_accommodation">
                                 <option value="unknown">—</option>
                             </select>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_meals">Питание</span></label>
-                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_meals', this.value)" id="cl_meals">
+                            <select aria-label="Питание" class="select select-xs w-full" onchange="updateChecklist('checklist_meals', this.value)" id="cl_meals">
                                 <option value="unknown">—</option>
                                 <option value="in_ashram" data-i18n="crm_cl_in_ashram">В ШРСК</option>
                                 <option value="self" data-i18n="crm_cl_self">Сам</option>
@@ -185,7 +185,7 @@
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_visa">Виза</span></label>
-                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
+                            <select aria-label="Виза" class="select select-xs w-full" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
                                 <option value="unknown">—</option>
                                 <option value="needs_help" data-i18n="crm_cl_needs_help">Помощь</option>
                                 <option value="not_needed" data-i18n="crm_cl_not_needed">Не нужна</option>
@@ -193,7 +193,7 @@
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_tickets">Билеты</span></label>
-                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_tickets', this.value)" id="cl_tickets">
+                            <select aria-label="Билеты" class="select select-xs w-full" onchange="updateChecklist('checklist_tickets', this.value)" id="cl_tickets">
                                 <option value="unknown">—</option>
                                 <option value="bought" data-i18n="crm_cl_bought">Куплены</option>
                                 <option value="not_bought" data-i18n="crm_cl_not_bought">Не куплены</option>
@@ -211,7 +211,7 @@
                                 <input type="text" class="input input-bordered input-xs" id="arrivalFlight" data-i18n-placeholder="crm_cl_flight" placeholder="Рейс" onchange="saveFlightField('arrival_flight', this.value)">
                                 <input type="text" class="input input-bordered input-xs" id="arrivalAirport" data-i18n-placeholder="crm_cl_airport" placeholder="Аэропорт" onchange="saveFlightField('arrival_airport', this.value)">
                             </div>
-                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" onchange="saveArrivalDatetime(this.value)">
+                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" aria-label="Приезд: дата и время" onchange="saveArrivalDatetime(this.value)">
                             <div class="flex flex-wrap gap-x-4 gap-y-0 mt-1">
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="arrivalNeedsTransfer" onchange="updateChecklist('checklist_transfer_arrival', this.checked ? 'needed' : 'not_needed')">
@@ -224,7 +224,7 @@
                             </div>
                             <!-- Статус дат заезда (ТЗ 1.4): виден только при обнаруженном расхождении -->
                             <div id="arrivalDatesRow" class="hidden mt-1">
-                                <select class="select select-xs select-bordered w-full border-red-300" id="arrivalDatesStatus"
+                                <select aria-label="Даты приезда" class="select select-xs select-bordered w-full border-red-300" id="arrivalDatesStatus"
                                         onchange="saveDatesStatus('arrival', this.value)">
                                     <option value="unconfirmed" data-i18n="crm_dates_unconfirmed">Не уточнено</option>
                                     <option value="matches" data-i18n="crm_dates_matches">Совпадает с рейсом</option>
@@ -241,7 +241,7 @@
                                 <input type="text" class="input input-bordered input-xs" id="departureFlight" data-i18n-placeholder="crm_cl_flight" placeholder="Рейс" onchange="saveFlightField('departure_flight', this.value)">
                                 <input type="text" class="input input-bordered input-xs" id="departureAirport" data-i18n-placeholder="crm_cl_airport" placeholder="Аэропорт" onchange="saveFlightField('departure_airport', this.value)">
                             </div>
-                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" onchange="saveDepartureDatetime(this.value)">
+                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" aria-label="Отъезд: дата и время" onchange="saveDepartureDatetime(this.value)">
                             <div class="flex flex-wrap gap-x-4 gap-y-0 mt-1">
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="departureNeedsTransfer" onchange="updateChecklist('checklist_transfer_departure', this.checked ? 'needed' : 'not_needed')">
@@ -253,7 +253,7 @@
                                 </label>
                             </div>
                             <div id="departureDatesRow" class="hidden mt-1">
-                                <select class="select select-xs select-bordered w-full border-red-300" id="departureDatesStatus"
+                                <select aria-label="Даты отъезда" class="select select-xs select-bordered w-full border-red-300" id="departureDatesStatus"
                                         onchange="saveDatesStatus('departure', this.value)">
                                     <option value="unconfirmed" data-i18n="crm_dates_unconfirmed">Не уточнено</option>
                                     <option value="matches" data-i18n="crm_dates_matches">Совпадает с рейсом</option>
@@ -341,7 +341,7 @@
                 <div class="card-body p-4">
                     <h3 class="font-bold mb-3" data-i18n="crm_tags">Теги</h3>
                     <div id="dealTags" class="flex flex-wrap gap-2 mb-3"></div>
-                    <select id="addTagSelect" class="select select-bordered select-sm w-full" onchange="addTag(this.value)">
+                    <select aria-label="Добавить тег" id="addTagSelect" class="select select-bordered select-sm w-full" onchange="addTag(this.value)">
                         <option value="" data-i18n="crm_add_tag">+ Добавить тег...</option>
                     </select>
                 </div>
@@ -380,7 +380,7 @@
 
             <div class="form-control mb-3">
                 <label class="label"><span class="label-text" data-i18n="crm_service">Услуга</span></label>
-                <select id="serviceSelect" class="select select-bordered" onchange="onServiceSelect()">
+                <select aria-label="Услуга" id="serviceSelect" class="select select-bordered" onchange="onServiceSelect()">
                     <option value="" data-i18n="crm_select_service">Выберите услугу...</option>
                     <option value="custom" data-i18n="crm_custom_service">— Другое (ввести вручную) —</option>
                 </select>
@@ -431,7 +431,7 @@
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_currency">Валюта</span></label>
-                    <select id="paymentCurrency" class="select select-bordered">
+                    <select aria-label="Валюта оплаты" id="paymentCurrency" class="select select-bordered">
                     </select>
                 </div>
             </div>
@@ -439,7 +439,7 @@
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_payment_type">Тип</span></label>
-                    <select id="paymentType" class="select select-bordered">
+                    <select aria-label="Тип оплаты" id="paymentType" class="select select-bordered">
                         <option value="org_fee" data-i18n="crm_ptype_org_fee">Оргвзнос</option>
                         <option value="accommodation" data-i18n="crm_cat_accommodation">Проживание</option>
                         <option value="meals" data-i18n="crm_cat_meals">Питание</option>
@@ -449,7 +449,7 @@
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_payment_system">Платёжная система</span></label>
-                    <select id="paymentSystem" class="select select-bordered" required></select>
+                    <select aria-label="Система оплаты" id="paymentSystem" class="select select-bordered" required></select>
                 </div>
             </div>
 
@@ -509,7 +509,7 @@
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_comm_type">Тип</span></label>
-                    <select id="commType" class="select select-bordered">
+                    <select aria-label="Вид связи" id="commType" class="select select-bordered">
                         <option value="call" data-i18n="crm_comm_call">Звонок</option>
                         <option value="whatsapp">WhatsApp</option>
                         <option value="telegram" data-i18n="crm_source_telegram">Телеграм</option>
@@ -519,7 +519,7 @@
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_direction">Направление</span></label>
-                    <select id="commDirection" class="select select-bordered">
+                    <select aria-label="Направление" id="commDirection" class="select select-bordered">
                         <option value="outbound" data-i18n="crm_dir_outbound">Исходящий</option>
                         <option value="inbound" data-i18n="crm_dir_inbound">Входящий</option>
                         <option value="internal" data-i18n="crm_dir_internal">Внутренний</option>
@@ -563,7 +563,7 @@
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_priority">Приоритет</span></label>
-                    <select id="taskPriority" class="select select-bordered">
+                    <select aria-label="Приоритет задачи" id="taskPriority" class="select select-bordered">
                         <option value="low" data-i18n="crm_priority_low">Низкий</option>
                         <option value="normal" selected data-i18n="crm_priority_normal">Обычный</option>
                         <option value="high" data-i18n="crm_priority_high">Высокий</option>
@@ -633,7 +633,7 @@
         <div class="grid grid-cols-2 gap-3 mb-4">
             <div class="form-control">
                 <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_member_relation">Связь</span></label>
-                <select id="memberRelation" class="select select-bordered select-sm">
+                <select aria-label="Кем приходится" id="memberRelation" class="select select-bordered select-sm">
                     <option value="wife" data-i18n="crm_rel_wife">Жена</option>
                     <option value="husband" data-i18n="crm_rel_husband">Муж</option>
                     <option value="child" data-i18n="crm_rel_child">Ребёнок</option>
@@ -1096,7 +1096,7 @@ function renderInfoTab() {
         const val = href && !isEmpty
             ? `<a href="${e(href)}" class="link link-hover text-primary text-sm">${e(displayVal)}</a>`
             : `<span class="font-medium text-sm ${isEmpty ? 'text-base-content/30 italic' : ''}">${e(displayVal)}</span>`;
-        const editBtn = field ? `<button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0" onclick="startEditContact('${field}')">
+        const editBtn = field ? `<button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0" aria-label="Изменить: ${e(label)}" onclick="startEditContact('${field}')">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
         </button>` : '';
         return `<div class="group flex items-center gap-2 py-1.5 border-b border-base-200/50 last:border-0" id="contact-row-${field || label}">
@@ -1115,7 +1115,7 @@ function renderInfoTab() {
         return `<div class="flex items-center gap-2 py-1.5 border-b border-base-200/50">
             <span class="text-base-content/30">${genderIcon}</span>
             <span class="text-xs text-base-content/40 w-16 shrink-0">${t('crm_gender')}</span>
-            <select onchange="saveGender(this.value)" class="select select-xs select-ghost h-6 min-h-0 px-1 font-medium" style="color: ${color || 'inherit'}">
+            <select aria-label="Пол" onchange="saveGender(this.value)" class="select select-xs select-ghost h-6 min-h-0 px-1 font-medium" style="color: ${color || 'inherit'}">
                 <option value="" ${!g ? 'selected' : ''}>${t('crm_gender_not_set')}</option>
                 <option value="male" ${g === 'male' ? 'selected' : ''} style="color:#3b82f6">${t('crm_gender_male')}</option>
                 <option value="female" ${g === 'female' ? 'selected' : ''} style="color:#ec4899">${t('crm_gender_female')}</option>
@@ -1153,7 +1153,7 @@ function renderInfoTab() {
                     ${contactRow(locationIcon, t('crm_location'), location || null, null, null)}
                     <div class="flex items-center gap-2 py-1.5 text-sm border-t border-base-200/60">
                         <span class="text-xs opacity-50 w-24 shrink-0">${t('crm_birth_date')}</span>
-                        <input type="date" class="input input-ghost input-xs" id="guestBirthDate"
+                        <input type="date" class="input input-ghost input-xs" id="guestBirthDate" aria-label="Дата рождения"
                                value="${e(guest.birth_date || '')}" onchange="saveBirthDate(this.value)">
                         <span class="text-xs opacity-50" id="guestAgeHint">${ageHintText()}</span>
                         <span id="guestChildState">${childStateHtml()}</span>
@@ -1532,7 +1532,7 @@ function renderDealTerms() {
         <div class="mb-3" data-term-block="${block}">
             <div class="flex flex-wrap items-center gap-2">
                 <span class="text-sm font-medium w-28 shrink-0">${t('crm_terms_' + block)}</span>
-                <select class="select select-bordered select-xs term-type">
+                <select class="select select-bordered select-xs term-type" aria-label="Условие">
                     <option value="full" ${тип === 'full' ? 'selected' : ''}>${t('crm_terms_full')}</option>
                     ${TERM_TYPES[block].map(ty =>
                         `<option value="${ty}" ${тип === ty ? 'selected' : ''}>${termTypeLabel(block, ty)}</option>`).join('')}
