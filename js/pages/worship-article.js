@@ -19,6 +19,7 @@ const WorshipArticle = (() => {
     const id = new URLSearchParams(location.search).get('id');
     let статья = null, версии = [], показана = null, раздел = null;
     let снимки = {};                // путь → адрес ограниченного срока
+    let замечания = [];
 
     async function загрузить() {
         if (!id) { Layout.showNotification('Статья не указана', 'warning'); return false; }
@@ -34,6 +35,11 @@ const WorshipArticle = (() => {
 
         статья = с;
         версии = вер || [];
+
+        const { data: зам } = await Layout.db.from('worship_remarks')
+            .select('id, body, state, created_at, created_by, closed_at, close_reason')
+            .eq('article_id', id).order('created_at', { ascending: false });
+        замечания = зам || [];
 
         if (статья.section_id) {
             const { data } = await Layout.db.from('worship_sections')
@@ -186,6 +192,34 @@ const WorshipArticle = (() => {
             </li>`).join('');
     }
 
+    function рисоватьЗамечания() {
+        const открытые = замечания.filter(з => з.state === 'open');
+        const закрытые = замечания.filter(з => з.state !== 'open').slice(0, 5);
+
+        $('#remarks').innerHTML = [...открытые, ...закрытые].map(з => {
+            const пометка = з.state === 'accepted'
+                ? '<span class="badge badge-sm badge-success">учтено</span>'
+                : з.state === 'declined'
+                ? '<span class="badge badge-sm">не согласен</span>'
+                : '<span class="badge badge-sm badge-warning">открыто</span>';
+            const закрыть = з.state === 'open' && можноПисать()
+                ? `<div class="flex gap-3 mt-1">
+                       <button class="link text-sm" data-remark-ok="${з.id}">Учтено</button>
+                       <button class="link text-sm" data-remark-no="${з.id}">Не согласен</button>
+                   </div>` : '';
+            return `
+            <li class="border-b border-base-200 last:border-0 py-3">
+                <div class="flex flex-wrap items-baseline gap-2">
+                    ${пометка}
+                    <span class="text-sm opacity-60">${дата(з.created_at)}</span>
+                </div>
+                <div class="mt-1">${e(з.body)}</div>
+                ${з.close_reason ? `<div class="text-sm opacity-70 mt-1">Ответ: ${e(з.close_reason)}</div>` : ''}
+                ${закрыть}
+            </li>`;
+        }).join('') || '<li class="py-2 text-sm opacity-60">Пока никто ничего не заметил</li>';
+    }
+
     function рисоватьИсторию() {
         const готовые = версии.filter(в => в.status !== 'draft' && в.status !== 'submitted')
                               .sort((a, b) => b.version_no - a.version_no);
@@ -209,6 +243,7 @@ const WorshipArticle = (() => {
         рисоватьШапку();
         рисоватьДействия();
         рисоватьТекст();
+        рисоватьЗамечания();
         рисоватьИсторию();
         window.applyPermissions?.();
         восстановитьПрокрутку();
@@ -257,8 +292,33 @@ const WorshipArticle = (() => {
                 return перечитать();
             }
 
+            const учтено = ev.target.closest('[data-remark-ok]');
+            const несогласие = ev.target.closest('[data-remark-no]');
+            if (учтено || несогласие) {
+                const id = (учтено || несогласие).dataset.remarkOk
+                        || (учтено || несогласие).dataset.remarkNo;
+                const причина = несогласие
+                    ? prompt('Одной строкой: почему не согласны? Автор замечания это увидит.')
+                    : prompt('Можно коротко ответить (необязательно)') || null;
+                if (несогласие && (!причина || !причина.trim())) return;
+                const { error } = await Layout.db.rpc('worship_remark_close', {
+                    p_remark: id, p_state: несогласие ? 'declined' : 'accepted', p_reason: причина });
+                if (error) return Layout.handleError(error, 'Замечание');
+                return перечитать();
+            }
+
             const b = ev.target.closest('button');
             if (!b) return;
+
+            if (b.id === 'addRemark') {
+                const текст = prompt('Что не так? Одной-двумя фразами.');
+                if (!текст || !текст.trim()) return;
+                const { error } = await Layout.db.rpc('worship_remark_add',
+                    { p_article: статья.id, p_body: текст });
+                if (error) return Layout.handleError(error, 'Замечание');
+                Layout.showNotification('Замечание отправлено', 'success');
+                return перечитать();
+            }
 
             if (b.id === 'print') return print();
             if (b.id === 'diff') return показатьСравнение();

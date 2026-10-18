@@ -58,6 +58,22 @@
             </h2>
             <p class="text-sm opacity-70 mb-3">Пока не утвердите, в храме действует прежняя редакция.</p>
             <div class="flex flex-col gap-2" id="queueList"></div>
+            <!-- первое наполнение — это полсотни статей за вечер, по одной их никто не утвердит -->
+            <div class="flex flex-wrap items-center gap-3 mt-3">
+                <label class="label cursor-pointer justify-start gap-2 py-0">
+                    <input type="checkbox" class="checkbox checkbox-sm" id="queueAll">
+                    <span class="label-text text-sm">Отметить все</span>
+                </label>
+                <button class="btn btn-sm btn-success text-white" id="approveMany" disabled>
+                    Утвердить отмеченные</button>
+            </div>
+        </section>
+
+        <!-- замечания рядом с очередью: это вторая стопка работы старшего -->
+        <section id="remarksBox" hidden class="mb-5 rounded-xl border border-base-300 bg-base-100 p-4">
+            <h2 class="font-bold mb-1">Замечания от отдела · <span id="remarksCount">0</span></h2>
+            <p class="text-sm opacity-70 mb-3">Расхождение стандарта с жизнью, замеченное у алтаря.</p>
+            <div class="flex flex-col gap-2" id="remarksList"></div>
         </section>
 
         <label class="label cursor-pointer justify-start gap-2 mb-3 w-fit">
@@ -76,7 +92,7 @@
     <script src="../js/layout.js?v=97"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/pages/worship-standards.js?v=2"></script>
+    <script src="../js/pages/worship-standards.js?v=3"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

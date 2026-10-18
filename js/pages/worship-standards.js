@@ -13,7 +13,7 @@ const WorshipStandards = (() => {
     const можноПисать = () => !!window.hasPermission?.('worship_write');
     const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
 
-    let разделы = [], статьи = [], очередь = [];
+    let разделы = [], статьи = [], очередь = [], замечания = [];
     let вид = 'sections';           // sections | flat
     let фильтр = { поиск: '', архив: false };
 
@@ -41,6 +41,12 @@ const WorshipStandards = (() => {
                 .eq('status', 'submitted').order('updated_at');
             if (error) { Layout.handleError(error, 'Очередь на утверждение'); return false; }
             очередь = data || [];
+
+            const зам = await Layout.db.from('worship_remarks')
+                .select('id, article_id, body, created_at')
+                .eq('state', 'open').order('created_at');
+            if (зам.error) { Layout.handleError(зам.error, 'Замечания'); return false; }
+            замечания = зам.data || [];
         }
         return true;
     }
@@ -92,17 +98,65 @@ const WorshipStandards = (() => {
         $('#queueList').innerHTML = очередь.map(в => {
             const статья = статьи.find(с => с.id === в.article_id);
             return `
-            <a href="article.html?id=${в.article_id}"
-               class="flex flex-col desktop:flex-row desktop:items-center gap-3 bg-base-100 border border-base-300 rounded-lg px-4 py-3">
-                <span class="flex-1 min-w-0">
+            <div class="flex flex-col desktop:flex-row desktop:items-center gap-3 bg-base-100 border border-base-300 rounded-lg px-4 py-3">
+                <input type="checkbox" class="checkbox checkbox-sm self-start desktop:self-center"
+                       data-очередь="${в.article_id}">
+                <a href="article.html?id=${в.article_id}" class="flex-1 min-w-0">
                     <span class="font-semibold block">${e(в.title || статья?.title || 'Без названия')}</span>
                     <span class="text-sm opacity-60">${
                         в.change_note ? '«' + e(в.change_note) + '» · ' : ''}${
                         DateUtils.formatShort(new Date(в.updated_at))}</span>
-                </span>
-                <span class="btn btn-sm self-start" style="background: var(--current-color); color: #fff;">Открыть</span>
+                </a>
+                <a href="article.html?id=${в.article_id}" class="btn btn-sm self-start"
+                   style="background: var(--current-color); color: #fff;">Открыть</a>
+            </div>`;
+        }).join('');
+        обновитьОтмеченные();
+    }
+
+    function рисоватьЗамечания() {
+        const блок = $('#remarksBox');
+        if (!можноПисать() || !замечания.length) { блок.hidden = true; return; }
+        блок.hidden = false;
+        $('#remarksCount').textContent = замечания.length;
+        $('#remarksList').innerHTML = замечания.map(з => {
+            const статья = статьи.find(с => с.id === з.article_id);
+            return `
+            <a href="article.html?id=${з.article_id}"
+               class="block border border-base-300 rounded-lg px-4 py-3 hover:bg-base-200/60 transition-colors">
+                <span class="font-semibold block">${e(статья?.title || 'Статья')}</span>
+                <span class="text-sm opacity-70">${e(з.body)}</span>
             </a>`;
         }).join('');
+    }
+
+    function отмеченные() {
+        return [...document.querySelectorAll('[data-очередь]:checked')].map(ч => ч.dataset.очередь);
+    }
+
+    function обновитьОтмеченные() {
+        const сколько = отмеченные().length;
+        const кнопка = $('#approveMany');
+        if (!кнопка) return;
+        кнопка.disabled = !сколько;
+        кнопка.textContent = сколько ? `Утвердить отмеченные (${сколько})` : 'Утвердить отмеченные';
+    }
+
+    async function утвердитьОтмеченные() {
+        const список = отмеченные();
+        if (!список.length) return;
+        if (!confirm(`Утвердить ${список.length} шт.? По ним сразу начнут служить, отделу уйдёт одно сообщение.`)) return;
+
+        const { data, error } = await Layout.db.rpc('worship_approve_many', { p_articles: список });
+        if (error) return Layout.handleError(error, 'Утверждение');
+
+        const строки = data?.строки || [];
+        const плохие = строки.filter(с => !с.ok);
+        Layout.showNotification(плохие.length
+            ? `Утверждено ${строки.length - плохие.length} из ${строки.length}: ${плохие[0].ошибка}`
+            : `Утверждено: ${строки.length}`, плохие.length ? 'warning' : 'success');
+
+        if (await загрузить() && await дополнитьВерсиями()) рисовать();
     }
 
     function рисоватьСписок() {
@@ -158,6 +212,7 @@ const WorshipStandards = (() => {
 
     function рисовать() {
         рисоватьОчередь();
+        рисоватьЗамечания();
         рисоватьСписок();
         // права на разметке, нарисованной после загрузки: статические элементы
         // auth-check обрабатывает сам, динамические — только этим вызовом
@@ -192,6 +247,10 @@ const WorshipStandards = (() => {
     function слушать() {
         $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисоватьСписок(); });
         $('#showArchive').addEventListener('change', ev => { фильтр.архив = ev.target.checked; рисоватьСписок(); });
+        $('#queueAll').addEventListener('change', ev => {
+            document.querySelectorAll('[data-очередь]').forEach(ч => { ч.checked = ev.target.checked; });
+            обновитьОтмеченные();
+        });
 
         document.addEventListener('click', async ev => {
             const кнопка = ev.target.closest('[data-view]');
@@ -204,6 +263,8 @@ const WorshipStandards = (() => {
                 рисоватьСписок();
                 return;
             }
+            if (ev.target.closest('[data-очередь]')) return обновитьОтмеченные();
+            if (ev.target.closest('#approveMany')) return утвердитьОтмеченные();
             if (ev.target.closest('#newSection')) return создатьРаздел();
             if (ev.target.closest('#newArticle')) {
                 location.href = 'edit.html';

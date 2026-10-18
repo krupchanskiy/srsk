@@ -20,7 +20,7 @@
            только текст стандарта и строка, по какой версии служат. */
         @media print {
             #header-placeholder, #footer-placeholder, #actions,
-            #toc, #historyCard, #returned, .no-print { display: none !important; }
+            #toc, #historyCard, #remarksCard, #returned, .no-print { display: none !important; }
             main { max-width: none !important; padding: 0 !important; }
             .card { box-shadow: none !important; border: 0 !important; }
             body { background: #fff !important; }
@@ -68,6 +68,19 @@
                     <div class="card-body p-6 desktop:p-8 text-[17px] leading-relaxed" id="body"></div>
                 </article>
 
+                <!-- замечания: канал «здесь не так» для тех, кто служит по стандарту -->
+                <div class="card bg-base-100 shadow mt-5" id="remarksCard">
+                    <div class="card-body p-6">
+                        <div class="flex flex-wrap items-center gap-3 mb-1">
+                            <h2 class="card-title text-lg flex-1 min-w-0">Замечания</h2>
+                            <button class="btn btn-sm btn-outline" id="addRemark">Сообщить о неточности</button>
+                        </div>
+                        <p class="text-sm opacity-60 mb-2">Короткая заметка уйдёт автору и старшему.
+                            Это не спор и не ветка обсуждения — поправит тот, кто правит статью.</p>
+                        <ul class="list-none m-0 p-0" id="remarks"></ul>
+                    </div>
+                </div>
+
                 <div class="card bg-base-100 shadow mt-5" id="historyCard">
                     <div class="card-body p-6">
                         <h2 class="card-title text-lg mb-1">Как менялось</h2>
@@ -102,7 +115,7 @@
     <script src="../js/auth-check.js?v=12"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="../js/worship-doc.js?v=2"></script>
-    <script src="../js/pages/worship-article.js?v=2"></script>
+    <script src="../js/pages/worship-article.js?v=3"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
