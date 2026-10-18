@@ -434,8 +434,8 @@ const WorshipKit = (() => {
             }
 
             const выдатьЧ = ev.target.closest('[data-выдать-человеку]');
-            if (выдатьЧ) return выдачу('человек', выдатьЧ.dataset.выдатьЧеловеку
-                || выдатьЧ.getAttribute('data-выдать-человеку'), выдатьЧ.dataset.имя);
+            if (выдатьЧ) return выдачу('человек',
+                выдатьЧ.getAttribute('data-выдать-человеку'), выдатьЧ.dataset.имя);
 
             const выдатьР = ev.target.closest('[data-выдать-ретриту]');
             if (выдатьР) return выдачу('ретрит', выдатьР.getAttribute('data-выдать-ретриту'),

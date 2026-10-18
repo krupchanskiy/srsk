@@ -559,7 +559,7 @@ const WorshipSchedule = (() => {
             const дв = ev.target.closest('[data-служба-двигать]');
             if (дв) {
                 const i = службы.findIndex(с => с.id === дв.dataset.id);
-                const j = i + Number(дв.dataset.службаДвигать);
+                const j = i + Number(дв.getAttribute('data-служба-двигать'));
                 if (i < 0 || j < 0 || j >= службы.length) return;
                 const ок = await записать(Layout.db.from('worship_services')
                     .update({ sort_order: службы[j].sort_order }).eq('id', службы[i].id), 'Порядок служб');
@@ -572,7 +572,7 @@ const WorshipSchedule = (() => {
 
             const вкл = ev.target.closest('[data-служба-включение]');
             if (вкл) {
-                const с = службы.find(x => x.id === вкл.dataset.службаВключение);
+                const с = службы.find(x => x.id === вкл.getAttribute('data-служба-включение'));
                 const ок = await записать(Layout.db.from('worship_services')
                     .update({ is_active: !с.is_active, updated_at: new Date().toISOString(),
                               updated_by: window.currentUser?.id || null })
