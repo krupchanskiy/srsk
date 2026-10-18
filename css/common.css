@@ -42,6 +42,73 @@ main .badge {
     padding: 0.75rem 1rem !important;
 }
 main .btn { font-size: 1rem !important; }
+
+/* ── Контраст приглушённого текста ──────────────────────────────────────────
+   Измерено на боевых цветах: текст rgb(31,41,55) на белом при opacity .6
+   даёт 4.06:1 при норме 4.5. Это самый частый класс подписи в приложении,
+   и именно он первым пропадает в полутьме — например, в алтарной в 4:20.
+   Поэтому приглушённость ограничена снизу: порядок уровней сохранён,
+   но даже самый тихий текст остаётся читаемым. */
+main .opacity-30 { opacity: 0.66 !important; }
+main .opacity-40 { opacity: 0.66 !important; }
+main .opacity-50 { opacity: 0.70 !important; }
+main .opacity-60 { opacity: 0.74 !important; }
+main .opacity-70 { opacity: 0.80 !important; }
+
+/* Красный DaisyUI (#ff5861) на белом — 3.08:1. Им подписаны «убрать»
+   и «отозвать»: действия, которые нельзя не разглядеть. */
+main .text-error { color: #c62828 !important; }
+
+/* Интерлиньяж. Размеры шрифта выше переопределены !important, а высота
+   строки осталась от Tailwind: text-sm получался 16px в строке 20px
+   (1.25), text-xs — 14.4 в 16 (1.11). Для текста, который читают
+   с телефона, это тесно. */
+main .text-xs { line-height: 1.45 !important; }
+main .text-sm { line-height: 1.5 !important; }
+main .badge { line-height: 1.25 !important; }
+
+/* ── Закрытые окна не должны ловить клавиатуру ──────────────────────────────
+   DaisyUI задаёт .modal { display: grid }, и это перебивает браузерное
+   dialog:not([open]) { display: none }. Окно остаётся в раскладке: мышью
+   его нет, а Tab через него проходит. Замерено: на расписании с 57-го
+   нажатия фокус уходит в шесть невидимых окон и обходит 28 полей и кнопок,
+   прежде чем вернуться на страницу. */
+dialog.modal:not([open]) {
+    display: none;
+}
+dialog.modal[open] {
+    display: grid;
+}
+
+/* ── Зона нажатия ───────────────────────────────────────────────────────────
+   Измерено на телефоне: «✕» в замечаниях — 11×20 точек, ручки на снимках
+   и стрелки порядка — 24×24, при норме 44×44. Пуджари жмёт их одной рукой
+   в полутьме. Сама кнопка остаётся маленькой (плотность экрана нужна),
+   но её чувствительная область расширяется невидимым полем.
+   Указателю это ничего не меняет — только пальцу. */
+@media (hover: none) {
+    main .btn-xs,
+    main .btn-sm.px-1,
+    main .btn-sm.px-2,
+    main .btn-ghost.btn-xs,
+    main [data-двигать], main [data-снять], main [data-убрать],
+    main [data-обложка], main [data-снятьОтметку], main [data-убратьЗаметку] {
+        position: relative;
+    }
+    main .btn-xs::after,
+    main .btn-sm.px-1::after,
+    main .btn-sm.px-2::after,
+    main [data-двигать]::after, main [data-снять]::after, main [data-убрать]::after,
+    main [data-обложка]::after, main [data-снятьОтметку]::after,
+    main [data-убратьЗаметку]::after {
+        content: '';
+        position: absolute;
+        inset: 50% 50%;
+        width: 44px;
+        height: 44px;
+        transform: translate(-50%, -50%);
+    }
+}
 main input, main select, main textarea { font-size: 1rem !important; }
 
 main p, main span, main div { font-size: inherit; }
@@ -320,9 +387,9 @@ input[type="number"] {
 /* Базовые стили для skeleton loading состояний */
 .skeleton {
     background: linear-gradient(90deg,
-        var(--b3, #e5e7eb) 25%,
+        oklch(var(--b3)) 25%,
         var(--b2, #f3f4f6) 50%,
-        var(--b3, #e5e7eb) 75%
+        oklch(var(--b3)) 75%
     );
     background-size: 200% 100%;
     animation: skeleton-pulse 1.5s ease-in-out infinite;
@@ -340,7 +407,7 @@ input[type="number"] {
     align-items: center;
     padding: 0.75rem 1rem;
     gap: 1rem;
-    border-bottom: 1px solid var(--b3, #e5e7eb);
+    border-bottom: 1px solid oklch(var(--b3));
 }
 
 .skeleton-avatar {
@@ -369,7 +436,7 @@ input[type="number"] {
 .skeleton-card {
     padding: 1rem;
     border-radius: 0.5rem;
-    border: 1px solid var(--b3, #e5e7eb);
+    border: 1px solid oklch(var(--b3));
 }
 
 /* ==================== EMPTY STATES ==================== */
@@ -381,7 +448,7 @@ input[type="number"] {
     justify-content: center;
     padding: 3rem 1rem;
     text-align: center;
-    color: var(--bc, #374151);
+    color: oklch(var(--bc));
     opacity: 0.6;
 }
 
@@ -432,7 +499,7 @@ body.user-type-guest .edit-action {
 @media (max-width: 860px) {
     table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; }
     table.stack thead { display: none; }
-    table.stack tr { padding: 12px 0; border-bottom: 1px solid hsl(var(--b3)); }
+    table.stack tr { padding: 12px 0; border-bottom: 1px solid oklch(var(--b3)); }
     table.stack tr:last-child { border-bottom: 0; }
     table.stack td { border: 0; padding: 4px 0; display: flex; justify-content: space-between;
                      align-items: center; gap: 12px; text-align: left !important; }

@@ -1224,7 +1224,18 @@ function calcSubmenuMargin(groupId) {
 
     const navLeftX = firstNavLink.getBoundingClientRect().left;
     const linkLeftX = firstLink.getBoundingClientRect().left;
-    const margin = navLeftX - linkLeftX;
+    let margin = navLeftX - linkLeftX;
+
+    // Отступ не должен выталкивать подменю за экран. У человека с одним
+    // доступным модулем в верхнем меню одна ссылка, justify-between уносит
+    // её к середине, и выравнивание давало отступ в полтысячи пикселей:
+    // последние пункты подменю уезжали за край, и каждая страница модуля
+    // получала горизонтальную прокрутку. У суперпользователя с восемью
+    // модулями этого не видно — ссылка и так слева.
+    const ширинаПолосы = submenuBar.clientWidth;
+    const нужноМеста = group.scrollWidth;
+    const запас = Math.max(0, ширинаПолосы - нужноМеста);
+    margin = Math.max(0, Math.min(margin, запас));
 
     firstLink.style.marginLeft = margin + 'px';
     firstLink.style.transition = '';

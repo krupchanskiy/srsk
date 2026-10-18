@@ -241,6 +241,10 @@ const WorshipArticle = (() => {
 
         const главы = WorshipDoc.заголовки(показана?.doc);
         $('#toc').hidden = главы.length < 2;
+        // на компьютере оглавление раскрыто, на телефоне свёрнуто: иначе оно
+        // стоит между заголовком статьи и первой строкой текста
+        const коробка = $('#tocBox');
+        if (коробка) коробка.open = window.matchMedia('(min-width: 1200px)').matches;
         $('#tocList').innerHTML = главы.map(г => `
             <li class="${г.уровень === 3 ? 'ml-3' : ''}">
                 <a href="#${г.якорь}" class="link link-hover text-sm opacity-80">${e(г.текст)}</a>
@@ -250,6 +254,21 @@ const WorshipArticle = (() => {
     function рисоватьЗамечания() {
         const открытые = замечания.filter(з => з.state === 'open');
         const закрытые = замечания.filter(з => з.state !== 'open').slice(0, 5);
+
+        // Самое свежее открытое замечание поднимаем над текстом: человек
+        // служит по стандарту, про который отдел уже знает, что там неточность.
+        // Внизу страницы, равным весом с историей, он его не увидит.
+        const первое = открытые[0];
+        $('#openRemark').hidden = !первое;
+        if (первое) {
+            $('#openRemarkBody').textContent = первое.body;
+            const кто = имена[первое.created_by];
+            $('#openRemarkWho').textContent = [кто, дата(первое.created_at)].filter(Boolean).join(' · ');
+        }
+
+        // в заголовке свёрнутого блока — сколько там всего, чтобы не раскрывать вслепую
+        $('#remarksCount').textContent = открытые.length
+            ? `${открытые.length} открыто` : (замечания.length ? `${замечания.length} разобрано` : 'нет');
 
         const имяАвтора = id => имена[id] || '';
         $('#remarks').innerHTML = [...открытые, ...закрытые].map(з => {
@@ -281,6 +300,15 @@ const WorshipArticle = (() => {
     function рисоватьИсторию() {
         const готовые = версии.filter(в => в.status !== 'draft' && в.status !== 'submitted')
                               .sort((a, b) => b.version_no - a.version_no);
+        // сколько редакций — видно, не раскрывая блок
+        const счётчик = $('#historyCount');
+        if (счётчик) {
+            счётчик.textContent = готовые.length > 1
+                ? Layout.pluralize(готовые.length, {
+                    ru: ['редакция', 'редакции', 'редакций'],
+                    en: ['version', 'versions'], hi: 'संस्करण' })
+                : '';
+        }
         $('#history').innerHTML = готовые.map(в => `
             <li class="border-b border-base-200 last:border-0 py-3">
                 <div class="flex flex-wrap items-baseline gap-2">
