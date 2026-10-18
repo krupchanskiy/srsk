@@ -106,6 +106,22 @@ const WorshipHome = (() => {
             </a>`).join('');
     }
 
+    /** Подборки: ответ на вопрос «с чего начать», который иначе без экрана. */
+    async function подборки() {
+        const { data } = await Layout.db.from('worship_kits')
+            .select('id, title, description').eq('is_active', true).order('title').limit(5);
+        if (!data?.length) return;
+
+        $('#kitsCard').hidden = false;
+        $('#kits').innerHTML = data.map(п => `
+            <li class="border-b border-base-200 last:border-0">
+                <a href="kit.html?id=${п.id}" class="block py-2.5 hover:opacity-70 transition-opacity">
+                    <span class="font-semibold block">${e(п.title)}</span>
+                    ${п.description ? `<span class="text-sm opacity-60">${e(п.description)}</span>` : ''}
+                </a>
+            </li>`).join('');
+    }
+
     async function личное() {
         const { data, error } = await Layout.db.from('worship_bookmarks')
             .select('kind, article_id, created_at').order('created_at', { ascending: false });
@@ -161,7 +177,7 @@ const WorshipHome = (() => {
         статьи = с.data || [];
 
         рисоватьРазделы();
-        await Promise.all([лента(), черновики(), очередь(), личное()]);
+        await Promise.all([лента(), черновики(), очередь(), личное(), подборки()]);
     }
 
     return { init };
