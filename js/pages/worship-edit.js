@@ -97,6 +97,7 @@ const WorshipEdit = (() => {
                 e(Layout.getName(р))}${р.is_active ? '' : ' (скрыт)'}</option>`).join('');
 
         $('#заголовок').value = версия?.title || статья?.title || '';
+        заголовокПоТексту();
         $('#примечание').value = версия?.status === 'draft' ? (версия.change_note || '') : '';
 
         // замечание старшего — перед глазами, а не на соседней странице
@@ -163,6 +164,7 @@ const WorshipEdit = (() => {
         }
         наполнитьПоле(запись.doc);
         $('#заголовок').value = запись.title || '';
+        заголовокПоТексту();
         $('#раздел').value = запись.section_id || '';     // «без раздела» тоже выбор
         $('#примечание').value = запись.change_note || '';
         пометить();
@@ -560,7 +562,29 @@ const WorshipEdit = (() => {
     }
 
     // ---------- события ----------
+    /**
+     * Название — многострочное поле, которое ведёт себя как одна строка:
+     * высота по тексту, Enter не переносит, вставленные переносы — пробелы.
+     */
+    function заголовокПоТексту() {
+        const п = $('#заголовок');
+        // пока поле скрыто, высоты у него нет — тогда оставляем как есть
+        if (!п.offsetParent) return;
+        п.style.height = 'auto';
+        п.style.height = п.scrollHeight + 'px';
+    }
+    function настроитьЗаголовок() {
+        const п = $('#заголовок');
+        п.addEventListener('keydown', ev => { if (ev.key === 'Enter') ev.preventDefault(); });
+        п.addEventListener('input', () => {
+            if (/\n/.test(п.value)) п.value = п.value.replace(/\s*\n\s*/g, ' ');
+            заголовокПоТексту();
+        });
+        window.addEventListener('resize', заголовокПоТексту);
+    }
+
     function слушать() {
+        настроитьЗаголовок();
         const т = поле();
 
         т.addEventListener('input', () => { пометить(); запомнитьПотом(); });

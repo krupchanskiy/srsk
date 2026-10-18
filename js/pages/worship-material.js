@@ -61,6 +61,7 @@ const WorshipMaterial = (() => {
             : статья.status === 'archived' ? 'Материал · в архиве'
             : 'Материал библиотеки';
         $('#заголовок').value = статья?.title || '';
+        заголовокПоТексту();
         $('#описание').value = статья?.summary || '';
         $('#автор').value = статья?.author_name || '';
         $('#источник').value = статья?.source || '';
@@ -423,7 +424,29 @@ const WorshipMaterial = (() => {
         рисоватьШапку(); рисоватьВложения(); наполнитьПоле(); window.applyPermissions?.();
     }
 
+    /**
+     * Название — многострочное поле, которое ведёт себя как одна строка:
+     * высота по тексту, Enter не переносит, вставленные переносы — пробелы.
+     */
+    function заголовокПоТексту() {
+        const п = $('#заголовок');
+        // пока поле скрыто, высоты у него нет — тогда оставляем как есть
+        if (!п.offsetParent) return;
+        п.style.height = 'auto';
+        п.style.height = п.scrollHeight + 'px';
+    }
+    function настроитьЗаголовок() {
+        const п = $('#заголовок');
+        п.addEventListener('keydown', ev => { if (ev.key === 'Enter') ev.preventDefault(); });
+        п.addEventListener('input', () => {
+            if (/\n/.test(п.value)) п.value = п.value.replace(/\s*\n\s*/g, ' ');
+            заголовокПоТексту();
+        });
+        window.addEventListener('resize', заголовокПоТексту);
+    }
+
     function слушать() {
+        настроитьЗаголовок();
         const текст = $('#текст');
         текст.addEventListener('input', пометить);
         текст.addEventListener('keyup', обновитьПанель);

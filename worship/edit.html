@@ -98,10 +98,13 @@
         <!-- Название — это заголовок документа, а не поле анкеты: человек пишет
              стандарт, а раздел и пометка о правке остаются служебной строкой. -->
         <div class="mb-4">
-            <input id="заголовок" type="text"
-                   class="w-full bg-transparent border-0 px-0 text-2xl desktop:text-3xl font-bold
-                          tracking-tight focus:outline-none placeholder:opacity-30"
-                   placeholder="Название стандарта" maxlength="200">
+            <!-- textarea, а не input: длинное название на телефоне обрезалось
+                 на полуслове; переносится, но остаётся одной строкой без Enter -->
+            <textarea id="заголовок" rows="1"
+                   class="block w-full bg-transparent border-0 px-0 text-2xl desktop:text-3xl font-bold
+                          tracking-tight leading-tight resize-none overflow-hidden
+                          focus:outline-none placeholder:opacity-30"
+                   placeholder="Название стандарта" maxlength="200"></textarea>
 
             <!-- подписи живут внутри самих полей: отдельными словами слева
                  они съедали половину строки, и на узком экране поле
@@ -256,7 +259,7 @@
     <script src="../js/worship-tags.js?v=7"></script>
     <script src="../js/worship-doc.js?v=5"></script>
     <script src="../js/worship-editor-doc.js?v=2"></script>
-    <script src="../js/pages/worship-edit.js?v=21"></script>
+    <script src="../js/pages/worship-edit.js?v=22"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
