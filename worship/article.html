@@ -130,11 +130,13 @@
                     <!-- «Сообщить о неточности» стоит рядом со свёрткой, а не внутри
                          её заголовка: заголовок сам кнопка, и вложенная кнопка
                          для экранного диктора сливается с ним в одну неясную -->
-                    <div class="relative" id="замечанияБлок">
-                    <button class="btn btn-xs btn-outline absolute right-0 top-0.5 no-print" id="addRemark"
+                    <!-- на телефоне кнопка встаёт под заголовком: справа от него ей не хватало
+                         места, и «Замечания» уезжали на отдельную строку под стрелкой -->
+                    <div class="relative flex flex-col-reverse items-start gap-1 sm:block" id="замечанияБлок">
+                    <button class="btn btn-xs btn-outline sm:absolute right-0 top-0.5 no-print" id="addRemark"
                             data-i18n="worship_add_remark">Сообщить о неточности</button>
                     <details id="remarksCard" class="group">
-                        <summary class="flex flex-wrap items-center gap-2 cursor-pointer list-none py-1 pr-48">
+                        <summary class="flex flex-wrap items-center gap-2 cursor-pointer list-none py-1 sm:pr-48">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
                                  class="opacity-50 transition-transform group-open:rotate-90" aria-hidden="true">
