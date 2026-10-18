@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=17">
+    <link rel="stylesheet" href="../css/common.css?v=19">
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -38,10 +38,18 @@
                 <p class="text-sm opacity-70 mt-1" data-i18n="worship_load_hint">Кто сколько несёт,
                     кого ни разу не ставили и какая служба закрывается тяжелее прочих.</p>
             </div>
-            <div class="join выбор">
-                <button class="btn btn-sm join-item" data-период="неделя">Неделя</button>
-                <button class="btn btn-sm join-item" data-период="месяц">Месяц</button>
-                <button class="btn btn-sm join-item" data-период="вперёд">Впереди</button>
+            <div class="flex flex-wrap gap-2">
+                <!-- команду и волонтёров смотрят порознь: спрос с них разный -->
+                <div class="join выбор">
+                    <button class="btn btn-sm join-item" data-состав="все">Все</button>
+                    <button class="btn btn-sm join-item" data-состав="team">Команда</button>
+                    <button class="btn btn-sm join-item" data-состав="volunteer">Волонтёры</button>
+                </div>
+                <div class="join выбор">
+                    <button class="btn btn-sm join-item" data-период="неделя">Неделя</button>
+                    <button class="btn btn-sm join-item" data-период="месяц">Месяц</button>
+                    <button class="btn btn-sm join-item" data-период="вперёд">Впереди</button>
+                </div>
             </div>
         </div>
 
@@ -88,7 +96,7 @@
     <script src="../js/layout.js?v=116"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-load.js?v=1"></script>
+    <script src="../js/pages/worship-load.js?v=2"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

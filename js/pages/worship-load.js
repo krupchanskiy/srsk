@@ -25,6 +25,12 @@ const WorshipLoad = (() => {
         try { return localStorage.getItem('worship_load_period') || 'неделя'; }
         catch { return 'неделя'; }
     })();
+    // команда и волонтёры несут службу по-разному: с команды спрос другой,
+    // а волонтёр приехал на две недели — его загрузку смотрят отдельно
+    let состав = (() => {
+        try { return localStorage.getItem('worship_load_kind') || 'все'; }
+        catch { return 'все'; }
+    })();
 
     // ---------- период ----------
     function границы() {
@@ -53,7 +59,7 @@ const WorshipLoad = (() => {
         const { от, до } = границы();
 
         const [л, с, н, о, откл] = await Promise.all([
-            Layout.db.from('worship_people').select('id, vaishnava_id, is_active, active_to'),
+            Layout.db.from('worship_people').select('id, vaishnava_id, is_active, active_to, kind'),
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, is_active')
                 .order('time_of_day'),
@@ -139,9 +145,11 @@ const WorshipLoad = (() => {
         return { надо, закрыто };
     }
 
+    const вСоставе = ч => состав === 'все' || (ч.kind || 'team') === состав;
+
     /** Сводка по каждому человеку отдела. */
     function поЛюдям() {
-        return люди.map(ч => {
+        return люди.filter(вСоставе).map(ч => {
             const свои = назначения.filter(н => н.person_id === ч.id && настоящее(н));
             const дни = [...new Set(свои.map(н => н.duty_date))].sort();
             return {
@@ -199,11 +207,16 @@ const WorshipLoad = (() => {
         const { надо, закрыто } = счётКлеток();
         const строки = поЛюдям();
         const несущие = строки.filter(ч => ч.служб > 0);
-        const среднее = несущие.length ? закрыто / несущие.length : 0;
+        // среднее — по тем, кого показываем: иначе при выборе «волонтёры»
+        // оно считалось бы от всех закрытых клеток отдела
+        const ихСлужб = несущие.reduce((с, ч) => с + ч.служб, 0);
+        const среднее = несущие.length ? ихСлужб / несущие.length : 0;
         const максимум = строки[0]?.служб || 0;
 
         document.querySelectorAll('[data-период]').forEach(б =>
             б.classList.toggle('btn-active', б.dataset.период === период));
+        document.querySelectorAll('[data-состав]').forEach(б =>
+            б.classList.toggle('btn-active', б.dataset.состав === состав));
 
         // ---- сводка ----
         $('#сводка').innerHTML = [
@@ -211,7 +224,9 @@ const WorshipLoad = (() => {
             ['Закрыто', надо ? `${Math.round(закрыто / надо * 100)}%` : '—',
                 надо ? `${закрыто} из ${надо}` : 'расписания нет'],
             ['Несут службы', несущие.length,
-                `из ${люди.filter(ч => ч.is_active !== false).length} в отделе`],
+                `из ${люди.filter(ч => ч.is_active !== false && вСоставе(ч)).length}${
+                    состав === 'все' ? ' в отделе'
+                        : состав === 'team' ? ' в команде' : ' среди волонтёров'}`],
             ['В среднем на человека', несущие.length ? среднее.toFixed(1) : '—', 'служб'],
         ].map(([подпись, число, хвост]) => `
             <div class="bg-base-100 rounded-xl shadow-sm px-4 py-3">
@@ -305,10 +320,17 @@ const WorshipLoad = (() => {
     async function init() {
         document.addEventListener('click', async ev => {
             const кнопка = ev.target.closest('[data-период]');
-            if (!кнопка) return;
-            период = кнопка.dataset.период;
-            try { localStorage.setItem('worship_load_period', период); } catch { /* приватный режим */ }
-            if (await загрузить()) рисовать();
+            if (кнопка) {
+                период = кнопка.dataset.период;
+                try { localStorage.setItem('worship_load_period', период); } catch { /* приватный режим */ }
+                if (await загрузить()) рисовать();
+                return;
+            }
+            const состав2 = ev.target.closest('[data-состав]');
+            if (!состав2) return;
+            состав = состав2.dataset.состав;
+            try { localStorage.setItem('worship_load_kind', состав); } catch { /* приватный режим */ }
+            рисовать();            // данные те же, меняется только разрез
         });
 
         if (!await загрузить()) return;

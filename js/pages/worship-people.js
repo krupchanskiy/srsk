@@ -26,7 +26,7 @@ const WorshipPeople = (() => {
 
         const [л, с, н, о] = await Promise.all([
             Layout.db.from('worship_people')
-                .select('id, vaishnava_id, active_from, active_to, is_active'),
+                .select('id, vaishnava_id, active_from, active_to, is_active, kind'),
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, article_id, is_active')
                 .order('sort_order').order('time_of_day'),
@@ -102,6 +102,8 @@ const WorshipPeople = (() => {
                     data-человек="${ч.id}">
                 <span class="flex-1 min-w-0">
                     <span class="font-semibold">${e(ч.имя)}</span>
+                    ${ч.kind === 'volunteer'
+                        ? '<span class="badge badge-sm badge-outline ml-1">волонтёр</span>' : ''}
                     ${ч.мой ? '<span class="badge badge-sm ml-1">это вы</span>' : ''}
                     ${ч.is_active ? '' : '<span class="badge badge-sm ml-1">не в отделе</span>'}
                     ${вОтъездеСейчас(ч.id)
@@ -189,6 +191,7 @@ const WorshipPeople = (() => {
         $('#кСрокС').value = открытый.active_from || '';
         $('#кСрокПо').value = открытый.active_to || '';
         $('#кСрокБлок').hidden = !можноВести();
+        рисоватьВид();
         рисоватьСлужбыЧеловека();
         рисоватьДопуски();
         рисоватьОтметки();
@@ -318,6 +321,29 @@ const WorshipPeople = (() => {
      * Срок участия волонтёра: после него человек уходит из выбора сам,
      * а старший получает предупреждение, если всё же ставит его в клетку.
      */
+    /** Команда или волонтёр: переключатель в карточке, запись сразу. */
+    function рисоватьВид() {
+        $('#кВидБлок').hidden = !можноВести();
+        document.querySelectorAll('[data-вид-человека]').forEach(б =>
+            б.classList.toggle('btn-active',
+                б.getAttribute('data-вид-человека') === (открытый.kind || 'team')));
+        $('#кВидПодпись').textContent = (открытый.kind || 'team') === 'volunteer'
+            ? 'Приехал на время. Ставьте с оглядкой на срок участия ниже.'
+            : 'Постоянный состав отдела.';
+    }
+
+    async function записатьВид(вид) {
+        const { data, error } = await Layout.db.from('worship_people')
+            .update({ kind: вид, updated_at: new Date().toISOString(),
+                      updated_by: window.currentUser?.id || null })
+            .eq('id', открытый.id).select('id');
+        if (error) return Layout.handleError(error, 'Кто в отделе');
+        if (!data?.length) return Layout.showNotification('Не сохранилось: состав ведёт старший', 'error');
+        открытый.kind = вид;
+        рисоватьВид();
+        await перечитать();
+    }
+
     async function записатьСрок() {
         const с = $('#кСрокС').value || null;
         const по = $('#кСрокПо').value || null;
@@ -477,6 +503,9 @@ const WorshipPeople = (() => {
             if (b.id === 'кДобавитьОтметку') return открытьОтметку(открытый.id);
             if (b.id === 'оtСохранить') return сохранитьОтметку();
             if (b.id === 'кИсключить') return исключить();
+            const вид = ev.target.closest('[data-вид-человека]');
+            if (вид && открытый) return записатьВид(вид.getAttribute('data-вид-человека'));
+
             if (b.id === 'кСрокСохранить') {
                 const ок = await записатьСрок();
                 if (ок) Layout.showNotification('Срок участия сохранён', 'success');

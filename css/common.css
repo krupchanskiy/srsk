@@ -48,14 +48,14 @@ details:not([open]) > *:not(summary) { display: none !important; }
 /* Переключатель вида («Неделя | День», «Эта неделя | Месяц»). У DaisyUI
    выбранная кнопка серая, рядом с белыми соседями это читается не как
    выбор, а как грязное пятно. Выбранное красим цветом модуля. */
-main .join .btn-active {
+main .join .btn-active, dialog .join .btn-active {
     background: var(--current-color) !important;
     border-color: var(--current-color) !important;
     color: #fff !important;
 }
 /* у переключателей вида соседние кнопки белые, а не прозрачные:
    на сером фоне страницы группа иначе теряет края */
-main .выбор .btn:not(.btn-active) {
+main .выбор .btn:not(.btn-active), dialog .выбор .btn:not(.btn-active) {
     background: oklch(var(--b1));
     border-color: oklch(var(--b3));
 }
@@ -562,6 +562,11 @@ body.user-type-guest .edit-action {
 
 /* блок, который существует только на бумаге */
 .дляПечати { display: none; }
+
+/* Атрибут hidden слабее классов: у элемента с «flex» или «grid» он не
+   срабатывает, и спрятанный блок остаётся на экране — обычно пустой,
+   потому что наполнить его код ещё не успел. */
+[hidden] { display: none !important; }
 
 
 /* Таблицы в узком экране разворачиваются карточками: заголовок столбца

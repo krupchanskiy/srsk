@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=17">
+    <link rel="stylesheet" href="../css/common.css?v=19">
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -82,9 +82,21 @@
             <h3 class="font-bold text-xl mb-1" id="кИмя"></h3>
             <p class="text-sm opacity-60 mb-4" id="кПодпись"></p>
 
+            <!-- Команда или волонтёр: с команды спрос другой, а волонтёра,
+                 который приехал на две недели, не ставят семь дней подряд.
+                 Нагрузку этих групп смотрят порознь во вкладке «Загрузка». -->
+            <div class="mb-4" id="кВидБлок" hidden>
+                <h4 class="надзаголовок mb-2">Кто в отделе</h4>
+                <div class="join выбор">
+                    <button class="btn btn-sm join-item" data-вид-человека="team">Команда</button>
+                    <button class="btn btn-sm join-item" data-вид-человека="volunteer">Волонтёр</button>
+                </div>
+                <p class="text-sm opacity-70 mt-1" id="кВидПодпись"></p>
+            </div>
+
             <!-- срок участия: у волонтёра он есть, у постоянного пуджари пуст -->
             <div class="mb-4" id="кСрокБлок" hidden>
-                <h4 class="font-bold text-sm uppercase tracking-widest opacity-60 mb-2">Срок участия</h4>
+                <h4 class="надзаголовок mb-2">Срок участия</h4>
                 <div class="flex flex-wrap items-end gap-3">
                     <label class="form-control">
                         <span class="label-text text-xs mb-1">С какого дня</span>
@@ -102,7 +114,7 @@
             </div>
 
             <div class="mb-4">
-                <h4 class="font-bold text-sm uppercase tracking-widest opacity-60 mb-2">Ближайшие службы</h4>
+                <h4 class="надзаголовок mb-2">Ближайшие службы</h4>
                 <ul class="list-none m-0 p-0" id="кСлужбы"></ul>
             </div>
 
@@ -207,7 +219,7 @@
     <script src="../js/layout.js?v=116"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-people.js?v=9"></script>
+    <script src="../js/pages/worship-people.js?v=11"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_people' });
