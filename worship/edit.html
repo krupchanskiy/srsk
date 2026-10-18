@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=4"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Правка стандарта — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=8">
+    <style>
+        /* Текст в правке выглядит так же, как в чтении: иначе пуджари
+           подгоняет вёрстку, а не пишет. */
+        .кусок {
+            outline: none;
+            min-height: 1.6em;
+            line-height: 1.7;
+        }
+        .кусок:empty::before {
+            content: attr(data-подсказка);
+            opacity: .35;
+        }
+        .кусок-p { font-size: 17px; }
+        .кусок-h2 { font-size: 20px; font-weight: 700; }
+        .кусок-h3 { font-size: 18px; font-weight: 600; }
+        .кусок-note { font-size: 15px; }
+        .блок { position: relative; }
+        .блок:hover .ручки, .блок:focus-within .ручки { opacity: 1; }
+        .ручки { opacity: 0; transition: opacity .15s; }
+        @media (max-width: 1199px) { .ручки { opacity: 1; } }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 860px;">
+
+        <div class="text-sm mb-3">
+            <a href="standards.html" class="link link-hover opacity-70">Стандарты</a>
+        </div>
+
+        <!-- что происходит с текстом: состояние важнее кнопок -->
+        <div class="flex flex-wrap items-center gap-3 mb-4">
+            <h1 class="text-2xl font-bold tracking-tight flex-1 min-w-full desktop:min-w-0" id="режим">Новая статья</h1>
+            <span class="text-sm opacity-60" id="сохранение"></span>
+            <button class="btn btn-sm btn-ghost" id="отмена">Отменить правку</button>
+            <button class="btn btn-sm btn-outline" id="сохранить">Сохранить</button>
+            <button class="btn btn-sm" id="отправить"
+                    style="background: var(--current-color); color:#fff;">Отправить старшему</button>
+        </div>
+
+        <div id="конфликт" hidden class="rounded-xl border border-warning/40 bg-warning/10 p-4 mb-5">
+            <div class="font-bold mb-1">Пока вы писали, черновик изменил кто-то другой</div>
+            <div class="text-sm mb-3" id="конфликтТекст"></div>
+            <div class="flex flex-wrap gap-2">
+                <button class="btn btn-sm btn-outline" id="открытьЧужое">Посмотреть чужую правку</button>
+                <button class="btn btn-sm" id="перезаписать">Всё равно сохранить моё</button>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow mb-4">
+            <div class="card-body p-5 desktop:p-6 gap-4">
+                <label class="form-control">
+                    <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60">Название</span></div>
+                    <input id="заголовок" type="text" class="input input-bordered text-lg font-semibold"
+                           placeholder="Например: Мангала-арати" maxlength="200">
+                </label>
+                <label class="form-control">
+                    <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60">Раздел</span></div>
+                    <select id="раздел" class="select select-bordered"></select>
+                </label>
+            </div>
+        </div>
+
+        <!-- панель оформления: применяется к выделенному в текущем куске -->
+        <div class="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-2 bg-base-200/95 py-2">
+            <button class="btn btn-xs btn-outline font-bold" id="жирный" title="Ctrl+B">Ж</button>
+            <button class="btn btn-xs btn-outline" id="ссылка">Ссылка</button>
+            <span class="opacity-30">|</span>
+            <button class="btn btn-xs btn-outline" data-добавить="p">Абзац</button>
+            <button class="btn btn-xs btn-outline" data-добавить="h2">Заголовок</button>
+            <button class="btn btn-xs btn-outline" data-добавить="h3">Подзаголовок</button>
+            <button class="btn btn-xs btn-outline" data-добавить="ul">Список</button>
+            <button class="btn btn-xs btn-outline" data-добавить="ol">По шагам</button>
+            <button class="btn btn-xs btn-outline" data-добавить="note">Заметка</button>
+            <button class="btn btn-xs btn-outline" data-добавить="img">Фото</button>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+            <div class="card-body p-5 desktop:p-8">
+                <div id="блоки"></div>
+                <p class="text-sm opacity-50 mt-4">
+                    Enter — новый абзац, Backspace в пустом — убрать блок.
+                    Вставка приходит обычным текстом: оформление из Word не переносится.
+                </p>
+            </div>
+        </div>
+
+        <div class="card bg-base-100 shadow mt-4" id="картаИзменений">
+            <div class="card-body p-5 desktop:p-6">
+                <label class="form-control">
+                    <div class="label py-1">
+                        <span class="label-text text-xs uppercase tracking-widest opacity-60">Что изменилось</span>
+                    </div>
+                    <input id="примечание" type="text" class="input input-bordered"
+                           placeholder="Одной строкой: что поменяли и почему" maxlength="200">
+                    <div class="label py-1"><span class="label-text-alt opacity-60">Старший увидит это в очереди, а отдел — в истории.</span></div>
+                </label>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mt-5">
+            <button class="btn btn-sm btn-ghost text-error" id="удалить" hidden>Удалить черновик</button>
+        </div>
+    </main>
+
+    <input type="file" id="файл" accept="image/*" hidden>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=97"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/worship-doc.js?v=2"></script>
+    <script src="../js/pages/worship-edit.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
+            await WorshipEdit.init();
+        }
+        init();
+    </script>
+</body>
+</html>

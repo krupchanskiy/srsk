@@ -217,7 +217,7 @@ const WorshipStandards = (() => {
         const { error } = await Layout.db.from('worship_sections').insert({
             name_ru: имя.trim(),
             sort_order: разделы.length,
-            created_by: window.currentUser?.user_id || null,
+            created_by: window.currentUser?.id || null,
         });
         if (error) return Layout.handleError(error, 'Создание раздела');
         if (await загрузить() && await дополнитьВерсиями()) рисовать();

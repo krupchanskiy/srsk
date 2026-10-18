@@ -18,6 +18,7 @@ const WorshipArticle = (() => {
 
     const id = new URLSearchParams(location.search).get('id');
     let статья = null, версии = [], показана = null, раздел = null;
+    let снимки = {};                // путь → адрес ограниченного срока
 
     async function загрузить() {
         if (!id) { Layout.showNotification('Статья не указана', 'warning'); return false; }
@@ -168,10 +169,14 @@ const WorshipArticle = (() => {
         $('#diffModal').showModal();
     }
 
+    async function дополнитьСнимками() {
+        снимки = await WorshipDoc.ссылкиНаСнимки(Layout.db, показана?.doc);
+    }
+
     function рисоватьТекст() {
         const тело = $('#body');
         тело.innerHTML = '';
-        тело.appendChild(WorshipDoc.нарисовать(показана?.doc));
+        тело.appendChild(WorshipDoc.нарисовать(показана?.doc, снимки));
 
         const главы = WorshipDoc.заголовки(показана?.doc);
         $('#toc').hidden = главы.length < 2;
@@ -227,7 +232,9 @@ const WorshipArticle = (() => {
 
     // ---------- действия ----------
     async function перечитать() {
-        if (await загрузить()) рисовать();
+        if (!await загрузить()) return;
+        await дополнитьСнимками();
+        рисовать();
     }
 
     function слушать() {
@@ -235,6 +242,7 @@ const WorshipArticle = (() => {
             const показать = ev.target.closest('[data-show]');
             if (показать) {
                 показана = версии.find(в => в.id === показать.dataset.show);
+                await дополнитьСнимками();
                 рисоватьШапку(); рисоватьДействия(); рисоватьТекст();
                 scrollTo({ top: 0, behavior: 'smooth' });
                 return;
@@ -297,6 +305,7 @@ const WorshipArticle = (() => {
     async function init() {
         слушать();
         if (!await загрузить()) return;
+        await дополнитьСнимками();
         рисовать();
     }
 
