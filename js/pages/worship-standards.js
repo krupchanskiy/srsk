@@ -88,7 +88,8 @@ const WorshipStandards = (() => {
         return `
         <li class="border-b border-base-200 last:border-0 flex items-center gap-1 pr-3">
             <a href="article.html?id=${статья.id}"
-               class="flex flex-wrap items-center gap-3 px-5 py-3 flex-1 min-w-0 hover:bg-base-200/60 transition-colors">
+               class="flex flex-col desktop:flex-row desktop:items-center gap-1 desktop:gap-3
+                      px-5 py-3 flex-1 min-w-0 hover:bg-base-200/60 transition-colors">
                 <span class="flex-1 min-w-0 font-semibold">${e(статья.title)}${значок(статья)}</span>
                 <span class="text-sm opacity-60 whitespace-nowrap">${
                     статья.status === 'published' && статья.версия
@@ -199,7 +200,8 @@ const WorshipStandards = (() => {
         const безРаздела = видимые.filter(с => !с.section_id);
         тело.innerHTML = разделы.map(р => {
             const свои = видимые.filter(с => с.section_id === р.id);
-            if (!свои.length && фильтр.поиск) return '';
+            // при поиске и в архиве пустые разделы только мешают считать
+            if (!свои.length && (фильтр.поиск || фильтр.архив)) return '';
             return `
             <div class="card bg-base-100 shadow mb-4">
                 <div class="px-5 pt-4 pb-2 flex flex-wrap items-center gap-3">

@@ -36,7 +36,10 @@ const WorshipHome = (() => {
             .order('approved_at', { ascending: false }).limit(8);
         if (error) { Layout.handleError(error, 'Лента изменений'); return; }
 
-        $('#feed').innerHTML = (data || []).map(в => строка(в.article_id, в.title,
+        // отменённые в ленту не попадают: «утверждён» рядом с «не действует»
+        // читается как противоречие, а не как история
+        const действующие = new Set(статьи.filter(с => с.status === 'published').map(с => с.id));
+        $('#feed').innerHTML = (data || []).filter(в => действующие.has(в.article_id)).map(в => строка(в.article_id, в.title,
             `${дата(в.approved_at)}${в.version_no > 1 && в.change_note
                 ? ' · ' + e(в.change_note) : в.version_no === 1 ? ' · новый стандарт' : ''}`
         )).join('') || '<li class="py-2 text-sm opacity-60">Пока ничего не утверждали</li>';

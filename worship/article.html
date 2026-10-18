@@ -92,6 +92,31 @@
         </div>
     </main>
 
+    <!-- архивация: ТЗ требует спрашивать, чем заменено. Это единственный способ
+         заметить, что два стандарта противоречат друг другу -->
+    <dialog id="archiveModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-1">Отменить стандарт</h3>
+            <p class="text-sm opacity-60 mb-4">По нему перестанут служить. Текст останется
+                доступным по ссылке и в поиске, с пометкой «не действует».</p>
+            <label class="form-control mb-3">
+                <div class="label py-1"><span class="label-text">Почему больше не действует</span></div>
+                <input id="archiveReason" type="text" class="input input-bordered"
+                       placeholder="Одной строкой" maxlength="200">
+            </label>
+            <label class="form-control">
+                <div class="label py-1"><span class="label-text">Чем заменён</span></div>
+                <select id="archiveReplacement" class="select select-bordered"></select>
+                <div class="label py-1"><span class="label-text-alt opacity-60">Связь будет видна на обеих статьях.</span></div>
+            </label>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm btn-ghost">Отмена</button></form>
+                <button class="btn btn-sm btn-warning" id="archiveGo">Отменить стандарт</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
     <!-- сравнение: старший утверждает правку, видя, что именно в ней поменяли -->
     <dialog id="diffModal" class="modal">
         <div class="modal-box max-w-3xl">
@@ -115,7 +140,7 @@
     <script src="../js/auth-check.js?v=12"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="../js/worship-doc.js?v=2"></script>
-    <script src="../js/pages/worship-article.js?v=5"></script>
+    <script src="../js/pages/worship-article.js?v=7"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

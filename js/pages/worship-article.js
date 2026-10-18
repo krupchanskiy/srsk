@@ -21,6 +21,8 @@ const WorshipArticle = (() => {
     let снимки = {};                // путь → адрес ограниченного срока
     let замечания = [];
     let вЗакладках = false;
+    let заменяет = null;            // статья, которую эта заменила собой
+    let заменено = null;            // статья, которой заменили эту
 
     async function загрузить() {
         if (!id) { Layout.showNotification('Статья не указана', 'warning'); return false; }
@@ -36,6 +38,20 @@ const WorshipArticle = (() => {
 
         статья = с;
         версии = вер || [];
+
+        // ТЗ: связь замены видна на обеих статьях, иначе противоречие
+        // между старым и новым стандартом замечают только случайно
+        const { data: зам0 } = await Layout.db.from('worship_articles')
+            .select('id, title').eq('replaced_by_id', id).maybeSingle();
+        заменяет = зам0 || null;
+
+        if (с.replaced_by_id) {
+            const { data } = await Layout.db.from('worship_articles')
+                .select('id, title').eq('id', с.replaced_by_id).maybeSingle();
+            заменено = data || null;
+        } else {
+            заменено = null;
+        }
 
         const { data: з } = await Layout.db.from('worship_bookmarks')
             .select('id').eq('kind', 'bookmark').eq('article_id', id).maybeSingle();
@@ -69,8 +85,9 @@ const WorshipArticle = (() => {
         if (!показана) return 'Текста пока нет';
 
         if (статья.status === 'archived') {
-            const замена = статья.replaced_by_id
-                ? ` · заменено <a class="link" href="article.html?id=${статья.replaced_by_id}">другой статьёй</a>`
+            const замена = заменено
+                ? ` · заменено статьёй <a class="link" href="article.html?id=${заменено.id}">${
+                    e(заменено.title)}</a>`
                 : '';
             return `<span class="text-warning font-semibold">Не действует${
                 статья.archived_at ? ' с ' + дата(статья.archived_at) : ''}</span>${
@@ -86,7 +103,9 @@ const WorshipArticle = (() => {
             const правка = версии.find(в => в.status === 'submitted');
             return `<span class="text-success font-semibold">Действует${
                 показана.approved_at ? ' с ' + дата(показана.approved_at) : ''}</span> · версия ${показана.version_no}${
-                правка ? ` · <button class="link" data-show="${правка.id}">есть правка на утверждении</button>` : ''}`;
+                правка ? ` · <button class="link" data-show="${правка.id}">есть правка на утверждении</button>` : ''}${
+                заменяет ? ` · заменил <a class="link" href="article.html?id=${заменяет.id}">${
+                    e(заменяет.title)}</a>` : ''}`;
         }
         if (показана.status === 'submitted') {
             return `<span class="text-warning font-semibold">Правка ждёт утверждения</span>${
@@ -135,8 +154,9 @@ const WorshipArticle = (() => {
         кнопки.push(`<button class="btn btn-sm btn-ghost" id="bookmark" title="${
             вЗакладках ? 'Убрать из закладок' : 'В закладки'}">${
             вЗакладках ? '★' : '☆'}</button>`);
-        // печатаем только действующее: лист на стене не должен спорить с храмом
-        if (показана?.status === 'published') {
+        // печатаем только действующее: лист на стене не должен спорить с храмом,
+        // поэтому отменённый стандарт не печатается, даже если его версия когда-то действовала
+        if (показана?.status === 'published' && статья.status === 'published') {
             кнопки.push('<button class="btn btn-sm btn-outline" id="print">Печать</button>');
         }
         if (можноУтверждать() && статья.status === 'published' && !наЭкранеПравка) {
@@ -274,6 +294,16 @@ const WorshipArticle = (() => {
     }, 300));
 
     // ---------- действия ----------
+    async function открытьАрхивацию() {
+        const { data } = await Layout.db.from('worship_articles')
+            .select('id, title').eq('kind', 'standard').eq('status', 'published')
+            .neq('id', статья.id).order('title');
+        $('#archiveReplacement').innerHTML = '<option value="">Ничем — просто отменяем</option>' +
+            (data || []).map(с => `<option value="${с.id}">${e(с.title)}</option>`).join('');
+        $('#archiveReason').value = '';
+        $('#archiveModal').showModal();
+    }
+
     async function переключитьЗакладку() {
         const я = window.currentUser?.id;
         if (!я) return;
@@ -368,12 +398,18 @@ const WorshipArticle = (() => {
                 Layout.showNotification('Правка снова у вас в черновиках', 'success');
                 return перечитать();
             }
-            if (b.id === 'archive') {
-                const причина = prompt('Почему стандарт больше не действует?');
-                if (!причина || !причина.trim()) return;
-                const { error } = await Layout.db.rpc('worship_archive',
-                    { p_article: статья.id, p_reason: причина, p_replaced_by: null });
+            if (b.id === 'archive') return открытьАрхивацию();
+            if (b.id === 'archiveGo') {
+                const причина = $('#archiveReason').value.trim();
+                if (!причина) {
+                    Layout.showNotification('Без причины отмену не понять через полгода', 'warning');
+                    return $('#archiveReason').focus();
+                }
+                const { error } = await Layout.db.rpc('worship_archive', {
+                    p_article: статья.id, p_reason: причина,
+                    p_replaced_by: $('#archiveReplacement').value || null });
                 if (error) return Layout.handleError(error, 'Архивация');
+                $('#archiveModal').close();
                 Layout.showNotification('Стандарт отменён', 'success');
                 return перечитать();
             }
