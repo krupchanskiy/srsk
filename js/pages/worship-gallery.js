@@ -160,7 +160,13 @@ const WorshipGallery = (() => {
                 $('#albumModal').showModal();
                 return;
             }
-            if (ev.target.closest('#создатьНабор')) return создатьНабор();
+            const создатьКн = ev.target.closest('#создатьНабор');
+            if (создатьКн) {
+                // второй щелчок, пока создаётся первая, давал две одинаковые папки
+                if (создатьКн.disabled) return;
+                создатьКн.disabled = true;
+                return создатьНабор().finally(() => { создатьКн.disabled = false; });
+            }
         });
     }
 

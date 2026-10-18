@@ -650,6 +650,7 @@ const WorshipSchedule = (() => {
                     пометки.push(['в этот день уже занят', 'badge-ghost']);
                 }
                 if (ч.active_to && ч.active_to < день) пометки.push(['срок участия истёк', 'badge-warning']);
+                if (ч.active_from && ч.active_from > день) пометки.push(['ещё не в отделе', 'badge-warning']);
                 if (ч.безВхода) пометки.push(['нет входа — скажите голосом', 'badge-ghost']);
                 else if (ч.безБота) пометки.push(['бот не подключён', 'badge-ghost']);
                 return { ч, пометки, стоит: уже.has(ч.id) };
@@ -782,6 +783,13 @@ const WorshipSchedule = (() => {
         await перечитать();
     }
 
+    /** Кнопка занята, пока идёт её дело: второй щелчок не создаёт дубль. */
+    async function разом(кнопка, дело) {
+        if (кнопка.disabled) return;
+        кнопка.disabled = true;
+        try { return await дело(); } finally { кнопка.disabled = false; }
+    }
+
     // ---------- слушатели ----------
     function слушать() {
         document.addEventListener('click', async ev => {
@@ -789,7 +797,7 @@ const WorshipSchedule = (() => {
             if (кл) return открытьНазначение(кл.dataset.клетка, кл.dataset.служба, кл.dataset.разовая);
 
             const пост = ev.target.closest('[data-поставить]');
-            if (пост) return поставить(пост.dataset.поставить);
+            if (пост) return разом(пост, () => поставить(пост.dataset.поставить));
 
             const снять = ev.target.closest('[data-снять]');
             if (снять) {
@@ -876,10 +884,10 @@ const WorshipSchedule = (() => {
             }
             if (b.id === 'печать') return print();
             if (b.id === 'вестиСлужбы') { рисоватьСлужбы(); return $('#службыМодал').showModal(); }
-            if (b.id === 'сДобавить') return добавитьСлужбу();
+            if (b.id === 'сДобавить') return разом(b, добавитьСлужбу);
             if (b.id === 'разовая') return открытьОтклонение('разовая');
             if (b.id === 'отменить') return открытьОтклонение('отмена');
-            if (b.id === 'оСохранить') return сохранитьОтклонение();
+            if (b.id === 'оСохранить') return разом(b, сохранитьОтклонение);
             if (b.id === 'копияНедели') return открытьПовтор();
             if (b.id === 'повторПустить') return копияНедели();
             if (b.id === 'яНеСмогу') {
@@ -888,7 +896,7 @@ const WorshipSchedule = (() => {
                 $('#оtПричина').value = '';
                 return $('#отметкаМодал').showModal();
             }
-            if (b.id === 'оtСохранить') return отметитьОтъезд();
+            if (b.id === 'оtСохранить') return разом(b, отметитьОтъезд);
         });
 
         // правка названия и времени службы — по уходу из поля

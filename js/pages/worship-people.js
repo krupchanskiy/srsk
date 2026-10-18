@@ -243,9 +243,13 @@ const WorshipPeople = (() => {
 
     async function рисоватьЗаметки() {
         if (!можноВести()) return;
+        // карточку могли закрыть и открыть другую, пока шёл запрос:
+        // заметки одного человека не должны лечь в карточку другого
+        const чьи = открытый.id;
         const { data, error } = await Layout.db.from('worship_person_notes')
             .select('id, body, created_at, created_by')
-            .eq('person_id', открытый.id).order('created_at', { ascending: false });
+            .eq('person_id', чьи).order('created_at', { ascending: false });
+        if (открытый?.id !== чьи) return;
         if (error) return Layout.handleError(error, 'Заметки');
 
         const авторы = [...new Set((data || []).map(з => з.created_by).filter(Boolean))];
@@ -255,6 +259,7 @@ const WorshipPeople = (() => {
                 .select('user_id, spiritual_name, first_name, last_name').in('user_id', авторы);
             имена = Object.fromEntries((в || []).map(x => [x.user_id,
                 x.spiritual_name || `${x.first_name || ''} ${x.last_name || ''}`.trim()]));
+            if (открытый?.id !== чьи) return;
         }
 
         $('#кЗаметки').innerHTML = (data || []).map(з => `
@@ -400,7 +405,18 @@ const WorshipPeople = (() => {
     }
 
     // ---------- добавление ----------
+    // поиск по мере набора: ответ на «Ра» не должен лечь поверх ответа на «Радха»
+    let поколениеПоиска = 0;
+
+    /** Кнопка занята, пока идёт её дело: второй щелчок не создаёт дубль. */
+    async function разом(кнопка, дело) {
+        if (кнопка.disabled) return;
+        кнопка.disabled = true;
+        try { return await дело(); } finally { кнопка.disabled = false; }
+    }
+
     async function искатьЛюдей() {
+        const моё = ++поколениеПоиска;
         const имя = $('#дПоиск').value.trim();
         if (имя.length < 2) {
             $('#дСписок').innerHTML = '<li class="py-3 text-sm opacity-60">Впишите хотя бы две буквы.</li>';
@@ -412,9 +428,13 @@ const WorshipPeople = (() => {
             .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
             .or(`spiritual_name.ilike.${кав},first_name.ilike.${кав},last_name.ilike.${кав}`)
             .limit(20);
+        if (моё !== поколениеПоиска) return;
         if (error) return Layout.handleError(error, 'Поиск человека');
 
-        const уже = new Set(люди.map(ч => ч.vaishnava_id));
+        // выведенный из отдела — не «уже в отделе»: его можно вернуть,
+        // а раньше кнопки не было, и вернуть человека было нельзя вовсе
+        const уже = new Set(люди.filter(ч => ч.is_active !== false).map(ч => ч.vaishnava_id));
+        const выбыли = new Set(люди.filter(ч => ч.is_active === false).map(ч => ч.vaishnava_id));
         $('#дСписок').innerHTML = (data || []).map(в => {
             const имя2 = в.spiritual_name ||
                 `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени';
@@ -429,7 +449,8 @@ const WorshipPeople = (() => {
                 </span>
                 ${уже.has(в.id)
                     ? '<span class="text-sm opacity-60">уже в отделе</span>'
-                    : `<button class="btn btn-sm btn-outline" data-взять="${в.id}">Добавить</button>`}
+                    : `<button class="btn btn-sm btn-outline" data-взять="${в.id}">${
+                        выбыли.has(в.id) ? 'Вернуть в отдел' : 'Добавить'}</button>`}
             </li>`;
         }).join('') || '<li class="py-3 text-sm opacity-60">Никого не нашлось</li>';
     }
@@ -493,7 +514,7 @@ const WorshipPeople = (() => {
             if (ч) return открыть(ч.dataset.человек);
 
             const взять = ev.target.closest('[data-взять]');
-            if (взять) return добавить(взять.dataset.взять);
+            if (взять) return разом(взять, () => добавить(взять.dataset.взять));
 
             const снять = ev.target.closest('[data-снятьОтметку]');
             if (снять) {
@@ -542,7 +563,7 @@ const WorshipPeople = (() => {
                 if (ок) Layout.showNotification('Срок участия сохранён', 'success');
                 return;
             }
-            if (b.id === 'кЗаметкаДобавить') {
+            if (b.id === 'кЗаметкаДобавить') return разом(b, async () => {
                 const текст = $('#кЗаметкаТекст').value.trim();
                 if (!текст) return;
                 const { error } = await Layout.db.from('worship_person_notes').insert({
@@ -552,7 +573,7 @@ const WorshipPeople = (() => {
                 if (error) return Layout.handleError(error, 'Заметка');
                 $('#кЗаметкаТекст').value = '';
                 return рисоватьЗаметки();
-            }
+            });
         });
 
         document.addEventListener('change', async ev => {

@@ -433,10 +433,21 @@ const WorshipKit = (() => {
         if (await загрузить()) { рисоватьШапку(); рисоватьПункты(); рисоватьВыдачи(); window.applyPermissions?.(); }
     }
 
+    let занято = false;
+    async function поОчереди(дело) {
+        занято = true;
+        try { return await дело(); } finally { занято = false; }
+    }
+
     function слушать() {
         document.addEventListener('click', async ev => {
+            // пока пишется прошлое действие, следующее ждёт: двойной щелчок
+            // по «Добавить» клал пункт дважды, а быстрые стрелки порядка
+            // переписывали номера наперегонки
+            if (занято && ev.target.closest('[data-взять], [data-двигать]')) return;
+
             const взять = ev.target.closest('[data-взять]');
-            if (взять) return положить(взять.dataset.вид, взять.dataset.взять);
+            if (взять) return поОчереди(() => положить(взять.dataset.вид, взять.dataset.взять));
 
             const добавить = ev.target.closest('[data-добавить]');
             if (добавить) {
@@ -449,7 +460,7 @@ const WorshipKit = (() => {
             }
 
             const двигать = ev.target.closest('[data-двигать]');
-            if (двигать) {
+            if (двигать) return поОчереди(async () => {
                 const i = пункты.findIndex(п => п.id === двигать.dataset.id);
                 const j = i + Number(двигать.getAttribute('data-двигать'));
                 if (i < 0 || j < 0 || j >= пункты.length) return;
@@ -465,7 +476,7 @@ const WorshipKit = (() => {
                     if (!ок) return;
                 }
                 return перечитать();
-            }
+            });
 
             const правитьТекст = ev.target.closest('[data-правитьТекст]');
             if (правитьТекст) {
