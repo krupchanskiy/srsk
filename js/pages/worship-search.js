@@ -27,39 +27,49 @@ const WorshipSearch = (() => {
     let тег = new URLSearchParams(location.search).get('tag') || '';
     let теги = [], строки = [], всеТеги = false;
 
+    /**
+     * Возвращает false, если ответ устарел: пока ждали базу, человек набрал
+     * другое слово или нажал другой тег. Тогда рисовать нечего — свежий
+     * вызов нарисует своё. Раньше проверка стояла только после поиска слов,
+     * и ответ по прежнему тегу ложился поверх выдачи по новому.
+     */
     async function найти() {
         const моё = ++поколение;
         const устарело = () => моё !== поколение;
-        if (!запрос.trim() && !тег) { строки = []; return; }
+        const слово = запрос.trim(), какойТег = тег;
+        if (!слово && !какойТег) { строки = []; return true; }
 
-        if (запрос.trim()) {
+        let найдено = [];
+        if (слово) {
             const { data, error } = await Layout.db.rpc('worship_search',
-                { p_query: запрос.trim(), p_limit: ПРЕДЕЛ });
+                { p_query: слово, p_limit: ПРЕДЕЛ });
+            if (устарело()) return false;   // пока ждали, человек набрал другое
             if (error) {
                 // оставить прежнюю выдачу под новым словом хуже, чем показать пусто
                 строки = [];
                 Layout.handleError(error, 'Поиск');
-                return;
+                return true;
             }
-            if (устарело()) return;         // пока ждали, человек набрал другое
-            строки = data || [];
-        } else {
-            строки = [];
+            найдено = data || [];
         }
 
         // тег — фильтр поверх поиска: он сужает найденное, а при пустом
         // запросе сам становится выдачей
-        if (тег) {
+        if (какойТег) {
             const { data: связи } = await Layout.db.from('worship_tag_links')
-                .select('article_id, album_id').eq('tag_id', тег);
+                .select('article_id, album_id').eq('tag_id', какойТег);
+            if (устарело()) return false;
             const свои = new Set((связи || []).flatMap(с => [с.article_id, с.album_id].filter(Boolean)));
 
-            if (запрос.trim()) {
-                строки = строки.filter(с => свои.has(с.id));
+            if (слово) {
+                найдено = найдено.filter(с => свои.has(с.id));
             } else {
-                строки = await поТегу([...свои]);
+                найдено = await поТегу([...свои]);
+                if (устарело()) return false;
             }
         }
+        строки = найдено;
+        return true;
     }
 
     /** Выдача по одному тегу, без слов: «покажи всё про экадаши». */
@@ -166,7 +176,7 @@ const WorshipSearch = (() => {
         if (тег) адрес.searchParams.set('tag', тег); else адрес.searchParams.delete('tag');
         history.replaceState(null, '', адрес);
 
-        await найти();
+        if (!await найти()) return;
         рисоватьТеги();
         рисовать();
     }
