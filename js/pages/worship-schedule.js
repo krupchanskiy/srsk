@@ -250,8 +250,7 @@ const WorshipSchedule = (() => {
             // узнать здесь, а не придя в храм
             снятые.slice(0, 3).map(н => `
             <li class="py-1 flex flex-wrap items-baseline gap-2 opacity-70">
-                <span class="font-semibold line-through">${
-                    DateUtils.formatShort(DateUtils.parseDate(н.duty_date))}</span>
+                <span class="font-semibold line-through">${e(деньПоЧеловечески(н.duty_date))}</span>
                 <span class="line-through">${e(имяСлужбы(н))}</span>
                 <span class="badge badge-sm badge-warning">в этот день не проводится</span>
             </li>`).join('');
@@ -270,9 +269,8 @@ const WorshipSchedule = (() => {
         const время = (с?.time_of_day || о?.time_of_day || '').slice(0, 5);
         return `
         <li class="py-1 flex flex-wrap items-baseline gap-2">
-            <span class="font-semibold">${
-                DateUtils.formatShort(DateUtils.parseDate(н.duty_date))}</span>
-            <span class="opacity-60">${e(время)}</span>
+            <span class="font-semibold">${e(деньПоЧеловечески(н.duty_date))}</span>
+            <span class="opacity-70">${e(время)}</span>
             ${с?.article_id
                 ? `<a class="link" href="article.html?id=${с.article_id}">${e(имяСлужбы(н))}</a>`
                 : `<span>${e(имяСлужбы(н))}</span>`}

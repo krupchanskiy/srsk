@@ -222,9 +222,8 @@ const WorshipHome = (() => {
             const снята = отменена(н);
             return `
             <li class="border-b border-base-200 last:border-0 py-2 ${снята ? 'opacity-60' : ''}">
-                <span class="inline-block w-24 font-semibold">${
-                    DateUtils.formatShort(DateUtils.parseDate(н.duty_date))}</span>
-                <span class="inline-block w-14 opacity-60">${e(время)}</span>
+                <span class="font-semibold">${e(деньПоЧеловечески(н.duty_date))}</span>
+                <span class="opacity-70">${e(время)}</span>
                 ${с?.article_id && !снята
                     ? `<a class="link" href="article.html?id=${с.article_id}">${e(имя)}</a>`
                     : `<span class="${снята ? 'line-through' : ''}">${e(имя)}</span>`}

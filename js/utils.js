@@ -373,6 +373,28 @@ function спроситьСтроку({ заголовок, подсказка =
 
 window.спроситьСтроку = спроситьСтроку;
 
+/**
+ * День по-человечески: «сегодня», «завтра», иначе «пн, 20 окт».
+ * Человеку, который смотрит свои службы на неделю вперёд, год не нужен,
+ * а «18 окт 2026» в узкой колонке ещё и ломалось на две строки.
+ */
+function деньПоЧеловечески(датаISO) {
+    const д = DateUtils.parseDate(датаISO);
+    const сегодня = new Date(); сегодня.setHours(0, 0, 0, 0);
+    const разница = Math.round((д - сегодня) / 86400000);
+    if (разница === 0) return 'сегодня';
+    if (разница === 1) return 'завтра';
+    if (разница === 2) return 'послезавтра';
+    const дни = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+    const месяцы = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн',
+                    'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const свой = разница > 0 && разница < 7 ? дни[д.getDay()] + ', ' : '';
+    return `${свой}${д.getDate()} ${месяцы[д.getMonth()]}`;
+}
+
+window.деньПоЧеловечески = деньПоЧеловечески;
+
+
 // Глобальный debug-логгер доступен без префикса — используется часто, как console.log.
 window.debug = debug;
 window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName, pickResident };

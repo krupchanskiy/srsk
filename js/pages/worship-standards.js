@@ -106,12 +106,14 @@ const WorshipStandards = (() => {
         // порядок внутри раздела задаётся руками: иначе сверху оказывается
         // «Если пуджари опоздал», а основная статья тонет ниже
         const ручки = можноПисать() && вид === 'sections' && !фильтр.поиск
-            ? `<span class="flex gap-1 shrink-0">
-                   <button class="btn btn-ghost btn-xs" data-двигать="-1" data-id="${статья.id}" title="Выше">↑</button>
-                   <button class="btn btn-ghost btn-xs" data-двигать="1" data-id="${статья.id}" title="Ниже">↓</button>
+            ? `<span class="ручкиСтроки flex gap-0.5 shrink-0">
+                   <button class="btn btn-ghost btn-xs px-1" data-двигать="-1" data-id="${статья.id}"
+                           title="Выше">↑</button>
+                   <button class="btn btn-ghost btn-xs px-1" data-двигать="1" data-id="${статья.id}"
+                           title="Ниже">↓</button>
                </span>` : '';
         return `
-        <li class="border-b border-base-200 last:border-0 flex items-center gap-1 pr-3">
+        <li class="строкаСписка border-b border-base-200 last:border-0 flex items-center gap-1 pr-3">
             <a href="article.html?id=${статья.id}"
                class="flex flex-col desktop:flex-row desktop:items-center gap-1 desktop:gap-3
                       px-5 py-3 flex-1 min-w-0 hover:bg-base-200/60 transition-colors">
@@ -244,25 +246,27 @@ const WorshipStandards = (() => {
             // при поиске и в архиве пустые разделы только мешают считать
             if (!свои.length && фильтр.поиск) return '';
             return `
-            <div class="card bg-base-100 shadow mb-4">
-                <div class="px-5 pt-4 pb-2 flex flex-wrap items-center gap-3">
-                    <h2 class="card-title text-lg flex-1 min-w-0">${e(Layout.getName(р))}</h2>
-                    <span class="text-sm opacity-50">${свои.length}</span>
+            <section class="разделСписка mb-6">
+                <div class="flex flex-wrap items-baseline gap-3 px-1 mb-1">
+                    <h2 class="text-base font-bold uppercase tracking-wide">${e(Layout.getName(р))}</h2>
+                    <span class="text-sm opacity-70">${свои.length}</span>
                     ${р.is_active ? '' : '<span class="badge badge-sm">скрыт</span>'}
+                    <span class="flex-1"></span>
                     ${можноПисать()
-                        ? `<a href="edit.html?section=${р.id}" class="btn btn-ghost btn-xs"
+                        ? `<a href="edit.html?section=${р.id}" class="btn btn-ghost btn-xs ручкиСтроки"
                               title="Новая статья в этом разделе">+ статья</a>` : ''}
                 </div>
-                <ul class="list-none m-0 p-0">
+                <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">
                     ${свои.map(строкаСтатьи).join('') ||
-                      '<li class="px-5 pb-4 text-sm opacity-60">Пока пусто</li>'}
+                      '<li class="px-5 py-4 text-sm opacity-70">Пока пусто</li>'}
                 </ul>
-            </div>`;
+            </section>`;
         }).join('') + (безРаздела.length ? `
-            <div class="card bg-base-100 shadow mb-4">
-                <div class="px-5 pt-4 pb-2"><h2 class="card-title text-lg opacity-70">Без раздела</h2></div>
-                <ul class="list-none m-0 p-0">${безРаздела.map(строкаСтатьи).join('')}</ul>
-            </div>` : '');
+            <section class="разделСписка mb-6">
+                <div class="px-1 mb-1"><h2 class="text-base font-bold uppercase tracking-wide opacity-70">Без раздела</h2></div>
+                <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">${
+                    безРаздела.map(строкаСтатьи).join('')}</ul>
+            </section>` : '');
     }
 
     function рисовать() {
