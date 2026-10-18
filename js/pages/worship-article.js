@@ -114,10 +114,16 @@ const WorshipArticle = (() => {
 
         if (показана.status === 'published') {
             const правка = версии.find(в => в.status === 'submitted');
+            // Про черновик здесь не говорилось ничего: на экране стояло
+            // «Действует, версия 1», а кнопка звала «продолжить правку» —
+            // и человек не понимал, почему в редакторе текст длиннее
+            const черновик = !правка && версии.find(в => в.status === 'draft');
             return `<span class="text-success font-semibold">Действует${
                 показана.approved_at ? ' с ' + дата(показана.approved_at) : ''}</span> · версия ${показана.version_no}${
-                правка ? ` · <a class="link" href="article.html?id=${статья.id}&v=${
+                правка ? ` · <a class="link font-semibold" href="article.html?id=${статья.id}&v=${
                     правка.id}">есть правка на утверждении</a>` : ''}${
+                черновик ? ` · <a class="link font-semibold" href="article.html?id=${статья.id}&v=${
+                    черновик.id}">есть незаконченная правка</a>` : ''}${
                 заменяет.length ? ' · заменил ' + заменяет.map(з =>
                     `<a class="link" href="article.html?id=${з.id}">${e(з.title)}</a>`).join(', ') : ''}`;
         }
@@ -128,7 +134,9 @@ const WorshipArticle = (() => {
         if (показана.status === 'superseded') {
             return `<span class="opacity-70 font-semibold">Версия ${показана.version_no}, больше не действует</span>${кДействующей}`;
         }
-        return `<span class="opacity-70 font-semibold">Черновик</span> · видит только отдел${кДействующей}`;
+        return `<span class="text-warning font-semibold">Незаконченная правка</span> · ${
+            д ? `в храме действует версия ${д.version_no}, пока эту не утвердят`
+              : 'в храме пока не действует ничего'}${кДействующей}`;
     }
 
     function рисоватьШапку() {
