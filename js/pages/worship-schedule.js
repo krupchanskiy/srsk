@@ -999,11 +999,26 @@ const WorshipSchedule = (() => {
         const узел = $('#повторИтог');
         узел.textContent = 'Считаю…';
 
-        const { count, error } = await Layout.db.from('worship_duties')
-            .select('id', { count: 'exact', head: true })
+        // повтор в прошлое бессмыслен: клетки, которые уже прошли, никто не закроет
+        const сегодня = DateUtils.toISO(new Date());
+        const вПрошлое = DateUtils.toISO(началоНедели) < сегодня;
+        $('#повторПустить').disabled = вПрошлое;
+        if (вПрошлое) {
+            узел.innerHTML = 'Открыта прошедшая неделя: повторять в прошлое незачем. '
+                + 'Нажмите «Сегодня» и откройте повтор оттуда.';
+            return;
+        }
+
+        // считаем то, что функция и правда возьмёт: назначения отключённых
+        // служб и выбывших людей не переезжают — в обещании их быть не должно
+        const { data, error } = await Layout.db.from('worship_duties')
+            .select('id, service_id, person_id')
             .gte('duty_date', DateUtils.toISO(от))
             .lte('duty_date', DateUtils.toISO(доИсточника));
         if (error) { узел.textContent = 'Не удалось посчитать — повтор всё равно сработает'; return; }
+        const count = (data || []).filter(н => н.service_id
+            && службы.find(с => с.id === н.service_id)?.is_active
+            && человек(н.person_id)?.is_active !== false).length;
 
         узел.innerHTML = count
             ? `Возьмём <b>${Layout.pluralize(count, {
@@ -1015,35 +1030,54 @@ const WorshipSchedule = (() => {
     }
 
     async function копияНедели() {
+        const кнопка = $('#повторПустить');
+        if (кнопка.disabled) return;          // второй щелчок, пока идёт первый
         const назад = Number($('#повторОткуда').value || 1);
         const сколько = Number($('#повторСколько').value || 1);
 
-        let перенесено = 0, пропущено = 0;
-        const недоступны = new Set();
+        const итог = { перенесено: 0, уже: 0, занято: 0, отменено: 0 };
+        const недоступны = new Set(), срок = new Set();
 
         // каждую неделю переносим отдельным вызовом: функция идемпотентна,
         // уже стоящие назначения второй раз не создаются
-        for (let i = 0; i < сколько; i++) {
-            const { data, error } = await Layout.db.rpc('worship_week_copy', {
-                p_from: DateUtils.toISO(началоНеделиСдвигом(-назад)),
-                p_to: DateUtils.toISO(началоНеделиСдвигом(i)),
-            });
-            if (error) return Layout.handleError(error, 'Повтор недели');
-            перенесено += data?.['перенесено'] ?? 0;
-            пропущено += data?.['пропущено'] ?? 0;
-            (data?.['недоступны'] || []).forEach(имя => недоступны.add(имя));
+        кнопка.disabled = true;
+        try {
+            for (let i = 0; i < сколько; i++) {
+                const { data, error } = await Layout.db.rpc('worship_week_copy', {
+                    p_from: DateUtils.toISO(началоНеделиСдвигом(-назад)),
+                    p_to: DateUtils.toISO(началоНеделиСдвигом(i)),
+                });
+                if (error) return Layout.handleError(error, 'Повтор недели');
+                итог.перенесено += data?.['перенесено'] ?? 0;
+                итог.уже += data?.['уже_стояли'] ?? 0;
+                итог.занято += data?.['занято'] ?? 0;
+                итог.отменено += data?.['отменено'] ?? 0;
+                (data?.['недоступны'] || []).forEach(имя => недоступны.add(имя));
+                (data?.['срок_вышел'] || []).forEach(имя => срок.add(имя));
+            }
+        } finally {
+            кнопка.disabled = false;
         }
 
         $('#повторМодал').close();
         await перечитать();
 
-        if (!перенесено && !пропущено) {
+        const назн = n => Layout.pluralize(n, {
+            ru: ['назначение', 'назначения', 'назначений'], en: ['duty', 'duties'], hi: 'सेवा' });
+        const всего = итог.перенесено + итог.уже + итог.занято + итог.отменено
+            + недоступны.size + срок.size;
+        if (!всего) {
             return Layout.showNotification('Переносить нечего: в той неделе никого не ставили', 'warning');
         }
-        Layout.showNotification(
-            `Перенесено: ${перенесено}, пропущено: ${пропущено}` +
-            (недоступны.size ? `. В отъезде: ${[...недоступны].join(', ')}` : ''),
-            'success');
+        // каждая причина — своими словами: «пропущено: 3» не говорит, что делать дальше
+        const части = [итог.перенесено ? `Поставлено: ${назн(итог.перенесено)}` : 'Новых назначений нет'];
+        if (итог.уже) части.push(`уже стояли: ${итог.уже}`);
+        if (итог.занято) части.push(`клетки, расписанные вручную, не тронуты: ${итог.занято}`);
+        if (итог.отменено) части.push(`служба в тот день отменена: ${итог.отменено}`);
+        if (недоступны.size) части.push(`в отъезде: ${[...недоступны].join(', ')}`);
+        if (срок.size) части.push(`срок участия кончится: ${[...срок].join(', ')}`);
+        Layout.showNotification(части.join('; ') + '.',
+            итог.перенесено ? 'success' : 'info');
     }
 
     async function init() {

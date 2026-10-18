@@ -366,9 +366,10 @@
 
             <div class="rounded-lg bg-base-200 p-3 text-sm" id="повторИтог"></div>
 
-            <p class="text-sm opacity-70 mt-2">Уже стоящие назначения останутся как есть.
-                Пропустим тех, кто в отъезде, отключённые службы и дни, где служба отменена
-                или стоит праздник. Разовые службы не переносятся.</p>
+            <p class="text-sm opacity-70 mt-2">Уже расписанные клетки останутся как есть —
+                поверх них никого не добавим. Пропустим тех, кто в отъезде, волонтёров,
+                у которых к тем дням кончится срок, отключённые службы и дни, где служба
+                отменена или стоит праздник. Разовые службы не переносятся.</p>
 
             <div class="modal-action">
                 <form method="dialog"><button class="btn btn-sm btn-ghost">Отмена</button></form>
@@ -428,7 +429,7 @@
     <script src="../js/layout.js?v=117"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-schedule.js?v=29"></script>
+    <script src="../js/pages/worship-schedule.js?v=30"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
