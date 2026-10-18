@@ -782,7 +782,7 @@ function renderManagersLoad() {
         return `
             <div class="p-3 bg-white/40 rounded-xl">
                 <div class="flex items-center gap-3 mb-2">
-                    <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-medium" style="background: #7C3AED;">${m.initials}</div>
+                    <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-medium" style="background: #7C3AED;">${e(m.initials)}</div>
                     <div class="flex-1">
                         <div class="text-sm font-medium text-violet-900">${e(m.name)}</div>
                         <div class="text-xs text-violet-700/60">активных: ${m.active}</div>

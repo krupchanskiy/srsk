@@ -433,7 +433,7 @@ function filterGuestList(query) {
         dropdown.innerHTML = matches.map(g => {
             const name = e(CrmUtils.getGuestName(g));
             const detail = g.phone || g.email || '';
-            return `<div class="px-4 py-2 hover:bg-base-200 cursor-pointer flex justify-between items-center" onclick="selectGuest('${g.id}', '${e(CrmUtils.getGuestName(g))}')">
+            return `<div class="px-4 py-2 hover:bg-base-200 cursor-pointer flex justify-between items-center" onclick="selectGuest('${g.id}', ${e(JSON.stringify(CrmUtils.getGuestName(g)))})">
                 <span class="font-medium">${name}</span>
                 <span class="text-xs text-base-content/50">${e(detail)}</span>
             </div>`;

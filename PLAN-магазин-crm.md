@@ -48,3 +48,48 @@ shift: 7 запросов подряд → Promise.all; till: shop_open_shift в
 
 ### Телефон
 Мелкие цели btn-xs (returns, items, owners, shift, till); ячейка действий владельца шире 343px.
+
+## Код CRM — находки агента (статический разбор)
+
+База: crm_deals 347, crm_tasks 1135 (>1000), crm_activity_log 1051, vaishnavas 673, crm_payments 200 (4 с хвостами float в amount_inr); crm_deal_services 0; crm-таблиц нет в публикации supabase_realtime.
+
+### Критично
+1. Хранимый XSS из публичной формы: deal.html:1128,1174 — `t('crm_source_'+deal.source) || deal.source` в innerHTML без экранирования; RPC пишет utm_source как есть.
+2. XSS в той же карточке: href tel/mailto/t.me без экранирования (1097,1147-1149); значения в inline onclick (1099 startEditContact, 2743 copyTemplateText, 1782, 3444/3458 selectGuru; deals.html:436 selectGuest) — &#039; декодируется до разбора JS.
+3. Двойной щелчок «Сохранить» в оплате → два платежа (+два уведомления в Telegram) — deal.html:2328 savePayment.
+4. Двойной щелчок в распределении предоплаты удваивает операции; лимит только в браузере — js/prepayment-ops.js:348.
+5. Открытие карточки может удалить бронь: loadPlacement не проверяет ошибку residents и удаляет bookings — deal.html:3052-3088.
+6. Задачи: 1135 строк без пагинации, теряются задачи без срока — tasks.html:253.
+
+### Серьёзно
+7. Невидимая кнопка «→ следующий статус» на канбане (нет класса group), тап двигает стадию без вопроса; двойной клик — две стадии (index.html:550,668).
+8. Цены не того ретрита при быстрой смене (retreat-prices.html:287).
+9. Перезапись first_contacted_at (deal.html:1960, 2444, 2485; index onEnd).
+10. Realtime-подписки мёртвые; смена стадии без проверки текущего статуса — побеждает последний.
+11. После смены стадии кнопка «+ Платёж» не меняет состояние (deal.html:1945).
+12. Ошибки RPC проглатываются: «Нет платежей», долг 0, «Всё под контролем!» (deal 855,2504,873; dashboard 577/593).
+13. Записи без проверки ошибки (saveDealField 3478, updateChecklist 3586, handleAccommodationChange 3498, saveFlightField 3764, removeMember 3037, onTermChange 1597, cancelRoomBooking 3391; deals bulkAssignManager 811; utm deleteLink 265).
+14. Удаление подтверждённых (legacy, непроведённых) платежей любым сотрудником (deal 1686,1366,2360).
+15. Снятие подтверждения одним кликом, старые fin_account_id/amount_received остаются (prepayments 607).
+16. Создание сделки с новым гостем: дубли при двойном щелчке, сироты, loadGuests без пагинации (deals 717,400).
+17. Публичная форма: повторная заявка после отмены → общая ошибка (уникальный индекс включает cancelled).
+18. Публичная форма дописывает контакты существующему человеку, найденному по имени-фамилии; политика anon_insert_vaishnavas всё ещё разрешает анониму INSERT в vaishnavas.
+19. postMessage без проверки origin (deal 3316) → чужой booking_id.
+20. Ввод даты пишет промежуточные годы (prepayments 860 editDate; deal 1153 дата рождения).
+21. Двойной commit в инлайн-редакторах предоплат и контактов (prepayments 777; deal 2780).
+
+### Средне
+22. Деньги: amount_inr без округления; курс из страницы, клиент сам шлёт rate; валюта по умолчанию INR; остаток распределения float; экспорт CSV с формулами и неверными колонками.
+23. «Индивидуальные условия» теряют несохранённый выбор при перерисовке (deal 1573).
+24. Гонки без поколения: index loadDeals, dashboard, utm, deals managers, tasks, switchTab, memberSearch (.or без экранирования).
+25. Масштаб: канбан select * + последовательно terms + tasks .in(347 id); prepayments .in всех; deals/dashboard без range; activity-log limit 500; поиск без debounce.
+26. Фильтр менеджеров в журнале ищет роли crm_% (их нет).
+27. Даты: created_at.slice в UTC (deal 2918); «сегодня/просрочено» по часам устройства; received_at 12:00 UTC показывает выдуманное время; utm toISOString; formatRange с end_date null → 1970.
+28. Два разных бейджа «Мои задачи»; бейдж предоплат считает только org_fee.
+29. Проверка fin_admin после модалки выбора счёта.
+
+### Телефон
+Таблицы «Оплаты»/«Услуги» без overflow-x-auto; действия видны только по наведению; Sortable без delay — прокрутка пальцем двигает карточку; панель массовых действий не переносится; мелкие цели.
+
+### Мёртвый код
+crm-utils: STATUS_ICONS, COMMUNICATION_DIRECTIONS, TASK_PRIORITIES, getServicePrice, convertToINR, getBalance(Html), getNextManager, updateManagerLastAssigned, getStatusStats, calculateConversion, getAllowedTransitions, getProfileCompleteness, loadTaskBadge; deal.html: addNote, ветка checklist_accommodation, вкладка «Услуги»; realtime-подписки; form.html ref и #stepIndicators; docs/modules/crm.md устарел.

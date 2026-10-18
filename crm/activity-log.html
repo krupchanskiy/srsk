@@ -373,7 +373,7 @@ function renderTable() {
                 <td>
                     <span class="flex items-center gap-2">
                         <span>${icon}</span>
-                        <span>${label}</span>
+                        <span>${e(label)}</span>
                     </span>
                 </td>
                 <td class="text-sm text-base-content/70">
@@ -406,7 +406,7 @@ function formatDetails(log) {
             return details.manager_name ? `→ ${e(details.manager_name)}` : '—';
 
         default:
-            return JSON.stringify(details).substring(0, 50);
+            return e(JSON.stringify(details).substring(0, 50));
     }
 }
 

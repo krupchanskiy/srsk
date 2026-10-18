@@ -1094,9 +1094,9 @@ function renderInfoTab() {
         const displayVal = value || '—';
         const isEmpty = !value || value === '—';
         const val = href && !isEmpty
-            ? `<a href="${href}" class="link link-hover text-primary text-sm">${e(displayVal)}</a>`
+            ? `<a href="${e(href)}" class="link link-hover text-primary text-sm">${e(displayVal)}</a>`
             : `<span class="font-medium text-sm ${isEmpty ? 'text-base-content/30 italic' : ''}">${e(displayVal)}</span>`;
-        const editBtn = field ? `<button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0" onclick="startEditContact('${field}', '${e(value || '')}')">
+        const editBtn = field ? `<button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0" onclick="startEditContact('${field}')">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
         </button>` : '';
         return `<div class="group flex items-center gap-2 py-1.5 border-b border-base-200/50 last:border-0" id="contact-row-${field || label}">
@@ -1125,9 +1125,12 @@ function renderInfoTab() {
 
     const location = [guest.city, guest.country].filter(Boolean).join(', ');
     const retreatDates = retreat ? `${CrmUtils.formatDate(retreat.start_date)} — ${CrmUtils.formatDate(retreat.end_date)}` : '—';
-    const source = t('crm_source_' + deal.source) || deal.source || '—';
-    const accommodation = deal.accommodation_preference ? (t('crm_accommodation_' + deal.accommodation_preference) || deal.accommodation_preference) : '—';
-    const meals = deal.meals_preference ? (t('crm_meals_' + deal.meals_preference) || deal.meals_preference) : '—';
+    // source приходит из публичной формы (utm_source) как есть, а t() без
+    // перевода возвращает сам ключ — значит, в разметку шла строка анонима.
+    // Экранируем всё, что собрано из полей сделки.
+    const source = e(t('crm_source_' + deal.source) || deal.source || '—');
+    const accommodation = e(deal.accommodation_preference ? (t('crm_accommodation_' + deal.accommodation_preference) || deal.accommodation_preference) : '—');
+    const meals = e(deal.meals_preference ? (t('crm_meals_' + deal.meals_preference) || deal.meals_preference) : '—');
 
     return `
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1165,7 +1168,7 @@ function renderInfoTab() {
                 </h3>
                 <div class="bg-base-200/30 rounded-lg px-3 py-2 space-y-2">
                     <div class="flex items-center justify-between">
-                        <span class="badge badge-sm font-semibold whitespace-nowrap" style="background-color: ${retreat?.color || '#6366f1'}; color: white; border: none;">
+                        <span class="badge badge-sm font-semibold whitespace-nowrap" style="background-color: ${Utils.isValidColor(retreat?.color) ? retreat.color : '#6366f1'}; color: white; border: none;">
                             ${e(Layout.getName(retreat))}
                         </span>
                         <span class="text-sm">${retreatDates}</span>
@@ -1779,7 +1782,7 @@ function renderParticipantBalance() {
         <div class="flex items-center justify-between gap-2 text-sm">
             <span class="text-base-content/60">${e(b.currency)}</span>
             <span class="font-mono font-bold text-amber-700">${e(CrmUtils.formatMoney(b.amount, b.currency))}</span>
-            <button class="btn btn-xs btn-outline btn-primary" onclick="openPlaceBalanceForCurrency('${e(b.currency)}')">
+            <button class="btn btn-xs btn-outline btn-primary" onclick="openPlaceBalanceForCurrency(${e(JSON.stringify(b.currency))})">
                 ${e(t('crm_place_balance'))}
             </button>
         </div>
@@ -2740,7 +2743,7 @@ function openTemplatesModal() {
             <div class="bg-base-200 p-3 rounded-lg">
                 <div class="flex justify-between items-start mb-2">
                     <span class="font-medium">${e(Layout.getName(tpl))}</span>
-                    <button class="btn btn-ghost btn-xs gap-1" onclick="copyTemplateText(\`${text.replace(/`/g, '\\`')}\`)">${CrmUtils.UI_ICONS.copy} Копировать</button>
+                    <button class="btn btn-ghost btn-xs gap-1" onclick="copyTemplateText(${e(JSON.stringify(text))})">${CrmUtils.UI_ICONS.copy} Копировать</button>
                 </div>
                 <div class="text-sm whitespace-pre-wrap text-base-content/70">${e(text)}</div>
             </div>
@@ -2768,20 +2771,32 @@ async function saveGuestFields(fields) {
 }
 
 // ==================== INLINE EDIT CONTACTS ====================
-function startEditContact(field, currentValue) {
+function startEditContact(field) {
     const container = document.getElementById('contact-val-' + field);
     if (!container) return;
+    // значение берём из данных гостя, а не из onclick: строка из публичной
+    // формы внутри onclick="…('…')" исполнялась как код
+    const currentValue = guest?.[field] || '';
     const input = document.createElement('input');
     input.type = field === 'email' ? 'email' : 'text';
     input.value = currentValue;
     input.className = 'input input-xs input-bordered w-full max-w-[200px]';
     input.placeholder = field === 'phone' ? '+7...' : field === 'email' ? 'email@...' : '@username';
 
+    // одно поле — одно сохранение: Enter и следом blur от перерисовки писали
+    // дважды, а Escape («отмена») сохранял через тот же blur
+    let закрыто = false;
+    const завершить = async сохранить => {
+        if (закрыто) return;
+        закрыто = true;
+        if (сохранить && input.value !== currentValue) await saveContact(field, input.value);
+        else loadTabData('info');
+    };
     input.addEventListener('keydown', async (ev) => {
-        if (ev.key === 'Enter') { ev.preventDefault(); await saveContact(field, input.value); }
-        if (ev.key === 'Escape') { loadTabData('info'); }
+        if (ev.key === 'Enter') { ev.preventDefault(); await завершить(true); }
+        if (ev.key === 'Escape') { ev.preventDefault(); await завершить(false); }
     });
-    input.addEventListener('blur', async () => { await saveContact(field, input.value); });
+    input.addEventListener('blur', () => завершить(true));
 
     container.innerHTML = '';
     container.appendChild(input);
@@ -3441,7 +3456,7 @@ function searchGuruSuggestions(query) {
         // Показать все при фокусе
         if (spiritualTeachersList.length > 0) {
             suggestionsEl.innerHTML = spiritualTeachersList.map(t =>
-                `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru('${Layout.escapeHtml(t)}')">${Layout.escapeHtml(t)}</div>`
+                `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru(${Layout.escapeHtml(JSON.stringify(t))})">${Layout.escapeHtml(t)}</div>`
             ).join('');
             suggestionsEl.classList.remove('hidden');
         }
@@ -3455,7 +3470,7 @@ function searchGuruSuggestions(query) {
         return;
     }
     suggestionsEl.innerHTML = matches.map(t =>
-        `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru('${Layout.escapeHtml(t)}')">${Layout.escapeHtml(t)}</div>`
+        `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru(${Layout.escapeHtml(JSON.stringify(t))})">${Layout.escapeHtml(t)}</div>`
     ).join('');
     suggestionsEl.classList.remove('hidden');
 }
