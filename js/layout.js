@@ -239,7 +239,8 @@ const modules = {
             { id: 'worship_main', items: [
                 { id: 'worship_home', href: 'worship/index.html' },
                 { id: 'worship_standards', href: 'worship/standards.html' },
-                { id: 'worship_library', href: 'worship/library.html' }
+                { id: 'worship_library', href: 'worship/library.html' },
+                { id: 'worship_gallery', href: 'worship/gallery.html' }
             ]}
         ]
     }
@@ -363,6 +364,8 @@ const pagePermissions = {
     'worship/edit.html': 'worship_write',
     'worship/library.html': 'worship_view',
     'worship/material.html': 'worship_view',
+    'worship/gallery.html': 'worship_view',
+    'worship/album.html': 'worship_view',
 };
 
 // Проверка права страницы: строка или массив (достаточно любого)
@@ -574,7 +577,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v71', async () => {
+    const data = await Cache.getOrLoad('translations_v72', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -609,7 +612,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v71');
+        Cache.invalidate('translations_v72');
         return loadTranslations(true);
     }
 

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=4"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Галерея — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=8">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1060px;">
+
+        <div class="mb-5 flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-full desktop:min-w-0">
+                <h1 class="text-3xl font-bold tracking-tight" data-i18n="worship_gallery_title">Галерея</h1>
+                <p class="text-sm opacity-60 mt-1" data-i18n="worship_gallery_hint">Как наряжали, как украшали,
+                    как выглядел алтарь. По дате события, а не по дате загрузки.</p>
+            </div>
+            <button class="btn btn-sm" id="newAlbum" data-permission="worship_write"
+                    style="background: var(--current-color); color: #fff;"
+                    data-i18n="worship_new_album">Новый набор</button>
+        </div>
+
+        <div class="flex flex-wrap gap-3 items-center mb-4">
+            <label class="input input-bordered flex items-center gap-2 flex-1 min-w-64">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" class="opacity-50" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
+                </svg>
+                <input id="q" name="q" type="search" class="grow"
+                       data-i18n-placeholder="worship_gallery_search" placeholder="Искать по названию и описанию…">
+            </label>
+            <select id="год" class="select select-bordered select-sm"></select>
+            <label class="label cursor-pointer justify-start gap-2" data-permission="worship_write">
+                <input type="checkbox" class="checkbox" id="showArchive">
+                <span class="label-text text-sm">Показывать архив</span>
+            </label>
+        </div>
+
+        <div id="list" class="grid grid-cols-1 desktop:grid-cols-3 gap-4"></div>
+    </main>
+
+    <!-- новый набор: дата события обязательна, иначе через три года по тегу
+         «Гаура-пурнима» будет десять наборов без признака года -->
+    <dialog id="albumModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg mb-4" data-i18n="worship_new_album">Новый набор</h3>
+            <label class="form-control mb-3">
+                <div class="label py-1"><span class="label-text">Название</span></div>
+                <input id="названиеНабора" type="text" class="input input-bordered"
+                       placeholder="Например: Гаура-пурнима, вечернее одевание" maxlength="200">
+            </label>
+            <label class="form-control mb-3">
+                <div class="label py-1"><span class="label-text">Дата события</span></div>
+                <input id="датаНабора" type="date" class="input input-bordered">
+                <div class="label py-1"><span class="label-text-alt opacity-60">Когда наряжали, а не когда загружаете снимки.</span></div>
+            </label>
+            <label class="form-control mb-3">
+                <div class="label py-1"><span class="label-text">Описание</span></div>
+                <textarea id="описаниеНабора" class="textarea textarea-bordered" rows="2" maxlength="500"></textarea>
+            </label>
+            <label class="label cursor-pointer justify-start gap-2">
+                <input type="checkbox" class="checkbox checkbox-sm" id="закрытыйНабор">
+                <span class="label-text">Только для отдела</span>
+            </label>
+            <label class="label cursor-pointer justify-start gap-2">
+                <input type="checkbox" class="checkbox checkbox-sm" id="инструкцияНабор">
+                <span class="label-text">Это инструкция к стандарту — снимки покрупнее</span>
+            </label>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm btn-ghost">Отмена</button></form>
+                <button class="btn btn-sm" id="создатьНабор"
+                        style="background: var(--current-color); color:#fff;">Создать</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=101"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/media.js?v=1"></script>
+    <script src="../js/pages/worship-gallery.js?v=2"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_gallery' });
+            await WorshipGallery.init();
+        }
+        init();
+    </script>
+</body>
+</html>
