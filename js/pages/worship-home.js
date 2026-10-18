@@ -141,13 +141,13 @@ const WorshipHome = (() => {
     }
 
     async function init() {
-        // поиск уводит на список: держать два разных поиска в модуле незачем.
-        // Слушатель вешаем первым — иначе Enter, нажатый до конца загрузки,
-        // перезагрузит страницу и потеряет набранное
+        // поиск идёт сразу по стандартам, библиотеке и наборам фото: человек
+        // не знает, в каком хранилище ответ. Слушатель вешаем первым — иначе
+        // Enter, нажатый до конца загрузки, перезагрузит страницу
         $('#searchForm').addEventListener('submit', ev => {
             ev.preventDefault();
             const q = $('#q').value.trim();
-            location.href = q ? `standards.html?q=${encodeURIComponent(q)}` : 'standards.html';
+            location.href = q ? `search.html?q=${encodeURIComponent(q)}` : 'search.html';
         });
 
         const [р, с] = await Promise.all([

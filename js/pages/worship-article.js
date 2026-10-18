@@ -300,6 +300,25 @@ const WorshipArticle = (() => {
             </li>`).join('') || '<li class="py-3 text-sm opacity-60">Утверждённых версий ещё нет</li>';
     }
 
+    /** Теги и соседи по ним: словарь общий, поэтому «есть ещё» честное. */
+    async function рисоватьТеги() {
+        await WorshipTags.нарисовать(
+            document.querySelector('#теги'), { article_id: id }, { можноПравить: можноПисать() });
+
+        const { статьи, наборы } = await WorshipTags.соседи({ article_id: id });
+        const блок = document.querySelector('#соседи');
+        if (!статьи.length && !наборы.length) { блок.innerHTML = ''; return; }
+
+        блок.innerHTML = `
+            <div class="text-sm opacity-60 mb-1">По этим тегам есть ещё:</div>
+            <ul class="list-none m-0 p-0 flex flex-wrap gap-x-4 gap-y-1">
+                ${статьи.map(а => `<li><a class="link text-sm" href="${
+                    а.kind === 'material' ? 'material' : 'article'}.html?id=${а.id}">${e(а.title)}</a></li>`).join('')}
+                ${наборы.map(н => `<li><a class="link text-sm" href="album.html?id=${н.id}">${
+                    e(н.title)} (фото)</a></li>`).join('')}
+            </ul>`;
+    }
+
     function рисовать() {
         рисоватьШапку();
         рисоватьДействия();
@@ -307,6 +326,7 @@ const WorshipArticle = (() => {
         рисоватьЗамечания();
         рисоватьИсторию();
         window.applyPermissions?.();
+        рисоватьТеги();
         восстановитьПрокрутку();
     }
 

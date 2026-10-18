@@ -473,6 +473,7 @@ const WorshipMaterial = (() => {
         рисоватьБлоки();
         слушать();
         window.applyPermissions?.();
+        if (id) WorshipTags.нарисовать($('#теги'), { article_id: id }, { можноПравить: можноПисать() });
         $('#сохранение').textContent = '';
     }
 

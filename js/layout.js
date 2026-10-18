@@ -366,6 +366,7 @@ const pagePermissions = {
     'worship/material.html': 'worship_view',
     'worship/gallery.html': 'worship_view',
     'worship/album.html': 'worship_view',
+    'worship/search.html': 'worship_view',
 };
 
 // Проверка права страницы: строка или массив (достаточно любого)

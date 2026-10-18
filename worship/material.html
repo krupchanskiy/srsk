@@ -74,6 +74,13 @@
             </div>
         </div>
 
+        <div class="card bg-base-100 shadow mb-4">
+            <div class="card-body p-5 desktop:p-6">
+                <h2 class="card-title text-lg mb-2" data-i18n="worship_tags_title">Теги</h2>
+                <div class="flex flex-wrap items-center gap-2" id="теги"></div>
+            </div>
+        </div>
+
         <!-- вложения: файл у нас либо ссылка наружу -->
         <div class="card bg-base-100 shadow mb-4">
             <div class="card-body p-5 desktop:p-6">
@@ -125,7 +132,8 @@
     <script src="../js/auth-check.js?v=12"></script>
     <script src="../js/media.js?v=1"></script>
     <script src="../js/worship-doc.js?v=5"></script>
-    <script src="../js/pages/worship-material.js?v=2"></script>
+    <script src="../js/worship-tags.js?v=1"></script>
+    <script src="../js/pages/worship-material.js?v=3"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_library' });

@@ -73,6 +73,16 @@
                     <div class="card-body p-6 desktop:p-8 text-[17px] leading-relaxed" id="body"></div>
                 </article>
 
+                <!-- теги: словарь один на модуль, поэтому отсюда честно видно,
+                     что по этим же тегам есть материалы и фото -->
+                <div class="card bg-base-100 shadow mt-5">
+                    <div class="card-body p-6">
+                        <h2 class="card-title text-lg mb-2" data-i18n="worship_tags_title">Теги</h2>
+                        <div class="flex flex-wrap items-center gap-2" id="теги"></div>
+                        <div class="mt-3" id="соседи"></div>
+                    </div>
+                </div>
+
                 <!-- замечания: канал «здесь не так» для тех, кто служит по стандарту -->
                 <div class="card bg-base-100 shadow mt-5" id="remarksCard">
                     <div class="card-body p-6">
@@ -163,7 +173,8 @@
     <script src="../js/auth-check.js?v=12"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="../js/worship-doc.js?v=5"></script>
-    <script src="../js/pages/worship-article.js?v=12"></script>
+    <script src="../js/worship-tags.js?v=1"></script>
+    <script src="../js/pages/worship-article.js?v=13"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

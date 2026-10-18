@@ -286,6 +286,8 @@ const WorshipAlbum = (() => {
         рисоватьШапку();
         рисоватьСнимки();
         window.applyPermissions?.();
+        WorshipTags.нарисовать(document.querySelector('#теги'), { album_id: id },
+                               { можноПравить: можноПисать() && !набор.is_archived });
     }
 
     return { init };
