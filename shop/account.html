@@ -1,110 +1,11 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="light">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <script src="../js/color-init.js?v=5"></script>
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Счёт магазина — ШРСК</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
-    <!-- соединение с базой открывается заранее: иначе первое обращение
-         к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
-    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=8">
-    <style>
-        /* трата, сделанная сразу из перевода, — вплотную к нему, без разделителя */
-        tr.dacc-paired > td { border-top: none !important; padding-top: 0.15rem !important; }
-    </style>
+    <title>Департаменты — ШРСК</title>
+    <!-- «Счёт» переехал в раздел «Департаменты» (ВГ 18.10.2026) -->
+    <meta http-equiv="refresh" content="0; url=../departments/account.html?d=shop">
+    <script>location.replace('../departments/account.html?d=shop');</script>
 </head>
-<body class="bg-base-200 min-h-screen flex flex-col">
-
-    <div id="header-placeholder"></div>
-
-    <main class="container mx-auto px-4 py-6 flex-1">
-
-        <div class="mb-6">
-            <h1 class="text-2xl font-bold"><span data-i18n="dacc_title">Счёт</span> <span id="daccAccountName" class="opacity-60 font-semibold"></span></h1>
-            <p class="text-sm opacity-60" data-i18n="dacc_subtitle">Движение денег по счёту — только просмотр</p>
-        </div>
-
-        <div id="daccNoAccess" class="alert alert-warning hidden mb-4">
-            <span data-i18n="dacc_no_access">Счёт видят только глава департамента и финансисты</span>
-        </div>
-
-        <div id="daccContent" class="hidden">
-            <!-- вкладки счетов департамента (по валютам) — у счетов с операциями, в порядке ₹ → ₽ → $ → € -->
-            <div id="daccTabs" role="tablist" class="tabs tabs-boxed w-fit mb-4 hidden"></div>
-            <div class="flex flex-wrap items-end gap-2 mb-4">
-                <div class="join">
-                    <button class="btn btn-sm join-item" data-dacc-preset="year" data-i18n="dacc_p_year">Этот год</button>
-                </div>
-                <div class="flex items-center gap-1">
-                    <input type="date" id="daccFrom" class="input input-bordered input-sm w-40" title="С">
-                    <span>—</span>
-                    <input type="date" id="daccTo" class="input input-bordered input-sm w-40" title="По">
-                </div>
-                <div class="join">
-                    <button class="btn btn-sm join-item" data-dacc-preset="month" data-i18n="dacc_p_month">Этот месяц</button>
-                    <button class="btn btn-sm join-item" data-dacc-preset="prev" data-i18n="dacc_p_prev">Прошлый месяц</button>
-                    <button class="btn btn-sm join-item" data-dacc-preset="all" data-i18n="dacc_p_all">Всё время</button>
-                </div>
-            </div>
-            <div id="daccTotals" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-2"></div>
-            <div id="daccPeriodLine" class="text-sm opacity-70 mb-4"></div>
-
-            <!-- «Операции» — лента и сводка за период; «Аналитика» — статьи по месяцам / кварталам / годам (ВГ 18.10) -->
-            <div id="daccViewTabs" role="tablist" class="tabs tabs-bordered w-fit mb-4">
-                <a role="tab" class="tab tab-active" data-dacc-view="ops" data-i18n="dacc_view_ops">Операции</a>
-                <a role="tab" class="tab" data-dacc-view="analytics" data-i18n="dacc_view_analytics">Аналитика</a>
-            </div>
-
-            <div id="daccAnalytics" class="hidden"></div>
-
-            <div id="daccOps">
-            <div id="daccSummary" class="grid md:grid-cols-2 gap-3 mb-4"></div>
-            <div class="flex flex-wrap items-center gap-2 mb-4">
-                <select id="daccDir" class="select select-bordered select-sm">
-                    <option value="" data-i18n="dacc_dir_all">Приходы, расходы и переводы</option>
-                    <option value="in" data-i18n="dacc_dir_in">Только приходы</option>
-                    <option value="out" data-i18n="dacc_dir_out">Только расходы</option>
-                    <option value="transfer" data-i18n="dacc_dir_transfer">Только переводы</option>
-                </select>
-                <select id="daccCategory" class="select select-bordered select-sm max-w-xs"></select>
-                <input type="search" id="daccSearch" class="input input-bordered input-sm w-64" placeholder="Поиск: комментарий, кто, сумма" data-i18n-placeholder="dacc_search">
-                <button id="daccCsv" class="btn btn-ghost btn-sm" data-i18n="fin_export_csv">Выгрузить CSV</button>
-                <span id="daccCount" class="text-sm opacity-60 ml-auto"></span>
-            </div>
-
-            <div class="bg-base-100 rounded-xl shadow-sm overflow-x-auto">
-                <table class="table table-sm w-full">
-                    <thead id="daccHead"></thead>
-                    <tbody id="daccBody"></tbody>
-                </table>
-            </div>
-            </div>
-        </div>
-    </main>
-
-    <div id="footer-placeholder"></div>
-
-    <script src="../js/config.js?v=5"></script>
-    <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=15"></script>
-    <script src="../js/date-utils.js?v=4"></script>
-    <script src="../js/layout.js?v=109"></script>
-    <script src="../js/fin-utils.js?v=25"></script>
-    <script src="../js/pages/dept-account.js?v=11"></script>
-    <script>
-        DeptAccount.init({ department: 'shop', module: 'shop', menuId: 'shop_money', itemId: 'dept_account' });
-    </script>
-</body>
+<body></body>
 </html>

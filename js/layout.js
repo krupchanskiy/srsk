@@ -29,8 +29,7 @@ const modules = {
                 { id: 'recipes', href: 'kitchen/recipes.html' },
                 { id: 'products', href: 'kitchen/products.html' },
                 { id: 'prices', href: 'kitchen/prices.html' },
-                { id: 'cost', href: 'kitchen/cost.html' },
-                { id: 'dept_account', href: 'kitchen/account.html' }
+                { id: 'cost', href: 'kitchen/cost.html' }
             ]},
             { id: 'stock', items: [
                 { id: 'stock_balance', href: 'stock/stock.html' },
@@ -224,8 +223,7 @@ const modules = {
             ]},
             { id: 'shop_money', items: [
                 { id: 'shop_owners', href: 'shop/owners.html' },
-                { id: 'shop_analytics', href: 'shop/analytics.html' },
-                { id: 'dept_account', href: 'shop/account.html' }
+                { id: 'shop_analytics', href: 'shop/analytics.html' }
             ]}
         ]
     },
@@ -243,8 +241,21 @@ const modules = {
                 { id: 'worship_schedule', href: 'worship/schedule.html' },
                 { id: 'worship_library', href: 'worship/library.html' },
                 { id: 'worship_gallery', href: 'worship/gallery.html' },
-                { id: 'worship_kits', href: 'worship/kits.html' },
-                { id: 'dept_account', href: 'worship/account.html' }
+                { id: 'worship_kits', href: 'worship/kits.html' }
+            ]}
+        ]
+    },
+    // Все департаменты в одном разделе (ВГ 18.10): плитки, у каждого «Счёт».
+    // Выбор департамента — на самих страницах раздела, не в меню: департаментов много
+    departments: {
+        id: 'departments',
+        nameKey: 'module_departments',
+        icon: '🏛️',
+        hasLocations: false,
+        defaultPage: 'departments/index.html',
+        menuConfig: [
+            { id: 'departments', items: [
+                { id: 'departments', href: 'departments/index.html' }
             ]}
         ]
     }
@@ -263,8 +274,6 @@ const pagePermissions = {
     'kitchen/products.html': 'view_products',
     'kitchen/prices.html': ['view_prices', 'edit_prices', 'edit_archived_prices'],
     'kitchen/cost.html': ['view_prices', 'edit_prices', 'edit_archived_prices'],
-    // Счёт департамента — глава департамента и финансисты (сервер проверяет ещё и что департамент свой)
-    'kitchen/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
     'kitchen/dictionaries.html': 'view_kitchen_dictionaries',
 
     // Stock
@@ -362,10 +371,10 @@ const pagePermissions = {
     'shop/inventory.html': 'shop_manage',
     'shop/owners.html': ['shop_settle', 'shop_receive'],
     'shop/analytics.html': 'shop_analytics',
-    // «Счёт» департамента — как у кухни: финансисты и руководитель департамента (ВГ 18.10)
-    'shop/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
-    'worship/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
     'worship/index.html': 'worship_view',
+    // Департаменты: финансисты — все, глава и люди из списка «Кто видит» — свои (сервер проверяет, что департамент свой)
+    'departments/index.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
+    'departments/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
     'worship/standards.html': 'worship_view',
     'worship/schedule.html': 'worship_view',
     'worship/people.html': 'worship_view',
@@ -448,7 +457,7 @@ function waitForAuth() {
 
 // Найти первый доступный модуль (для автопереключения)
 function getFirstAccessibleModule() {
-    const order = ['kitchen', 'housing', 'crm', 'finance', 'shop', 'worship', 'photos', 'portal', 'admin'];
+    const order = ['kitchen', 'housing', 'crm', 'finance', 'shop', 'worship', 'departments', 'photos', 'portal', 'admin'];
     for (const id of order) {
         if (id === 'admin' && !window.currentUser?.is_superuser) continue;
         const config = filterMenuByPermissions(modules[id]?.menuConfig || []);
@@ -469,7 +478,7 @@ function getMenuConfig() {
 // Из-за этого на его страницах КАЖДАЯ ссылка меню теряла «../» и вела
 // на несуществующий /worship/worship/standards.html.
 const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception',
-    'settings', 'crm', 'guest-portal', 'photos', 'finance', 'shop', 'worship'];
+    'settings', 'crm', 'guest-portal', 'photos', 'finance', 'shop', 'worship', 'departments'];
 
 // Определить текущую подпапку (если есть)
 function getCurrentFolder() {
@@ -601,7 +610,7 @@ async function loadTranslations(retried = false) {
     // бампается номер в имени ключа ниже — и кэш сбрасывается сам
     const СУТКИ = 24 * 60 * 60 * 1000;
 
-    const data = await Cache.getOrLoad('translations_v76', async () => {
+    const data = await Cache.getOrLoad('translations_v77', async () => {
         // Одним запросом, а не страницами по тысяче: PostgREST больше тысячи
         // строк за раз не отдаёт, и клиент ходил пять раз подряд, каждый раз
         // ожидая предыдущий ответ — это секунды до первой отрисовки
@@ -637,7 +646,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v76');
+        Cache.invalidate('translations_v77');
         return loadTranslations(true);
     }
 
@@ -703,7 +712,7 @@ function getHeaderHTML() {
                         <a href="${adjustHref(homeHref)}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity"><span data-i18n="app_name">Шри Рупа Сева Кунджа</span></a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : currentModule === 'worship' ? t('module_worship') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : currentModule === 'worship' ? t('module_worship') : currentModule === 'departments' ? t('module_departments') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -718,7 +727,7 @@ function getHeaderHTML() {
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : currentModule === 'worship' ? t('module_worship') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : currentModule === 'worship' ? t('module_worship') : currentModule === 'departments' ? t('module_departments') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -942,6 +951,17 @@ function buildLocationOptions() {
             worshipBtn.dataset.module = 'worship';
             worshipBtn.textContent = t('module_worship'); // безопасно
             el.appendChild(worshipBtn);
+        }
+
+        // Кнопка "Департаменты" — финансисты и те, кто видит хотя бы один департамент
+        if (!window.hasPermission || ['fin_admin', 'fin_observer', 'fin_dept_viewer']
+                .some(п => window.hasPermission(п))) {
+            const deptBtn = document.createElement('button');
+            deptBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+            if (currentModule === 'departments') deptBtn.classList.add('font-medium');
+            deptBtn.dataset.module = 'departments';
+            deptBtn.textContent = t('module_departments'); // безопасно
+            el.appendChild(deptBtn);
         }
 
         // Кнопка "Фото" — только для пользователей с upload_photos
@@ -1586,6 +1606,9 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     } else if (currentModule === 'worship') {
         setColor('#6b4226');
         $$('.location-name').forEach(el => el.textContent = t('module_worship'));
+    } else if (currentModule === 'departments') {
+        setColor('#4f46e5');
+        $$('.location-name').forEach(el => el.textContent = t('module_departments'));
     }
 
     buildMobileMenu();

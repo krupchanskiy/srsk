@@ -1,0 +1,8 @@
+-- 707: переводы блока «Выручка» департамента и статей выручки в Справочниках (ВГ 18.10)
+insert into translations (key, ru, en, hi, context) values
+('dacc_income', 'Выручка — с любого счёта', 'Revenue — from any account', 'राजस्व — किसी भी खाते से', 'Счёт департамента: выручка'),
+('dacc_income_hint', 'Приходы по статьям департамента, на какой бы счёт их ни сдали. Сторно — с минусом. «≈» — в рупиях по курсу дня. Нажмите статью — покажу операции', 'Income under the department''s categories, whichever account it was handed in to. Reversals are negative. «≈» is in rupees at the day''s rate. Click a category to see the operations', 'विभाग की मदों के अंतर्गत आय, चाहे जिस खाते में जमा की गई हो। रिवर्सल ऋणात्मक हैं। «≈» — दिन की दर पर रुपये में। संचालन देखने के लिए मद पर क्लिक करें', 'Счёт департамента: выручка'),
+('dacc_income_an', 'Выручка, ≈ ₹', 'Revenue, ≈ ₹', 'राजस्व, ≈ ₹', 'Счёт департамента: аналитика'),
+('fin_dept_income_categories', 'Статьи выручки', 'Revenue categories', 'राजस्व मदें', 'Справочники → Департаменты'),
+('fin_dept_income_categories_hint', 'Приходы по этим статьям с любого счёта показываются на странице департамента как «Выручка». Отмечайте только статьи этого департамента', 'Income under these categories from any account is shown on the department page as Revenue. Tick only this department''s own categories', 'किसी भी खाते से इन मदों के अंतर्गत आय विभाग के पृष्ठ पर «राजस्व» के रूप में दिखाई जाती है। केवल इसी विभाग की मदें चुनें', 'Справочники → Департаменты')
+on conflict (key) do update set ru = excluded.ru, en = excluded.en, hi = excluded.hi, context = excluded.context;

@@ -35,6 +35,8 @@ async function loadTab() {
     if (currentTab === 'departments') {
         if (!knownChats) await loadKnownChats();
         await loadDeptCategories();
+        await loadDeptViewers();
+        await loadDeptIncome();
     }
     renderTab();
 }
@@ -54,6 +56,28 @@ async function loadDeptCategories() {
     const { data } = await Layout.db.from('fin_v_department_categories').select('department_id, category_id');
     deptCategories = {};
     for (const r of data || []) (deptCategories[r.department_id] = deptCategories[r.department_id] || []).push(r.category_id);
+}
+
+// «Кто ещё видит департамент» (мигр. 704): { department_id: [{ id, name }, …] }.
+// Глава видит свой департамент сам, сюда он не входит.
+let deptViewers = {};
+async function loadDeptViewers() {
+    const { data } = await Layout.db.from('fin_department_viewers')
+        .select('department_id, vaishnava_id, vaishnavas(spiritual_name, first_name, last_name)');
+    deptViewers = {};
+    for (const r of data || []) {
+        const v = r.vaishnavas || {};
+        const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+        (deptViewers[r.department_id] = deptViewers[r.department_id] || []).push({ id: r.vaishnava_id, name });
+    }
+}
+
+// Статьи выручки департамента (мигр. 706): приходы по ним с любого счёта — блок «Выручка» на его странице
+let deptIncome = {};
+async function loadDeptIncome() {
+    const { data } = await Layout.db.from('fin_department_income_categories').select('department_id, category_id');
+    deptIncome = {};
+    for (const r of data || []) (deptIncome[r.department_id] = deptIncome[r.department_id] || []).push(r.category_id);
 }
 
 function activeBadge(row) {
@@ -128,7 +152,8 @@ function renderTab() {
             <tr>
                 <td>${Utils.isValidColor(r.color) ? `<span class="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style="background:${r.color}"></span>` : ''}${e(r.name)}${
                     r.for_people ? '' : ` <span class="badge badge-ghost badge-sm">${t('fin_dept_personal')}</span>`}</td>
-                <td>${e(r.responsible_name || '')}</td>
+                <td>${e(r.responsible_name || '')}${(deptViewers[r.id] || []).length
+                    ? `<div class="text-xs opacity-60">${t('fin_dept_viewers_also')}: ${e(deptViewers[r.id].map(v => v.name).join(', '))}</div>` : ''}</td>
                 <td>${r.chat_title
                         ? e(r.chat_title)
                         : `<span class="badge badge-warning badge-sm">${t('fin_dept_no_chat')}</span>`}
@@ -468,6 +493,14 @@ function openForm(row) {
                 <input type="text" id="f_resp_search" class="input input-bordered input-sm" autocomplete="off" value="${e(row?.responsible_name || '')}">
                 <input type="hidden" id="f_resp" value="${e(row?.responsible_person_id || '')}">
             </div>` +
+            // Кто ещё видит департамент — видят всё, что глава (ВГ 18.10); только люди со входом
+            `<div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text">${t('fin_dept_viewers')}</span></label>
+                <div id="f_viewers" class="flex flex-wrap gap-1 mb-1"></div>
+                <input type="text" id="f_viewer_search" class="input input-bordered input-sm" autocomplete="off" placeholder="${t('fin_dept_viewers_add')}">
+                <input type="hidden" id="f_viewer_pick" value="">
+                <span class="text-xs opacity-60 mt-1">${t('fin_dept_viewers_hint')}</span>
+            </div>` +
             fieldHtml('f_chat', 'fin_dept_chat', `<select id="f_chat" class="select select-bordered select-sm">
                 <option value="">${t('fin_dept_no_chat')}</option>${chatOpts}</select>`) +
             // Свой набор статей: пусто = общий набор. Так добавление новой общей
@@ -489,6 +522,19 @@ function openForm(row) {
                         </label>`).join('')}
                 </div>
                 <span class="text-xs opacity-60 mt-1">${t('fin_dept_categories_hint')}</span>
+            </div>` +
+            // Статьи выручки: выручка магазина ложится на Кассу/Гест-хаус, а не на счёт департамента (ВГ 18.10)
+            `<div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text">${t('fin_dept_income_categories')}</span></label>
+                <div class="max-h-40 overflow-y-auto border border-base-300 rounded-lg p-2">
+                    ${FinUtils.refs.categories.filter(c => c.direction === 'in' && (c.is_active || (deptIncome[row?.id] || []).includes(c.id))).map(c => `
+                        <label class="label cursor-pointer justify-start gap-2 py-0.5">
+                            <input type="checkbox" class="checkbox checkbox-xs dept-income-cat" value="${c.id}"
+                                   ${(deptIncome[row?.id] || []).includes(c.id) ? 'checked' : ''}>
+                            <span class="label-text text-sm">${e(c.name)}</span>
+                        </label>`).join('')}
+                </div>
+                <span class="text-xs opacity-60 mt-1">${t('fin_dept_income_categories_hint')}</span>
             </div>` +
             // Счета департамента — здесь, а не на странице «Счета»: там нельзя
             // указать департамент, и счёт оказывался ничьим (случай ВГ со
@@ -521,6 +567,7 @@ function openForm(row) {
     // а не в init — иначе она указывала бы на удалённый input.
     if (currentTab === 'departments') {
         FinUtils.attachPersonSearch(document.getElementById('f_resp_search'), document.getElementById('f_resp'));
+        wireViewers(row?.id);
         if (row?.id) {
             resetEmployeeForm();
             wireEmployeeSection(row.id);
@@ -530,6 +577,32 @@ function openForm(row) {
     const delBtn = document.getElementById('f_rate_delete');
     if (delBtn) delBtn.addEventListener('click', () => deleteRate(editingId));
     document.getElementById('dictModal').showModal();
+}
+
+// Список «Кто ещё видит» в форме: плашки с крестиком + поиск человека со входом
+let formViewers = [];
+function wireViewers(deptId) {
+    formViewers = (deptViewers[deptId] || []).map(v => ({ ...v }));
+    const box = document.getElementById('f_viewers');
+    const input = document.getElementById('f_viewer_search');
+    const pick = document.getElementById('f_viewer_pick');
+    const draw = () => {
+        box.innerHTML = formViewers.map(v => `<span class="badge badge-outline gap-1 py-3">${e(v.name)}
+            <button type="button" class="opacity-60 hover:opacity-100" data-viewer-remove="${v.id}" aria-label="${t('delete')}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg></button></span>`).join('');
+    };
+    box.addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-viewer-remove]');
+        if (!btn) return;
+        formViewers = formViewers.filter(v => v.id !== btn.dataset.viewerRemove);
+        draw();
+    });
+    pick.addEventListener('change', () => {
+        if (pick.value && !formViewers.some(v => v.id === pick.value)) formViewers.push({ id: pick.value, name: input.value });
+        pick.value = ''; input.value = '';
+        draw();
+    });
+    FinUtils.attachPersonSearch(input, pick, true);
+    draw();
 }
 
 function activeCheckbox(row) {
@@ -596,9 +669,17 @@ async function submitForm(ev) {
             chat_id: val('f_chat') || null,
             color: val('f_color') || null,
             for_people: checked('f_for_people'),
-            category_ids: [...document.querySelectorAll('.dept-cat:checked')].map(i => i.value)
+            category_ids: [...document.querySelectorAll('.dept-cat:checked')].map(i => i.value),
+            viewer_ids: formViewers.map(v => v.id)
         });
-        if (res?.ok) knownChats = null;   // привязки изменились — перечитаем список чатов
+        if (res?.ok) {
+            knownChats = null;   // привязки изменились — перечитаем список чатов
+            const { data, error } = await Layout.db.rpc('fin_save_department_income', {
+                p_department: res.result?.id || editingId,
+                p_category_ids: [...document.querySelectorAll('.dept-income-cat:checked')].map(i => i.value)
+            });
+            res = error ? { ok: false, error: { code: error.code, message: error.message } } : data;
+        }
     } else {
         res = await FinUtils.rpc('fin_save_exchange_rate', {
             object_id: val('f_obj') || null, effective_date: val('f_date'),

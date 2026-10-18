@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=6"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Департаменты — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <!-- соединение с базой открывается заранее: иначе первое обращение
+         к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=8">
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+    <div id="header-placeholder"></div>
+    <main class="container mx-auto px-4 py-6 flex-1">
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold" data-i18n="module_departments">Департаменты</h1>
+            <p class="text-sm opacity-60" data-i18n="dept_list_subtitle">Выберите департамент</p>
+        </div>
+        <div id="deptEmpty" class="alert hidden mb-4">
+            <span data-i18n="dept_none">Вам пока не открыт ни один департамент</span>
+        </div>
+        <div id="deptTiles" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <span class="loading loading-spinner loading-md"></span>
+        </div>
+    </main>
+    <div id="footer-placeholder"></div>
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=13"></script>
+    <script src="../js/cache.js?v=2"></script>
+    <script src="../js/utils.js?v=15"></script>
+    <script src="../js/layout.js?v=110"></script>
+    <script src="../js/pages/departments.js?v=1"></script>
+    <script>
+        DeptPages.initList();
+    </script>
+</body>
+</html>

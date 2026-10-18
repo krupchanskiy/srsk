@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="js/color-init.js?v=5"></script>
+    <script src="js/color-init.js?v=6"></script>
     <script>document.documentElement.style.setProperty('--current-color', '#f59e0b');</script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -243,6 +243,25 @@
                     </div>
                 </a>
 
+                <!-- Departments Module (финансисты и те, кто видит свой департамент) -->
+                <a href="departments/index.html" onclick="selectModule('departments')" id="departmentsModule" data-color="#4f46e5"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
+                   style="background: linear-gradient(135deg, #6366f1 0%, #3730a3 100%);">
+                    <div class="p-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" />
+                                </svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white" data-i18n="module_departments">Департаменты</h2>
+                        </div>
+                        <div class="flex flex-wrap gap-2 text-sm text-white/80">
+                            <span data-i18n="dacc_title">Счёт</span>
+                        </div>
+                    </div>
+                </a>
+
                 <!-- Admin Module (только для суперпользователей) -->
                 <a href="ashram/retreats.html" onclick="selectModule('admin')" id="adminModule" data-color="#374151"
                    class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
@@ -277,7 +296,7 @@
     <script src="js/utils.js?v=15"></script>
     <script src="js/translit.js"></script>
     <script src="js/auto-translate.js"></script>
-    <script src="js/layout.js?v=109"></script>
+    <script src="js/layout.js?v=110"></script>
     <script>
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
@@ -364,6 +383,10 @@
             if (window.hasPermission && window.hasPermission('worship_view')) {
                 document.getElementById('worshipModule')?.classList.remove('hidden');
             }
+
+            // Показать «Департаменты» финансистам и тем, кто видит свой департамент
+            показать('departmentsModule', ['fin_admin', 'fin_observer', 'fin_dept_viewer']
+                .some(п => window.hasPermission?.(п)));
 
             // Показать модуль "Управление" только суперпользователям
             if (window.currentUser?.is_superuser) {
