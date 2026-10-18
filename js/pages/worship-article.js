@@ -178,10 +178,20 @@ const WorshipArticle = (() => {
         if (можноПисать() && наЭкранеПравка) {
             кнопки.push('<button class="btn btn-sm btn-ghost" id="withdraw">Отозвать</button>');
         }
-        кнопки.push(`<button class="btn btn-sm btn-ghost px-2" id="bookmark" title="${
+        // звёздочка значком, а не текстовым символом: ★ набиралось размером
+        // шрифта кнопки и выглядело вдвое мельче соседей
+        кнопки.push(`<button class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200"
+            id="bookmark" title="${
             вЗакладках ? 'Убрать из закладок' : 'В закладки'}" aria-label="${
-            вЗакладках ? 'Убрать из закладок' : 'В закладки'}">${
-            вЗакладках ? '★' : '☆'}</button>`);
+            вЗакладках ? 'Убрать из закладок' : 'В закладки'}"
+            aria-pressed="${вЗакладках}">
+            <svg width="19" height="19" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"
+                 stroke-linejoin="round" aria-hidden="true"
+                 fill="${вЗакладках ? 'var(--current-color)' : 'none'}"
+                 style="${вЗакладках ? 'color: var(--current-color);' : ''}">
+                <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path>
+            </svg>
+        </button>`);
 
         // Сюда приходят читать, как делается служение. Поэтому на виду одно
         // действие по роли, а разовые решения — печать, сравнение редакций,
@@ -211,7 +221,7 @@ const WorshipArticle = (() => {
         if (редкие.length) {
             кнопки.push(`
             <div class="dropdown dropdown-end">
-                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
                         <circle cx="12" cy="19" r="1.7"></circle>
@@ -464,7 +474,10 @@ const WorshipArticle = (() => {
         if (error) return Layout.handleError(error, 'Закладка');
         вЗакладках = !вЗакладках;
         рисоватьДействия();
-        Layout.showNotification(вЗакладках ? 'В закладках' : 'Убрано из закладок', 'success');
+        // без этого непонятно, куда делась закладка: список живёт на главной модуля
+        Layout.showNotification(вЗакладках
+            ? 'В закладках — список на главной модуля'
+            : 'Убрано из закладок', 'success');
     }
 
     async function перечитать() {

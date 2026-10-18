@@ -113,7 +113,7 @@ const WorshipKit = (() => {
         }
         кнопки.push(`
             <div class="dropdown dropdown-end no-print">
-                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
                         <circle cx="12" cy="19" r="1.7"></circle>
