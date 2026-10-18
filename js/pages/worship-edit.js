@@ -609,10 +609,23 @@ const WorshipEdit = (() => {
             // только в конце строки: посреди заголовка Enter должен делить его,
             // как в любом редакторе
             if (!блок || !выделение.isCollapsed) return;
-            const всего = (блок.textContent || '').length;
-            if (выделение.anchorOffset < всего) return;
+            // позиция курсора — от начала всего блока, а не от начала текстового
+            // узла: в «Заголовок <b>важно</b>» курсор в конце стоит на 5-м знаке
+            // слова «важно», и проверка решала, что он посреди заголовка.
+            // Тогда срабатывал Enter браузера — и новый абзац выходил жирным.
+            const доКурсора = document.createRange();
+            доКурсора.setStart(блок, 0);
+            доКурсора.setEnd(выделение.anchorNode, выделение.anchorOffset);
+            if (доКурсора.toString().length < (блок.textContent || '').length) return;
 
             ev.preventDefault();
+            // курсор — за последним узлом самого блока, вне <b> и ссылки,
+            // чтобы новый абзац не унёс их с собой
+            const конец = document.createRange();
+            конец.setStart(блок, блок.childNodes.length);
+            конец.collapse(true);
+            выделение.removeAllRanges();
+            выделение.addRange(конец);
             команда('insertHTML', '<p><br></p>');
         });
 
