@@ -34,6 +34,17 @@ main h1 { font-size: 1.75rem !important; }
 main h2 { font-size: 1.5rem !important; }
 main h3 { font-size: 1.25rem !important; }
 
+/* Стрелка свёрнутого блока <details>: смотрит вниз, когда открыт. */
+details > summary .details-chevron { transition: transform .15s; }
+details[open] > summary .details-chevron { transform: rotate(0deg); }
+details:not([open]) > summary .details-chevron { transform: rotate(-90deg); }
+summary::-webkit-details-marker { display: none; }
+summary { list-style: none; }
+/* Содержимое закрытого details браузер скрывает сам, но ребёнок с явным
+   display (flex, grid) остаётся видимым — блок «закрыт», а список внутри
+   по-прежнему на экране. */
+details:not([open]) > *:not(summary) { display: none !important; }
+
 /* Тихий надзаголовок для справочных блоков сбоку. Размер заголовка задан
    выше через !important и перебивает классы Tailwind, поэтому боковая
    «Подборки» с одной ссылкой выглядела так же крупно, как главный блок

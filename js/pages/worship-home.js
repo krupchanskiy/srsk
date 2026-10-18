@@ -21,13 +21,17 @@ const WorshipHome = (() => {
     let разделы = [], статьи = [];
 
     /** `подпись` — уже готовая разметка: собирают её вызывающие, экранируя текст. */
+    /**
+     * Строка боковой сводки. Жирное начертание и разделитель у каждой
+     * строки превращали список из двух ссылок в лестницу заголовков:
+     * справочное кричало громче служб дня. Здесь ссылка и есть ссылка.
+     */
     function строка(id, заголовок, подписьHTML) {
         return `
-        <li class="border-b border-base-200 last:border-0">
-            <a href="article.html?id=${id}" class="block py-2.5 hover:opacity-70 transition-opacity">
-                <span class="font-semibold block">${e(заголовок)}</span>
-                ${подписьHTML ? `<span class="text-sm opacity-60">${подписьHTML}</span>` : ''}
-            </a>
+        <li>
+            <a href="article.html?id=${id}" class="block text-sm py-1 leading-snug
+                      hover:text-[color:var(--current-color)] transition-colors">${e(заголовок)}</a>
+            ${подписьHTML ? `<span class="block text-xs opacity-70 pb-1">${подписьHTML}</span>` : ''}
         </li>`;
     }
 
@@ -114,12 +118,12 @@ const WorshipHome = (() => {
         if (!data?.length) return;
 
         $('#kitsCard').hidden = false;
+        // описание подборки в сводке не нужно: сюда заходят по названию,
+        // а подробности ждут на самой странице подборки
         $('#kits').innerHTML = data.map(п => `
-            <li class="border-b border-base-200 last:border-0">
-                <a href="kit.html?id=${п.id}" class="block py-2.5 hover:opacity-70 transition-opacity">
-                    <span class="font-semibold block">${e(п.title)}</span>
-                    ${п.description ? `<span class="text-sm opacity-60">${e(п.description)}</span>` : ''}
-                </a>
+            <li>
+                <a href="kit.html?id=${п.id}" class="block text-sm py-1 leading-snug
+                          hover:text-[color:var(--current-color)] transition-colors">${e(п.title)}</a>
             </li>`).join('');
     }
 
@@ -315,13 +319,14 @@ const WorshipHome = (() => {
             const сколько = статьи.filter(с => с.section_id === р.id && с.status === 'published').length;
             if (!сколько) return '';
             return `
-            <li class="border-b border-base-200 last:border-0">
-                <a href="standards.html" class="flex items-baseline gap-2 py-2 hover:opacity-70 transition-opacity">
-                    <span class="flex-1 min-w-0 font-semibold">${e(Layout.getName(р))}</span>
-                    <span class="text-sm opacity-50">${сколько}</span>
+            <li>
+                <a href="standards.html" class="flex items-baseline gap-2 text-sm py-1 leading-snug
+                          hover:text-[color:var(--current-color)] transition-colors">
+                    <span class="flex-1 min-w-0">${e(Layout.getName(р))}</span>
+                    <span class="text-xs opacity-70 tabular-nums">${сколько}</span>
                 </a>
             </li>`;
-        }).join('') || '<li class="py-2 text-sm opacity-70">Пока ни одного утверждённого стандарта</li>';
+        }).join('') || '<li class="py-1 text-sm opacity-70">Пока ни одного утверждённого стандарта</li>';
     }
 
     async function init() {
