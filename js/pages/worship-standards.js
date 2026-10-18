@@ -280,7 +280,8 @@ const WorshipStandards = (() => {
         <details class="разделСписка mb-3 rounded-xl shadow-sm overflow-hidden"
                  style="background: oklch(var(--b1));"
                  data-раздел-ключ="${e(id)}"${открыт}>
-            <summary class="flex flex-wrap items-center gap-2 px-5 py-3 cursor-pointer select-none">
+            <summary class="flex flex-wrap items-center gap-2 px-5 py-3 cursor-pointer select-none"
+                     style="background: color-mix(in srgb, var(--current-color) 9%, transparent);">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2.5" stroke-linecap="round" aria-hidden="true"
                      class="details-chevron transition-transform opacity-60">
@@ -294,7 +295,8 @@ const WorshipStandards = (() => {
                     ? `<a href="edit.html?section=${раздел.id}" class="btn btn-ghost btn-xs ручкиСтроки"
                           title="Новая статья в этом разделе">+ статья</a>` : ''}
             </summary>
-            <ul class="list-none m-0 p-0 border-t border-base-200">
+            <ul class="list-none m-0 p-0 border-t"
+                style="border-color: color-mix(in srgb, var(--current-color) 18%, transparent);">
                 ${свои.map(строкаСтатьи).join('') ||
                   '<li class="px-5 py-4 text-sm opacity-70">Пока пусто</li>'}
             </ul>
