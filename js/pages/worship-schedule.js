@@ -271,7 +271,7 @@ const WorshipSchedule = (() => {
         const сегодня = DateUtils.toISO(new Date());
         $('#шапкаДней').innerHTML = '<th class="w-44">Служба</th>' + список.map((д, i) => `
             <th class="${д === сегодня ? 'сегодня text-[color:var(--current-color)]' : ''}">
-                ${ДНИ[(DateUtils.parseDate(д).getDay() + 6) % 7]}<span class="block text-xs font-normal opacity-60">${
+                ${ДНИ[(DateUtils.parseDate(д).getDay() + 6) % 7]}<span class="block text-xs font-normal">${
                     д === сегодня ? 'сегодня' : DateUtils.formatShort(DateUtils.parseDate(д))}</span>
             </th>`).join('');
 
@@ -417,7 +417,7 @@ const WorshipSchedule = (() => {
         }
 
         $('#итогДней').innerHTML = `<tr>
-            <td class="text-xs opacity-70 font-semibold">Закрыто за день</td>
+            <td class="text-xs font-semibold">Закрыто за день</td>
             ${список.map(д => {
                 const надо = активные.filter(с => !отменена(с.id, д)).length
                     + разовыеДня(д).length;

@@ -18,12 +18,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=19">
+    <link rel="stylesheet" href="../css/common.css?v=20">
     <style>
         /* «+ материал» нужен редко: появляется при наведении на раздел */
         .ручкиСтроки { opacity: 0; transition: opacity .15s; }
-        .разделСписка:hover .ручкиСтроки { opacity: 1; }
-        @media (hover: none) { .ручкиСтроки { opacity: .5; } }
+        .разделСписка:hover .ручкиСтроки, .ручкиСтроки:focus-visible { opacity: 1; }
+        /* на сенсорном экране наведения нет — там кнопка видна всегда и читаема:
+           полупрозрачная она давала 2.96:1 */
+        @media (hover: none) { .ручкиСтроки { opacity: 1; } }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -54,7 +56,7 @@
                 <input id="q" name="q" type="search" class="grow"
                        data-i18n-placeholder="worship_library_search" placeholder="Искать по названию и описанию…">
             </label>
-            <select id="вид" class="select select-bordered select-sm">
+            <select id="вид" class="select select-bordered select-sm" aria-label="Вид материала">
                 <option value="">Любой вид</option>
                 <option value="file">Файлы</option>
                 <option value="link">Ссылки</option>
@@ -93,10 +95,10 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=116"></script>
+    <script src="../js/layout.js?v=117"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-library.js?v=5"></script>
+    <script src="../js/pages/worship-library.js?v=6"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_library' });

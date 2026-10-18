@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=19">
+    <link rel="stylesheet" href="../css/common.css?v=20">
     <style>
         /* Печать: лист уходит на стену алтарной, поэтому на бумаге остаётся
            только текст стандарта и строка, по какой версии служат. */
@@ -28,7 +28,7 @@
             @page { size: A4 portrait; margin: 14mm; }
             /* #state на бумаге не нужен: кем и когда утверждено, уже стоит
                в строке #printHeader, а ссылки на правки на листе бесполезны */
-            #actions, #toc, #historyCard, #remarksCard, #returned,
+            #actions, #toc, #historyCard, #remarksCard, #замечанияБлок, #returned,
             #openRemark, #теги, #соседи, #crumb, #state { display: none !important; }
             #printHeader { display: block !important; font-size: 11px; }
             #title { font-size: 22px !important; margin-bottom: .5rem; }
@@ -127,8 +127,14 @@
 
                 <!-- обслуживание: раскрывается по желанию, а не занимает экран -->
                 <div class="mt-6 border-t border-base-300 pt-4 space-y-3">
+                    <!-- «Сообщить о неточности» стоит рядом со свёрткой, а не внутри
+                         её заголовка: заголовок сам кнопка, и вложенная кнопка
+                         для экранного диктора сливается с ним в одну неясную -->
+                    <div class="relative" id="замечанияБлок">
+                    <button class="btn btn-xs btn-outline absolute right-0 top-0.5 no-print" id="addRemark"
+                            data-i18n="worship_add_remark">Сообщить о неточности</button>
                     <details id="remarksCard" class="group">
-                        <summary class="flex flex-wrap items-center gap-2 cursor-pointer list-none py-1">
+                        <summary class="flex flex-wrap items-center gap-2 cursor-pointer list-none py-1 pr-48">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
                                  class="opacity-50 transition-transform group-open:rotate-90" aria-hidden="true">
@@ -136,9 +142,6 @@
                             </svg>
                             <span class="font-semibold" data-i18n="worship_remarks_title">Замечания</span>
                             <span class="text-sm opacity-60" id="remarksCount"></span>
-                            <span class="flex-1"></span>
-                            <button class="btn btn-xs btn-outline ml-auto" id="addRemark"
-                                    data-i18n="worship_add_remark">Сообщить о неточности</button>
                         </summary>
                         <p class="text-sm opacity-70 mt-1 mb-2" data-i18n="worship_remarks_article_hint">Короткая заметка
                             уйдёт автору и старшему. Это не спор и не ветка обсуждения — поправит тот,
@@ -159,6 +162,7 @@
                             <ul class="list-none m-0 p-0" id="remarksDoneList"></ul>
                         </details>
                     </details>
+                    </div>
 
                     <!-- разделитель: два свёрнутых блока подряд слипались в один список -->
                     <details id="historyCard" class="group border-t border-base-200 pt-3">
@@ -239,13 +243,13 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=116"></script>
+    <script src="../js/layout.js?v=117"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="../js/worship-doc.js?v=5"></script>
     <script src="../js/worship-tags.js?v=6"></script>
-    <script src="../js/pages/worship-article.js?v=26"></script>
+    <script src="../js/pages/worship-article.js?v=27"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

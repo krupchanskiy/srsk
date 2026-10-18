@@ -87,15 +87,29 @@ main .btn { font-size: 1rem !important; }
    и именно он первым пропадает в полутьме — например, в алтарной в 4:20.
    Поэтому приглушённость ограничена снизу: порядок уровней сохранён,
    но даже самый тихий текст остаётся читаемым. */
-main .opacity-30 { opacity: 0.66 !important; }
-main .opacity-40 { opacity: 0.66 !important; }
-main .opacity-50 { opacity: 0.70 !important; }
-main .opacity-60 { opacity: 0.74 !important; }
-main .opacity-70 { opacity: 0.80 !important; }
+/* Подвал и окна живут вне <main>: правило сначала их не касалось,
+   и ссылки подвала на каждой странице давали 4.03:1, а строка мантры — 2.36. */
+:is(main, body > footer, dialog) .opacity-30 { opacity: 0.66 !important; }
+:is(main, body > footer, dialog) .opacity-40 { opacity: 0.66 !important; }
+:is(main, body > footer, dialog) .opacity-50 { opacity: 0.70 !important; }
+:is(main, body > footer, dialog) .opacity-60 { opacity: 0.74 !important; }
+:is(main, body > footer, dialog) .opacity-70 { opacity: 0.80 !important; }
 
 /* Красный DaisyUI (#ff5861) на белом — 3.08:1. Им подписаны «убрать»
    и «отозвать»: действия, которые нельзя не разглядеть. */
-main .text-error { color: #c62828 !important; }
+:is(main, dialog) .text-error { color: #c62828 !important; }
+
+/* Жёлтый DaisyUI (#ffbe00) как цвет текста на белом — 1.66:1, его почти
+   не видно, а им пишут «не закрыто», «незаконченная правка». Фон
+   и значки badge-warning не трогаем: там жёлтый — подложка, не буквы. */
+:is(main, dialog) .text-warning { color: #8a5300 !important; }
+
+/* Зелёный DaisyUI (#00a96e) на сером фоне страницы — 2.71:1. */
+:is(main, dialog) .text-success { color: #166534 !important; }
+
+/* DaisyUI приглушает шапку и итог таблиц до 60% — 4.0:1 на белом,
+   а вложенная прозрачность подписей роняет их ещё ниже. */
+main .table :where(thead, tfoot) { color: oklch(var(--bc) / 0.8); }
 
 /* Интерлиньяж. Размеры шрифта выше переопределены !important, а высота
    строки осталась от Tailwind: text-sm получался 16px в строке 20px

@@ -276,11 +276,15 @@ const WorshipStandards = (() => {
         // Заголовок — шапка той же карточки, а не отдельная строка над ней:
         // когда он висел сам по себе, свёрнутый раздел читался как подпись
         // к списку соседа сверху.
+        // «+ статья» стоит рядом со свёрткой, а не внутри <summary>: заголовок
+        // свёртки сам кнопка, и ссылка в нём — вложенный интерактивный
+        // элемент, который экранный диктор читает как одну неясную кнопку
         return `
-        <details class="разделСписка mb-3 rounded-xl shadow-sm overflow-hidden"
+        <div class="обёрткаРаздела relative mb-3">
+        <details class="разделСписка rounded-xl shadow-sm overflow-hidden"
                  style="background: oklch(var(--b1));"
                  data-раздел-ключ="${e(id)}"${открыт}>
-            <summary class="flex flex-wrap items-center gap-2 px-5 py-3 cursor-pointer select-none"
+            <summary class="flex flex-wrap items-center gap-2 px-5 py-3 cursor-pointer select-none pr-28"
                      style="background: color-mix(in srgb, var(--current-color) 9%, transparent);">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2.5" stroke-linecap="round" aria-hidden="true"
@@ -290,17 +294,18 @@ const WorshipStandards = (() => {
                 <h2 class="text-base font-bold uppercase tracking-wide ${раздел ? '' : 'opacity-70'}">${e(имя)}</h2>
                 <span class="text-sm opacity-70">${свои.length}</span>
                 ${раздел && !раздел.is_active ? '<span class="badge badge-sm">скрыт</span>' : ''}
-                <span class="flex-1"></span>
-                ${раздел && можноПисать()
-                    ? `<a href="edit.html?section=${раздел.id}" class="btn btn-ghost btn-xs ручкиСтроки"
-                          title="Новая статья в этом разделе">+ статья</a>` : ''}
             </summary>
             <ul class="list-none m-0 p-0 border-t"
                 style="border-color: color-mix(in srgb, var(--current-color) 18%, transparent);">
                 ${свои.map(строкаСтатьи).join('') ||
                   '<li class="px-5 py-4 text-sm opacity-70">Пока пусто</li>'}
             </ul>
-        </details>`;
+        </details>
+        ${раздел && можноПисать()
+            ? `<a href="edit.html?section=${раздел.id}"
+                  class="btn btn-ghost btn-xs ручкиСтроки absolute right-3 top-2"
+                  title="Новая статья в этом разделе">+ статья</a>` : ''}
+        </div>`;
     }
 
     /**
