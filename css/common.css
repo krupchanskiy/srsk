@@ -45,6 +45,21 @@ summary { list-style: none; }
    по-прежнему на экране. */
 details:not([open]) > *:not(summary) { display: none !important; }
 
+/* Переключатель вида («Неделя | День», «Эта неделя | Месяц»). У DaisyUI
+   выбранная кнопка серая, рядом с белыми соседями это читается не как
+   выбор, а как грязное пятно. Выбранное красим цветом модуля. */
+main .join .btn-active {
+    background: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: #fff !important;
+}
+/* у переключателей вида соседние кнопки белые, а не прозрачные:
+   на сером фоне страницы группа иначе теряет края */
+main .выбор .btn:not(.btn-active) {
+    background: oklch(var(--b1));
+    border-color: oklch(var(--b3));
+}
+
 /* Тихий надзаголовок для справочных блоков сбоку. Размер заголовка задан
    выше через !important и перебивает классы Tailwind, поэтому боковая
    «Подборки» с одной ссылкой выглядела так же крупно, как главный блок
