@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <title>Песочница редактора стандартов</title>
+    <!--
+      Редактор живёт за авторизацией, и проверять его правки «вживую» значит
+      каждый раз входить в боевую систему. Эта страница подменяет всё внешнее
+      заглушками (база, права, перевод) и поднимает тот же самый редактор
+      на выдуманной статье — чтобы проверять поведение: откат, блоки, вставку.
+
+      Открывать локально: npm run serve → /tests/worship-edit-sandbox.html
+      В прод не попадает ничего: страница лежит в tests/.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root { --current-color: #6b4226; }
+        .кусок { outline: none; min-height: 1.5em; }
+        .кусок:empty::before { content: attr(data-подсказка); opacity: .4; }
+        .кусок-h2 { font-size: 1.4rem; font-weight: 700; }
+        .кусок-h3 { font-size: 1.15rem; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-base-200 p-6">
+
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-bold mb-1">Песочница редактора</h1>
+    <p class="text-sm opacity-60 mb-4">Без входа и без базы. Кнопка внизу прогоняет проверки сама.</p>
+
+    <div id="возврат" hidden><div id="возвратПричина"></div></div>
+    <div id="конфликт" hidden><span id="чужойАвтор"></span><button id="перезаписать"></button>
+        <button id="открытьЧужое"></button></div>
+    <div class="mb-2 flex gap-3 items-center">
+        <span id="режим" class="badge"></span>
+        <select id="раздел" class="select select-sm select-bordered"></select>
+        <span id="сохранение" class="text-sm"></span>
+    </div>
+    <label class="form-control mb-2">
+        <input id="заголовок" type="text" class="input input-bordered" placeholder="Название">
+    </label>
+    <label class="form-control mb-3" id="картаИзменений">
+        <input id="примечание" type="text" class="input input-bordered input-sm" placeholder="Что изменилось">
+    </label>
+
+    <div class="sticky top-0 z-20 mb-3 flex flex-wrap items-center gap-2 bg-base-200/95 py-2">
+        <div class="join">
+            <button class="btn btn-xs btn-outline join-item px-2" id="откатить" title="Ctrl+Z" disabled>↶</button>
+            <button class="btn btn-xs btn-outline join-item px-2" id="повторить" title="Ctrl+Shift+Z" disabled>↷</button>
+        </div>
+        <button class="btn btn-xs btn-outline font-bold" id="жирный">Ж</button>
+        <button class="btn btn-xs btn-outline" id="ссылка">Ссылка</button>
+        <div class="dropdown">
+            <button tabindex="0" class="btn btn-xs" style="background: var(--current-color); color:#fff;">+ Добавить</button>
+            <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-52">
+                <li><button data-добавить="p">Абзац</button></li>
+                <li><button data-добавить="h2">Заголовок</button></li>
+                <li><button data-добавить="h3">Подзаголовок</button></li>
+                <li><button data-добавить="ul">Список</button></li>
+                <li><button data-добавить="ol">По шагам</button></li>
+                <li><button data-добавить="note">Заметка</button></li>
+                <li><button data-добавить="img">Фото</button></li>
+            </ul>
+        </div>
+        <button class="btn btn-xs btn-ghost ml-auto" id="вернутьБлок" hidden>Вернуть убранное</button>
+    </div>
+
+    <div class="card bg-base-100 shadow"><div class="card-body p-6"><div id="блоки"></div></div></div>
+
+    <div class="flex gap-2 mt-4">
+        <button class="btn btn-sm" id="сохранить">Сохранить</button>
+        <button class="btn btn-sm" id="отправить">Отправить</button>
+        <button class="btn btn-sm" id="отмена">Отмена</button>
+        <button class="btn btn-sm" id="удалить">Удалить</button>
+        <button class="btn btn-sm btn-primary ml-auto" id="прогон">Прогнать проверки</button>
+    </div>
+    <div id="тегиБлок" hidden><div id="теги"></div></div>
+    <input type="file" id="файл" hidden>
+    <dialog id="галереяМодал" class="modal"><div class="modal-box">
+        <select id="выборНабора"></select><div id="снимкиНабора"></div></div></dialog>
+
+    <pre id="итоги" class="mt-4 bg-base-100 rounded-box p-4 text-sm whitespace-pre-wrap"></pre>
+</div>
+
+<script src="../js/utils.js"></script>
+<script src="../js/worship-doc.js"></script>
+<script>
+// ───────── заглушки внешнего мира ─────────
+const пусто = { data: null, error: null };
+const цепочка = данные => {
+    const о = {};
+    ['select', 'eq', 'in', 'order', 'limit', 'gte', 'lte', 'or', 'not'].forEach(м => о[м] = () => о);
+    о.maybeSingle = () => Promise.resolve({ data: данные.одна ?? null, error: null });
+    о.then = (вперёд) => Promise.resolve({ data: данные.много ?? [], error: null }).then(вперёд);
+    return о;
+};
+
+window.Layout = {
+    t: k => k,
+    escapeHtml: s => Utils.escapeHtml(String(s ?? '')),
+    getName: о => о?.name_ru || '',
+    showNotification: (т, в) => console.log('[уведомление]', в || '', т),
+    handleError: (о, г) => console.error('[ошибка]', г, о),
+    debounce: (f, мс) => { let т; return (...а) => { clearTimeout(т); т = setTimeout(() => f(...а), мс); }; },
+    pluralize: (n, ф) => `${n} ${(ф.ru || [])[0] || ''}`,
+    db: {
+        from: имя => цепочка(имя === 'worship_sections'
+            ? { много: [{ id: 'раздел-1', name_ru: 'Арати', is_active: true }] }
+            : { много: [], одна: null }),
+        storage: { from: () => ({ remove: () => Promise.resolve({ error: null }),
+                                  createSignedUrls: () => Promise.resolve({ data: [], error: null }) }) },
+        rpc: () => Promise.resolve({ data: null, error: null }),
+    },
+};
+window.currentUser = { id: 'я', is_superuser: true };
+window.hasPermission = () => true;
+window.WorshipTags = { нарисовать: () => {} };
+</script>
+<script src="../js/pages/worship-edit.js"></script>
+<script>
+// ───────── проверки ─────────
+const итоги = [];
+const скажи = (имя, ок, что = '') => итоги.push(`${ок ? '✓' : '✗'} ${имя}${что ? ' — ' + что : ''}`);
+const пауза = мс => new Promise(r => setTimeout(r, мс));
+const поля = () => [...document.querySelectorAll('#блоки [data-текст]')];
+const текстБлоков = () => поля().map(п => п.textContent).join(' | ');
+
+function напечатать(поле, текст) {
+    поле.focus();
+    поле.textContent = текст;
+    поле.dispatchEvent(new InputEvent('input', { bubbles: true }));
+}
+
+async function прогон() {
+    итоги.length = 0;
+
+    // 1. пишем текст в первый абзац
+    напечатать(поля()[0], 'Мангала-арати начинается в 4:30');
+    await пауза(900);
+    скажи('текст набирается', поля()[0].textContent.includes('4:30'));
+
+    // 2. добавляем блоки
+    document.querySelector('[data-добавить="h2"]').click();
+    await пауза(100);
+    напечатать(поля().at(-1), 'Что приготовить');
+    await пауза(900);
+    document.querySelector('[data-добавить="ul"]').click();
+    await пауза(100);
+    скажи('блоки добавляются', document.querySelectorAll('#блоки .блок').length === 3,
+        `блоков: ${document.querySelectorAll('#блоки .блок').length}`);
+
+    // 3. откат: последнее действие — добавленный список
+    const былоДоОтката = document.querySelectorAll('#блоки .блок').length;
+    document.querySelector('#откатить').click();
+    await пауза(200);
+    скажи('Ctrl+Z убирает добавленный блок',
+        document.querySelectorAll('#блоки .блок').length === былоДоОтката - 1,
+        `стало: ${document.querySelectorAll('#блоки .блок').length}`);
+
+    // 4. повтор возвращает
+    document.querySelector('#повторить').click();
+    await пауза(200);
+    скажи('Ctrl+Shift+Z возвращает',
+        document.querySelectorAll('#блоки .блок').length === былоДоОтката,
+        `стало: ${document.querySelectorAll('#блоки .блок').length}`);
+
+    // 5. удаление блока и откат удаления
+    const доУдаления = текстБлоков();
+    document.querySelector('#блоки .блок [data-действие="убрать"]').click();
+    await пауза(200);
+    const послеУдаления = текстБлоков();
+    document.querySelector('#откатить').click();
+    await пауза(200);
+    скажи('откат возвращает удалённый блок',
+        текстБлоков() === доУдаления && послеУдаления !== доУдаления,
+        `было «${доУдаления}», после удаления «${послеУдаления}», после отката «${текстБлоков()}»`);
+
+    // 6. откат текста
+    const доПравки = поля()[0].textContent;
+    напечатать(поля()[0], 'совсем другой текст');
+    await пауза(900);
+    document.querySelector('#откатить').click();
+    await пауза(200);
+    скажи('откат возвращает прежний текст', поля()[0].textContent === доПравки,
+        `ждали «${доПравки}», получили «${поля()[0].textContent}»`);
+
+    // 7. глубина истории: несколько откатов подряд
+    let откатов = 0;
+    while (!document.querySelector('#откатить').disabled && откатов < 10) {
+        document.querySelector('#откатить').click();
+        await пауза(120);
+        откатов += 1;
+    }
+    скажи('история помнит несколько шагов', откатов >= 3, `откатов подряд: ${откатов}`);
+
+    // 8. кнопка отката гаснет в начале истории
+    скажи('в начале истории кнопка отката выключена', document.querySelector('#откатить').disabled);
+
+    // 9. ручки блока скрыты, пока на блок не навели
+    const ручки = document.querySelector('#блоки .ручки');
+    скажи('ручки блока не мозолят глаза', ручки.className.includes('opacity-0'));
+
+    document.querySelector('#итоги').textContent = итоги.join('\n');
+    console.log(итоги.join('\n'));
+    return итоги;
+}
+
+document.querySelector('#прогон').addEventListener('click', прогон);
+window.прогон = прогон;
+WorshipEdit.init();
+</script>
+</body>
+</html>

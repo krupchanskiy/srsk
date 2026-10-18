@@ -105,18 +105,33 @@
             </div>
         </div>
 
-        <!-- панель оформления: применяется к выделенному в текущем куске -->
+        <!-- Панель: сначала то, чем пользуются каждую минуту (откат и жирный),
+             и только потом добавление блоков — одним меню, а не восемью кнопками. -->
         <div class="sticky top-16 z-20 mb-3 flex flex-wrap items-center gap-2 bg-base-200/95 py-2">
-            <button class="btn btn-xs btn-outline font-bold" id="жирный" title="Ctrl+B">Ж</button>
-            <button class="btn btn-xs btn-outline" id="ссылка">Ссылка</button>
+            <div class="join">
+                <button class="btn btn-xs btn-outline join-item px-2" id="откатить"
+                        title="Отменить (Ctrl+Z)" disabled aria-label="Отменить">↶</button>
+                <button class="btn btn-xs btn-outline join-item px-2" id="повторить"
+                        title="Вернуть (Ctrl+Shift+Z)" disabled aria-label="Вернуть">↷</button>
+            </div>
             <span class="opacity-30">|</span>
-            <button class="btn btn-xs btn-outline" data-добавить="p">Абзац</button>
-            <button class="btn btn-xs btn-outline" data-добавить="h2">Заголовок</button>
-            <button class="btn btn-xs btn-outline" data-добавить="h3">Подзаголовок</button>
-            <button class="btn btn-xs btn-outline" data-добавить="ul">Список</button>
-            <button class="btn btn-xs btn-outline" data-добавить="ol">По шагам</button>
-            <button class="btn btn-xs btn-outline" data-добавить="note">Заметка</button>
-            <button class="btn btn-xs btn-outline" data-добавить="img">Фото</button>
+            <button class="btn btn-xs btn-outline font-bold" id="жирный" title="Жирный (Ctrl+B)">Ж</button>
+            <button class="btn btn-xs btn-outline" id="ссылка" title="Сделать выделенное ссылкой">Ссылка</button>
+            <span class="opacity-30">|</span>
+            <div class="dropdown">
+                <button tabindex="0" class="btn btn-xs" style="background: var(--current-color); color:#fff;">
+                    + Добавить
+                </button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-52">
+                    <li><button data-добавить="p">Абзац</button></li>
+                    <li><button data-добавить="h2">Заголовок</button></li>
+                    <li><button data-добавить="h3">Подзаголовок</button></li>
+                    <li><button data-добавить="ul">Список</button></li>
+                    <li><button data-добавить="ol">По шагам</button></li>
+                    <li><button data-добавить="note">Заметка</button></li>
+                    <li><button data-добавить="img">Фото</button></li>
+                </ul>
+            </div>
             <button class="btn btn-xs btn-ghost ml-auto" id="вернутьБлок" hidden>Вернуть убранное</button>
         </div>
 
@@ -124,7 +139,9 @@
             <div class="card-body p-5 desktop:p-8">
                 <div id="блоки"></div>
                 <p class="text-sm opacity-50 mt-4" data-i18n="worship_editor_hint">
+                    Ctrl+Z отменяет последнее действие, Ctrl+Shift+Z возвращает.
                     Enter — новый абзац, Backspace в пустом — убрать блок.
+                    Ручки блока (тип, ↑ ↓ ✕) появляются, когда наводите на него мышь.
                     Вставка приходит обычным текстом: оформление из Word не переносится.
                 </p>
             </div>
@@ -165,7 +182,7 @@
     <script src="../js/media.js?v=2"></script>
     <script src="../js/worship-tags.js?v=2"></script>
     <script src="../js/worship-doc.js?v=5"></script>
-    <script src="../js/pages/worship-edit.js?v=11"></script>
+    <script src="../js/pages/worship-edit.js?v=12"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

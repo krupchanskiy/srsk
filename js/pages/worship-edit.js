@@ -115,7 +115,8 @@ const WorshipEdit = (() => {
         обёртка.dataset.i = i;
 
         const ручки = document.createElement('div');
-        ручки.className = 'ручки flex flex-wrap items-center gap-1 mb-1';
+        ручки.className = 'ручки flex flex-wrap items-center gap-1 mb-1 transition-opacity ' +
+            'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100';
         // тип блока меняется на месте: иначе перенос готового документа
         // превращается в перепечатывание каждого заголовка и пункта
         const выбор = б.type === 'img' ? '' : `
@@ -624,6 +625,7 @@ const WorshipEdit = (() => {
     }
 
     function добавитьБлок(тип, куда = блоки.length) {
+        запомнитьШаг();
         собрать();
         блоки.splice(куда, 0, новыйБлок(тип));
         рисоватьБлоки();
@@ -632,9 +634,125 @@ const WorshipEdit = (() => {
         узел?.focus();
     }
 
+    // ───────── история правок ─────────
+    //
+    // Нативная история браузера здесь бесполезна: почти каждое действие
+    // перерисовывает блоки, и Ctrl+Z после этого откатывал в пустоту либо
+    // не делал ничего. Поэтому история живёт своим стеком снимков документа,
+    // а браузерную мы перехватываем на beforeinput — это тот самый приём,
+    // которым пользуются редакторы, перерисовывающие своё поле сами.
+    const ПРЕДЕЛ_ИСТОРИИ = 60;
+    let история = [], шагИстории = -1, откатываем = false;
+
+    /** Где сейчас курсор — чтобы после отката он вернулся туда же. */
+    function местоКурсора() {
+        const поле = document.activeElement?.closest?.('[data-текст]');
+        if (!поле) return null;
+        const блок = поле.closest('.блок');
+        const выделение = getSelection();
+        let смещение = 0;
+        if (выделение?.rangeCount) {
+            const кусок = выделение.getRangeAt(0).cloneRange();
+            кусок.selectNodeContents(поле);
+            кусок.setEnd(выделение.getRangeAt(0).endContainer, выделение.getRangeAt(0).endOffset);
+            смещение = кусок.toString().length;
+        }
+        return { блок: Number(блок?.dataset.i ?? 0), пункт: поле.dataset.пункт, смещение };
+    }
+
+    function вернутьКурсор(место) {
+        if (!место) return;
+        const блок = document.querySelector(`.блок[data-i="${место.блок}"]`);
+        const поле = место.пункт != null
+            ? блок?.querySelector(`[data-пункт="${место.пункт}"]`)
+            : блок?.querySelector('[data-текст]');
+        if (!поле) return;
+        поле.focus();
+
+        // ставим курсор на то же число символов от начала куска
+        const обход = document.createTreeWalker(поле, NodeFilter.SHOW_TEXT);
+        let пройдено = 0, узел = обход.nextNode();
+        while (узел) {
+            if (пройдено + узел.nodeValue.length >= место.смещение) {
+                const диапазон = document.createRange();
+                диапазон.setStart(узел, Math.max(0, место.смещение - пройдено));
+                диапазон.collapse(true);
+                const выделение = getSelection();
+                выделение.removeAllRanges();
+                выделение.addRange(диапазон);
+                return;
+            }
+            пройдено += узел.nodeValue.length;
+            узел = обход.nextNode();
+        }
+    }
+
+    /** Снимок состояния. Делается ДО изменения, иначе откатывать нечего. */
+    function запомнитьШаг() {
+        if (откатываем) return;
+        собрать();
+        const снимок = {
+            документ: JSON.stringify(блоки),
+            заголовок: $('#заголовок').value,
+            место: местоКурсора(),
+        };
+        // подряд идущие одинаковые снимки не копим: Ctrl+Z не должен
+        // нажиматься пять раз, чтобы убрать одно слово
+        if (история[шагИстории]?.документ === снимок.документ
+            && история[шагИстории]?.заголовок === снимок.заголовок) {
+            история[шагИстории].место = снимок.место;
+            return;
+        }
+        история = история.slice(0, шагИстории + 1);
+        история.push(снимок);
+        if (история.length > ПРЕДЕЛ_ИСТОРИИ) история.shift();
+        шагИстории = история.length - 1;
+        обновитьКнопкиИстории();
+    }
+
+    /** Набор текста запоминается не на каждую букву, а паузами. */
+    const запомнитьШагПотом = Layout.debounce(запомнитьШаг, 700);
+
+    function применитьСнимок(снимок) {
+        откатываем = true;
+        блоки = JSON.parse(снимок.документ);
+        $('#заголовок').value = снимок.заголовок;
+        рисоватьБлоки();
+        вернутьКурсор(снимок.место);
+        откатываем = false;
+        пометить();
+        запомнитьПотом();
+        обновитьКнопкиИстории();
+    }
+
+    function откатить() {
+        if (шагИстории <= 0) {
+            // последний шаг ещё не записан: запишем текущее состояние,
+            // чтобы человеку было куда вернуться вперёд
+            if (шагИстории === 0) запомнитьШаг();
+            if (шагИстории <= 0) return;
+        }
+        запомнитьШаг();                      // текущее состояние — тоже шаг
+        шагИстории = Math.max(0, шагИстории - 1);
+        применитьСнимок(история[шагИстории]);
+    }
+
+    function повторить() {
+        if (шагИстории >= история.length - 1) return;
+        шагИстории += 1;
+        применитьСнимок(история[шагИстории]);
+    }
+
+    function обновитьКнопкиИстории() {
+        const назад = $('#откатить'), вперёд = $('#повторить');
+        if (назад) назад.disabled = шагИстории <= 0;
+        if (вперёд) вперёд.disabled = шагИстории >= история.length - 1;
+    }
+
     let убранный = null;            // последний удалённый блок, чтобы вернуть
 
     function убратьБлок(i) {
+        запомнитьШаг();
         собрать();
         const б = блоки[i];
         убранный = { блок: б, место: i };
@@ -655,6 +773,7 @@ const WorshipEdit = (() => {
     /** Промах пальцем по ✕ в 4:20 не должен стоить абзаца. */
     function вернутьБлок() {
         if (!убранный) return;
+        запомнитьШаг();
         собрать();
         блоки.splice(Math.min(убранный.место, блоки.length), 0, убранный.блок);
         убранный = null;
@@ -664,6 +783,7 @@ const WorshipEdit = (() => {
     }
 
     function переставить(i, шаг) {
+        запомнитьШаг();
         собрать();
         const j = i + шаг;
         if (j < 0 || j >= блоки.length) return;
@@ -676,7 +796,14 @@ const WorshipEdit = (() => {
     function слушать() {
         const тело = $('#блоки');
 
-        тело.addEventListener('input', () => { пометить(); запомнитьПотом(); });
+        тело.addEventListener('input', () => { пометить(); запомнитьПотом(); запомнитьШагПотом(); });
+
+        // браузер попробует откатить своё — перехватываем и откатываем своё,
+        // иначе Ctrl+Z работал бы поверх перерисованных блоков и рвал текст
+        тело.addEventListener('beforeinput', ev => {
+            if (ev.inputType === 'historyUndo') { ev.preventDefault(); откатить(); }
+            if (ev.inputType === 'historyRedo') { ev.preventDefault(); повторить(); }
+        });
 
         // Вставка приходит обычным текстом: из Word иначе приезжает чужая вёрстка.
         // Но переносы строк сохраняем смыслом: отдел будет переносить полсотни
@@ -706,6 +833,7 @@ const WorshipEdit = (() => {
                 ev.preventDefault();
                 const б = блоки[i];
                 if (б.type === 'ul' || б.type === 'ol') {
+                    запомнитьШаг();
                     собрать();
                     блоки[i].items.splice(Number(поле.dataset.пункт) + 1, 0, []);
                     рисоватьБлоки();
@@ -724,6 +852,7 @@ const WorshipEdit = (() => {
                     const п = Number(поле.dataset.пункт);
                     if (блоки[i].items.length > 1) {
                         ev.preventDefault();
+                        запомнитьШаг();
                         собрать();
                         блоки[i].items.splice(п, 1);
                         рисоватьБлоки();
@@ -742,9 +871,19 @@ const WorshipEdit = (() => {
 
             if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'b') {
                 ev.preventDefault();
+                запомнитьШаг();
                 document.execCommand('bold');
                 пометить();
             }
+        });
+
+        // Ctrl+Z и Ctrl+Shift+Z ловим на всей странице: курсор может стоять
+        // и в заголовке, и в подписи к фото
+        document.addEventListener('keydown', ev => {
+            if (!(ev.ctrlKey || ev.metaKey)) return;
+            const кнопка = ev.key.toLowerCase();
+            if (кнопка === 'z' && !ev.shiftKey) { ev.preventDefault(); откатить(); }
+            else if ((кнопка === 'z' && ev.shiftKey) || кнопка === 'y') { ev.preventDefault(); повторить(); }
         });
 
         тело.addEventListener('click', ev => {
@@ -757,6 +896,7 @@ const WorshipEdit = (() => {
                 case 'вниз': переставить(i, 1); break;
                 case 'убрать': убратьБлок(i); break;
                 case 'пункт':
+                    запомнитьШаг();
                     собрать();
                     блоки[i].items.push([]);
                     рисоватьБлоки();
@@ -780,6 +920,7 @@ const WorshipEdit = (() => {
         тело.addEventListener('change', ev => {
             const выбор = ev.target.closest('[data-тип]');
             if (!выбор) return;
+            запомнитьШаг();
             собрать();
             const i = Number(выбор.closest('.блок').dataset.i);
             блоки[i] = сменитьТип(блоки[i], выбор.value);
@@ -800,12 +941,24 @@ const WorshipEdit = (() => {
         });
 
         document.querySelectorAll('[data-добавить]').forEach(б =>
-            б.addEventListener('click', () => добавитьБлок(б.dataset.добавить)));
+            б.addEventListener('click', () => {
+                добавитьБлок(б.dataset.добавить);
+                б.closest('.dropdown')?.querySelector('[tabindex]')?.blur();
+                document.activeElement?.blur?.();
+                const узел = document.querySelector(`.блок[data-i="${блоки.length - 1}"] [data-текст]`);
+                узел?.focus();
+            }));
 
         // без этого Chrome снимает жирный не тегом, а <span style>, которого
         // сериализация не понимает, и оформление «не снимается»
         try { document.execCommand('styleWithCSS', false, false); } catch { /* старый браузер */ }
-        $('#жирный').addEventListener('click', () => { document.execCommand('bold'); пометить(); });
+        $('#жирный').addEventListener('click', () => {
+            запомнитьШаг();
+            document.execCommand('bold');
+            пометить();
+        });
+        $('#откатить').addEventListener('click', откатить);
+        $('#повторить').addEventListener('click', повторить);
         $('#вернутьБлок').addEventListener('click', вернутьБлок);
         $('#ссылка').addEventListener('click', поставитьСсылку);
 
@@ -847,6 +1000,7 @@ const WorshipEdit = (() => {
         if (!куда) return;
         const чистый = WorshipDoc.адрес(куда);
         if (!чистый) { Layout.showNotification('Такой адрес не годится', 'warning'); return; }
+        запомнитьШаг();
         document.execCommand('createLink', false, чистый);
         пометить();
         запомнитьПотом();
@@ -894,6 +1048,7 @@ const WorshipEdit = (() => {
         рисоватьШапку();
         рисоватьБлоки();
         слушать();
+        запомнитьШаг();                 // точка, к которой можно вернуться
         // теги ставятся прямо при написании: у новой статьи — после первого
         // сохранения, когда страница перезагрузится уже с номером
         if (id) {
