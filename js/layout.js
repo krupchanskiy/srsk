@@ -227,6 +227,19 @@ const modules = {
                 { id: 'shop_analytics', href: 'shop/analytics.html' }
             ]}
         ]
+    },
+    worship: {
+        id: 'worship',
+        nameKey: 'module_worship',
+        icon: '🪔',
+        hasLocations: false,
+        defaultPage: 'worship/index.html',
+        // Пункты добавляются по мере готовности страниц — битых ссылок в меню быть не должно
+        menuConfig: [
+            { id: 'worship_main', items: [
+                { id: 'worship_home', href: 'worship/index.html' }
+            ]}
+        ]
     }
 };
 
@@ -342,6 +355,7 @@ const pagePermissions = {
     'shop/inventory.html': 'shop_manage',
     'shop/owners.html': ['shop_settle', 'shop_receive'],
     'shop/analytics.html': 'shop_analytics',
+    'worship/index.html': 'worship_view',
 };
 
 // Проверка права страницы: строка или массив (достаточно любого)
@@ -553,7 +567,7 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
-    const data = await Cache.getOrLoad('translations_v65', async () => {
+    const data = await Cache.getOrLoad('translations_v67', async () => {
         // Supabase ограничивает 1000 записей на запрос, используем пагинацию
         const allData = [];
         let from = 0;
@@ -588,7 +602,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v65');
+        Cache.invalidate('translations_v67');
         return loadTranslations(true);
     }
 
@@ -654,7 +668,7 @@ function getHeaderHTML() {
                         <a href="${adjustHref(homeHref)}" class="text-xl font-semibold whitespace-nowrap hover:opacity-80 transition-opacity"><span data-i18n="app_name">Шри Рупа Сева Кунджа</span></a>
                         <div class="relative location-selector" id="locationDesktop">
                             <button class="flex items-center justify-between gap-2 w-full text-xl opacity-70 hover:opacity-100 transition-opacity" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : currentModule === 'worship' ? t('module_worship') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -669,7 +683,7 @@ function getHeaderHTML() {
                         <span class="text-xl opacity-50">·</span>
                         <div class="relative location-selector" id="locationMobile">
                             <button class="flex items-center gap-1 text-xl opacity-70" data-toggle="location">
-                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : ''}</span>
+                                <span class="location-name">${currentModule === 'housing' ? t('module_housing') : currentModule === 'crm' ? t('module_crm') : currentModule === 'finance' ? t('module_finance') : currentModule === 'portal' ? t('module_portal') : currentModule === 'photos' ? t('module_photos') : currentModule === 'admin' ? t('module_admin') : currentModule === 'shop' ? t('module_shop') : currentModule === 'worship' ? t('module_worship') : ''}</span>
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform location-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -752,7 +766,9 @@ function getFooterHTML() {
     const menuConfig = getMenuConfig();
     // Собираем ссылки из текущего раздела меню (второй уровень)
     const currentMenu = menuConfig.find(m => m.id === currentPage.menuId);
-    const footerLinks = currentMenu ? currentMenu.items : menuConfig[0].items;
+    // меню может оказаться пустым: прав на модуль нет, и Layout уже перенаправляет
+    // в доступный раздел. Футер не должен падать, пока это происходит
+    const footerLinks = (currentMenu || menuConfig[0])?.items || [];
 
     return `
     <footer class="bg-base-100 border-t border-base-200 mt-auto">
@@ -1495,6 +1511,9 @@ async function initLayout(page = { module: null, menuId: 'kitchen', itemId: null
     } else if (currentModule === 'shop') {
         setColor('#0284c7');
         $$('.location-name').forEach(el => el.textContent = t('module_shop'));
+    } else if (currentModule === 'worship') {
+        setColor('#9b2226');
+        $$('.location-name').forEach(el => el.textContent = t('module_worship'));
     }
 
     buildMobileMenu();
