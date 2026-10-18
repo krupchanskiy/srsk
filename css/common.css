@@ -89,6 +89,8 @@ main .btn { font-size: 1rem !important; }
    но даже самый тихий текст остаётся читаемым. */
 /* Подвал и окна живут вне <main>: правило сначала их не касалось,
    и ссылки подвала на каждой странице давали 4.03:1, а строка мантры — 2.36. */
+/* Шапка: пункты меню модулей приглушены opacity-60 — 4.03:1 на белом */
+body > header .nav-link.opacity-60 { opacity: 0.76 !important; }
 :is(main, body > footer, dialog) .opacity-30 { opacity: 0.66 !important; }
 :is(main, body > footer, dialog) .opacity-40 { opacity: 0.66 !important; }
 :is(main, body > footer, dialog) .opacity-50 { opacity: 0.70 !important; }
