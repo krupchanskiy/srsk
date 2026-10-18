@@ -33,9 +33,12 @@ const WorshipLibrary = (() => {
         вложения = {};
         if (материалы.length) {
             const ids = материалы.map(м2 => м2.id);
-            const { data, error } = await Layout.db.from('worship_attachments')
-                .select('id, article_id, kind, name, url, storage_path, size_bytes, mime')
-                .in('article_id', ids).order('sort_order');
+            // порциями: PostgREST отдаёт не больше тысячи строк за раз, и у части
+            // материалов иначе пропали бы значки «файл» и «ссылка»
+            const { data, error } = await Utils.fetchAll((от, до) =>
+                Layout.db.from('worship_attachments')
+                    .select('id, article_id, kind, name, url, storage_path, size_bytes, mime')
+                    .in('article_id', ids).order('sort_order').range(от, до));
             if (error) { Layout.handleError(error, 'Вложения'); return false; }
             (data || []).forEach(в => {
                 вложения[в.article_id] = вложения[в.article_id] || [];

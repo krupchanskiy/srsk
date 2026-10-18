@@ -258,7 +258,7 @@ const WorshipKit = (() => {
     async function положить(вид, значение) {
         const строка = {
             kit_id: id,
-            sort_order: пункты.length,
+            sort_order: Math.max(0, ...пункты.map(п => п.sort_order ?? 0)) + 1,
             created_by: window.currentUser?.id || null,
         };
         if (вид === 'album') строка.album_id = значение;
@@ -415,15 +415,19 @@ const WorshipKit = (() => {
             const двигать = ev.target.closest('[data-двигать]');
             if (двигать) {
                 const i = пункты.findIndex(п => п.id === двигать.dataset.id);
-                const j = i + Number(двигать.dataset.двигать);
+                const j = i + Number(двигать.getAttribute('data-двигать'));
                 if (i < 0 || j < 0 || j >= пункты.length) return;
-                // порядок задаёт составитель: меняем местами двумя запросами,
-                // пунктов в дорожке единицы
-                const ок = await записать(Layout.db.from('worship_kit_items')
-                    .update({ sort_order: пункты[j].sort_order }).eq('id', пункты[i].id), 'Порядок');
-                if (!ок) return;
-                await записать(Layout.db.from('worship_kit_items')
-                    .update({ sort_order: пункты[i].sort_order }).eq('id', пункты[j].id), 'Порядок');
+                // переписываем номера подряд, а не меняем местами: после
+                // удаления пункта из середины номера совпадают, и обмен
+                // значениями тихо ничего не делает
+                const порядок = пункты.map(п => п.id);
+                [порядок[i], порядок[j]] = [порядок[j], порядок[i]];
+                for (const [номер, пид] of порядок.entries()) {
+                    if (пункты.find(п => п.id === пид)?.sort_order === номер) continue;
+                    const ок = await записать(Layout.db.from('worship_kit_items')
+                        .update({ sort_order: номер }).eq('id', пид), 'Порядок');
+                    if (!ок) return;
+                }
                 return перечитать();
             }
 

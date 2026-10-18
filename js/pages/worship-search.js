@@ -195,7 +195,8 @@ const WorshipSearch = (() => {
 
     // ---------- словарь тегов ----------
     async function рисоватьСловарь() {
-        const { data } = await Layout.db.from('worship_tag_links').select('tag_id');
+        const { data } = await Utils.fetchAll((от, до) =>
+            Layout.db.from('worship_tag_links').select('tag_id').range(от, до));
         const сколько = {};
         (data || []).forEach(с => { сколько[с.tag_id] = (сколько[с.tag_id] || 0) + 1; });
 

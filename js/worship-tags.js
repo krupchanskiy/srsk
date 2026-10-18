@@ -110,8 +110,9 @@ const WorshipTags = (() => {
         const ids = (мои || []).map(с => с.tag_id);
         if (!ids.length) return { статьи: [], наборы: [] };
 
-        const { data: связи } = await Layout.db.from('worship_tag_links')
-            .select('article_id, album_id').in('tag_id', ids);
+        const { data: связи } = await Utils.fetchAll((от, до) =>
+            Layout.db.from('worship_tag_links')
+                .select('article_id, album_id').in('tag_id', ids).range(от, до));
 
         const статьиIds = [...new Set((связи || []).map(с => с.article_id)
             .filter(x => x && x !== значение))].slice(0, предел);

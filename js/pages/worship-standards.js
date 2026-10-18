@@ -413,11 +413,16 @@ const WorshipStandards = (() => {
             return;
         }
 
-        const { error } = await Layout.db.from('worship_sections')
+        // отказ политики — это ноль строк, а не ошибка: без .select() раздел
+        // «сохранялся» на экране и оставался прежним в базе
+        const { data, error } = await Layout.db.from('worship_sections')
             .update({ ...правка, updated_at: new Date().toISOString(),
                       updated_by: window.currentUser?.id || null })
-            .eq('id', id);
+            .eq('id', id).select('id');
         if (error) return Layout.handleError(error, 'Раздел');
+        if (!data?.length) {
+            return Layout.showNotification('Не сохранилось: разделы ведёт старший пуджари', 'error');
+        }
         if (await загрузить() && await дополнитьВерсиями()) { рисовать(); рисоватьРазделыВОкне(); }
     }
 

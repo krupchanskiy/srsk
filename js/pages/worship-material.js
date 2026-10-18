@@ -313,8 +313,16 @@ const WorshipMaterial = (() => {
             const путь = `${window.currentUser?.id}/${crypto.randomUUID()}-${
                 файл.name.replace(/[^\w.-]+/g, '_')}`;
             const { error } = await Layout.db.storage.from('worship')
-                .upload(путь, файл, { contentType: файл.type || 'application/octet-stream' });
-            if (error) throw new Error(error.message);
+                .upload(путь, файл, { contentType: файл.type || 'application/pdf' });
+            if (error) {
+                // хранилище принимает конкретный список типов, и его отказ
+                // выглядит как «mime type … is not supported» — непонятно
+                if (/mime type/i.test(error.message || '')) {
+                    throw new Error('такой тип файла библиотека не принимает: ' +
+                        'снимки, pdf, аудио и видео — да, остальное нет');
+                }
+                throw new Error(error.message);
+            }
 
             const { error: ош } = await Layout.db.from('worship_attachments').insert({
                 article_id: id, kind: 'file', storage_path: путь, name: файл.name,

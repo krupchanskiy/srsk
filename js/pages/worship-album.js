@@ -20,9 +20,9 @@ const WorshipAlbum = (() => {
         if (!id) return false;
         const [н, с] = await Promise.all([
             Layout.db.from('worship_albums').select('*').eq('id', id).maybeSingle(),
-            Layout.db.from('worship_images')
+            Utils.fetchAll((от, до) => Layout.db.from('worship_images')
                 .select('id, storage_path, caption, sort_order, shot_at, width, height')
-                .eq('album_id', id).order('sort_order').order('shot_at'),
+                .eq('album_id', id).order('sort_order').order('shot_at').range(от, до)),
         ]);
         if (н.error || с.error) { Layout.handleError(н.error || с.error, 'Загрузка набора'); return false; }
         if (!н.data) { Layout.showNotification('Набор не найден или закрыт', 'warning'); return false; }
