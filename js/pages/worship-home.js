@@ -43,7 +43,14 @@ const WorshipHome = (() => {
      * там есть и сколько, но экран она не занимает.
      */
     const ПОРОГ_СВОРАЧИВАНИЯ = 5;
+    const ПОКАЗЫВАЕМ = 10;          // длиннее сводка перестаёт быть сводкой
     const КЛЮЧ_СВОДКИ = 'worship_home_summary';
+
+    /** Последняя строка списка, когда в нём больше, чем помещается. */
+    const хвостСписка = (всего, куда) => всего > ПОКАЗЫВАЕМ
+        ? `<li><a href="${куда}" class="block text-sm py-1 font-semibold
+                  text-[color:var(--current-color)] hover:underline">Посмотреть все · ${всего}</a></li>`
+        : '';
 
     const сохранённоеСводки = () => {
         try { return JSON.parse(localStorage.getItem(КЛЮЧ_СВОДКИ) || '{}'); }
@@ -152,19 +159,22 @@ const WorshipHome = (() => {
 
     /** Подборки: ответ на вопрос «с чего начать», который иначе без экрана. */
     async function подборки() {
-        const { data } = await Layout.db.from('worship_kits')
-            .select('id, title, description').eq('is_active', true).order('title').limit(5);
+        // берём на одну больше, чем показываем: так видно, что список
+        // не кончился, даже если точный счёт не пришёл
+        const { data, count } = await Layout.db.from('worship_kits')
+            .select('id, title', { count: 'exact' })
+            .eq('is_active', true).order('title').limit(ПОКАЗЫВАЕМ + 1);
         if (!data?.length) return;
+        const всего = count ?? data.length;
 
-        $('#kitsCard').hidden = false;
         // описание подборки в сводке не нужно: сюда заходят по названию,
         // а подробности ждут на самой странице подборки
-        $('#kits').innerHTML = data.map(п => `
+        $('#kits').innerHTML = data.slice(0, ПОКАЗЫВАЕМ).map(п => `
             <li>
                 <a href="kit.html?id=${п.id}" class="block text-sm py-1 leading-snug
                           hover:text-[color:var(--current-color)] transition-colors">${e(п.title)}</a>
-            </li>`).join('');
-        настроитьГруппу('kitsCard', data.length);
+            </li>`).join('') + хвостСписка(всего, 'kits.html');
+        настроитьГруппу('kitsCard', всего);
     }
 
     /**
@@ -340,20 +350,26 @@ const WorshipHome = (() => {
         const заголовок = id => статьи.find(с => с.id === id)?.title || 'Статья';
 
         const закладки = (data || []).filter(з => з.kind === 'bookmark' && з.article_id);
-        $('#marks').innerHTML = закладки.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
+        $('#marks').innerHTML = закладки.slice(0, ПОКАЗЫВАЕМ)
+            .map(з => строка(з.article_id, заголовок(з.article_id), '')).join('')
+            + хвостСписка(закладки.length, 'bookmarks.html');
         настроитьГруппу('marksCard', закладки.length);
 
         const недавние = (data || []).filter(з => з.kind === 'recent' && з.article_id)
-            .filter(з => !закладки.some(з2 => з2.article_id === з.article_id)).slice(0, 5);
-        $('#recent').innerHTML = недавние.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
+            .filter(з => !закладки.some(з2 => з2.article_id === з.article_id));
+        $('#recent').innerHTML = недавние.slice(0, ПОКАЗЫВАЕМ)
+            .map(з => строка(з.article_id, заголовок(з.article_id), '')).join('')
+            + хвостСписка(недавние.length, 'bookmarks.html');
         настроитьГруппу('recentCard', недавние.length);
     }
 
     function рисоватьРазделы() {
         // пустой раздел в боковой сводке — строка, по которой некуда идти
-        $('#sections').innerHTML = разделы.map(р => {
+        const живые = разделы.filter(р =>
+            статьи.some(с => с.section_id === р.id && с.status === 'published'));
+
+        $('#sections').innerHTML = живые.slice(0, ПОКАЗЫВАЕМ).map(р => {
             const сколько = статьи.filter(с => с.section_id === р.id && с.status === 'published').length;
-            if (!сколько) return '';
             return `
             <li>
                 <a href="standards.html" class="flex items-baseline gap-2 text-sm py-1 leading-snug
@@ -362,10 +378,10 @@ const WorshipHome = (() => {
                     <span class="text-xs opacity-70 tabular-nums">${сколько}</span>
                 </a>
             </li>`;
-        }).join('') || '<li class="py-1 text-sm opacity-70">Пока ни одного утверждённого стандарта</li>';
+        }).join('') + хвостСписка(живые.length, 'standards.html')
+            || '<li class="py-1 text-sm opacity-70">Пока ни одного утверждённого стандарта</li>';
 
-        const сколько = разделы.filter(р =>
-            статьи.some(с => с.section_id === р.id && с.status === 'published')).length;
+        const сколько = живые.length;
         настроитьГруппу('sectionsCard', сколько);
         // раздел с кнопкой «Все стандарты» нужен даже пустым: иначе из сводки
         // некуда перейти к полному списку
