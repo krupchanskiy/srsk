@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=15">
     <style>
         /* Неделю печатают и вешают в пуджарской: альбомный A4, без ручек. */
         @media print {
@@ -115,20 +115,24 @@
         <!-- свои службы наверху: человек заходит сюда за своим, а не за обзором -->
         <section id="мои" hidden class="mb-4 rounded-xl p-4"
                  style="background: color-mix(in srgb, var(--current-color) 10%, transparent);">
-            <h2 class="font-bold mb-2" data-i18n="worship_my_duties">Ваши ближайшие службы</h2>
+            <h2 class="надзаголовок mb-2" data-i18n="worship_my_duties">Ваши ближайшие службы</h2>
             <ul class="list-none m-0 p-0" id="моиСписок"></ul>
         </section>
 
-        <!-- переключение недели -->
-        <div class="flex flex-wrap items-center gap-2 mb-3 no-print">
-            <button class="btn btn-sm btn-outline" id="назад">‹</button>
-            <button class="btn btn-sm" id="сегодня" data-i18n="worship_today">Сегодня</button>
-            <button class="btn btn-sm btn-outline" id="вперёд">›</button>
-            <span class="font-semibold ml-2" id="периодНадпись"></span>
-            <span class="flex-1"></span>
-            <div class="join">
-                <button class="btn btn-sm join-item" data-вид="неделя" data-i18n="worship_view_week">Неделя</button>
-                <button class="btn btn-sm join-item" data-вид="день" data-i18n="worship_view_day">День</button>
+        <!-- переключение недели: на телефоне стрелки, период и выбор вида
+             занимали три строки подряд — теперь стрелки обнимают период -->
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3 no-print">
+            <div class="flex items-center gap-1 flex-1 min-w-56">
+                <button class="btn btn-sm btn-ghost px-2" id="назад" aria-label="Предыдущая неделя">‹</button>
+                <span class="font-semibold flex-1 text-center whitespace-nowrap" id="периодНадпись"></span>
+                <button class="btn btn-sm btn-ghost px-2" id="вперёд" aria-label="Следующая неделя">›</button>
+            </div>
+            <div class="flex items-center gap-2 ml-auto">
+                <button class="btn btn-sm btn-outline" id="сегодня" data-i18n="worship_today">Сегодня</button>
+                <div class="join">
+                    <button class="btn btn-sm join-item" data-вид="неделя" data-i18n="worship_view_week">Неделя</button>
+                    <button class="btn btn-sm join-item" data-вид="день" data-i18n="worship_view_day">День</button>
+                </div>
             </div>
         </div>
 
@@ -320,7 +324,7 @@
     <script src="../js/layout.js?v=113"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-schedule.js?v=16"></script>
+    <script src="../js/pages/worship-schedule.js?v=17"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

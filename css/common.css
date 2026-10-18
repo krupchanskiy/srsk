@@ -140,6 +140,10 @@ main input.text-xl, main textarea.text-xl { font-size: 1.25rem !important; }
 main input.text-2xl, main textarea.text-2xl { font-size: 1.5rem !important; }
 main input.text-3xl, main textarea.text-3xl { font-size: 1.875rem !important; }
 main textarea.text-\[17px\] { font-size: 17px !important; }
+@media (min-width: 1200px) {
+    main input.desktop\:text-3xl, main textarea.desktop\:text-3xl { font-size: 1.875rem !important; }
+    main input.desktop\:text-2xl, main textarea.desktop\:text-2xl { font-size: 1.5rem !important; }
+}
 
 main p, main span, main div { font-size: inherit; }
 

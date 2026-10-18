@@ -170,28 +170,51 @@ const WorshipArticle = (() => {
         if (можноПисать() && наЭкранеПравка) {
             кнопки.push('<button class="btn btn-sm btn-ghost" id="withdraw">Отозвать</button>');
         }
-        // библиотека сравнения приезжает со стороны: без неё кнопка только обманет
-        if (предыдущая(показана) && window.Diff) {
-            кнопки.push('<button class="btn btn-sm btn-outline" id="diff">Что изменилось</button>');
-        }
-        кнопки.push(`<button class="btn btn-sm btn-ghost" id="bookmark" title="${
+        кнопки.push(`<button class="btn btn-sm btn-ghost px-2" id="bookmark" title="${
+            вЗакладках ? 'Убрать из закладок' : 'В закладки'}" aria-label="${
             вЗакладках ? 'Убрать из закладок' : 'В закладки'}">${
             вЗакладках ? '★' : '☆'}</button>`);
+
+        // Сюда приходят читать, как делается служение. Поэтому на виду одно
+        // действие по роли, а разовые решения — печать, сравнение редакций,
+        // вывод из действия — собраны под «ещё»: пятью кнопками в два ряда
+        // экран начинался с приборной доски, а не со стандарта.
+        const редкие = [];
+        // библиотека сравнения приезжает со стороны: без неё пункт только обманет
+        if (предыдущая(показана) && window.Diff) {
+            редкие.push('<li><button id="diff">Что изменилось</button></li>');
+        }
         // печатаем только действующее: лист на стене не должен спорить с храмом,
         // поэтому отменённый стандарт не печатается, даже если его версия когда-то действовала
         if (показана?.status === 'published' && статья.status === 'published') {
-            кнопки.push('<button class="btn btn-sm btn-outline" id="print">Печать</button>');
+            редкие.push('<li><button id="print">Печать</button></li>');
         }
         if (можноУтверждать() && статья.status === 'published') {
-            кнопки.push(открытая?.status === 'submitted'
-                ? `<button class="btn btn-sm btn-ghost" id="archiveBlocked"
+            редкие.push(открытая?.status === 'submitted'
+                ? `<li><button id="archiveBlocked"
                            title="Сначала решите по правке: утвердите или верните автору"
-                           >Вывести из действия</button>`
-                : '<button class="btn btn-sm btn-ghost" id="archive">Вывести из действия</button>');
+                           >Вывести из действия</button></li>`
+                : '<li><button id="archive">Вывести из действия</button></li>');
         }
         if (можноУтверждать() && статья.status === 'archived') {
-            кнопки.push('<button class="btn btn-sm btn-outline" id="unarchive">Вернуть из архива</button>');
+            редкие.push('<li><button id="unarchive">Вернуть из архива</button></li>');
         }
+
+        if (редкие.length) {
+            кнопки.push(`
+            <div class="dropdown dropdown-end">
+                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
+                        <circle cx="12" cy="19" r="1.7"></circle>
+                    </svg>
+                </button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
+                    ${редкие.join('')}
+                </ul>
+            </div>`);
+        }
+
         $('#actions').innerHTML = кнопки.join('');
     }
 

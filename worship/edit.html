@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=15">
     <style>
         /* Поле правки выглядит ровно как готовая статья: человек пишет текст,
            а не подгоняет вёрстку. */
@@ -99,8 +99,8 @@
              стандарт, а раздел и пометка о правке остаются служебной строкой. -->
         <div class="mb-4">
             <input id="заголовок" type="text"
-                   class="w-full bg-transparent border-0 px-0 text-3xl font-bold tracking-tight
-                          focus:outline-none placeholder:opacity-30"
+                   class="w-full bg-transparent border-0 px-0 text-2xl desktop:text-3xl font-bold
+                          tracking-tight focus:outline-none placeholder:opacity-30"
                    placeholder="Название стандарта" maxlength="200">
 
             <!-- подписи живут внутри самих полей: отдельными словами слева
@@ -112,7 +112,8 @@
                     <select id="раздел" class="select select-sm select-bordered min-w-40"></select>
                 </label>
 
-                <label class="flex items-center flex-1 min-w-56" id="картаИзменений">
+                <label class="flex items-center basis-full desktop:basis-auto desktop:flex-1 min-w-0"
+                       id="картаИзменений">
                     <input id="примечание" type="text" class="input input-sm input-bordered w-full"
                            data-i18n-placeholder="worship_change_placeholder"
                            placeholder="Что изменилось: одной строкой" maxlength="200"

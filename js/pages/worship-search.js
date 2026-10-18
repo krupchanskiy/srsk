@@ -114,12 +114,11 @@ const WorshipSearch = (() => {
 
         if (!запрос.trim() && !тег) {
             тело.innerHTML = `
-                <div class="card bg-base-100 shadow"><div class="card-body items-start">
-                    <h2 class="card-title text-lg">Что ищем?</h2>
-                    <p class="text-sm opacity-70 max-w-xl">Поиск идёт сразу по стандартам,
-                        библиотеке и наборам фотографий: достаточно помнить слово.
-                        Однокоренные и опечатки тоже находятся — «одеть» найдёт «одевание».</p>
-                </div></div>`;
+                <div class="bg-base-100 rounded-xl shadow-sm p-6">
+                    <p class="text-sm opacity-70 max-w-xl">Достаточно помнить слово: однокоренные
+                        и опечатки тоже находятся — «одеть» найдёт «одевание», «туласе» найдёт
+                        «Туласи». Тегом выше можно сузить выдачу или посмотреть всё по теме.</p>
+                </div>`;
             return;
         }
 

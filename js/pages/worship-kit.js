@@ -88,12 +88,28 @@ const WorshipKit = (() => {
         $('#название').textContent = подборка.title;
         $('#описание').textContent = подборка.description || '';
 
-        const кнопки = ['<button class="btn btn-sm btn-outline no-print" id="печать">Печать</button>'];
+        // на виду одно действие, остальное под «ещё»: три равнозначные кнопки
+        // в ряд не говорили, какая из них обычная работа
+        const кнопки = [];
+        const редкие = ['<li><button id="печать">Печать</button></li>'];
         if (можноПисать()) {
-            кнопки.unshift('<button class="btn btn-sm btn-outline no-print" id="правка">Изменить</button>');
-            кнопки.push(`<button class="btn btn-sm btn-ghost no-print" id="включение">${
-                подборка.is_active ? 'Отключить' : 'Включить'}</button>`);
+            кнопки.push(`<button class="btn btn-sm no-print" id="правка"
+                style="background: var(--current-color); color:#fff;">Изменить</button>`);
+            редкие.push(`<li><button id="включение">${
+                подборка.is_active ? 'Отключить' : 'Включить'}</button></li>`);
         }
+        кнопки.push(`
+            <div class="dropdown dropdown-end no-print">
+                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
+                        <circle cx="12" cy="19" r="1.7"></circle>
+                    </svg>
+                </button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-48">
+                    ${редкие.join('')}
+                </ul>
+            </div>`);
         $('#actions').innerHTML = кнопки.join('');
     }
 
@@ -175,8 +191,8 @@ const WorshipKit = (() => {
                     title="Ниже">↓</button>
             ${п.note ? `<button class="btn btn-ghost btn-xs px-1" data-правитьТекст="${п.id}"
                     title="Поправить текст">✎</button>` : ''}
-            <button class="btn btn-ghost btn-xs px-1 text-error" data-убрать="${п.id}"
-                    title="Убрать из дорожки">✕</button>
+            <button class="btn btn-ghost btn-xs px-1 hover:text-error" data-убрать="${п.id}"
+                    title="Убрать из дорожки" aria-label="Убрать из дорожки">✕</button>
         </div>`;
     }
 

@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=15">
     <style>
         /* Человек едет в ашрам, где со связью бывает по-разному: бумажная
            дорожка там уместнее ссылки. */
@@ -37,6 +37,12 @@
         .пунктДорожки:hover .ручкиПункта,
         .пунктДорожки:focus-within .ручкиПункта { opacity: 1; }
         @media (hover: none) { .ручкиПункта { opacity: .45; } }
+        /* на телефоне ручки сжимали текст пункта в колонку в три строки:
+           там они встают под ним, а не сбоку */
+        @media (max-width: 1199px) {
+            .пунктДорожки { flex-wrap: wrap; }
+            .ручкиПункта { width: 100%; justify-content: flex-end; margin-top: .25rem; }
+        }
         @media print { .ручкиПункта { display: none !important; } }
     </style>
 </head>
@@ -193,7 +199,7 @@
     <script src="../js/layout.js?v=113"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-kit.js?v=6"></script>
+    <script src="../js/pages/worship-kit.js?v=7"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_kits' });

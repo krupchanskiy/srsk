@@ -63,17 +63,25 @@ const WorshipKits = (() => {
                               px-5 py-3 hover:bg-base-200/60 transition-colors">
                         <span class="flex-1 min-w-0">
                             <span class="font-semibold">${e(п.title)}</span>
-                            ${п.lang !== 'ru' ? `<span class="badge badge-sm ml-2">${e(п.lang)}</span>` : ''}
+                            ${п.lang !== 'ru'
+                                ? `<span class="badge badge-sm ml-2" title="Язык подборки">${
+                                    e(п.lang === 'en' ? 'на английском' : п.lang)}</span>` : ''}
                             ${п.is_active ? '' : '<span class="badge badge-sm ml-1">отключена</span>'}
                             ${п.description ? `<span class="block text-sm opacity-70 mt-0.5">${e(п.description)}</span>` : ''}
                         </span>
-                        <span class="text-sm opacity-60 whitespace-nowrap">
-                            ${Layout.pluralize(пунктов[п.id] || 0, {
-                                ru: ['пункт', 'пункта', 'пунктов'],
-                                en: ['item', 'items'], hi: 'मद' })}
-                            ${выдач[п.id] ? ' · ' + Layout.pluralize(выдач[п.id], {
+                        <!-- пустая подборка и подборка из десяти пунктов читались
+                             одинаково: «0 пунктов» теряется среди цифр. Незаконченную
+                             работу видно сразу -->
+                        <span class="text-sm whitespace-nowrap ${
+                            пунктов[п.id] ? 'opacity-70' : 'text-warning font-semibold'}">
+                            ${пунктов[п.id]
+                                ? Layout.pluralize(пунктов[п.id], {
+                                    ru: ['пункт', 'пункта', 'пунктов'],
+                                    en: ['item', 'items'], hi: 'मद' })
+                                : 'пока пусто'}
+                            ${выдач[п.id] ? '<span class="opacity-70"> · ' + Layout.pluralize(выдач[п.id], {
                                 ru: ['выдача', 'выдачи', 'выдач'],
-                                en: ['grant', 'grants'], hi: 'वितरण' }) : ''}
+                                en: ['grant', 'grants'], hi: 'वितरण' }) + '</span>' : ''}
                         </span>
                     </a>
                 </li>`).join('')}

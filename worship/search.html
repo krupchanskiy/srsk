@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=15">
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -26,7 +26,10 @@
 
     <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1060px;">
 
-        <form class="mb-5" id="форма">
+        <h1 class="text-2xl font-bold tracking-tight mb-1">Поиск по модулю</h1>
+        <p class="text-sm opacity-70 mb-4">Сразу по стандартам, библиотеке и папкам со снимками.</p>
+
+        <form class="mb-4" id="форма">
             <label class="input input-bordered flex items-center gap-3 h-14">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" class="opacity-50" aria-hidden="true">
@@ -42,9 +45,11 @@
              переименование тега потребовало бы пересборки всего индекса -->
         <div class="flex flex-wrap items-center gap-2 mb-4" id="теги"></div>
 
-        <div class="mb-4" data-permission="worship_approve">
-            <button class="btn btn-xs btn-ghost" id="вестиТеги">Вести словарь тегов</button>
+        <div class="mb-4 -mt-2" data-permission="worship_approve">
+            <button class="btn btn-xs btn-ghost opacity-70" id="вестиТеги">Вести словарь тегов</button>
         </div>
+
+
 
         <div id="итог"></div>
     </main>
@@ -94,7 +99,7 @@
     <script src="../js/layout.js?v=113"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-search.js?v=4"></script>
+    <script src="../js/pages/worship-search.js?v=5"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });
