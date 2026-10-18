@@ -78,7 +78,23 @@ const WorshipStandards = (() => {
         if (!фильтр.архив && статья.status === 'archived') return false;
         if (фильтр.архив && статья.status !== 'archived') return false;
         const q = фильтр.поиск.trim().toLowerCase();
-        return !q || (статья.title || '').toLowerCase().includes(q);
+        if (!q) return true;
+        // ищем и по тексту: «как делается одевание» — это слова изнутри статьи,
+        // а не её заголовок. Настоящий поиск с морфологией придёт третьим этапом
+        return (статья.title || '').toLowerCase().includes(q)
+            || (статья.текст || '').toLowerCase().includes(q);
+    }
+
+    /** Кусок текста вокруг найденного: иначе непонятно, почему статья в выдаче. */
+    function где(статья) {
+        const q = фильтр.поиск.trim().toLowerCase();
+        if (!q || (статья.title || '').toLowerCase().includes(q)) return '';
+        const текст = статья.текст || '';
+        const i = текст.toLowerCase().indexOf(q);
+        if (i < 0) return '';
+        const от = Math.max(0, i - 40), до = Math.min(текст.length, i + q.length + 60);
+        return `<span class="block text-sm opacity-60 mt-0.5">${
+            от > 0 ? '…' : ''}${e(текст.slice(от, до))}${до < текст.length ? '…' : ''}</span>`;
     }
 
     function строкаСтатьи(статья) {
@@ -94,7 +110,7 @@ const WorshipStandards = (() => {
             <a href="article.html?id=${статья.id}"
                class="flex flex-col desktop:flex-row desktop:items-center gap-1 desktop:gap-3
                       px-5 py-3 flex-1 min-w-0 hover:bg-base-200/60 transition-colors">
-                <span class="flex-1 min-w-0 font-semibold">${e(статья.title)}${значок(статья)}</span>
+                <span class="flex-1 min-w-0 font-semibold">${e(статья.title)}${значок(статья)}${где(статья)}</span>
                 <span class="text-sm opacity-60 whitespace-nowrap">${
                     статья.status === 'published' && статья.версия
                         ? `версия ${статья.версия} · ${DateUtils.formatShort(new Date(статья.утверждена))}`
@@ -255,7 +271,7 @@ const WorshipStandards = (() => {
         const строки = [];
         for (let i = 0; i < ids.length; i += 100) {
             const { data, error } = await Layout.db.from('worship_versions')
-                .select('article_id, status, version_no, approved_at')
+                .select('article_id, status, version_no, approved_at, plain_text')
                 .in('article_id', ids.slice(i, i + 100));
             if (error) { Layout.handleError(error, 'Версии статей'); return false; }
             строки.push(...(data || []));
@@ -267,6 +283,12 @@ const WorshipStandards = (() => {
             if (в.status === 'published') {
                 поСтатье[в.article_id].версия = в.version_no;
                 поСтатье[в.article_id].утверждена = в.approved_at;
+                поСтатье[в.article_id].текст = в.plain_text || '';
+            }
+            // у неутверждённой статьи действующего текста нет, но искать по ней
+            // тоже нужно — берём то, что написано
+            if (в.status === 'draft' && !поСтатье[в.article_id].текст) {
+                поСтатье[в.article_id].текст = в.plain_text || '';
             }
             if (в.status === 'draft' || в.status === 'submitted') {
                 поСтатье[в.article_id].открытаяВерсия = в.status;
