@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="ru" data-theme="light">
 <head>
+    <!-- соединение с базой открывается заранее: иначе первое обращение
+         к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <script src="../js/color-init.js?v=5"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Тест подключения к Supabase</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <!-- соединение с базой открывается заранее: иначе первое обращение
+         к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body {

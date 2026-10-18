@@ -592,31 +592,36 @@ function getPersonName(person, lang = currentLang) {
 
 // ==================== TRANSLATIONS ====================
 async function loadTranslations(retried = false) {
+    // Сутки, а не час: переводы меняются редко, а при изменении всё равно
+    // бампается номер в имени ключа ниже — и кэш сбрасывается сам
+    const СУТКИ = 24 * 60 * 60 * 1000;
+
     const data = await Cache.getOrLoad('translations_v75', async () => {
-        // Supabase ограничивает 1000 записей на запрос, используем пагинацию
-        const allData = [];
-        let from = 0;
-        const pageSize = 1000;
-
-        while (true) {
-            const { data, error } = await db.from('translations')
-                .select('key, ru, en, hi')
-                .range(from, from + pageSize - 1);
-
-            if (error) {
-                console.error('Error loading translations:', error);
-                return null;
-            }
-
-            if (!data || data.length === 0) break;
-            allData.push(...data);
-
-            if (data.length < pageSize) break; // Последняя страница
-            from += pageSize;
+        // Одним запросом, а не страницами по тысяче: PostgREST больше тысячи
+        // строк за раз не отдаёт, и клиент ходил пять раз подряд, каждый раз
+        // ожидая предыдущий ответ — это секунды до первой отрисовки
+        const { data: словарь, error } = await db.rpc('app_translations');
+        if (!error && словарь) {
+            return Object.entries(словарь).map(([key, [ru, en, hi]]) => ({ key, ru, en, hi }));
         }
 
-        return allData;
-    });
+        // Запасной путь: если функции ещё нет (старая база), читаем как раньше
+        console.warn('app_translations недоступна, читаю переводы страницами:', error?.message);
+        const всё = [];
+        let from = 0;
+        const размерСтраницы = 1000;
+        while (true) {
+            const { data: кусок, error: ош } = await db.from('translations')
+                .select('key, ru, en, hi')
+                .range(from, from + размерСтраницы - 1);
+            if (ош) { console.error('Error loading translations:', ош); return null; }
+            if (!кусок || кусок.length === 0) break;
+            всё.push(...кусок);
+            if (кусок.length < размерСтраницы) break;
+            from += размерСтраницы;
+        }
+        return всё;
+    }, СУТКИ);
 
     if (!data) return;
 

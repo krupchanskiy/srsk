@@ -7,6 +7,10 @@
     <title data-i18n="pending_page_title">Ожидание одобрения — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <!-- соединение с базой открывается заранее: иначе первое обращение
+         к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
