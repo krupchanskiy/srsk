@@ -15,7 +15,8 @@ const WorshipStandards = (() => {
 
     let разделы = [], статьи = [], очередь = [], замечания = [];
     let вид = 'sections';           // sections | flat
-    let фильтр = { поиск: '', архив: false };
+    // запрос с главной приходит в адресе: два разных поиска в модуле ни к чему
+    let фильтр = { поиск: new URLSearchParams(location.search).get('q') || '', архив: false };
 
     async function загрузить() {
         const ответы = await Promise.all([
@@ -77,16 +78,24 @@ const WorshipStandards = (() => {
     }
 
     function строкаСтатьи(статья) {
+        // порядок внутри раздела задаётся руками: иначе сверху оказывается
+        // «Если пуджари опоздал», а основная статья тонет ниже
+        const ручки = можноПисать() && вид === 'sections' && !фильтр.поиск
+            ? `<span class="flex gap-1 shrink-0">
+                   <button class="btn btn-ghost btn-xs" data-двигать="-1" data-id="${статья.id}" title="Выше">↑</button>
+                   <button class="btn btn-ghost btn-xs" data-двигать="1" data-id="${статья.id}" title="Ниже">↓</button>
+               </span>` : '';
         return `
-        <li class="border-b border-base-200 last:border-0">
+        <li class="border-b border-base-200 last:border-0 flex items-center gap-1 pr-3">
             <a href="article.html?id=${статья.id}"
-               class="flex flex-wrap items-center gap-3 px-5 py-3 hover:bg-base-200/60 transition-colors">
+               class="flex flex-wrap items-center gap-3 px-5 py-3 flex-1 min-w-0 hover:bg-base-200/60 transition-colors">
                 <span class="flex-1 min-w-0 font-semibold">${e(статья.title)}${значок(статья)}</span>
                 <span class="text-sm opacity-60 whitespace-nowrap">${
                     статья.status === 'published' && статья.версия
                         ? `версия ${статья.версия} · ${DateUtils.formatShort(new Date(статья.утверждена))}`
                         : DateUtils.formatShort(new Date(статья.updated_at))}</span>
             </a>
+            ${ручки}
         </li>`;
     }
 
@@ -245,6 +254,7 @@ const WorshipStandards = (() => {
 
     // ---------- события ----------
     function слушать() {
+        if (фильтр.поиск) $('#q').value = фильтр.поиск;
         $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисоватьСписок(); });
         $('#showArchive').addEventListener('change', ev => { фильтр.архив = ev.target.checked; рисоватьСписок(); });
         $('#queueAll').addEventListener('change', ev => {
@@ -261,6 +271,14 @@ const WorshipStandards = (() => {
                     б.classList.toggle('btn-active', свой);
                 });
                 рисоватьСписок();
+                return;
+            }
+            const двигать = ev.target.closest('[data-двигать]');
+            if (двигать) {
+                const { error } = await Layout.db.rpc('worship_reorder', {
+                    p_article: двигать.dataset.id, p_direction: Number(двигать.dataset.двигать) });
+                if (error) return Layout.handleError(error, 'Порядок статей');
+                if (await загрузить() && await дополнитьВерсиями()) рисовать();
                 return;
             }
             if (ev.target.closest('[data-очередь]')) return обновитьОтмеченные();

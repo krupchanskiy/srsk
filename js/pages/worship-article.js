@@ -20,6 +20,7 @@ const WorshipArticle = (() => {
     let статья = null, версии = [], показана = null, раздел = null;
     let снимки = {};                // путь → адрес ограниченного срока
     let замечания = [];
+    let вЗакладках = false;
 
     async function загрузить() {
         if (!id) { Layout.showNotification('Статья не указана', 'warning'); return false; }
@@ -35,6 +36,10 @@ const WorshipArticle = (() => {
 
         статья = с;
         версии = вер || [];
+
+        const { data: з } = await Layout.db.from('worship_bookmarks')
+            .select('id').eq('kind', 'bookmark').eq('article_id', id).maybeSingle();
+        вЗакладках = !!з;
 
         const { data: зам } = await Layout.db.from('worship_remarks')
             .select('id, body, state, created_at, created_by, closed_at, close_reason')
@@ -127,6 +132,9 @@ const WorshipArticle = (() => {
         if (предыдущая(показана)) {
             кнопки.push('<button class="btn btn-sm btn-outline" id="diff">Что изменилось</button>');
         }
+        кнопки.push(`<button class="btn btn-sm btn-ghost" id="bookmark" title="${
+            вЗакладках ? 'Убрать из закладок' : 'В закладки'}">${
+            вЗакладках ? '★' : '☆'}</button>`);
         // печатаем только действующее: лист на стене не должен спорить с храмом
         if (показана?.status === 'published') {
             кнопки.push('<button class="btn btn-sm btn-outline" id="print">Печать</button>');
@@ -266,6 +274,21 @@ const WorshipArticle = (() => {
     }, 300));
 
     // ---------- действия ----------
+    async function переключитьЗакладку() {
+        const я = window.currentUser?.id;
+        if (!я) return;
+        const запрос = вЗакладках
+            ? Layout.db.from('worship_bookmarks').delete()
+                .eq('kind', 'bookmark').eq('article_id', id).eq('user_id', я)
+            : Layout.db.from('worship_bookmarks')
+                .insert({ user_id: я, kind: 'bookmark', article_id: id });
+        const { error } = await запрос;
+        if (error) return Layout.handleError(error, 'Закладка');
+        вЗакладках = !вЗакладках;
+        рисоватьДействия();
+        Layout.showNotification(вЗакладках ? 'В закладках' : 'Убрано из закладок', 'success');
+    }
+
     async function перечитать() {
         if (!await загрузить()) return;
         await дополнитьСнимками();
@@ -320,6 +343,7 @@ const WorshipArticle = (() => {
                 return перечитать();
             }
 
+            if (b.id === 'bookmark') return переключитьЗакладку();
             if (b.id === 'print') return print();
             if (b.id === 'diff') return показатьСравнение();
 
@@ -367,6 +391,10 @@ const WorshipArticle = (() => {
         if (!await загрузить()) return;
         await дополнитьСнимками();
         рисовать();
+        // «недавно открытое» ведётся функцией: она же подрезает список до семи строк.
+        // .then обязателен: запрос supabase-js ленивый и без него не уходит вовсе
+        Layout.db.rpc('worship_touch_recent', { p_article: id })
+            .then(({ error }) => { if (error) console.debug('недавнее:', error.message); });
     }
 
     return { init };

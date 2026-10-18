@@ -431,7 +431,8 @@ const WorshipEdit = (() => {
         // снимок, загруженный в эту же правку и никуда не попавший, уносим с собой:
         // иначе хранилище копит кадры, которых нет ни в одной версии
         if (б?.type === 'img' && б.path && свои.includes(б.path)) {
-            Layout.db.storage.from('worship').remove([б.path]);
+            Layout.db.storage.from('worship').remove([б.path])
+                .catch(ош => console.debug('не убрали снимок:', ош?.message));
             свои = свои.filter(п => п !== б.path);
         }
         блоки.splice(i, 1);

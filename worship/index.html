@@ -20,27 +20,73 @@
 
     <div id="header-placeholder"></div>
 
-    <main class="container mx-auto px-4 py-6 flex-1">
+    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1060px;">
 
-        <div class="mb-6">
-            <h1 class="text-2xl font-bold">Поклонение</h1>
-            <p class="text-sm opacity-60">Стандарты служения, расписание, материалы отдела.</p>
-        </div>
+        <!-- Почти все приходят сюда не за оглавлением, а с вопросом «как это делается».
+             Поэтому поиск — первое, что видно, и он во всю ширину. -->
+        <form class="mb-6" id="searchForm">
+            <label class="input input-bordered flex items-center gap-3 h-14">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" class="opacity-50" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
+                </svg>
+                <input id="q" type="search" class="grow text-lg"
+                       placeholder="Как делается: одевание, арати, бхога…">
+            </label>
+        </form>
 
-        <!-- Раздел наполняется по этапам плана. Пока модуль открыт только для чтения:
-             права уже разложены, страницы появляются следом. -->
-        <div class="card bg-base-100 shadow">
-            <div class="card-body">
-                <h2 class="card-title text-lg">Раздел готовится</h2>
-                <p class="text-sm opacity-70 max-w-xl">
-                    Первым появится хранилище стандартов: разделы, статьи, утверждение
-                    и история изменений. Пока его нет, писать стандарты некуда —
-                    но доступ уже настроен, и отдел видит раздел в меню.
-                </p>
-                <p class="text-sm opacity-60 mt-2" data-permission="worship_approve">
-                    У вас есть право утверждать стандарты.
-                </p>
+        <!-- ждут решения: единственное место, где работа ждёт конкретного человека -->
+        <section id="queueBox" hidden class="mb-5 rounded-xl border border-warning/40 bg-warning/10 p-4">
+            <h2 class="font-bold mb-1">Ждут вашего решения · <span id="queueCount">0</span></h2>
+            <p class="text-sm opacity-70 mb-3">Пока не утвердите, в храме действует прежняя редакция.</p>
+            <div class="flex flex-col gap-2" id="queueList"></div>
+        </section>
+
+        <div class="flex flex-col desktop:flex-row gap-5 items-start">
+
+            <div class="flex-1 min-w-0 w-full">
+                <!-- лента: что поменялось в том, по чему служат -->
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body p-6">
+                        <h2 class="card-title text-lg mb-1">Что изменилось</h2>
+                        <p class="text-sm opacity-60 mb-2">Утверждённые правки за последние недели.</p>
+                        <ul class="list-none m-0 p-0" id="feed"></ul>
+                    </div>
+                </div>
+
+                <!-- незаконченное: своё, а не чужое -->
+                <div class="card bg-base-100 shadow mt-5" id="draftsCard" hidden>
+                    <div class="card-body p-6">
+                        <h2 class="card-title text-lg mb-1">Ваши черновики</h2>
+                        <p class="text-sm opacity-60 mb-2">Начатое и недописанное.</p>
+                        <ul class="list-none m-0 p-0" id="drafts"></ul>
+                    </div>
+                </div>
             </div>
+
+            <aside class="w-full desktop:w-80 shrink-0 flex flex-col gap-5">
+                <div class="card bg-base-100 shadow" id="marksCard" hidden>
+                    <div class="card-body p-5">
+                        <h2 class="font-bold mb-2">Закладки</h2>
+                        <ul class="list-none m-0 p-0" id="marks"></ul>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 shadow" id="recentCard" hidden>
+                    <div class="card-body p-5">
+                        <h2 class="font-bold mb-2">Недавно открытое</h2>
+                        <ul class="list-none m-0 p-0" id="recent"></ul>
+                    </div>
+                </div>
+
+                <div class="card bg-base-100 shadow">
+                    <div class="card-body p-5">
+                        <h2 class="font-bold mb-2">Разделы</h2>
+                        <ul class="list-none m-0 p-0" id="sections"></ul>
+                        <a href="standards.html" class="btn btn-sm btn-outline mt-3">Все стандарты</a>
+                    </div>
+                </div>
+            </aside>
         </div>
     </main>
 
@@ -50,10 +96,13 @@
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
     <script src="../js/layout.js?v=97"></script>
+    <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/pages/worship-home.js?v=1"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });
+            await WorshipHome.init();
         }
         init();
     </script>

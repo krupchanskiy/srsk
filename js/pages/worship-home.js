@@ -1,0 +1,144 @@
+/**
+ * Главная модуля.
+ *
+ * Почти каждое обращение к отделу — это «как это делается», а не «покажи
+ * оглавление». Поэтому первым стоит поиск во всю ширину, а не список разделов.
+ * Ниже — то, что ждёт конкретного человека: очередь у старшего, черновики
+ * у пуджари, лента изменений у всех.
+ *
+ * Блоки расписания появятся вторым этапом; пустых заглушек под них здесь нет —
+ * страница показывает только то, что уже работает.
+ */
+const WorshipHome = (() => {
+    const $ = s => document.querySelector(s);
+    const e = str => Layout.escapeHtml(str ?? '');
+    const дата = v => v ? DateUtils.formatShort(new Date(v)) : '';
+
+    const можноПисать = () => !!window.hasPermission?.('worship_write');
+    const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
+
+    let разделы = [], статьи = [];
+
+    function строка(id, заголовок, подпись) {
+        return `
+        <li class="border-b border-base-200 last:border-0">
+            <a href="article.html?id=${id}" class="block py-2.5 hover:opacity-70 transition-opacity">
+                <span class="font-semibold block">${e(заголовок)}</span>
+                ${подпись ? `<span class="text-sm opacity-60">${подпись}</span>` : ''}
+            </a>
+        </li>`;
+    }
+
+    async function лента() {
+        const { data, error } = await Layout.db.from('worship_versions')
+            .select('id, article_id, title, version_no, change_note, approved_at')
+            .eq('status', 'published').not('approved_at', 'is', null)
+            .order('approved_at', { ascending: false }).limit(8);
+        if (error) { Layout.handleError(error, 'Лента изменений'); return; }
+
+        $('#feed').innerHTML = (data || []).map(в => строка(в.article_id, в.title,
+            `${дата(в.approved_at)}${в.version_no > 1 && в.change_note
+                ? ' · ' + e(в.change_note) : в.version_no === 1 ? ' · новый стандарт' : ''}`
+        )).join('') || '<li class="py-2 text-sm opacity-60">Пока ничего не утверждали</li>';
+    }
+
+    async function черновики() {
+        if (!можноПисать()) return;
+        const я = window.currentUser?.id;
+        const { data, error } = await Layout.db.from('worship_versions')
+            .select('article_id, title, status, updated_at, created_by')
+            .in('status', ['draft', 'submitted'])
+            .order('updated_at', { ascending: false });
+        if (error) { Layout.handleError(error, 'Черновики'); return; }
+
+        // свои сверху, чужие ниже: отдел пишет сообща, но спрашивают с автора
+        const свои = (data || []).filter(в => в.created_by === я);
+        const чужие = (data || []).filter(в => в.created_by !== я);
+        const список = [...свои, ...чужие];
+        if (!список.length) return;
+
+        $('#draftsCard').hidden = false;
+        $('#drafts').innerHTML = список.map(в => строка(в.article_id, в.title,
+            `${в.status === 'submitted' ? 'ждёт утверждения' : 'черновик'}${
+                в.created_by === я ? '' : ' · не ваш'} · ${дата(в.updated_at)}`
+        )).join('');
+    }
+
+    async function очередь() {
+        if (!можноУтверждать()) return;
+        const { data, error } = await Layout.db.from('worship_versions')
+            .select('article_id, title, change_note, updated_at')
+            .eq('status', 'submitted').order('updated_at');
+        if (error) { Layout.handleError(error, 'Очередь'); return; }
+        if (!data?.length) return;
+
+        $('#queueBox').hidden = false;
+        $('#queueCount').textContent = data.length;
+        $('#queueList').innerHTML = data.map(в => `
+            <a href="article.html?id=${в.article_id}"
+               class="flex flex-col desktop:flex-row desktop:items-center gap-2 bg-base-100 border border-base-300 rounded-lg px-4 py-3">
+                <span class="flex-1 min-w-0">
+                    <span class="font-semibold block">${e(в.title)}</span>
+                    <span class="text-sm opacity-60">${
+                        в.change_note ? '«' + e(в.change_note) + '» · ' : ''}${дата(в.updated_at)}</span>
+                </span>
+                <span class="btn btn-sm self-start" style="background: var(--current-color); color:#fff;">Открыть</span>
+            </a>`).join('');
+    }
+
+    async function личное() {
+        const { data, error } = await Layout.db.from('worship_bookmarks')
+            .select('kind, article_id, created_at').order('created_at', { ascending: false });
+        if (error) return;                       // личный список не повод ломать страницу
+
+        const заголовок = id => статьи.find(с => с.id === id)?.title || 'Статья';
+
+        const закладки = (data || []).filter(з => з.kind === 'bookmark' && з.article_id);
+        if (закладки.length) {
+            $('#marksCard').hidden = false;
+            $('#marks').innerHTML = закладки.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
+        }
+
+        const недавние = (data || []).filter(з => з.kind === 'recent' && з.article_id)
+            .filter(з => !закладки.some(з2 => з2.article_id === з.article_id)).slice(0, 5);
+        if (недавние.length) {
+            $('#recentCard').hidden = false;
+            $('#recent').innerHTML = недавние.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
+        }
+    }
+
+    function рисоватьРазделы() {
+        $('#sections').innerHTML = разделы.map(р => {
+            const сколько = статьи.filter(с => с.section_id === р.id && с.status === 'published').length;
+            return `
+            <li class="border-b border-base-200 last:border-0">
+                <a href="standards.html" class="flex items-baseline gap-2 py-2 hover:opacity-70 transition-opacity">
+                    <span class="flex-1 min-w-0 font-semibold">${e(Layout.getName(р))}</span>
+                    <span class="text-sm opacity-50">${сколько}</span>
+                </a>
+            </li>`;
+        }).join('') || '<li class="py-2 text-sm opacity-60">Разделов пока нет</li>';
+    }
+
+    async function init() {
+        const [р, с] = await Promise.all([
+            Layout.db.from('worship_sections').select('id, name_ru, name_en, name_hi')
+                .eq('kind', 'standard').eq('is_active', true).order('sort_order'),
+            Layout.db.from('worship_articles').select('id, title, section_id, status').eq('kind', 'standard'),
+        ]);
+        разделы = р.data || [];
+        статьи = с.data || [];
+
+        рисоватьРазделы();
+        await Promise.all([лента(), черновики(), очередь(), личное()]);
+
+        // поиск уводит на список: держать два разных поиска в модуле незачем
+        $('#searchForm').addEventListener('submit', ev => {
+            ev.preventDefault();
+            const q = $('#q').value.trim();
+            location.href = q ? `standards.html?q=${encodeURIComponent(q)}` : 'standards.html';
+        });
+    }
+
+    return { init };
+})();
