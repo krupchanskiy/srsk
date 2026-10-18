@@ -28,6 +28,14 @@
         .блок:hover .ручки, .блок:focus-within .ручки { opacity: 1; }
         .ручки { opacity: 0; transition: opacity .15s; }
         @media (max-width: 1199px) { .ручки { opacity: 1; } }
+            #текст { outline: none; font-size: 17px; line-height: 1.75; min-height: 30vh; }
+        #текст p { margin: 0 0 .75em; }
+        #текст h2 { font-weight: 700; margin: 1.2em 0 .5em; }
+        #текст h3 { font-weight: 600; margin: 1em 0 .4em; }
+        #текст ul { list-style: disc; padding-left: 1.6em; margin: 0 0 .75em; }
+        #текст ol { list-style: decimal; padding-left: 1.6em; margin: 0 0 .75em; }
+        #текст blockquote { background: oklch(var(--b2)); border-radius: .75rem;
+                            padding: .75rem 1rem; margin: 0 0 .75em; }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -41,48 +49,45 @@
             <a href="search.html" class="link link-hover opacity-70">Поиск по модулю</a>
         </div>
 
-        <div class="flex flex-wrap items-start gap-3 mb-4">
-            <h1 class="text-2xl font-bold tracking-tight flex-1 min-w-full desktop:min-w-0" id="режим">Материал</h1>
-            <span class="text-sm opacity-60" id="сохранение"></span>
-            <div class="flex flex-wrap gap-2" id="actions"></div>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+            <div class="text-xs uppercase tracking-widest opacity-60" id="режим">Материал</div>
+            <span class="text-sm ml-auto" id="сохранение"></span>
+            <div class="flex items-center gap-2" id="actions"></div>
         </div>
 
-        <div class="card bg-base-100 shadow mb-4" id="поля">
-            <div class="card-body p-5 desktop:p-6 gap-4">
-                <label class="form-control">
-                    <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_title">Название</span></div>
-                    <input id="заголовок" type="text" class="input input-bordered text-lg font-semibold"
-                           placeholder="Например: Хари-бхакти-виласа, том 1" maxlength="200">
+        <!-- Название — заголовок карточки, а не первое поле анкеты.
+             Всё, чем материал описывается, — служебная строка под ним. -->
+        <div class="mb-5" id="поля">
+            <input id="заголовок" type="text"
+                   class="w-full bg-transparent border-0 px-0 text-3xl font-bold tracking-tight
+                          focus:outline-none placeholder:opacity-30"
+                   placeholder="Название книги, скана или заметки" maxlength="200">
+
+            <textarea id="описание" rows="2"
+                      class="w-full bg-transparent border-0 px-0 mt-2 text-[17px] resize-none
+                             focus:outline-none placeholder:opacity-40"
+                      placeholder="О чём это: чтобы через полгода было понятно, зачем этот файл"
+                      maxlength="500"></textarea>
+
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm">
+                <label class="flex items-center gap-2">
+                    <span class="opacity-70" data-i18n="worship_field_section">Раздел</span>
+                    <select id="раздел" class="select select-sm select-bordered min-w-40"></select>
                 </label>
-                <label class="form-control">
-                    <div class="label py-1">
-                        <span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_summary">О чём это</span>
-                    </div>
-                    <textarea id="описание" class="textarea textarea-bordered" rows="2" maxlength="500"
-                              placeholder="Одной-двумя фразами: о чём материал и кому пригодится"></textarea>
-                    <div class="label py-1"><span class="label-text-alt opacity-60" data-i18n="worship_summary_hint">Без описания библиотека за полгода превращается в свалку файлов с именами вроде scan_0012.pdf.</span></div>
+                <label class="flex items-center gap-2">
+                    <span class="opacity-70" data-i18n="worship_field_author">Автор</span>
+                    <input id="автор" type="text" class="input input-sm input-bordered w-44"
+                           placeholder="Санатана Госвами" maxlength="200">
                 </label>
-                <div class="grid grid-cols-1 desktop:grid-cols-3 gap-3">
-                    <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_section">Раздел</span></div>
-                        <select id="раздел" class="select select-bordered"></select>
-                    </label>
-                    <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_author">Автор</span></div>
-                        <input id="автор" type="text" class="input input-bordered" maxlength="200">
-                    </label>
-                    <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_source">Откуда взято</span></div>
-                        <input id="источник" type="text" class="input input-bordered" maxlength="300">
-                    </label>
+                <label class="flex items-center gap-2 flex-1 min-w-48">
+                    <span class="opacity-70 whitespace-nowrap" data-i18n="worship_field_source">Откуда</span>
+                    <input id="источник" type="text" class="input input-sm input-bordered flex-1"
+                           placeholder="Издание, сайт, кто передал" maxlength="300">
+                </label>
+                <div class="flex items-center gap-2" id="тегиБлок">
+                    <span class="opacity-70" data-i18n="worship_tags">Теги</span>
+                    <div class="flex flex-wrap items-center gap-2" id="теги"></div>
                 </div>
-            </div>
-        </div>
-
-        <div class="card bg-base-100 shadow mb-4">
-            <div class="card-body p-5 desktop:p-6">
-                <h2 class="card-title text-lg mb-2" data-i18n="worship_tags_title">Теги</h2>
-                <div class="flex flex-wrap items-center gap-2" id="теги"></div>
             </div>
         </div>
 
@@ -104,23 +109,41 @@
             </div>
         </div>
 
-        <!-- свой текст: тот же редактор, что у стандартов -->
+        <!-- Свой текст правится тем же редактором, что и стандарт:
+             формат документа один на оба экрана. -->
         <div class="card bg-base-100 shadow">
             <div class="card-body p-5 desktop:p-8">
-                <h2 class="card-title text-lg mb-1" data-i18n="worship_own_text">Свой текст</h2>
-                <p class="text-sm opacity-60 mb-3" data-i18n="worship_own_text_hint">Заметка, пересказ, выписка —
-                    всё, что пригодится рядом с файлом. Можно оставить пустым.</p>
-                <div id="блоки"></div>
-                <div class="flex flex-wrap items-center gap-2 mt-4" data-permission="worship_write">
-                    <button class="btn btn-xs btn-outline font-bold" id="жирный">Ж</button>
-                    <button class="btn btn-xs btn-outline" id="ссылка">Ссылка</button>
-                    <span class="opacity-30">|</span>
-                    <button class="btn btn-xs btn-outline" data-добавить="p">Абзац</button>
-                    <button class="btn btn-xs btn-outline" data-добавить="h2">Заголовок</button>
-                    <button class="btn btn-xs btn-outline" data-добавить="ul">Список</button>
-                    <button class="btn btn-xs btn-outline" data-добавить="ol">По шагам</button>
-                    <button class="btn btn-xs btn-outline" data-добавить="note">Заметка</button>
+                <div class="flex flex-wrap items-center gap-1 mb-3 pb-3 border-b border-base-200"
+                     data-permission="worship_write">
+                    <div class="join mr-1">
+                        <button class="btn btn-sm btn-ghost join-item px-2" id="откатить"
+                                title="Отменить (Ctrl+Z)" aria-label="Отменить">↶</button>
+                        <button class="btn btn-sm btn-ghost join-item px-2" id="повторить"
+                                title="Вернуть (Ctrl+Shift+Z)" aria-label="Вернуть">↷</button>
+                    </div>
+                    <span class="w-px h-5 bg-base-300"></span>
+                    <button class="btn btn-sm btn-ghost font-bold w-9 px-0" id="жирный" title="Жирный">Ж</button>
+                    <button class="btn btn-sm btn-ghost w-9 px-0 font-bold" data-стиль="h2" title="Заголовок">H2</button>
+                    <button class="btn btn-sm btn-ghost w-9 px-0 font-semibold text-sm" data-стиль="h3"
+                            title="Подзаголовок">H3</button>
+                    <button class="btn btn-sm btn-ghost w-9 px-0" id="список" title="Список" aria-label="Список">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                            <circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none"></circle>
+                            <circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none"></circle>
+                            <circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none"></circle>
+                            <path d="M9 6h11M9 12h11M9 18h11"></path>
+                        </svg>
+                    </button>
+                    <button class="btn btn-sm btn-ghost w-9 px-0" id="поШагам" title="По шагам"
+                            aria-label="Нумерованный список">1—</button>
+                    <button class="btn btn-sm btn-ghost w-9 px-0" data-стиль="note" title="Заметка">❝</button>
+                    <button class="btn btn-sm btn-ghost" id="ссылка" title="Ссылка">Ссылка</button>
                 </div>
+
+                <div id="текст" contenteditable="true" spellcheck="true" style="max-width: 68ch;"></div>
+                <p class="text-sm opacity-70 mt-4" data-i18n="worship_own_text_hint">Заметка, пересказ, выписка —
+                    всё, что пригодится рядом с файлом. Можно оставить пустым.</p>
             </div>
         </div>
     </main>
@@ -148,8 +171,9 @@
     <script src="../js/auth-check.js?v=13"></script>
     <script src="../js/media.js?v=2"></script>
     <script src="../js/worship-doc.js?v=5"></script>
+    <script src="../js/worship-editor-doc.js?v=1"></script>
     <script src="../js/worship-tags.js?v=4"></script>
-    <script src="../js/pages/worship-material.js?v=7"></script>
+    <script src="../js/pages/worship-material.js?v=8"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_library' });

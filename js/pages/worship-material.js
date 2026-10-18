@@ -18,7 +18,7 @@ const WorshipMaterial = (() => {
     const ПРЕДЕЛ_ФАЙЛА = 200 * 1024 * 1024;
 
     let id = new URLSearchParams(location.search).get('id');
-    let статья = null, версия = null, разделы = [], вложения = [], блоки = [];
+    let статья = null, версия = null, разделы = [], вложения = [];
     let грязно = false, сохраняется = false;
 
     const ПОДСКАЗКИ = { p: 'Текст', h2: 'Заголовок', h3: 'Подзаголовок', note: 'Заметка' };
@@ -50,13 +50,16 @@ const WorshipMaterial = (() => {
             версия = ответы[2].data || null;
             вложения = ответы[3].data || [];
         }
-        блоки = WorshipDoc.разобрать(версия?.doc).blocks;
         return true;
     }
 
     // ---------- отрисовка ----------
     function рисоватьШапку() {
-        $('#режим').textContent = id ? (статья.title || 'Материал') : 'Новый материал';
+        // в служебной строке — что это за запись, а не её название:
+        // название стоит заголовком страницей ниже
+        $('#режим').textContent = !id ? 'Новый материал'
+            : статья.status === 'archived' ? 'Материал · в архиве'
+            : 'Материал библиотеки';
         $('#заголовок').value = статья?.title || '';
         $('#описание').value = статья?.summary || '';
         $('#автор').value = статья?.author_name || '';
@@ -72,19 +75,30 @@ const WorshipMaterial = (() => {
             $(s).disabled = !можноПисать();
         });
 
-        const кнопки = [];
-        if (можноПисать()) {
-            кнопки.push(`<button class="btn btn-sm" id="сохранить"
-                style="background: var(--current-color); color:#fff;">Сохранить</button>`);
-        }
+        // «Сохранить» теперь одна — липкая внизу страницы: раньше на экране
+        // висели две одинаковые кнопки, и было непонятно, чем они отличаются.
+        // Редкие решения о судьбе материала собраны под «ещё».
+        const редкие = [];
         if (id && можноУтверждать() && статья.status === 'published') {
-            кнопки.push('<button class="btn btn-sm btn-ghost" id="вАрхив">Убрать в архив</button>');
+            редкие.push('<li><button id="вАрхив">Убрать в архив</button></li>');
         }
         if (id && можноУтверждать() && статья.status === 'archived') {
-            кнопки.push('<button class="btn btn-sm btn-outline" id="изАрхива">Вернуть из архива</button>');
-            кнопки.push('<button class="btn btn-sm btn-ghost text-error" id="удалить">Удалить насовсем</button>');
+            редкие.push('<li><button id="изАрхива">Вернуть из архива</button></li>');
+            редкие.push('<li><button id="удалить" class="text-error">Удалить насовсем</button></li>');
         }
-        $('#actions').innerHTML = кнопки.join('');
+
+        $('#actions').innerHTML = редкие.length ? `
+            <div class="dropdown dropdown-end">
+                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
+                        <circle cx="12" cy="19" r="1.7"></circle>
+                    </svg>
+                </button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
+                    ${редкие.join('')}
+                </ul>
+            </div>` : '';
 
         if (статья?.status === 'archived') {
             $('#режим').insertAdjacentHTML('beforeend',
@@ -107,115 +121,68 @@ const WorshipMaterial = (() => {
             </li>`).join('') || '<li class="py-2 text-sm opacity-60">Пока ничего не приложено</li>';
     }
 
-    function полеТекста(значение, классы, подсказка) {
-        const поле = document.createElement('div');
-        поле.className = классы;
-        поле.contentEditable = можноПисать() ? 'true' : 'false';
-        поле.dataset.подсказка = подсказка || '';
-        поле.dataset.текст = '1';
-        const времянка = document.createElement('div');
-        времянка.appendChild(WorshipDoc.нарисовать({ blocks: [{ type: 'p', spans: значение }] }));
-        const абзац = времянка.firstElementChild;
-        while (абзац && абзац.firstChild) поле.appendChild(абзац.firstChild);
-        return поле;
+    // Текст материала правится тем же редактором, что и стандарт: формат
+    // документа один, и два разных редактора на него — ровно та странность,
+    // из-за которой интерфейс читается как собранный для неизвестно кого.
+    function наполнитьПоле(документ) {
+        const т = $('#текст');
+        т.replaceChildren();
+        т.appendChild(WorshipEditorDoc.вДом(документ || версия?.doc || { blocks: [] }, {}));
     }
 
-    function рисоватьБлоки() {
-        const тело = $('#блоки');
-        тело.innerHTML = '';
-        блоки.forEach((б, i) => {
-            const обёртка = document.createElement('div');
-            обёртка.className = 'блок group pl-3 -ml-3 py-1';
-            обёртка.dataset.i = i;
+    const документИзПоля = () => WorshipDoc.разобрать(WorshipEditorDoc.изДома($('#текст')));
 
-            if (можноПисать()) {
-                const ручки = document.createElement('div');
-                ручки.className = 'ручки flex items-center gap-1 mb-1';
-                ручки.innerHTML = `
-                    <span class="text-[11px] uppercase tracking-widest opacity-40 mr-1">${НАЗВАНИЯ[б.type]}</span>
-                    <button class="btn btn-ghost btn-sm px-2" data-действие="вверх">↑</button>
-                    <button class="btn btn-ghost btn-sm px-2" data-действие="вниз">↓</button>
-                    <button class="btn btn-ghost btn-sm px-2 text-error" data-действие="убрать">✕</button>`;
-                обёртка.appendChild(ручки);
+    /** Оформление идёт через execCommand: только так правка попадает
+        в историю браузера, то есть работает обычный Ctrl+Z. */
+    function команда(имя, значение = null) {
+        $('#текст').focus();
+        document.execCommand(имя, false, значение);
+        пометить();
+    }
+
+    function текущийТег() {
+        let узел = getSelection()?.anchorNode;
+        while (узел && узел !== $('#текст')) {
+            if (узел.nodeType === Node.ELEMENT_NODE) {
+                const имя = узел.tagName.toLowerCase();
+                if (['h1', 'h2', 'h3', 'h4', 'blockquote', 'li', 'p'].includes(имя)) return имя;
             }
-
-            if (б.type === 'ul' || б.type === 'ol') {
-                const список = document.createElement(б.type);
-                список.className = 'mb-2 pl-6 space-y-1 ' + (б.type === 'ul' ? 'list-disc' : 'list-decimal');
-                (б.items.length ? б.items : [[]]).forEach((пункт, j) => {
-                    const li = document.createElement('li');
-                    const поле = полеТекста(пункт, 'кусок кусок-p', 'Пункт списка');
-                    поле.dataset.пункт = j;
-                    li.appendChild(поле);
-                    список.appendChild(li);
-                });
-                обёртка.appendChild(список);
-                if (можноПисать()) {
-                    const добавить = document.createElement('button');
-                    добавить.className = 'btn btn-ghost btn-xs opacity-60';
-                    добавить.dataset.действие = 'пункт';
-                    добавить.textContent = '+ пункт';
-                    обёртка.appendChild(добавить);
-                }
-            } else {
-                обёртка.appendChild(полеТекста(б.spans,
-                    `кусок кусок-${б.type}` + (б.type === 'note' ? ' bg-base-200 rounded-lg px-4 py-3' : ''),
-                    ПОДСКАЗКИ[б.type]));
-            }
-            тело.appendChild(обёртка);
-        });
-
-        if (!блоки.length) {
-            тело.innerHTML = '<p class="text-sm opacity-50">Текста нет. ' +
-                (можноПисать() ? 'Добавьте абзац кнопкой ниже.' : '') + '</p>';
+            узел = узел.parentNode;
         }
+        return 'p';
     }
 
-    // ---------- сбор формы ----------
-    function собратьОтрезки(поле) {
-        const отрезки = [];
-        const обойти = (узел, жирный, адрес) => {
-            узел.childNodes.forEach(у => {
-                if (у.nodeType === Node.TEXT_NODE) {
-                    if (у.nodeValue) отрезки.push({ t: у.nodeValue, b: жирный, href: адрес });
-                    return;
-                }
-                if (у.nodeType !== Node.ELEMENT_NODE) return;
-                const имя = у.tagName.toLowerCase();
-                if (имя === 'br') { отрезки.push({ t: ' ' }); return; }
-                обойти(у, жирный || имя === 'strong' || имя === 'b',
-                       адрес || (имя === 'a' ? WorshipDoc.адрес(у.getAttribute('href')) : null));
-            });
-        };
-        обойти(поле, false, null);
-
-        const готовые = [];
-        отрезки.forEach(о => {
-            const чистый = { t: о.t };
-            if (о.b) чистый.b = true;
-            if (о.href) чистый.href = о.href;
-            const пред = готовые[готовые.length - 1];
-            if (пред && !!пред.b === !!чистый.b && пред.href === чистый.href) пред.t += чистый.t;
-            else готовые.push(чистый);
+    function обновитьПанель() {
+        const внутри = $('#текст')?.contains(getSelection()?.anchorNode);
+        const тег = текущийТег();
+        const нажата = (кнопка, условие) => кнопка?.classList.toggle('btn-active', !!(внутри && условие));
+        document.querySelectorAll('[data-стиль]').forEach(б => {
+            const свой = б.dataset.стиль;
+            нажата(б, (свой === 'h2' && (тег === 'h2' || тег === 'h1'))
+                   || (свой === 'h3' && (тег === 'h3' || тег === 'h4'))
+                   || (свой === 'note' && тег === 'blockquote'));
         });
-        return готовые.filter(о => о.t !== '');
+        try {
+            нажата($('#жирный'), document.queryCommandState('bold'));
+            нажата($('#список'), document.queryCommandState('insertUnorderedList'));
+            нажата($('#поШагам'), document.queryCommandState('insertOrderedList'));
+        } catch { /* старый браузер */ }
     }
 
-    function собрать() {
-        const собранные = [];
-        document.querySelectorAll('#блоки .блок').forEach(узел => {
-            const б = блоки[Number(узел.dataset.i)];
-            if (!б) return;
-            if (б.type === 'ul' || б.type === 'ol') {
-                собранные.push({ type: б.type,
-                                 items: [...узел.querySelectorAll('[data-пункт]')].map(собратьОтрезки) });
-            } else {
-                собранные.push({ type: б.type,
-                                 spans: собратьОтрезки(узел.querySelector('[data-текст]')) });
-            }
-        });
-        блоки = собранные;
-        return WorshipDoc.разобрать({ blocks: собранные });
+    /** Повторное нажатие снимает оформление — иначе из заголовка не выбраться. */
+    function стиль(какой) {
+        const теги = { p: 'P', h2: 'H2', h3: 'H3', note: 'BLOCKQUOTE' };
+        const сейчас = текущийТег();
+        const снять = (какой === 'h2' && (сейчас === 'h2' || сейчас === 'h1'))
+            || (какой === 'h3' && (сейчас === 'h3' || сейчас === 'h4'))
+            || (какой === 'note' && сейчас === 'blockquote');
+        команда('formatBlock', `<${снять ? 'P' : теги[какой]}>`);
+        if (!снять && какой === 'note') {
+            const узел = getSelection()?.anchorNode;
+            const цитата = (узел?.nodeType === 1 ? узел : узел?.parentElement)?.closest('blockquote');
+            цитата?.classList.add('worship-заметка');
+        }
+        обновитьПанель();
     }
 
     function пометить() {
@@ -251,7 +218,7 @@ const WorshipMaterial = (() => {
         сохраняется = true;
         состояние('сохраняю…');
 
-        const документ = собрать();
+        const документ = документИзПоля();
         // всё одним вызовом: у worship_articles нет политик записи, и обычный
         // update молча не меняет ни строки — человек видит «сохранено»,
         // а в библиотеке остаётся материал без описания
@@ -401,11 +368,6 @@ const WorshipMaterial = (() => {
         await перечитать();
     }
 
-    // ---------- блоки текста ----------
-    function новыйБлок(тип) {
-        return тип === 'ul' || тип === 'ol' ? { type: тип, items: [[]] } : { type: тип, spans: [] };
-    }
-
     /**
      * Перечитывает карточку из базы. Несохранённый текст при этом затёрся бы,
      * поэтому сначала сохраняем — человек приложил скан, а не просил откатить
@@ -416,41 +378,31 @@ const WorshipMaterial = (() => {
         // человек приложил скан, а абзац, который он только что написал,
         // пропадал без предупреждения
         if (сохранитьСначала && грязно && id) await сохранить();
-        if (await загрузить()) { рисоватьШапку(); рисоватьВложения(); рисоватьБлоки(); window.applyPermissions?.(); }
+        if (await загрузить()) { рисоватьШапку(); рисоватьВложения(); наполнитьПоле(); window.applyPermissions?.(); }
     }
 
     function слушать() {
-        const тело = $('#блоки');
-        тело.addEventListener('input', пометить);
-        тело.addEventListener('paste', ev => {
-            if (!ev.target.closest('[data-текст]')) return;
-            ev.preventDefault();
-            const текст = (ev.clipboardData || window.clipboardData).getData('text/plain');
-            document.execCommand('insertText', false, текст.replace(/\s+/g, ' ').trim());
-        });
-        тело.addEventListener('click', ev => {
-            const кнопка = ev.target.closest('[data-действие]');
-            if (!кнопка) return;
-            const i = Number(кнопка.closest('.блок').dataset.i);
-            собрать();
-            switch (кнопка.dataset.действие) {
-                case 'вверх': if (i > 0) [блоки[i - 1], блоки[i]] = [блоки[i], блоки[i - 1]]; break;
-                case 'вниз': if (i < блоки.length - 1) [блоки[i + 1], блоки[i]] = [блоки[i], блоки[i + 1]]; break;
-                case 'убрать': блоки.splice(i, 1); break;
-                case 'пункт': блоки[i].items.push([]); break;
-            }
-            рисоватьБлоки();
-            пометить();
+        const текст = $('#текст');
+        текст.addEventListener('input', пометить);
+        текст.addEventListener('keyup', обновитьПанель);
+        текст.addEventListener('mouseup', обновитьПанель);
+        document.addEventListener('selectionchange', () => {
+            if ($('#текст')?.contains(getSelection()?.anchorNode)) обновитьПанель();
         });
 
-        document.querySelectorAll('[data-добавить]').forEach(б =>
-            б.addEventListener('click', () => {
-                собрать();
-                блоки.push(новыйБлок(б.dataset.добавить));
-                рисоватьБлоки();
-                пометить();
-                document.querySelector(`.блок[data-i="${блоки.length - 1}"] [data-текст]`)?.focus();
-            }));
+        // вставка приходит обычным текстом: чужая вёрстка из Word в карточку не едет
+        текст.addEventListener('paste', ev => {
+            ev.preventDefault();
+            const кусок = (ev.clipboardData || window.clipboardData).getData('text/plain');
+            команда('insertText', кусок.replace(/\s+/g, ' ').trim());
+        });
+
+        document.querySelectorAll('[data-стиль]').forEach(б =>
+            б.addEventListener('click', () => стиль(б.dataset.стиль)));
+        $('#список')?.addEventListener('click', () => { команда('insertUnorderedList'); обновитьПанель(); });
+        $('#поШагам')?.addEventListener('click', () => { команда('insertOrderedList'); обновитьПанель(); });
+        $('#откатить')?.addEventListener('click', () => команда('undo'));
+        $('#повторить')?.addEventListener('click', () => команда('redo'));
 
         try { document.execCommand('styleWithCSS', false, false); } catch { /* старый браузер */ }
         $('#жирный').addEventListener('click', () => { document.execCommand('bold'); пометить(); });
@@ -528,7 +480,7 @@ const WorshipMaterial = (() => {
         }
         рисоватьШапку();
         рисоватьВложения();
-        рисоватьБлоки();
+        наполнитьПоле();
         слушать();
         window.applyPermissions?.();
         if (id) WorshipTags.нарисовать($('#теги'), { article_id: id }, { можноПравить: можноПисать() });
