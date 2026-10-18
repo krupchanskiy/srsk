@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="../js/color-init.js?v=6"></script>
+    <script src="../js/color-init.js?v=7"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Касса — ШРСК</title>
@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=23">
+    <link rel="stylesheet" href="../css/common.css?v=24">
     <style>
         .nums { font-variant-numeric: tabular-nums; }
         input[type="number"]::-webkit-outer-spin-button,
@@ -61,6 +61,9 @@
             .ticket:not(.open) .ticket-body { display: none; }
             .ticket.open .cartbar { display: none; }
             .lines { max-height: 30vh; }
+            /* открытая шторка не выше экрана: на 375×667 со скидкой, даром
+               и купюрами верх с «← Добавить ещё» и строками чека уходил за край */
+            .ticket.open { max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
         }
         .lines { max-height: 40vh; overflow-y: auto; }
         .offline-chip { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%);
@@ -125,11 +128,11 @@
 
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=18"></script>
-    <script src="../js/layout.js?v=117"></script>
+    <script src="../js/utils.js?v=19"></script>
+    <script src="../js/layout.js?v=118"></script>
     <script src="../js/auth-check.js?v=14"></script>
     <script src="../js/shop-utils.js?v=2"></script>
-    <script src="../js/pages/shop-till.js?v=3"></script>
+    <script src="../js/pages/shop-till.js?v=4"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_sales', itemId: 'shop_till' });

@@ -94,6 +94,14 @@ main .btn { font-size: 1rem !important; }
 :is(main, body > footer, dialog) .opacity-50 { opacity: 0.70 !important; }
 :is(main, body > footer, dialog) .opacity-60 { opacity: 0.74 !important; }
 :is(main, body > footer, dialog) .opacity-70 { opacity: 0.80 !important; }
+/* То же для полупрозрачного цвета текста (text-base-content/50 и т.п.) —
+   им подписано почти всё в CRM и магазине: на белом 3.3:1, на сером 2.9:1.
+   Пороги чуть выше, чем у opacity: подписи часто стоят на сером фоне. */
+:is(main, dialog) :is(.text-base-content\/20, .text-base-content\/25, .text-base-content\/30,
+                      .text-base-content\/35, .text-base-content\/40) { color: oklch(var(--bc) / 0.72) !important; }
+:is(main, dialog) .text-base-content\/50 { color: oklch(var(--bc) / 0.74) !important; }
+:is(main, dialog) .text-base-content\/60 { color: oklch(var(--bc) / 0.78) !important; }
+:is(main, dialog) .text-base-content\/70 { color: oklch(var(--bc) / 0.82) !important; }
 
 /* Красный DaisyUI (#ff5861) на белом — 3.08:1. Им подписаны «убрать»
    и «отозвать»: действия, которые нельзя не разглядеть. */
@@ -185,7 +193,7 @@ main p, main span, main div { font-size: inherit; }
 }
 .nav-link.active {
     opacity: 1;
-    color: var(--current-color);
+    color: var(--current-color-text, var(--current-color));
 }
 
 .lang-btn.active {
@@ -199,7 +207,7 @@ main p, main span, main div { font-size: inherit; }
 }
 .submenu-link.active {
     background-color: white;
-    color: var(--current-color) !important;
+    color: var(--current-color-text, var(--current-color)) !important;
 }
 
 #submenuBar {
@@ -288,7 +296,7 @@ html.nav-compact #submenuBar {
 }
 
 .text-primary {
-    color: var(--current-color) !important;
+    color: var(--current-color-text, var(--current-color)) !important;
 }
 
 .btn-neutral.active {

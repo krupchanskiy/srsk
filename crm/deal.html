@@ -5,7 +5,7 @@
          к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
     <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <script src="../js/color-init.js?v=6"></script>
+    <script src="../js/color-init.js?v=7"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n-title="crm_deal_page_title">Сделка — CRM — ШРСК</title>
@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=23">
+    <link rel="stylesheet" href="../css/common.css?v=24">
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -659,10 +659,10 @@
 <script src="../js/config.js?v=5"></script>
 <script src="../js/auth-check.js?v=14"></script>
 <script src="../js/cache.js?v=2"></script>
-<script src="../js/utils.js?v=18"></script>
-<script src="../js/layout.js?v=117"></script>
+<script src="../js/utils.js?v=19"></script>
+<script src="../js/layout.js?v=118"></script>
 <script src="../js/date-utils.js?v=5"></script>
-<script src="../js/crm-utils.js?v=6"></script>
+<script src="../js/crm-utils.js?v=7"></script>
 <script src="../js/crm-cancel-reason.js?v=1"></script>
 <script src="../js/date-guard.js?v=1"></script>
 <script src="../js/prepayment-ops.js?v=4"></script>
@@ -991,7 +991,7 @@ function renderTags() {
     container.innerHTML = activeTags.length === 0
         ? `<span class="text-base-content/30 text-sm">${t('crm_no_tags')}</span>`
         : activeTags.map(tag => `
-            <span class="badge gap-1" style="background-color: ${tag.color}; color: white;">
+            <span class="badge gap-1" style="${Utils.badgeStyle(tag.color)}">
                 ${e(Layout.getName(tag))}
                 <button onclick="removeTag('${tag.id}')" class="hover:opacity-70">×</button>
             </span>
@@ -1835,7 +1835,7 @@ function renderTasksTab() {
                                 <div class="font-medium">${e(task.title)}</div>
                                 ${task.due_date ? `<div class="text-xs ${isOverdue ? 'text-error' : 'text-base-content/50'}">${CrmUtils.formatDate(task.due_date)}</div>` : ''}
                             </div>
-                            <span class="badge badge-sm" style="background-color: ${CrmUtils.PRIORITY_COLORS[task.priority]}; color: white;">
+                            <span class="badge badge-sm" style="${Utils.badgeStyle(CrmUtils.PRIORITY_COLORS[task.priority])}">
                                 ${t('crm_priority_' + task.priority) || task.priority}
                             </span>
                         </div>

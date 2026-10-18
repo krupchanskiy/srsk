@@ -529,7 +529,13 @@ function adjustHref(href) {
 // ==================== HELPERS ====================
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
-const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+// тёмный оттенок цвета модуля для букв (см. color-init.js)
+const ТЕКСТ_МОДУЛЯ = { '#f49800': '#9a5500', '#8b5cf6': '#6d28d9', '#10b981': '#047857',
+                       '#0d9488': '#0f766e', '#0284c7': '#0369a1' };
+const setColor = color => {
+    document.documentElement.style.setProperty('--current-color', color);
+    document.documentElement.style.setProperty('--current-color-text', ТЕКСТ_МОДУЛЯ[color] || color);
+};
 
 // ==================== DELEGATING WRAPPERS ====================
 // Делегирование к Utils (из utils.js)
