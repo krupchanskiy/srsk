@@ -312,6 +312,18 @@ main .tabs-boxed .tab {
     height: auto !important;
     min-height: 2.25rem !important;
 }
+/* Мелкие значки-кнопки (✕ у тега, стрелки порядка) под мышь хороши,
+   а пальцу нужно хотя бы 36px: на телефоне вместо ✕ попадали в сам тег */
+@media (pointer: coarse) {
+    .цельПальца {
+        min-width: 2.25rem !important;
+        min-height: 2.25rem !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
 /* на телефоне три вкладки по 20px отступа не помещаются в 343px:
    последняя уезжала за край */
 @media (max-width: 480px) {

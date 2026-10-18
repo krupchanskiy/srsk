@@ -38,7 +38,7 @@ const WorshipTags = (() => {
             ${свои.map(с => `
                 <span class="badge badge-outline gap-1">
                     <a class="link link-hover" href="search.html?tag=${с.tag_id}">${e(имена[с.tag_id])}</a>
-                    ${можноПравить ? `<button class="opacity-50 hover:opacity-100 hover:text-error transition-opacity"
+                    ${можноПравить ? `<button class="цельПальца opacity-50 hover:opacity-100 hover:text-error transition-opacity"
                                       data-снять="${с.id}" title="Убрать" aria-label="Убрать тег">✕</button>` : ''}
                 </span>`).join('')}
             ${можноПравить ? `

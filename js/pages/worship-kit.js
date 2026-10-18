@@ -198,13 +198,13 @@ const WorshipKit = (() => {
         if (!можноПисать()) return '';
         return `
         <div class="ручкиПункта flex items-center gap-0.5 no-print shrink-0">
-            <button class="btn btn-ghost btn-xs px-1" data-двигать="-1" data-id="${п.id}"
-                    title="Выше">↑</button>
-            <button class="btn btn-ghost btn-xs px-1" data-двигать="1" data-id="${п.id}"
-                    title="Ниже">↓</button>
-            ${п.note ? `<button class="btn btn-ghost btn-xs px-1" data-правитьТекст="${п.id}"
-                    title="Поправить текст">✎</button>` : ''}
-            <button class="btn btn-ghost btn-xs px-1 hover:text-error" data-убрать="${п.id}"
+            <button class="btn btn-ghost btn-xs px-1 цельПальца" data-двигать="-1" data-id="${п.id}"
+                    title="Выше" aria-label="Выше">↑</button>
+            <button class="btn btn-ghost btn-xs px-1 цельПальца" data-двигать="1" data-id="${п.id}"
+                    title="Ниже" aria-label="Ниже">↓</button>
+            ${п.note ? `<button class="btn btn-ghost btn-xs px-1 цельПальца" data-правитьТекст="${п.id}"
+                    title="Поправить текст" aria-label="Поправить текст">✎</button>` : ''}
+            <button class="btn btn-ghost btn-xs px-1 hover:text-error цельПальца" data-убрать="${п.id}"
                     title="Убрать из подборки" aria-label="Убрать из подборки">✕</button>
         </div>`;
     }
