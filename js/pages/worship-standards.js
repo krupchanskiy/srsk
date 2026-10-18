@@ -10,6 +10,9 @@ const WorshipStandards = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
     const $ = s => document.querySelector(s);
 
+    const ПОРОГ_СВОРАЧИВАНИЯ = 20;       // столько статей список держит развёрнутым
+    const КЛЮЧ_РАЗДЕЛОВ = 'worship_sections_collapsed';
+
     const можноПисать = () => !!window.hasPermission?.('worship_write');
     const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
 
@@ -227,6 +230,7 @@ const WorshipStandards = (() => {
                         ? '<button class="btn btn-sm mt-2" id="newSection" style="background: var(--current-color); color:#fff;">Создать первый раздел</button>'
                         : ''}
                 </div></div>`;
+            расставитьСостояния();
             return;
         }
 
@@ -243,36 +247,78 @@ const WorshipStandards = (() => {
                       `<li class="px-5 py-8 text-center opacity-60">${
                         фильтр.поиск ? 'Ничего не нашлось' : 'Утверждённых стандартов пока нет'}</li>`}
                 </ul></div>`;
+            расставитьСостояния();
             return;
         }
 
         const безРаздела = видимые.filter(с => !с.section_id);
+        // Пока статей десяток, свёрнутый список — лишний щелчок. Когда их
+        // станет полторы сотни, развёрнутые разделы превращаются в ленту,
+        // по которой до нужного раздела надо прокручивать экран за экраном
+        const сворачивать = видимые.length > ПОРОГ_СВОРАЧИВАНИЯ || разделы.length > 6;
+
         тело.innerHTML = разделы.map(р => {
             const свои = видимые.filter(с => с.section_id === р.id);
             // при поиске и в архиве пустые разделы только мешают считать
             if (!свои.length && фильтр.поиск) return '';
-            return `
-            <section class="разделСписка mb-6">
-                <div class="flex flex-wrap items-baseline gap-3 px-1 mb-1">
-                    <h2 class="text-base font-bold uppercase tracking-wide">${e(Layout.getName(р))}</h2>
-                    <span class="text-sm opacity-70">${свои.length}</span>
-                    ${р.is_active ? '' : '<span class="badge badge-sm">скрыт</span>'}
-                    <span class="flex-1"></span>
-                    ${можноПисать()
-                        ? `<a href="edit.html?section=${р.id}" class="btn btn-ghost btn-xs ручкиСтроки"
-                              title="Новая статья в этом разделе">+ статья</a>` : ''}
-                </div>
-                <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">
-                    ${свои.map(строкаСтатьи).join('') ||
-                      '<li class="px-5 py-4 text-sm opacity-70">Пока пусто</li>'}
-                </ul>
-            </section>`;
-        }).join('') + (безРаздела.length ? `
-            <section class="разделСписка mb-6">
-                <div class="px-1 mb-1"><h2 class="text-base font-bold uppercase tracking-wide opacity-70">Без раздела</h2></div>
-                <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">${
-                    безРаздела.map(строкаСтатьи).join('')}</ul>
-            </section>` : '');
+            return разделHTML(р.id, Layout.getName(р), свои, сворачивать, р);
+        }).join('') + (безРаздела.length
+            ? разделHTML('без-раздела', 'Без раздела', безРаздела, сворачивать, null) : '');
+
+        расставитьСостояния();
+    }
+
+    /** Раздел списка: заголовок со счётчиком и сворачиваемое содержимое. */
+    function разделHTML(id, имя, свои, сворачивать, раздел) {
+        const открыт = ищем() || !(сохранённые()[id] ?? сворачивать) ? ' open' : '';
+        return `
+        <details class="разделСписка mb-6" data-раздел-ключ="${e(id)}"${открыт}>
+            <summary class="flex flex-wrap items-baseline gap-2 px-1 mb-1 cursor-pointer select-none">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.5" stroke-linecap="round" aria-hidden="true"
+                     class="details-chevron transition-transform self-center opacity-60">
+                    <path d="M6 9l6 6 6-6"></path>
+                </svg>
+                <h2 class="text-base font-bold uppercase tracking-wide ${раздел ? '' : 'opacity-70'}">${e(имя)}</h2>
+                <span class="text-sm opacity-70">${свои.length}</span>
+                ${раздел && !раздел.is_active ? '<span class="badge badge-sm">скрыт</span>' : ''}
+                <span class="flex-1"></span>
+                ${раздел && можноПисать()
+                    ? `<a href="edit.html?section=${раздел.id}" class="btn btn-ghost btn-xs ручкиСтроки"
+                          title="Новая статья в этом разделе">+ статья</a>` : ''}
+            </summary>
+            <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">
+                ${свои.map(строкаСтатьи).join('') ||
+                  '<li class="px-5 py-4 text-sm opacity-70">Пока пусто</li>'}
+            </ul>
+        </details>`;
+    }
+
+    /**
+     * Какие разделы человек открыл или закрыл руками. Без этого раздел,
+     * открытый перед уходом в статью, закрывался бы при каждом возврате.
+     */
+    function сохранённые() {
+        try { return JSON.parse(localStorage.getItem(КЛЮЧ_РАЗДЕЛОВ) || '{}'); }
+        catch { return {}; }
+    }
+
+    function запомнитьРаздел(ключ, свёрнут) {
+        try {
+            const всё = сохранённые();
+            всё[ключ] = свёрнут;
+            localStorage.setItem(КЛЮЧ_РАЗДЕЛОВ, JSON.stringify(всё));
+        } catch { /* приватный режим — просто не запомним */ }
+    }
+
+    /** Кнопка «свернуть всё» имеет смысл, только когда разделов больше одного. */
+    function расставитьСостояния() {
+        const блоки = [...document.querySelectorAll('[data-раздел-ключ]')];
+        const кнопка = $('#свернутьВсё');
+        кнопка.hidden = блоки.length < 2 || ищем();
+        const всеОткрыты = блоки.every(б => б.open);
+        кнопка.textContent = всеОткрыты ? 'Свернуть всё' : 'Развернуть всё';
+        кнопка.dataset.действие = всеОткрыты ? 'свернуть' : 'развернуть';
     }
 
     /** Сколько нашлось и чем это отличается от полного списка. */
@@ -339,6 +385,29 @@ const WorshipStandards = (() => {
     function слушать() {
         if (фильтр.поиск) $('#q').value = фильтр.поиск;
         $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисовать(); });
+        // состояние раздела запоминается: toggle не всплывает, слушаем на погружении
+        document.addEventListener('toggle', ev => {
+            const блок = ev.target.closest?.('[data-раздел-ключ]');
+            if (!блок || ищем()) return;
+            запомнитьРаздел(блок.dataset.разделКлюч ?? блок.getAttribute('data-раздел-ключ'), !блок.open);
+            расставитьСостояния();
+        }, true);
+
+        // «+ статья» живёт в заголовке раздела: без этого щелчок по ней
+        // заодно сворачивал бы раздел
+        document.addEventListener('click', ev => {
+            if (ev.target.closest('summary a, summary button')) ev.stopPropagation();
+        });
+
+        $('#свернутьВсё').addEventListener('click', () => {
+            const развернуть = $('#свернутьВсё').dataset.действие === 'развернуть';
+            document.querySelectorAll('[data-раздел-ключ]').forEach(б => {
+                б.open = развернуть;
+                запомнитьРаздел(б.getAttribute('data-раздел-ключ'), !развернуть);
+            });
+            расставитьСостояния();
+        });
+
         document.addEventListener('click', ev => {
             if (!ev.target.closest('#сброситьПоиск')) return;
             фильтр.поиск = '';
