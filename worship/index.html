@@ -31,14 +31,14 @@
                     <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
                 </svg>
                 <input id="q" name="q" type="search" class="grow text-lg"
-                       placeholder="Как делается: одевание, арати, бхога…">
+                       data-i18n-placeholder="worship_search_hint" placeholder="Как делается: одевание, арати, бхога…">
             </label>
         </form>
 
         <!-- ждут решения: единственное место, где работа ждёт конкретного человека -->
         <section id="queueBox" hidden class="mb-5 rounded-xl border border-warning/40 bg-warning/10 p-4">
-            <h2 class="font-bold mb-1">Ждут вашего решения · <span id="queueCount">0</span></h2>
-            <p class="text-sm opacity-70 mb-3">Пока не утвердите, в храме действует прежняя редакция.</p>
+            <h2 class="font-bold mb-1"><span data-i18n="worship_queue_title">Ждут вашего решения</span> · <span id="queueCount">0</span></h2>
+            <p class="text-sm opacity-70 mb-3" data-i18n="worship_queue_hint">Пока не утвердите, в храме действует прежняя редакция.</p>
             <div class="flex flex-col gap-2" id="queueList"></div>
         </section>
 
@@ -48,8 +48,8 @@
                 <!-- лента: что поменялось в том, по чему служат -->
                 <div class="card bg-base-100 shadow">
                     <div class="card-body p-6">
-                        <h2 class="card-title text-lg mb-1">Что изменилось</h2>
-                        <p class="text-sm opacity-60 mb-2">Утверждённые правки за последние недели.</p>
+                        <h2 class="card-title text-lg mb-1" data-i18n="worship_feed_title">Что изменилось</h2>
+                        <p class="text-sm opacity-60 mb-2" data-i18n="worship_feed_hint">Утверждённые правки за последние недели.</p>
                         <ul class="list-none m-0 p-0" id="feed"></ul>
                     </div>
                 </div>
@@ -57,8 +57,8 @@
                 <!-- незаконченное: своё, а не чужое -->
                 <div class="card bg-base-100 shadow mt-5" id="draftsCard" hidden>
                     <div class="card-body p-6">
-                        <h2 class="card-title text-lg mb-1">Ваши черновики</h2>
-                        <p class="text-sm opacity-60 mb-2">Начатое и недописанное.</p>
+                        <h2 class="card-title text-lg mb-1" data-i18n="worship_drafts_title">Ваши черновики</h2>
+                        <p class="text-sm opacity-60 mb-2" data-i18n="worship_drafts_hint">Начатое и недописанное.</p>
                         <ul class="list-none m-0 p-0" id="drafts"></ul>
                     </div>
                 </div>
@@ -67,23 +67,23 @@
             <aside class="w-full desktop:w-80 shrink-0 flex flex-col gap-5">
                 <div class="card bg-base-100 shadow" id="marksCard" hidden>
                     <div class="card-body p-5">
-                        <h2 class="font-bold mb-2">Закладки</h2>
+                        <h2 class="font-bold mb-2" data-i18n="worship_marks_title">Закладки</h2>
                         <ul class="list-none m-0 p-0" id="marks"></ul>
                     </div>
                 </div>
 
                 <div class="card bg-base-100 shadow" id="recentCard" hidden>
                     <div class="card-body p-5">
-                        <h2 class="font-bold mb-2">Недавно открытое</h2>
+                        <h2 class="font-bold mb-2" data-i18n="worship_recent_title">Недавно открытое</h2>
                         <ul class="list-none m-0 p-0" id="recent"></ul>
                     </div>
                 </div>
 
                 <div class="card bg-base-100 shadow">
                     <div class="card-body p-5">
-                        <h2 class="font-bold mb-2">Разделы</h2>
+                        <h2 class="font-bold mb-2" data-i18n="worship_sections_title">Разделы</h2>
                         <ul class="list-none m-0 p-0" id="sections"></ul>
-                        <a href="standards.html" class="btn btn-sm btn-outline mt-3">Все стандарты</a>
+                        <a href="standards.html" class="btn btn-sm btn-outline mt-3" data-i18n="worship_all_standards">Все стандарты</a>
                     </div>
                 </div>
             </aside>
@@ -95,7 +95,7 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=97"></script>
+    <script src="../js/layout.js?v=98"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
     <script src="../js/pages/worship-home.js?v=3"></script>

@@ -22,7 +22,7 @@ const WorshipStandards = (() => {
         const ответы = await Promise.all([
             Layout.db.from('worship_sections')
                 .select('id, name_ru, name_en, name_hi, sort_order, is_active')
-                .eq('kind', 'standard').order('sort_order'),
+                .eq('kind', 'standard').order('sort_order').order('name_ru'),
             Layout.db.from('worship_articles')
                 .select('id, section_id, title, status, sort_order, updated_at, current_version_id')
                 .eq('kind', 'standard').order('sort_order'),
@@ -164,11 +164,19 @@ const WorshipStandards = (() => {
         const { data, error } = await Layout.db.rpc('worship_approve_many', { p_articles: список });
         if (error) return Layout.handleError(error, 'Утверждение');
 
+        // повтор — не утверждение: иначе отчёт говорит «утверждено пять»,
+        // когда на деле прошли две, а три уже действовали
         const строки = data?.строки || [];
         const плохие = строки.filter(с => !с.ok);
-        Layout.showNotification(плохие.length
-            ? `Утверждено ${строки.length - плохие.length} из ${строки.length}: ${плохие[0].ошибка}`
-            : `Утверждено: ${строки.length}`, плохие.length ? 'warning' : 'success');
+        const повторы = строки.filter(с => с.ok && с.повтор);
+        const свежие = строки.length - плохие.length - повторы.length;
+        const хвост = [
+            повторы.length ? `${повторы.length} уже действовали` : '',
+            плохие.length ? `${плохие.length} не прошли: ${плохие[0].ошибка}` : '',
+        ].filter(Boolean).join(', ');
+        Layout.showNotification(
+            `Утверждено: ${свежие}${хвост ? ' · ' + хвост : ''}`,
+            плохие.length ? 'warning' : 'success');
 
         if (await загрузить() && await дополнитьВерсиями()) рисовать();
     }
@@ -191,8 +199,11 @@ const WorshipStandards = (() => {
         }
 
         if (вид === 'flat') {
-            const порядок = [...видимые].sort((a, b) =>
-                new Date(b.утверждена || b.updated_at) - new Date(a.утверждена || a.updated_at));
+            // от самых давних к свежим и только действующее: этот список нужен,
+            // чтобы увидеть, что давно не пересматривали, а не «что нового»
+            const порядок = видимые
+                .filter(с => фильтр.архив || (с.status === 'published' && с.утверждена))
+                .sort((a, b) => new Date(a.утверждена || a.updated_at) - new Date(b.утверждена || b.updated_at));
             тело.innerHTML = `
                 <div class="card bg-base-100 shadow"><ul class="list-none m-0 p-0">
                     ${порядок.map(строкаСтатьи).join('') ||
@@ -296,6 +307,19 @@ const WorshipStandards = (() => {
             }
             if (ev.target.closest('[data-очередь]')) return обновитьОтмеченные();
             if (ev.target.closest('#approveMany')) return утвердитьОтмеченные();
+            const раздел = ev.target.closest('[data-раздел]');
+            if (раздел) return правитьРаздел(раздел.dataset.раздел, раздел.dataset.id);
+            if (ev.target.closest('#manageSections')) {
+                рисоватьРазделыВОкне();
+                $('#sectionsModal').showModal();
+                return;
+            }
+            if (ev.target.closest('#addSection')) {
+                const поле = $('#newSectionName');
+                const имя = поле.value;
+                поле.value = '';
+                return создатьРаздел(имя);
+            }
             if (ev.target.closest('#newSection')) return создатьРаздел();
             if (ev.target.closest('#newArticle')) {
                 location.href = 'edit.html';
@@ -303,16 +327,79 @@ const WorshipStandards = (() => {
         });
     }
 
-    async function создатьРаздел() {
-        const имя = prompt('Название раздела, например «Арати»');
-        if (!имя || !имя.trim()) return;
+    // ---------- разделы ----------
+    function рисоватьРазделыВОкне() {
+        $('#sectionsList').innerHTML = разделы.map((р, i) => {
+            const сколько = статьи.filter(с => с.section_id === р.id).length;
+            return `
+            <li class="flex flex-wrap items-center gap-2 border-b border-base-200 last:border-0 py-2">
+                <span class="flex-1 min-w-40 ${р.is_active ? '' : 'opacity-50'}">
+                    ${e(Layout.getName(р))}
+                    <span class="text-sm opacity-50">· ${сколько}</span>
+                    ${р.is_active ? '' : '<span class="badge badge-sm ml-1">скрыт</span>'}
+                </span>
+                <button class="btn btn-ghost btn-xs" data-раздел="вверх" data-id="${р.id}"
+                        ${i === 0 ? 'disabled' : ''} title="Выше">↑</button>
+                <button class="btn btn-ghost btn-xs" data-раздел="вниз" data-id="${р.id}"
+                        ${i === разделы.length - 1 ? 'disabled' : ''} title="Ниже">↓</button>
+                <button class="btn btn-ghost btn-xs" data-раздел="имя" data-id="${р.id}">Переименовать</button>
+                <button class="btn btn-ghost btn-xs" data-раздел="видимость" data-id="${р.id}">${
+                    р.is_active ? 'Скрыть' : 'Вернуть'}</button>
+            </li>`;
+        }).join('') || '<li class="py-2 text-sm opacity-60">Разделов пока нет</li>';
+    }
+
+    async function правитьРаздел(действие, id) {
+        const р = разделы.find(x => x.id === id);
+        if (!р) return;
+        let правка = null;
+
+        if (действие === 'имя') {
+            const имя = prompt('Название раздела', Layout.getName(р));
+            if (имя === null || !имя.trim()) return;
+            правка = { name_ru: имя.trim() };
+        } else if (действие === 'видимость') {
+            // раздел с содержимым не удаляется: его статьи остались бы без дома
+            правка = { is_active: !р.is_active };
+        } else {
+            const шаг = действие === 'вверх' ? -1 : 1;
+            const сосед = разделы[разделы.indexOf(р) + шаг];
+            if (!сосед) return;
+            // порядковые номера раздаём заново: по умолчанию они нулевые у всех
+            const номера = разделы.map((_, i) => i);
+            const свой = разделы.indexOf(р), чужой = разделы.indexOf(сосед);
+            const пары = разделы.map((x, i) => ({
+                id: x.id,
+                sort_order: i === свой ? номера[чужой] : i === чужой ? номера[свой] : номера[i],
+            }));
+            for (const пара of пары) {
+                const { error } = await Layout.db.from('worship_sections')
+                    .update({ sort_order: пара.sort_order, updated_at: new Date().toISOString() })
+                    .eq('id', пара.id);
+                if (error) return Layout.handleError(error, 'Порядок разделов');
+            }
+            if (await загрузить() && await дополнитьВерсиями()) { рисовать(); рисоватьРазделыВОкне(); }
+            return;
+        }
+
+        const { error } = await Layout.db.from('worship_sections')
+            .update({ ...правка, updated_at: new Date().toISOString(),
+                      updated_by: window.currentUser?.id || null })
+            .eq('id', id);
+        if (error) return Layout.handleError(error, 'Раздел');
+        if (await загрузить() && await дополнитьВерсиями()) { рисовать(); рисоватьРазделыВОкне(); }
+    }
+
+    async function создатьРаздел(имя) {
+        const название = (имя ?? prompt('Название раздела, например «Арати»') ?? '').trim();
+        if (!название) return;
         const { error } = await Layout.db.from('worship_sections').insert({
-            name_ru: имя.trim(),
+            name_ru: название,
             sort_order: разделы.length,
             created_by: window.currentUser?.id || null,
         });
         if (error) return Layout.handleError(error, 'Создание раздела');
-        if (await загрузить() && await дополнитьВерсиями()) рисовать();
+        if (await загрузить() && await дополнитьВерсиями()) { рисовать(); рисоватьРазделыВОкне(); }
     }
 
     async function init() {

@@ -24,12 +24,13 @@
 
         <div class="mb-5 flex flex-wrap items-end gap-3">
             <div class="flex-1 min-w-full desktop:min-w-0">
-                <h1 class="text-3xl font-bold tracking-tight">Стандарты</h1>
-                <p class="text-sm opacity-60 mt-1">Как делается служение. Здесь только утверждённое —
-                    обсуждения живут в чате.</p>
+                <h1 class="text-3xl font-bold tracking-tight" data-i18n="worship_standards_title">Стандарты</h1>
+                <p class="text-sm opacity-60 mt-1" data-i18n="worship_standards_hint">Как делается служение.
+                    Здесь только утверждённое — обсуждения живут в чате.</p>
             </div>
+            <button class="btn btn-sm btn-outline" id="manageSections" data-permission="worship_approve" data-i18n="worship_sections_title">Разделы</button>
             <button class="btn btn-sm" id="newArticle" data-permission="worship_write"
-                    style="background: var(--current-color); color: #fff;">Новая статья</button>
+                    style="background: var(--current-color); color: #fff;" data-i18n="worship_new_article">Новая статья</button>
         </div>
 
         <!-- поиск: отдел заходит сюда за конкретной статьёй -->
@@ -39,11 +40,11 @@
                      stroke-width="2" stroke-linecap="round" class="opacity-50" aria-hidden="true">
                     <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
                 </svg>
-                <input id="q" type="search" class="grow" placeholder="Искать: одевание, туласи, экадаши…">
+                <input id="q" type="search" class="grow" data-i18n-placeholder="worship_search_list_hint" placeholder="Искать: одевание, туласи, экадаши…">
             </label>
             <div class="join">
-                <button class="btn btn-sm join-item btn-active" data-view="sections">По разделам</button>
-                <button class="btn btn-sm join-item" data-view="flat">Списком</button>
+                <button class="btn btn-sm join-item btn-active" data-view="sections" data-i18n="worship_view_sections">По разделам</button>
+                <button class="btn btn-sm join-item" data-view="flat" data-i18n="worship_view_flat">Списком</button>
             </div>
         </div>
 
@@ -54,45 +55,66 @@
                      stroke-width="2" stroke-linecap="round" aria-hidden="true">
                     <circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>
                 </svg>
-                Ждут решения · <span id="queueCount">0</span>
+                <span data-i18n="worship_queue_short">Ждут решения</span> · <span id="queueCount">0</span>
             </h2>
-            <p class="text-sm opacity-70 mb-3">Пока не утвердите, в храме действует прежняя редакция.</p>
+            <p class="text-sm opacity-70 mb-3" data-i18n="worship_queue_hint">Пока не утвердите, в храме действует прежняя редакция.</p>
             <div class="flex flex-col gap-2" id="queueList"></div>
             <!-- первое наполнение — это полсотни статей за вечер, по одной их никто не утвердит -->
             <div class="flex flex-wrap items-center gap-3 mt-3">
                 <label class="label cursor-pointer justify-start gap-2 py-0">
                     <input type="checkbox" class="checkbox checkbox-sm" id="queueAll">
-                    <span class="label-text text-sm">Отметить все</span>
+                    <span class="label-text text-sm" data-i18n="worship_select_all">Отметить все</span>
                 </label>
-                <button class="btn btn-sm btn-success text-white" id="approveMany" disabled>
-                    Утвердить отмеченные</button>
+                <button class="btn btn-sm btn-success text-white" id="approveMany" disabled
+                        data-i18n="worship_approve_selected">Утвердить отмеченные</button>
             </div>
         </section>
 
         <!-- замечания рядом с очередью: это вторая стопка работы старшего -->
         <section id="remarksBox" hidden class="mb-5 rounded-xl border border-base-300 bg-base-100 p-4">
-            <h2 class="font-bold mb-1">Замечания от отдела · <span id="remarksCount">0</span></h2>
-            <p class="text-sm opacity-70 mb-3">Расхождение стандарта с жизнью, замеченное у алтаря.</p>
+            <h2 class="font-bold mb-1"><span data-i18n="worship_remarks_from">Замечания от отдела</span> · <span id="remarksCount">0</span></h2>
+            <p class="text-sm opacity-70 mb-3" data-i18n="worship_remarks_hint">Расхождение стандарта с жизнью, замеченное у алтаря.</p>
             <div class="flex flex-col gap-2" id="remarksList"></div>
         </section>
 
         <label class="label cursor-pointer justify-start gap-2 mb-3 w-fit">
             <input type="checkbox" class="checkbox checkbox-sm" id="showArchive">
-            <span class="label-text text-sm">Показать архив</span>
+            <span class="label-text text-sm" data-i18n="worship_only_archived">Только отменённые</span>
         </label>
 
         <div id="list"></div>
     </main>
+
+    <!-- разделы ведёт старший: название, порядок, скрыть неиспользуемый -->
+    <dialog id="sectionsModal" class="modal">
+        <div class="modal-box max-w-xl">
+            <h3 class="font-bold text-lg mb-1" data-i18n="worship_sections_title">Разделы</h3>
+            <p class="text-sm opacity-60 mb-4" data-i18n="worship_sections_modal_hint">Порядок задаёт стрелками.
+                Раздел с содержимым не удаляется — его можно скрыть: статьи останутся доступны
+                по ссылке и в поиске.</p>
+            <ul class="list-none m-0 p-0" id="sectionsList"></ul>
+            <div class="flex flex-wrap gap-2 mt-4">
+                <input id="newSectionName" type="text" class="input input-bordered input-sm flex-1 min-w-40"
+                       data-i18n-placeholder="worship_section_new" placeholder="Название нового раздела" maxlength="100">
+                <button class="btn btn-sm" id="addSection"
+                        style="background: var(--current-color); color:#fff;">Добавить</button>
+            </div>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Готово</button></form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
 
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=97"></script>
+    <script src="../js/layout.js?v=98"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/pages/worship-standards.js?v=8"></script>
+    <script src="../js/pages/worship-standards.js?v=11"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

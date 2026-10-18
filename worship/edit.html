@@ -51,10 +51,10 @@
         <div class="flex flex-wrap items-center gap-3 mb-4">
             <h1 class="text-2xl font-bold tracking-tight flex-1 min-w-full desktop:min-w-0" id="режим">Новая статья</h1>
             <span class="text-sm opacity-60" id="сохранение"></span>
-            <button class="btn btn-sm btn-ghost" id="отмена">Отменить правку</button>
-            <button class="btn btn-sm btn-outline" id="сохранить">Сохранить</button>
+            <button class="btn btn-sm btn-ghost" id="отмена" data-i18n="worship_cancel_edit">Отменить правку</button>
+            <button class="btn btn-sm btn-outline" id="сохранить" data-i18n="save">Сохранить</button>
             <button class="btn btn-sm" id="отправить"
-                    style="background: var(--current-color); color:#fff;">Отправить старшему</button>
+                    style="background: var(--current-color); color:#fff;" data-i18n="worship_send_senior">Отправить старшему</button>
         </div>
 
         <div id="конфликт" hidden class="rounded-xl border border-warning/40 bg-warning/10 p-4 mb-5">
@@ -69,12 +69,12 @@
         <div class="card bg-base-100 shadow mb-4">
             <div class="card-body p-5 desktop:p-6 gap-4">
                 <label class="form-control">
-                    <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60">Название</span></div>
+                    <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_title">Название</span></div>
                     <input id="заголовок" type="text" class="input input-bordered text-lg font-semibold"
                            placeholder="Например: Мангала-арати" maxlength="200">
                 </label>
                 <label class="form-control">
-                    <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60">Раздел</span></div>
+                    <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_section">Раздел</span></div>
                     <select id="раздел" class="select select-bordered"></select>
                 </label>
             </div>
@@ -97,7 +97,7 @@
         <div class="card bg-base-100 shadow">
             <div class="card-body p-5 desktop:p-8">
                 <div id="блоки"></div>
-                <p class="text-sm opacity-50 mt-4">
+                <p class="text-sm opacity-50 mt-4" data-i18n="worship_editor_hint">
                     Enter — новый абзац, Backspace в пустом — убрать блок.
                     Вставка приходит обычным текстом: оформление из Word не переносится.
                 </p>
@@ -108,17 +108,17 @@
             <div class="card-body p-5 desktop:p-6">
                 <label class="form-control">
                     <div class="label py-1">
-                        <span class="label-text text-xs uppercase tracking-widest opacity-60">Что изменилось</span>
+                        <span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_change">Что изменилось</span>
                     </div>
                     <input id="примечание" type="text" class="input input-bordered"
-                           placeholder="Одной строкой: что поменяли и почему" maxlength="200">
-                    <div class="label py-1"><span class="label-text-alt opacity-60">Старший увидит это в очереди, а отдел — в истории.</span></div>
+                           data-i18n-placeholder="worship_change_placeholder" placeholder="Одной строкой: что поменяли и почему" maxlength="200">
+                    <div class="label py-1"><span class="label-text-alt opacity-60" data-i18n="worship_change_hint">Старший увидит это в очереди, а отдел — в истории.</span></div>
                 </label>
             </div>
         </div>
 
         <div class="flex flex-wrap gap-2 mt-5">
-            <button class="btn btn-sm btn-ghost text-error" id="удалить" hidden>Удалить черновик</button>
+            <button class="btn btn-sm btn-ghost text-error" id="удалить" hidden data-i18n="worship_delete_draft">Удалить черновик</button>
         </div>
     </main>
 
@@ -129,7 +129,7 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=97"></script>
+    <script src="../js/layout.js?v=98"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
     <script src="../js/worship-doc.js?v=4"></script>

@@ -22,6 +22,7 @@
             #header-placeholder, #footer-placeholder, #actions,
             #toc, #historyCard, #remarksCard, #returned, .no-print { display: none !important; }
             main { max-width: none !important; padding: 0 !important; }
+            #printHeader { display: block !important; text-align: right; }
             .card { box-shadow: none !important; border: 0 !important; }
             body { background: #fff !important; }
             h2, h3 { break-after: avoid; }
@@ -35,6 +36,10 @@
 
     <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1060px;">
 
+        <!-- колонтитул только для бумаги: по листу на стене должно быть видно,
+             по какой версии служат и когда её утвердили -->
+        <div class="hidden print:block text-xs opacity-70 mb-2" id="printHeader"></div>
+
         <div class="text-sm mb-3" id="crumb"></div>
 
         <div class="flex flex-wrap items-start gap-3 mb-5">
@@ -47,7 +52,7 @@
 
         <!-- причина возврата: автору нужно видеть её над текстом, а не искать в истории -->
         <div id="returned" hidden class="rounded-xl border border-warning/40 bg-warning/10 p-4 mb-5">
-            <div class="font-bold mb-1">Старший вернул на доработку</div>
+            <div class="font-bold mb-1" data-i18n="worship_returned_title">Старший вернул на доработку</div>
             <div class="text-sm" id="returnReason"></div>
         </div>
 
@@ -57,7 +62,7 @@
             <aside id="toc" hidden class="w-full desktop:w-56 desktop:sticky desktop:top-32 shrink-0">
                 <div class="card bg-base-100 shadow">
                     <div class="card-body p-4">
-                        <div class="text-xs font-bold uppercase tracking-widest opacity-50 mb-2">Шаги</div>
+                        <div class="text-xs font-bold uppercase tracking-widest opacity-50 mb-2" data-i18n="worship_steps">Шаги</div>
                         <ul class="list-none m-0 p-0 space-y-1" id="tocList"></ul>
                     </div>
                 </div>
@@ -72,19 +77,20 @@
                 <div class="card bg-base-100 shadow mt-5" id="remarksCard">
                     <div class="card-body p-6">
                         <div class="flex flex-wrap items-center gap-3 mb-1">
-                            <h2 class="card-title text-lg flex-1 min-w-0">Замечания</h2>
-                            <button class="btn btn-sm btn-outline" id="addRemark">Сообщить о неточности</button>
+                            <h2 class="card-title text-lg flex-1 min-w-0" data-i18n="worship_remarks_title">Замечания</h2>
+                            <button class="btn btn-sm btn-outline" id="addRemark" data-i18n="worship_add_remark">Сообщить о неточности</button>
                         </div>
-                        <p class="text-sm opacity-60 mb-2">Короткая заметка уйдёт автору и старшему.
-                            Это не спор и не ветка обсуждения — поправит тот, кто правит статью.</p>
+                        <p class="text-sm opacity-60 mb-2" data-i18n="worship_remarks_article_hint">Короткая заметка
+                            уйдёт автору и старшему. Это не спор и не ветка обсуждения — поправит тот,
+                            кто правит статью.</p>
                         <ul class="list-none m-0 p-0" id="remarks"></ul>
                     </div>
                 </div>
 
                 <div class="card bg-base-100 shadow mt-5" id="historyCard">
                     <div class="card-body p-6">
-                        <h2 class="card-title text-lg mb-1">Как менялось</h2>
-                        <p class="text-sm opacity-60 mb-2">Прежние редакции сохраняются — видно, что и когда поменяли.</p>
+                        <h2 class="card-title text-lg mb-1" data-i18n="worship_history_title">Как менялось</h2>
+                        <p class="text-sm opacity-60 mb-2" data-i18n="worship_history_hint">Прежние редакции сохраняются — видно, что и когда поменяли.</p>
                         <ul class="list-none m-0 p-0" id="history"></ul>
                     </div>
                 </div>
@@ -96,16 +102,16 @@
          заметить, что два стандарта противоречат друг другу -->
     <dialog id="archiveModal" class="modal">
         <div class="modal-box">
-            <h3 class="font-bold text-lg mb-1">Отменить стандарт</h3>
-            <p class="text-sm opacity-60 mb-4">По нему перестанут служить. Текст останется
-                доступным по ссылке и в поиске, с пометкой «не действует».</p>
+            <h3 class="font-bold text-lg mb-1" data-i18n="worship_archive_title">Отменить стандарт</h3>
+            <p class="text-sm opacity-60 mb-4" data-i18n="worship_archive_hint">По нему перестанут служить.
+                Текст останется доступным по ссылке и в поиске, с пометкой «не действует».</p>
             <label class="form-control mb-3">
-                <div class="label py-1"><span class="label-text">Почему больше не действует</span></div>
+                <div class="label py-1"><span class="label-text" data-i18n="worship_archive_reason">Почему больше не действует</span></div>
                 <input id="archiveReason" type="text" class="input input-bordered"
                        placeholder="Одной строкой" maxlength="200">
             </label>
             <label class="form-control">
-                <div class="label py-1"><span class="label-text">Чем заменён</span></div>
+                <div class="label py-1"><span class="label-text" data-i18n="worship_archive_replaced">Чем заменён</span></div>
                 <select id="archiveReplacement" class="select select-bordered"></select>
                 <div class="label py-1"><span class="label-text-alt opacity-60">Связь будет видна на обеих статьях.</span></div>
             </label>
@@ -120,7 +126,7 @@
     <!-- сравнение: старший утверждает правку, видя, что именно в ней поменяли -->
     <dialog id="diffModal" class="modal">
         <div class="modal-box max-w-3xl">
-            <h3 class="font-bold text-lg mb-1">Что изменилось</h3>
+            <h3 class="font-bold text-lg mb-1" data-i18n="worship_diff_title">Что изменилось</h3>
             <p class="text-sm opacity-60 mb-4" id="diffSub"></p>
             <div class="text-[15px] leading-relaxed whitespace-pre-wrap" id="diffBody"></div>
             <div class="modal-action">
@@ -135,12 +141,12 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=97"></script>
+    <script src="../js/layout.js?v=98"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
     <script src="../js/worship-doc.js?v=4"></script>
-    <script src="../js/pages/worship-article.js?v=9"></script>
+    <script src="../js/pages/worship-article.js?v=10"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

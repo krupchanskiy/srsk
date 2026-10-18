@@ -20,6 +20,7 @@ const WorshipArticle = (() => {
     let статья = null, версии = [], показана = null, раздел = null;
     let снимки = {};                // путь → адрес ограниченного срока
     let замечания = [];
+    let имена = {};                 // user_id → как звать человека
     let вЗакладках = false;
     let заменяет = [];              // статьи, которые эта заменила собой
     let заменено = null;            // статья, которой заменили эту
@@ -30,7 +31,7 @@ const WorshipArticle = (() => {
         const [{ data: с, error: ош }, { data: вер, error: ошВ }] = await Promise.all([
             Layout.db.from('worship_articles').select('*').eq('id', id).maybeSingle(),
             Layout.db.from('worship_versions')
-                .select('id, status, version_no, title, doc, plain_text, change_note, created_by, created_at, updated_at, approved_at, approved_by')
+                .select('id, status, version_no, title, doc, plain_text, change_note, created_by, created_at, updated_at, approved_at, approved_by, return_reason, returned_at')
                 .eq('article_id', id).order('created_at'),
         ]);
         if (ош || ошВ) { Layout.handleError(ош || ошВ, 'Загрузка статьи'); return false; }
@@ -60,6 +61,16 @@ const WorshipArticle = (() => {
                 : Promise.resolve(),
         ]);
         заменяет = зам0.data || [];      // одним стандартом можно отменить несколько
+
+        // ТЗ просит в карточке версии автора и утвердившего: «кто это писал» —
+        // первый вопрос к незнакомому тексту
+        const кто = [...new Set(версии.flatMap(в => [в.created_by, в.approved_by]).filter(Boolean))];
+        if (кто.length) {
+            const { data: люди } = await Layout.db.from('vaishnavas')
+                .select('user_id, spiritual_name, first_name, last_name').in('user_id', кто);
+            имена = Object.fromEntries((люди || []).map(ч => [ч.user_id,
+                ч.spiritual_name || `${ч.first_name || ''} ${ч.last_name || ''}`.trim() || 'кто-то из отдела']));
+        }
         заменено = зам1.data || null;
         вЗакладках = !!з.data;
         замечания = зам.data || [];
@@ -122,10 +133,18 @@ const WorshipArticle = (() => {
         $('#title').textContent = показана?.title || статья.title;
         $('#state').innerHTML = строкаСостояния();
 
+        const угол = $('#printHeader');
+        if (угол) {
+            угол.textContent = показана?.status === 'published' && показана.approved_at
+                ? `${статья.title} · версия ${показана.version_no} · утверждена ${дата(показана.approved_at)}`
+                : '';
+        }
+
         // возврат автору виден только автору правки и старшему — остальным он ничего не говорит
-        const возврат = статья.return_reason && (можноПисать() || можноУтверждать());
+        const открытая = версии.find(в => в.status === 'draft' || в.status === 'submitted');
+        const возврат = открытая?.return_reason;
         $('#returned').hidden = !возврат;
-        if (возврат) $('#returnReason').textContent = статья.return_reason;
+        if (возврат) $('#returnReason').textContent = открытая.return_reason;
     }
 
     function рисоватьДействия() {
@@ -257,6 +276,9 @@ const WorshipArticle = (() => {
                     ${в.status === 'published' ? '<span class="badge badge-sm badge-success">сейчас</span>' : ''}
                     <span class="text-sm opacity-60">${дата(в.approved_at)}</span>
                 </div>
+                <div class="text-sm opacity-60">${
+                    имена[в.created_by] ? 'написал ' + e(имена[в.created_by]) : ''}${
+                    имена[в.approved_by] ? ' · утвердил ' + e(имена[в.approved_by]) : ''}</div>
                 ${в.change_note ? `<div class="text-sm mt-1">«${e(в.change_note)}»</div>` : ''}
                 <div class="flex gap-3 mt-1">
                     <button class="link text-sm" data-show="${в.id}">Открыть</button>
