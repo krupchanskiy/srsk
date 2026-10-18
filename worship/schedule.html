@@ -45,10 +45,14 @@
                 background: repeating-linear-gradient(45deg,
                     #fff 0 3px, #e8e8e8 3px 6px) !important;
             }
-            .дыраКнопка { border: 1px dashed #999 !important; min-height: 1.2rem; font-size: .62rem; }
+            /* «+ поставить» — кнопка экрана; на бумаге пустую клетку несёт штриховка */
+            .дыраКнопка { display: none !important; }
+            /* «сегодня» на листе, который висит неделю, ничего не значит */
             .клетка.сегодня, th.сегодня, #итогДней td.сегодня {
-                border-left: 1.5px solid #555 !important; border-right: 1.5px solid #555 !important;
+                border-left: 0 !important; border-right: 0 !important;
+                background-color: transparent;
             }
+            th.сегодня { color: inherit !important; background: transparent !important; }
             .клетка.своя { background: #fff !important; }
             #итогДней td { font-size: 10px; }
             tr, .клетка { break-inside: avoid; }
@@ -133,8 +137,8 @@
         #итогДней td.итогДыра { background: oklch(var(--wa) / .13); }
 
         @media print {
-            .клетка.дыра { background: #f5f5f5 !important; }
-            .дыраКнопка { border-color: #999 !important; }
+            /* второй блок печати раньше перебивал штриховку пустых клеток
+               сплошным серым — и на бумаге «пусто» и «закрыто» не отличались */
             .клетка.отменена { background: #eee !important; }
         }
     </style>
@@ -149,6 +153,8 @@
         <div class="дляПечати mb-3" style="border-bottom: 1.5px solid #555; padding-bottom: 4px;">
             <span style="font-size: 15px; font-weight: 700;">Расписание служб</span>
             <span style="float: right; font-size: 12px;" id="печатьПериод"></span>
+            <span style="display: block; font-size: 10px; color: #444; margin-top: 2px;">Штриховка — на службу
+                никто не поставлен. Серым с пометкой «в отъезде» — поставленный не придёт.</span>
         </div>
 
         <div class="flex flex-wrap items-end gap-3 mb-4 no-print">
@@ -429,7 +435,7 @@
     <script src="../js/layout.js?v=117"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=14"></script>
-    <script src="../js/pages/worship-schedule.js?v=33"></script>
+    <script src="../js/pages/worship-schedule.js?v=34"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

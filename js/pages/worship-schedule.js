@@ -302,7 +302,11 @@ const WorshipSchedule = (() => {
         $('#шапкаДней').innerHTML = '<th class="w-44">Служба</th>' + список.map((д, i) => `
             <th class="${д === сегодня ? 'сегодня text-[color:var(--current-color)]' : ''}">
                 ${ДНИ[(DateUtils.parseDate(д).getDay() + 6) % 7]}<span class="block text-xs font-normal">${
-                    д === сегодня ? 'сегодня' : DateUtils.formatShort(DateUtils.parseDate(д))}</span>
+                    д === сегодня
+                        // лист висит неделю: «сегодня» на бумаге через день уже неправда
+                        ? `<span class="no-print">сегодня</span><span class="дляПечати">${
+                            DateUtils.formatShort(DateUtils.parseDate(д))}</span>`
+                        : DateUtils.formatShort(DateUtils.parseDate(д))}</span>
             </th>`).join('');
 
         // строки идут по времени: разовая в 06:30 стоит выше бхоги в 08:00,
