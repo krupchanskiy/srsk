@@ -79,7 +79,7 @@
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h1 class="text-2xl font-bold" data-i18n="floor_plan_title">План этажа</h1>
             <div class="flex gap-2">
-                <a href="occupancy.html" class="btn btn-ghost gap-2">
+                <a href="residents-list.html" class="btn btn-ghost gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                     </svg>
@@ -279,7 +279,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=4"></script>
-    <script src="../js/layout.js?v=107"></script>
+    <script src="../js/layout.js?v=108"></script>
     <script>
         // ==================== STATE ====================
         let buildings = [];
@@ -647,7 +647,7 @@
         function addResidentToRoom() {
             closeRoomModal();
             // Redirect to occupancy page with pre-selected room
-            window.location.href = `occupancy.html?room=${selectedRoomId}`;
+            window.location.href = `residents-list.html?room=${selectedRoomId}`;
         }
 
         // ==================== UPLOAD MODAL ====================
@@ -809,7 +809,7 @@
         window.onLanguageChange = () => updateUI();
 
         async function init() {
-            await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'temp_floor_plan' });
+            await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'floor_plans' });
 
             [buildings, occupancy, occupancyWithBookings, departures] = await Promise.all([
                 loadBuildings(),

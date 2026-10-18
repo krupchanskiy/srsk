@@ -498,7 +498,7 @@ async function openBookingModal(bookingId) {
                         </div>
                     `).join('')}
                     ${pendingRooms.map(r => `
-                        <a href="occupancy.html?room=${r.room_id}" class="flex items-center justify-between p-2 bg-warning/10 rounded border border-warning/30 hover:bg-warning/20 transition-colors">
+                        <a href="../reception/residents-list.html?room=${r.room_id}" class="flex items-center justify-between p-2 bg-warning/10 rounded border border-warning/30 hover:bg-warning/20 transition-colors">
                             <div>
                                 <span class="font-medium">${Layout.currentLang === 'ru' ? r.building_name_ru : r.building_name_en || r.building_name_ru} / ${r.room_number}</span>
                             </div>

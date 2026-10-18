@@ -82,7 +82,7 @@
     <script src="../js/utils.js?v=13"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
-    <script src="../js/layout.js?v=107"></script>
+    <script src="../js/layout.js?v=108"></script>
     <script>
         // ==================== STATE ====================
         let currentTab = 'building_types';
@@ -433,7 +433,7 @@
 
         // ==================== INIT ====================
         async function init() {
-            await Layout.init({ module: 'housing', menuId: 'settings', itemId: 'reception_dictionaries' });
+            await Layout.init({ module: 'housing', menuId: 'settings', itemId: 'housing_dictionaries' });
             await loadData(currentTab);
         }
 

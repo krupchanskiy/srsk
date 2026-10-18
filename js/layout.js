@@ -443,7 +443,7 @@ function waitForAuth() {
 
 // Найти первый доступный модуль (для автопереключения)
 function getFirstAccessibleModule() {
-    const order = ['kitchen', 'housing', 'crm', 'finance', 'photos', 'portal', 'admin'];
+    const order = ['kitchen', 'housing', 'crm', 'finance', 'shop', 'worship', 'photos', 'portal', 'admin'];
     for (const id of order) {
         if (id === 'admin' && !window.currentUser?.is_superuser) continue;
         const config = filterMenuByPermissions(modules[id]?.menuConfig || []);
@@ -458,16 +458,24 @@ function getMenuConfig() {
     return filterMenuByPermissions(baseConfig);
 }
 
-// Список всех подпапок модулей
-const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception', 'settings', 'crm', 'guest-portal', 'photos', 'finance'];
+// Список подпапок модулей. Нужен только для подсказки: папку определяем
+// по адресу страницы, а не по этому списку — раньше список перечислялся
+// руками, и каждый новый модуль (магазин, поклонение) оказывался не внесён.
+// Из-за этого на его страницах КАЖДАЯ ссылка меню теряла «../» и вела
+// на несуществующий /worship/worship/standards.html.
+const MODULE_FOLDERS = ['kitchen', 'stock', 'ashram', 'vaishnavas', 'placement', 'reception',
+    'settings', 'crm', 'guest-portal', 'photos', 'finance', 'shop', 'worship'];
 
 // Определить текущую подпапку (если есть)
 function getCurrentFolder() {
-    const path = window.location.pathname;
-    for (const folder of MODULE_FOLDERS) {
-        if (path.includes('/' + folder + '/')) return folder;
-    }
-    return null;
+    // папку берём из самого адреса: /worship/article.html → worship,
+    // /worship/ → тоже worship. Так новый модуль работает сразу,
+    // без правки списка выше
+    const части = window.location.pathname.split('/').filter(Boolean);
+    if (!части.length) return null;                 // корень сайта
+    const последний = части[части.length - 1];
+    if (!последний.includes('.')) return последний; // адрес без имени файла
+    return части.length >= 2 ? части[части.length - 2] : null;
 }
 
 // Определить базовый путь (находимся ли в подпапке)
@@ -901,6 +909,17 @@ function buildLocationOptions() {
             finBtn.dataset.module = 'finance';
             finBtn.textContent = t('module_finance'); // безопасно
             el.appendChild(finBtn);
+        }
+
+        // Кнопка "Магазин" — по правам магазина
+        if (!window.hasPermission || ['shop_sell', 'shop_manage', 'shop_receive']
+                .some(п => window.hasPermission(п))) {
+            const shopBtn = document.createElement('button');
+            shopBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+            if (currentModule === 'shop') shopBtn.classList.add('font-medium');
+            shopBtn.dataset.module = 'shop';
+            shopBtn.textContent = t('module_shop');     // безопасно
+            el.appendChild(shopBtn);
         }
 
         // Кнопка "Поклонение" — по праву модуля; суперпользователь видит всегда

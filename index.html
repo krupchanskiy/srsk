@@ -79,8 +79,8 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
 
                 <!-- Kitchen Module -->
-                <a href="kitchen/menu.html" onclick="selectModule('kitchen')" data-color="#f59e0b"
-                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02]"
+                <a href="kitchen/menu.html" onclick="selectModule('kitchen')" id="kitchenModule" data-color="#f59e0b"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
                    style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
                     <div class="p-6">
                         <div class="flex items-center gap-4 mb-3">
@@ -102,8 +102,8 @@
                 </a>
 
                 <!-- Housing Module -->
-                <a href="placement/timeline.html" onclick="selectModule('housing')" data-color="#8b5cf6"
-                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02]"
+                <a href="placement/timeline.html" onclick="selectModule('housing')" id="housingModule" data-color="#8b5cf6"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
                    style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
                     <div class="p-6">
                         <div class="flex items-center gap-4 mb-3">
@@ -125,8 +125,8 @@
                 </a>
 
                 <!-- CRM Module -->
-                <a href="crm/dashboard.html" onclick="selectModule('crm')" data-color="#10b981"
-                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02]"
+                <a href="crm/index.html" onclick="selectModule('crm')" id="crmModule" data-color="#10b981"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
                    style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
                     <div class="p-6">
                         <div class="flex items-center gap-4 mb-3">
@@ -192,6 +192,29 @@
                     </div>
                 </a>
 
+                <!-- Shop Module (по правам магазина) -->
+                <a href="shop/till.html" onclick="selectModule('shop')" id="shopModule" data-color="#0284c7"
+                   class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
+                   style="background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%);">
+                    <div class="p-6">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-white">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12A1.125 1.125 0 0 1 19.75 22H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z" />
+                                </svg>
+                            </div>
+                            <h2 class="text-2xl font-bold text-white" data-i18n="module_shop">Магазин</h2>
+                        </div>
+                        <div class="flex flex-wrap gap-2 text-sm text-white/80">
+                            <span data-i18n="nav_shop_till">Касса</span>
+                            <span>•</span>
+                            <span data-i18n="nav_shop_goods">Товары</span>
+                            <span>•</span>
+                            <span data-i18n="nav_shop_shift">Смена</span>
+                        </div>
+                    </div>
+                </a>
+
                 <!-- Worship Module (по праву worship_view) -->
                 <a href="worship/index.html" onclick="selectModule('worship')" id="worshipModule" data-color="#6b4226"
                    class="module-card group rounded-2xl shadow-md hover:shadow-lg transition-all hover:scale-[1.02] hidden"
@@ -250,7 +273,7 @@
     <script src="js/utils.js?v=13"></script>
     <script src="js/translit.js"></script>
     <script src="js/auto-translate.js"></script>
-    <script src="js/layout.js?v=107"></script>
+    <script src="js/layout.js?v=108"></script>
     <script>
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
@@ -315,6 +338,23 @@
             if (window.hasPermission && (window.hasPermission('fin_admin') || window.hasPermission('fin_observer') || window.hasPermission('fin_account_user'))) {
                 document.getElementById('financeModule')?.classList.remove('hidden');
             }
+
+            // Плитка, ведущая туда, куда прав нет, выглядит как поломка:
+            // человек нажимает, страница мигает и возвращает на главную.
+            // Поэтому показываем только то, что человек действительно откроет
+            const кухонные = ['view_menu', 'view_menu_templates', 'view_recipes', 'view_products',
+                'view_kitchen_dictionaries', 'view_stock', 'view_requests', 'receive_stock',
+                'issue_stock', 'conduct_inventory', 'view_stock_settings'];
+            const жилищные = ['view_timeline', 'view_bookings', 'view_arrivals', 'view_departures',
+                'view_transfers', 'view_floor_plan', 'view_cleaning', 'view_rooms', 'view_buildings'];
+            const показать = (ид, можно) =>
+                document.getElementById(ид)?.classList.toggle('hidden', !можно);
+
+            показать('kitchenModule', кухонные.some(п => window.hasPermission?.(п)));
+            показать('housingModule', жилищные.some(п => window.hasPermission?.(п)));
+            показать('crmModule', !!window.hasPermission?.('view_crm'));
+            показать('shopModule', ['shop_sell', 'shop_manage', 'shop_receive']
+                .some(п => window.hasPermission?.(п)));
 
             // Показать модуль "Поклонение" тем, у кого есть доступ к нему
             if (window.hasPermission && window.hasPermission('worship_view')) {
