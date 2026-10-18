@@ -240,7 +240,6 @@ const modules = {
                 { id: 'worship_home', href: 'worship/index.html' },
                 { id: 'worship_standards', href: 'worship/standards.html' },
                 { id: 'worship_schedule', href: 'worship/schedule.html' },
-                { id: 'worship_people', href: 'worship/people.html' },
                 { id: 'worship_library', href: 'worship/library.html' },
                 { id: 'worship_gallery', href: 'worship/gallery.html' },
                 { id: 'worship_kits', href: 'worship/kits.html' }

@@ -80,6 +80,13 @@ const WorshipPeople = (() => {
             && а.date_from <= сегодня && (!а.date_to || а.date_to >= сегодня));
     };
 
+    /** Ближайший отъезд впереди: расписывают неделю, а не сегодняшний день. */
+    const отъездВпереди = id => {
+        const сегодня = DateUtils.toISO(new Date());
+        return отметки.filter(а => а.person_id === id && а.date_from > сегодня)
+            .sort((a, b) => a.date_from.localeCompare(b.date_from))[0];
+    };
+
     const служб = id => назначения.filter(н => н.person_id === id).length;
 
     // ---------- список ----------
@@ -96,7 +103,12 @@ const WorshipPeople = (() => {
                         <span class="font-semibold">${e(ч.имя)}</span>
                         ${ч.мой ? '<span class="badge badge-sm ml-1">это вы</span>' : ''}
                         ${ч.is_active ? '' : '<span class="badge badge-sm ml-1">не в отделе</span>'}
-                        ${вОтъездеСейчас(ч.id) ? '<span class="badge badge-sm badge-warning ml-1">в отъезде</span>' : ''}
+                        ${вОтъездеСейчас(ч.id)
+                            ? '<span class="badge badge-sm badge-warning ml-1">в отъезде</span>'
+                            : отъездВпереди(ч.id)
+                                ? `<span class="badge badge-sm ml-1">уезжает ${
+                                    DateUtils.formatShort(DateUtils.parseDate(отъездВпереди(ч.id).date_from))}</span>`
+                                : ''}
                         ${ч.безВхода ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>' : ''}
                         ${ч.безБота ? '<span class="badge badge-sm badge-ghost ml-1">бот не подключён</span>' : ''}
                         ${ч.active_to
@@ -122,7 +134,14 @@ const WorshipPeople = (() => {
         if (!можноВести()) return;
         const { data, error } = await Layout.db.rpc('worship_approvers_count');
         if (error) return;                       // отсутствие подсказки не ломает экран
-        $('#одинСтарший').hidden = (data ?? 2) > 1;
+        const сколько = data ?? 2;
+        $('#одинСтарший').hidden = сколько > 1;
+        if (сколько <= 1) {
+            $('#одинСтарший').textContent = сколько === 0
+                ? 'Права утверждения нет ни у кого: очередь правок и расписание стоят. Нужен старший пуджари.'
+                : 'В отделе один человек с правом утверждения. Уехал — очередь встала, расписание ' +
+                  'не двигается. Нужен второй.';
+        }
     }
 
     // ---------- карточка ----------
@@ -140,6 +159,9 @@ const WorshipPeople = (() => {
             открытый.телефон || null,
         ].filter(Boolean).join(' · ');
 
+        $('#кСрокС').value = открытый.active_from || '';
+        $('#кСрокПо').value = открытый.active_to || '';
+        $('#кСрокБлок').hidden = !можноВести();
         рисоватьСлужбыЧеловека();
         рисоватьДопуски();
         рисоватьОтметки();
@@ -238,8 +260,12 @@ const WorshipPeople = (() => {
                 .insert({ person_id: открытый.id, service_id: serviceId })
             : Layout.db.from('worship_person_services')
                 .delete().eq('person_id', открытый.id).eq('service_id', serviceId);
-        const { error } = await запрос;
+        const { data, error } = await запрос.select('person_id');
         if (error) { Layout.handleError(error, 'Допуск'); return false; }
+        if (!data?.length) {
+            Layout.showNotification('Не сохранилось: допуски ведёт старший пуджари', 'error');
+            return false;
+        }
         if (включить) открытый.допуск.add(serviceId); else открытый.допуск.delete(serviceId);
         return true;
     }
@@ -273,6 +299,30 @@ const WorshipPeople = (() => {
                   ru: ['назначение', 'назначения', 'назначений'],
                   en: ['duty', 'duties'], hi: 'सेवा' })} — старший заменит`
             : 'Отмечено', 'success');
+    }
+
+    /**
+     * Срок участия волонтёра: после него человек уходит из выбора сам,
+     * а старший получает предупреждение, если всё же ставит его в клетку.
+     */
+    async function записатьСрок() {
+        const с = $('#кСрокС').value || null;
+        const по = $('#кСрокПо').value || null;
+        if (с && по && по < с) {
+            Layout.showNotification('Дата окончания раньше начала', 'warning');
+            return false;
+        }
+        const { data, error } = await Layout.db.from('worship_people')
+            .update({ active_from: с, active_to: по, updated_at: new Date().toISOString(),
+                      updated_by: window.currentUser?.id || null })
+            .eq('id', открытый.id).select('id');
+        if (error) { Layout.handleError(error, 'Срок участия'); return false; }
+        if (!data?.length) {
+            Layout.showNotification('Не сохранилось: состав ведёт старший', 'error');
+            return false;
+        }
+        await перечитать();
+        return true;
     }
 
     async function исключить() {
@@ -320,7 +370,7 @@ const WorshipPeople = (() => {
         // свободный текст в фильтре PostgREST: запятая и скобка меняют условие
         const кав = '"' + `%${имя}%`.replace(/["\\]/g, '\\$&') + '"';
         const { data, error } = await Layout.db.from('vaishnavas')
-            .select('id, spiritual_name, first_name, last_name, user_id')
+            .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
             .or(`spiritual_name.ilike.${кав},first_name.ilike.${кав},last_name.ilike.${кав}`)
             .limit(20);
         if (error) return Layout.handleError(error, 'Поиск человека');
@@ -333,7 +383,10 @@ const WorshipPeople = (() => {
             <li class="border-b border-base-200 last:border-0 py-2 flex items-center gap-3">
                 <span class="flex-1 min-w-0">
                     <span class="font-semibold">${e(имя2)}</span>
-                    ${в.user_id ? '' : '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>'}
+                    ${!в.user_id
+                        ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>'
+                        : !в.telegram_chat_id
+                            ? '<span class="badge badge-sm badge-ghost ml-1">бот не подключён</span>' : ''}
                 </span>
                 ${уже.has(в.id)
                     ? '<span class="text-sm opacity-60">уже в отделе</span>'
@@ -411,6 +464,11 @@ const WorshipPeople = (() => {
             if (b.id === 'кДобавитьОтметку') return открытьОтметку(открытый.id);
             if (b.id === 'оtСохранить') return сохранитьОтметку();
             if (b.id === 'кИсключить') return исключить();
+            if (b.id === 'кСрокСохранить') {
+                const ок = await записатьСрок();
+                if (ок) Layout.showNotification('Срок участия сохранён', 'success');
+                return;
+            }
             if (b.id === 'кЗаметкаДобавить') {
                 const текст = $('#кЗаметкаТекст').value.trim();
                 if (!текст) return;

@@ -20,7 +20,7 @@
         @media print {
             @page { size: A4 landscape; margin: 10mm; }
             #header-placeholder, #footer-placeholder, #actions, #отклонения,
-            .no-print { display: none !important; }
+            #мои, .no-print { display: none !important; }
             main { max-width: none !important; padding: 0 !important; }
             .card { box-shadow: none !important; border: 0 !important; }
             body { background: #fff !important; }
@@ -45,6 +45,13 @@
                 <p class="text-sm opacity-60 mt-1" id="подзаголовок">&nbsp;</p>
             </div>
             <div class="flex flex-wrap gap-2 no-print" id="actions"></div>
+        </div>
+
+        <!-- люди отдела — вкладка рядом с шахматкой, а не отдельный раздел меню -->
+        <div role="tablist" class="tabs tabs-bordered mb-4 no-print w-fit">
+            <a role="tab" class="tab tab-active" href="schedule.html"
+               data-i18n="worship_schedule_title">Расписание</a>
+            <a role="tab" class="tab" href="people.html" data-i18n="worship_people_title">Люди отдела</a>
         </div>
 
         <div id="старшийОтъезд" hidden class="alert alert-warning mb-4 text-sm no-print"></div>
@@ -187,6 +194,34 @@
         <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
     </dialog>
 
+    <!-- «меня не будет»: ставится с телефона, в четыре утра, не будя старшего -->
+    <dialog id="отметкаМодал" class="modal">
+        <div class="modal-box max-w-md">
+            <h3 class="font-bold text-lg mb-1">Меня не будет</h3>
+            <p class="text-sm opacity-60 mb-3">Пока отметка стоит, на службу вас не поставят.
+                Старший увидит отметку в расписании — сообщение ему пока не уходит,
+                поэтому о срочном скажите голосом.</p>
+            <div class="flex flex-wrap gap-3 mb-3">
+                <label class="form-control">
+                    <span class="label-text text-xs mb-1">С какого дня</span>
+                    <input id="оtС" type="date" class="input input-bordered input-sm">
+                </label>
+                <label class="form-control">
+                    <span class="label-text text-xs mb-1">По какой (можно пусто)</span>
+                    <input id="оtПо" type="date" class="input input-bordered input-sm">
+                </label>
+            </div>
+            <input id="оtПричина" type="text" class="input input-bordered w-full" maxlength="200"
+                   placeholder="Причина: болезнь, отъезд, служение в другом месте">
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+                <button class="btn btn-sm" id="оtСохранить"
+                        style="background: var(--current-color); color:#fff;">Отметить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
     <!-- подтверждение: confirm() во встроенном браузере всегда «нет» -->
     <dialog id="подтверждение" class="modal">
         <div class="modal-box max-w-md">
@@ -206,10 +241,10 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=103"></script>
+    <script src="../js/layout.js?v=104"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/pages/worship-schedule.js?v=6"></script>
+    <script src="../js/pages/worship-schedule.js?v=8"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

@@ -22,8 +22,10 @@
 
     <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1060px;">
 
-        <div class="text-sm mb-3">
-            <a href="schedule.html" class="link link-hover opacity-70" data-i18n="worship_schedule_title">Расписание</a>
+        <div role="tablist" class="tabs tabs-bordered mb-4 w-fit">
+            <a role="tab" class="tab" href="schedule.html" data-i18n="worship_schedule_title">Расписание</a>
+            <a role="tab" class="tab tab-active" href="people.html"
+               data-i18n="worship_people_title">Люди отдела</a>
         </div>
 
         <div class="flex flex-wrap items-end gap-3 mb-4">
@@ -53,6 +55,25 @@
         <div class="modal-box max-w-2xl">
             <h3 class="font-bold text-xl mb-1" id="кИмя"></h3>
             <p class="text-sm opacity-60 mb-4" id="кПодпись"></p>
+
+            <!-- срок участия: у волонтёра он есть, у постоянного пуджари пуст -->
+            <div class="mb-4" id="кСрокБлок" hidden>
+                <h4 class="font-bold text-sm uppercase tracking-widest opacity-60 mb-2">Срок участия</h4>
+                <div class="flex flex-wrap items-end gap-3">
+                    <label class="form-control">
+                        <span class="label-text text-xs mb-1">С какого дня</span>
+                        <input id="кСрокС" type="date" class="input input-bordered input-sm">
+                    </label>
+                    <label class="form-control">
+                        <span class="label-text text-xs mb-1">По какой</span>
+                        <input id="кСрокПо" type="date" class="input input-bordered input-sm">
+                    </label>
+                    <button class="btn btn-sm" id="кСрокСохранить"
+                            style="background: var(--current-color); color:#fff;">Сохранить</button>
+                </div>
+                <p class="text-sm opacity-60 mt-1">После окончания срока человек уходит из выбора,
+                    а уже стоящие клетки помечаются.</p>
+            </div>
 
             <div class="mb-4">
                 <h4 class="font-bold text-sm uppercase tracking-widest opacity-60 mb-2">Ближайшие службы</h4>
@@ -115,7 +136,8 @@
         <div class="modal-box max-w-md">
             <h3 class="font-bold text-lg mb-1">Меня не будет</h3>
             <p class="text-sm opacity-60 mb-3">Пока отметка стоит, на службу вас не поставят.
-                Старший увидит, кого надо заменить.</p>
+                Старший увидит отметку в расписании — сообщение ему пока не уходит,
+                поэтому о срочном скажите голосом.</p>
             <div class="flex flex-wrap gap-3 mb-3">
                 <label class="form-control">
                     <span class="label-text text-xs mb-1">С какого дня</span>
@@ -156,10 +178,10 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=103"></script>
+    <script src="../js/layout.js?v=104"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/pages/worship-people.js?v=3"></script>
+    <script src="../js/pages/worship-people.js?v=4"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_people' });

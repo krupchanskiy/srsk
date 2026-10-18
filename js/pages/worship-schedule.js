@@ -19,9 +19,10 @@ const WorshipSchedule = (() => {
 
     let понедельник = ближайшийПонедельник(new Date());
     let выбранныйДень = DateUtils.toISO(new Date());
-    let вид = window.matchMedia('(max-width: 1199px)').matches ? 'день' : 'неделя';
+    let вид = window.matchMedia('(max-width: 900px)').matches ? 'день' : 'неделя';
 
-    let службы = [], люди = [], назначения = [], отклонения = [], отметки = [];
+    let службы = [], люди = [], назначения = [], отклонения = [], отметки = [], стандарты = [];
+    let мои = [], моиОтклонения = [];   // свои службы вперёд, независимо от открытой недели
     let яЧеловек = null;              // моя запись в отделе, если я в нём есть
     let клетка = null;                // что сейчас назначаем
 
@@ -91,13 +92,45 @@ const WorshipSchedule = (() => {
             яЧеловек = люди.find(ч => карточки[ч.vaishnava_id]?.user_id === window.currentUser?.id) || null;
         }
 
-        // допуски нужны для пометок в выборе человека
+        // допуски нужны для пометок в выборе человека и в клетке
         const { data: допуски } = await Layout.db.from('worship_person_services').select('person_id, service_id');
         люди.forEach(ч => {
             ч.допуск = new Set((допуски || [])
                 .filter(д => д.person_id === ч.id).map(д => д.service_id));
         });
+
+        // стандарты нужны, чтобы у службы можно было задать «как делается»
+        const { data: ст } = await Layout.db.from('worship_articles')
+            .select('id, title').eq('kind', 'standard').eq('status', 'published').order('title');
+        стандарты = ст || [];
+
+        await загрузитьМои();
         return true;
+    }
+
+    /**
+     * «Ваши ближайшие службы» — про завтра, а не про открытую неделю:
+     * в воскресенье вечером человек смотрит расписание ровно затем, чтобы
+     * увидеть понедельник, и листать за этим он не станет.
+     */
+    async function загрузитьМои() {
+        мои = [];
+        if (!яЧеловек) return;
+        const сегодня = DateUtils.toISO(new Date());
+        const { data } = await Layout.db.from('worship_duties')
+            .select('id, duty_date, service_id, override_id, role')
+            .eq('person_id', яЧеловек.id).gte('duty_date', сегодня)
+            .order('duty_date').limit(20);
+        мои = data || [];
+
+        // отменённые в эти дни службы из своего списка надо убрать:
+        // иначе человек встанет к службе, которой нет
+        const даты = [...new Set(мои.map(н => н.duty_date))];
+        if (!даты.length) return;
+        const { data: откл } = await Layout.db.from('worship_day_overrides')
+            .select('id, duty_date, service_id, title, time_of_day')
+            .in('duty_date', даты);
+        моиОтклонения = откл || [];
     }
 
     // ---------- вспомогательное ----------
@@ -111,6 +144,12 @@ const WorshipSchedule = (() => {
 
     const разовыеДня = день => отклонения.filter(о => о.title && о.duty_date === день);
 
+    /** Назначение, которое и правда закроет службу: человек в отделе и не в отъезде. */
+    const кто_придёт = (н, день) => {
+        const ч = человек(н.person_id);
+        return !!ч && ч.is_active !== false && !вОтъезде(ч.id, день);
+    };
+
     const вКлетке = (день, serviceId, overrideId) => назначения.filter(н =>
         н.duty_date === день &&
         (overrideId ? н.override_id === overrideId : н.service_id === serviceId));
@@ -118,19 +157,27 @@ const WorshipSchedule = (() => {
     // ---------- отрисовка недели ----------
     function рисоватьШапку() {
         const кнопки = ['<button class="btn btn-sm btn-outline" id="печать">Печать</button>'];
+        // отмечаются в четыре утра с телефона: кнопка должна быть там,
+        // где человек смотрит свою службу, а не в справочнике людей
+        if (яЧеловек) кнопки.unshift('<button class="btn btn-sm btn-outline" id="яНеСмогу">Меня не будет</button>');
         if (можноВести()) {
             кнопки.unshift('<button class="btn btn-sm btn-outline" id="копияНедели">Как на прошлой неделе</button>');
             кнопки.unshift('<button class="btn btn-sm btn-outline" id="вестиСлужбы">Службы</button>');
         }
         $('#actions').innerHTML = кнопки.join('');
 
+        // клетку закрывает только тот, кто придёт: отметившийся об отъезде
+        // и выведенный из отдела её не держат, а прошедшие дни не считаем
+        const сегодняISO = DateUtils.toISO(new Date());
         const пустых = службы.filter(с => с.is_active).reduce((сумма, с) =>
-            сумма + дни().filter(д => !отменена(с.id, д) && !вКлетке(д, с.id).length).length, 0);
+            сумма + дни().filter(д => д >= сегодняISO && !отменена(с.id, д)
+                && !вКлетке(д, с.id).some(н => кто_придёт(н, д))).length, 0);
         // неделя, которую не вели, и неделя, которую не закрыли, — разные вещи:
         // пустая шахматка в прошлом не должна читаться как обвинение
         const прошлая = дни()[6] < DateUtils.toISO(new Date());
         $('#подзаголовок').textContent = !службы.length
-            ? 'Служб пока нет — заведите их кнопкой «Службы»'
+            ? (можноВести() ? 'Служб пока нет — заведите их кнопкой «Службы»'
+                            : 'Служб пока нет: их заводит старший пуджари')
             : прошлая
                 ? (назначения.length ? 'Прошедшая неделя' : 'Эту неделю в системе не вели')
                 : пустых ? `На этой неделе не закрыто клеток: ${пустых}` : 'Все клетки недели закрыты';
@@ -147,30 +194,47 @@ const WorshipSchedule = (() => {
     }
 
     function рисоватьМои() {
-        if (!яЧеловек) { $('#мои').hidden = true; return; }
-        const сегодня = DateUtils.toISO(new Date());
-        const свои = назначения
-            .filter(н => н.person_id === яЧеловек.id && н.duty_date >= сегодня)
-            .sort((a, b) => a.duty_date.localeCompare(b.duty_date))
-            .slice(0, 5);
-        $('#мои').hidden = !свои.length;
-        if (!свои.length) return;
+        if (!яЧеловек || !мои.length) { $('#мои').hidden = true; return; }
 
-        $('#моиСписок').innerHTML = свои.map(н => {
-            const с = службы.find(x => x.id === н.service_id);
-            const о = отклонения.find(x => x.id === н.override_id);
-            const имя = с ? Layout.getName(с) : (о?.title || 'служба');
-            const время = (с?.time_of_day || о?.time_of_day || '').slice(0, 5);
-            return `
-            <li class="py-1 flex flex-wrap items-baseline gap-2">
-                <span class="font-semibold">${DateUtils.formatShort(DateUtils.parseDate(н.duty_date))}</span>
-                <span class="opacity-60">${e(время)}</span>
-                ${с?.article_id
-                    ? `<a class="link" href="article.html?id=${с.article_id}">${e(имя)}</a>`
-                    : `<span>${e(имя)}</span>`}
-                ${н.role !== 'pujari' ? `<span class="badge badge-sm">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
-            </li>`;
-        }).join('');
+        const отменён = н => н.service_id && моиОтклонения.some(о =>
+            о.service_id === н.service_id && о.duty_date === н.duty_date);
+        const живые = мои.filter(н => !отменён(н)).slice(0, 5);
+        const снятые = мои.filter(отменён);
+
+        $('#мои').hidden = !живые.length && !снятые.length;
+        $('#моиСписок').innerHTML = живые.map(н => строкаМоей(н)).join('') +
+            // о службе, которую отменили уже после назначения, человек должен
+            // узнать здесь, а не придя в храм
+            снятые.slice(0, 3).map(н => `
+            <li class="py-1 flex flex-wrap items-baseline gap-2 opacity-70">
+                <span class="font-semibold line-through">${
+                    DateUtils.formatShort(DateUtils.parseDate(н.duty_date))}</span>
+                <span class="line-through">${e(имяСлужбы(н))}</span>
+                <span class="badge badge-sm badge-warning">в этот день не проводится</span>
+            </li>`).join('');
+    }
+
+    const имяСлужбы = н => {
+        const с = службы.find(x => x.id === н.service_id);
+        if (с) return Layout.getName(с);
+        const о = [...отклонения, ...моиОтклонения].find(x => x.id === н.override_id);
+        return о?.title || 'служба';
+    };
+
+    function строкаМоей(н) {
+        const с = службы.find(x => x.id === н.service_id);
+        const о = [...отклонения, ...моиОтклонения].find(x => x.id === н.override_id);
+        const время = (с?.time_of_day || о?.time_of_day || '').slice(0, 5);
+        return `
+        <li class="py-1 flex flex-wrap items-baseline gap-2">
+            <span class="font-semibold">${
+                DateUtils.formatShort(DateUtils.parseDate(н.duty_date))}</span>
+            <span class="opacity-60">${e(время)}</span>
+            ${с?.article_id
+                ? `<a class="link" href="article.html?id=${с.article_id}">${e(имяСлужбы(н))}</a>`
+                : `<span>${e(имяСлужбы(н))}</span>`}
+            ${н.role !== 'pujari' ? `<span class="badge badge-sm">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
+        </li>`;
     }
 
     function рисоватьНеделю() {
@@ -182,21 +246,26 @@ const WorshipSchedule = (() => {
                     DateUtils.formatShort(DateUtils.parseDate(д))}</span>
             </th>`).join('');
 
-        const строки = службы.filter(с => с.is_active).map(с => `
+        // строки идут по времени: разовая в 06:30 стоит выше бхоги в 08:00,
+        // а не в конце таблицы, как «приложение к расписанию»
+        const ряды = [
+            ...службы.filter(с => с.is_active).map(с => ({ время: с.time_of_day, служба: с, разовая: null })),
+            ...отклонения.filter(о => о.title).map(о => ({ время: о.time_of_day, служба: null, разовая: о })),
+        ].sort((a, b) => (a.время || '').localeCompare(b.время || ''));
+
+        const строки = ряды.map(({ служба: с, разовая: о }) => с
+            ? `
             <tr>
                 <td class="align-top">
                     <span class="font-semibold">${e(Layout.getName(с))}</span>
                     <span class="block text-xs opacity-60">${e(с.time_of_day.slice(0, 5))}</span>
                     ${с.article_id
-                        ? `<a class="link text-xs no-print" href="article.html?id=${с.article_id}">как делается</a>` : ''}
+                        ? `<a class="link text-xs no-print" href="article.html?id=${с.article_id}">как делается</a>`
+                        : `<span class="text-xs opacity-40 no-print">стандарта нет</span>`}
                 </td>
                 ${список.map(д => клеткаHTML(д, с)).join('')}
-            </tr>`);
-
-        // разовые службы праздника: своя строка, занятая одним днём
-        const разовые = отклонения.filter(о => о.title);
-        разовые.forEach(о => {
-            строки.push(`
+            </tr>`
+            : `
             <tr>
                 <td class="align-top">
                     <span class="font-semibold">${e(о.title)}</span>
@@ -207,7 +276,6 @@ const WorshipSchedule = (() => {
                     ? клеткаHTML(д, null, о)
                     : '<td class="клетка opacity-30"></td>').join('')}
             </tr>`);
-        });
 
         $('#строкиСлужб').innerHTML = строки.join('') ||
             `<tr><td colspan="8" class="text-sm opacity-60 p-4">
@@ -251,24 +319,59 @@ const WorshipSchedule = (() => {
         return `<td class="клетка ${моя ? 'своя' : ''}">
             ${свои.map(н => {
                 const ч = человек(н.person_id);
-                const отъезд = ч && вОтъезде(ч.id, день);
+                const пометки = состоянияКлетки(н, ч, день, служба);
                 return `
                 <div class="flex items-start gap-1 mb-0.5">
-                    <a class="link link-hover text-sm flex-1 ${отъезд ? 'line-through opacity-60' : ''}"
+                    <a class="link link-hover text-sm flex-1 ${пометки.зачеркнуть ? 'line-through opacity-60' : ''}"
                        href="people.html?id=${н.person_id}">${e(ч?.имя || 'кто-то')}</a>
                     ${можноВести()
                         ? `<button class="btn btn-ghost btn-xs no-print px-1" data-снять="${н.id}"
                                    title="Снять">✕</button>` : ''}
                 </div>
-                ${н.role !== 'pujari'
-                    ? `<span class="badge badge-xs">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
-                ${отъезд ? '<span class="badge badge-xs badge-warning">в отъезде</span>' : ''}`;
+                <span class="badge badge-xs ${н.role === 'pujari' ? 'badge-ghost' : ''}">${
+                    e(РОЛИ[н.role] || н.role)}</span>
+                ${пометки.список.map(([т, к]) =>
+                    `<span class="badge badge-xs ${к} ml-0.5">${e(т)}</span>`).join('')}`;
             }).join('')}
             ${можноВести()
                 ? `<button class="btn btn-ghost btn-xs no-print opacity-50" data-клетка="${день}"
                            data-служба="${служба?.id || ''}" data-разовая="${разовая?.id || ''}">+ ещё</button>`
                 : ''}
         </td>`;
+    }
+
+    /**
+     * Старший возвращается к готовой шахматке через час и должен видеть то же,
+     * что система знала в момент назначения: кто без допуска, кто стоит на двух
+     * службах сразу, кому надо сказать голосом. В модалке это гаснет вместе с ней.
+     */
+    function состоянияКлетки(н, ч, день, служба) {
+        const список = [];
+        let зачеркнуть = false;
+
+        if (!ч) return { список, зачеркнуть };
+        if (вОтъезде(ч.id, день)) { список.push(['в отъезде', 'badge-warning']); зачеркнуть = true; }
+        if (ч.is_active === false) { список.push(['не в отделе', 'badge-warning']); зачеркнуть = true; }
+        if (ч.active_to && ч.active_to < день) { список.push(['срок участия истёк', 'badge-warning']); зачеркнуть = true; }
+        if (служба && !ч.допуск?.has(служба.id)) список.push(['без допуска', 'badge-ghost']);
+
+        // «занят в это же время» — именно по времени, а не по дню: при четырёх
+        // службах «в этот день» загорится у всех и перестанет что-либо значить
+        const время = служба?.time_of_day
+            || отклонения.find(о => о.id === н.override_id)?.time_of_day;
+        const рядом = назначения.find(д => д.duty_date === день && д.person_id === н.person_id
+            && д.id !== н.id
+            && (службы.find(с2 => с2.id === д.service_id)?.time_of_day
+                || отклонения.find(о => о.id === д.override_id)?.time_of_day) === время);
+        if (рядом) {
+            const где = службы.find(с2 => с2.id === рядом.service_id);
+            список.push([`в это же время на «${где ? Layout.getName(где) : 'другой службе'}»`, 'badge-error']);
+        }
+
+        if (ч.безВхода) список.push(['нет входа', 'badge-ghost']);
+        else if (ч.безБота) список.push(['без бота', 'badge-ghost']);
+
+        return { список, зачеркнуть };
     }
 
     // ---------- день ----------
@@ -304,9 +407,11 @@ const WorshipSchedule = (() => {
                                 ? `<span class="badge badge-xs">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
                             ${можноВести()
                                 ? `<button class="btn btn-ghost btn-xs" data-снять="${н.id}">✕</button>` : ''}`).join('')
-                        : `<span class="text-sm ${отмена ? 'opacity-40' : 'opacity-60'}">${
-                            отмена ? '' : 'никто не поставлен'}</span>`}
-                    ${можноВести() && !отмена
+                        : `<span class="text-sm ${отмена || д < DateUtils.toISO(new Date())
+                                ? 'opacity-40' : 'opacity-60'}">${
+                            отмена ? '' : (д < DateUtils.toISO(new Date())
+                                ? 'никого не ставили' : 'никто не поставлен')}</span>`}
+                    ${можноВести() && !отмена && д >= DateUtils.toISO(new Date())
                         ? `<button class="btn btn-xs btn-outline" data-клетка="${д}"
                                    data-служба="${служба?.id || ''}"
                                    data-разовая="${разовая?.id || ''}">поставить</button>` : ''}
@@ -367,17 +472,23 @@ const WorshipSchedule = (() => {
         const о = отклонения.find(x => x.id === overrideId);
         $('#нЗаголовок').textContent = `${с ? Layout.getName(с) : (о?.title || 'Служба')} — ${
             DateUtils.formatWithWeekday(DateUtils.parseDate(день))}`;
-        $('#нПодсказка').textContent = 'Пометки подсказывают, но не запрещают: решение за вами.';
+        $('#нПодсказка').textContent = 'Пометки подсказывают, но не запрещают — кроме отъезда: ' +
+            'пока человек отмечен, поставить его нельзя, сначала снимите отметку.';
         $('#нПоиск').value = '';
         $('#нРоль').value = 'pujari';
         рисоватьЛюдейДляКлетки();
         $('#назначение').showModal();
     }
 
+    const coalesceId = н => н.service_id || н.override_id;
+
     function рисоватьЛюдейДляКлетки() {
         const q = $('#нПоиск').value.trim().toLowerCase();
         const { день, serviceId } = клетка;
-        const уже = new Set(вКлетке(день, serviceId, клетка.overrideId).map(н => н.person_id));
+        const роль = $('#нРоль').value;
+        // «уже стоит» — в этой же роли: пуджари и киртания в одной клетке разные люди
+        const уже = new Set(вКлетке(день, serviceId, клетка.overrideId)
+            .filter(н => н.role === роль).map(н => н.person_id));
 
         const строки = люди
             .filter(ч => ч.is_active && (!q || ч.имя.toLowerCase().includes(q)))
@@ -385,8 +496,20 @@ const WorshipSchedule = (() => {
                 const пометки = [];
                 if (вОтъезде(ч.id, день)) пометки.push(['в отъезде', 'badge-error']);
                 if (serviceId && !ч.допуск.has(serviceId)) пометки.push(['нет допуска', 'badge-warning']);
-                if (назначения.some(н => н.duty_date === день && н.person_id === ч.id
-                        && !уже.has(ч.id))) пометки.push(['уже занят в этот день', 'badge-ghost']);
+                // «уже на Арати Туласи в это время» точнее, чем «занят в этот день»:
+                // при четырёх службах второе загорится у всех
+                const времяКлетки = службы.find(с2 => с2.id === serviceId)?.time_of_day
+                    || отклонения.find(о => о.id === клетка.overrideId)?.time_of_day;
+                const рядом = назначения.find(н => н.duty_date === день && н.person_id === ч.id
+                    && (службы.find(с2 => с2.id === н.service_id)?.time_of_day
+                        || отклонения.find(о => о.id === н.override_id)?.time_of_day) === времяКлетки
+                    && coalesceId(н) !== (serviceId || клетка.overrideId));
+                if (рядом) {
+                    const где = службы.find(с2 => с2.id === рядом.service_id);
+                    пометки.push([`уже на «${где ? Layout.getName(где) : 'другой службе'}» в это время`, 'badge-error']);
+                } else if (назначения.some(н => н.duty_date === день && н.person_id === ч.id && !уже.has(ч.id))) {
+                    пометки.push(['в этот день уже занят', 'badge-ghost']);
+                }
                 if (ч.active_to && ч.active_to < день) пометки.push(['срок участия истёк', 'badge-warning']);
                 if (ч.безВхода) пометки.push(['нет входа — скажите голосом', 'badge-ghost']);
                 else if (ч.безБота) пометки.push(['бот не подключён', 'badge-ghost']);
@@ -432,6 +555,11 @@ const WorshipSchedule = (() => {
                        data-служба-имя="${с.id}" maxlength="100">
                 <input type="time" class="input input-bordered input-sm w-28" value="${e(с.time_of_day.slice(0, 5))}"
                        data-служба-время="${с.id}">
+                <select class="select select-bordered select-sm w-44" data-служба-стандарт="${с.id}">
+                    <option value="">стандарта нет</option>
+                    ${стандарты.map(а => `<option value="${а.id}"${
+                        а.id === с.article_id ? ' selected' : ''}>${e(а.title)}</option>`).join('')}
+                </select>
                 <button class="btn btn-ghost btn-xs" data-служба-двигать="-1" data-id="${с.id}"
                         ${i === 0 ? 'disabled' : ''}>↑</button>
                 <button class="btn btn-ghost btn-xs" data-служба-двигать="1" data-id="${с.id}"
@@ -612,18 +740,27 @@ const WorshipSchedule = (() => {
             if (b.id === 'отменить') return открытьОтклонение('отмена');
             if (b.id === 'оСохранить') return сохранитьОтклонение();
             if (b.id === 'копияНедели') return копияНедели();
+            if (b.id === 'яНеСмогу') {
+                $('#оtС').value = DateUtils.toISO(new Date());
+                $('#оtПо').value = '';
+                $('#оtПричина').value = '';
+                return $('#отметкаМодал').showModal();
+            }
+            if (b.id === 'оtСохранить') return отметитьОтъезд();
         });
 
         // правка названия и времени службы — по уходу из поля
         document.addEventListener('change', async ev => {
             const имя = ev.target.closest('[data-служба-имя]');
             const время = ev.target.closest('[data-служба-время]');
-            if (!имя && !время) return;
-            const поле = имя || время;
-            const id = поле.getAttribute(имя ? 'data-служба-имя' : 'data-служба-время');
-            const правка = имя
-                ? { name_ru: поле.value.trim() }
-                : { time_of_day: поле.value };
+            const стандарт = ev.target.closest('[data-служба-стандарт]');
+            if (!имя && !время && !стандарт) return;
+            const поле = имя || время || стандарт;
+            const id = поле.getAttribute(имя ? 'data-служба-имя'
+                : время ? 'data-служба-время' : 'data-служба-стандарт');
+            const правка = имя ? { name_ru: поле.value.trim() }
+                : время ? { time_of_day: поле.value }
+                : { article_id: поле.value || null };
             if (имя && !правка.name_ru) return Layout.showNotification('Без названия службу не найти', 'warning');
             const ок = await записать(Layout.db.from('worship_services')
                 .update({ ...правка, updated_at: new Date().toISOString(),
@@ -654,6 +791,27 @@ const WorshipSchedule = (() => {
         рисоватьСлужбы();
     }
 
+    /** Своя отметка недоступности: то же, что на странице людей, но под рукой. */
+    async function отметитьОтъезд() {
+        const с = $('#оtС').value;
+        if (!с) return Layout.showNotification('Укажите, с какого дня', 'warning');
+
+        const { data, error } = await Layout.db.rpc('worship_absence_set', {
+            p_person: яЧеловек.id, p_from: с, p_to: $('#оtПо').value || null,
+            p_reason: $('#оtПричина').value.trim() || null,
+        });
+        if (error) return Layout.handleError(error, 'Недоступность');
+
+        $('#отметкаМодал').close();
+        await перечитать();
+        const клеток = data?.['назначений'] || 0;
+        Layout.showNotification(клеток
+            ? `Отмечено. На эти дни у вас ${Layout.pluralize(клеток, {
+                  ru: ['назначение', 'назначения', 'назначений'],
+                  en: ['duty', 'duties'], hi: 'सेवा' })} — старший увидит и заменит`
+            : 'Отмечено', 'success');
+    }
+
     async function копияНедели() {
         const прошлая = new Date(понедельник);
         прошлая.setDate(прошлая.getDate() - 7);
@@ -668,8 +826,13 @@ const WorshipSchedule = (() => {
 
         await перечитать();
         const недоступны = data?.['недоступны'] || [];
+        const перенесено = data?.['перенесено'] ?? 0;
+        const пропущено = data?.['пропущено'] ?? 0;
+        if (!перенесено && !пропущено) {
+            return Layout.showNotification('На прошлой неделе никого не ставили — переносить нечего', 'warning');
+        }
         Layout.showNotification(
-            `Перенесено: ${data?.['перенесено'] ?? 0}, пропущено: ${data?.['пропущено'] ?? 0}` +
+            `Перенесено: ${перенесено}, пропущено: ${пропущено}` +
             (недоступны.length ? `. В отъезде: ${недоступны.join(', ')}` : ''),
             'success');
     }
