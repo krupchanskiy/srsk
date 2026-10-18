@@ -66,6 +66,7 @@ npx playwright test tests/kitchen.spec.js --grep "название теста"
 | [docs/modules/housing.md](docs/modules/housing.md) | Люди, размещение, ресепшен |
 | [docs/modules/crm.md](docs/modules/crm.md) | Воронка продаж, сделки, задачи |
 | [docs/modules/guest-portal.md](docs/modules/guest-portal.md) | Портал гостя (отдельный дизайн) |
+| [docs/modules/worship.md](docs/modules/worship.md) | Поклонение: стандарты, утверждение, замечания |
 
 ---
 
@@ -160,6 +161,7 @@ Layout.t('save')      // "Сохранить" (i18n)
 | Housing | #8b5cf6 | vaishnavas/, placement/, reception/ |
 | CRM | #10b981 | crm/ |
 | Admin | #374151 | ashram/, settings/ (только superuser) |
+| Worship | #9b2226 | worship/ (стандарты пуджарского отдела) |
 | Guest Portal | — | guest-portal/ (отдельная конфигурация и дизайн) |
 
 Цвет модуля задаётся CSS-переменной `--current-color` через `color-init.js`.
