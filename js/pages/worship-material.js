@@ -220,8 +220,16 @@ const WorshipMaterial = (() => {
 
     function пометить() {
         грязно = true;
-        $('#сохранение').textContent = 'не сохранено';
-        $('#сохранение').className = 'text-sm text-warning';
+        состояние('не сохранено', 'text-sm text-warning');
+    }
+
+    /** Одно состояние на две кнопки: наверху страницы и в липкой полосе внизу. */
+    function состояние(текст, класс = 'text-sm opacity-60') {
+        [$('#сохранение'), $('#сохранениеНизу')].forEach(у => {
+            if (!у) return;
+            у.textContent = текст;
+            у.className = класс;
+        });
     }
 
     // ---------- сохранение ----------
@@ -241,8 +249,7 @@ const WorshipMaterial = (() => {
         }
 
         сохраняется = true;
-        $('#сохранение').textContent = 'сохраняю…';
-        $('#сохранение').className = 'text-sm opacity-60';
+        состояние('сохраняю…');
 
         const документ = собрать();
         // всё одним вызовом: у worship_articles нет политик записи, и обычный
@@ -265,50 +272,73 @@ const WorshipMaterial = (() => {
         сохраняется = false;
 
         if (error) {
-            $('#сохранение').textContent = 'не сохранено';
-            $('#сохранение').className = 'text-sm text-error';
+            состояние('не сохранено', 'text-sm text-error');
             Layout.handleError(error, 'Сохранение');
             return null;
         }
 
         грязно = false;
-        $('#сохранение').textContent = 'сохранено';
-        $('#сохранение').className = 'text-sm text-success';
+        состояние('сохранено', 'text-sm text-success');
 
         if (!id) {
             id = data.article_id;
             history.replaceState(null, '', `material.html?id=${id}`);
+            // теги появляются сразу: раньше блок оставался пустым до перезагрузки
+            WorshipTags.нарисовать($('#теги'), { article_id: id }, { можноПравить: true });
+            рисоватьШапку();
         }
         return data;
     }
 
     // ---------- вложения ----------
-    async function загрузитьФайл(файл) {
-        if (файл.size > ПРЕДЕЛ_ФАЙЛА) {
-            Layout.showNotification('Файл больше 200 МБ. Видео, которое есть на ютубе, добавьте ссылкой', 'warning');
-            return;
+    /**
+     * Книга сканами — это двадцать файлов, и выбирать их по одному означает
+     * двадцать кругов. Грузим пачкой той же очередью, что и снимки в галерее.
+     */
+    async function загрузитьФайлы(файлы) {
+        const слишком = файлы.filter(ф => ф.size > ПРЕДЕЛ_ФАЙЛА);
+        if (слишком.length) {
+            Layout.showNotification(
+                `Больше 200 МБ: ${слишком.map(ф => ф.name).join(', ')}. ` +
+                'Видео, которое есть на ютубе, добавьте ссылкой', 'warning');
         }
+        const годные = файлы.filter(ф => ф.size <= ПРЕДЕЛ_ФАЙЛА);
+        if (!годные.length) return;
         if (!id && !await сохранить()) return;   // файлу нужна карточка, к которой он относится
 
         $('#ходЗагрузки').hidden = false;
         $('#полоса').removeAttribute('value');
-        $('#ходПодпись').textContent = `Загружаю «${файл.name}»…`;
 
-        const путь = `${window.currentUser?.id}/${crypto.randomUUID()}-${файл.name.replace(/[^\w.-]+/g, '_')}`;
-        const { error } = await Layout.db.storage.from('worship')
-            .upload(путь, файл, { contentType: файл.type || 'application/octet-stream' });
+        const итог = await Media.очередь(годные, async файл => {
+            const путь = `${window.currentUser?.id}/${crypto.randomUUID()}-${
+                файл.name.replace(/[^\w.-]+/g, '_')}`;
+            const { error } = await Layout.db.storage.from('worship')
+                .upload(путь, файл, { contentType: файл.type || 'application/octet-stream' });
+            if (error) throw new Error(error.message);
+
+            const { error: ош } = await Layout.db.from('worship_attachments').insert({
+                article_id: id, kind: 'file', storage_path: путь, name: файл.name,
+                mime: файл.type || null, size_bytes: файл.size,
+                sort_order: вложения.length, created_by: window.currentUser?.id || null,
+            });
+            if (ош) throw new Error(ош.message);
+        }, {
+            наШаг: ({ номер, всего, файл, состояние, ошибка }) => {
+                const большой = файл.size > 20 * 1024 * 1024;
+                $('#ходПодпись').textContent = состояние === 'ошибка'
+                    ? `${файл.name} — не вышло: ${ошибка}`
+                    : `${номер} из ${всего}: ${файл.name}${
+                        состояние === 'идёт' && большой ? ' — файл большой, это надолго' : ''}`;
+                if (состояние !== 'идёт') $('#полоса').value = Math.round(номер / всего * 100);
+            },
+        });
 
         $('#ходЗагрузки').hidden = true;
-        if (error) return Layout.handleError(error, 'Загрузка файла');
-
-        const { error: ош } = await Layout.db.from('worship_attachments').insert({
-            article_id: id, kind: 'file', storage_path: путь, name: файл.name,
-            mime: файл.type || null, size_bytes: файл.size,
-            sort_order: вложения.length, created_by: window.currentUser?.id || null,
-        });
-        if (ош) return Layout.handleError(ош, 'Запись о файле');
         await перечитать();
-        Layout.showNotification('Файл приложен', 'success');
+        Layout.showNotification(итог.неудачи.length
+            ? `Приложено ${итог.удалось.length}, не вышло ${итог.неудачи.length}`
+            : `Приложено файлов: ${итог.удалось.length}`,
+            итог.неудачи.length ? 'warning' : 'success');
     }
 
     async function добавитьСсылку() {
@@ -416,9 +446,9 @@ const WorshipMaterial = (() => {
             $(s).addEventListener('input', пометить));
 
         $('#файл').addEventListener('change', async ev => {
-            const файл = ev.target.files?.[0];
+            const файлы = [...(ev.target.files || [])];
             ev.target.value = '';
-            if (файл) await загрузитьФайл(файл);
+            if (файлы.length) await загрузитьФайлы(файлы);
         });
 
         document.addEventListener('click', async ev => {
@@ -429,7 +459,7 @@ const WorshipMaterial = (() => {
 
             const b = ev.target.closest('button');
             if (!b) return;
-            if (b.id === 'сохранить') return сохранить();
+            if (b.id === 'сохранить' || b.id === 'сохранитьНизу') return сохранить();
             if (b.id === 'добавитьФайл') return $('#файл').click();
             if (b.id === 'добавитьСсылку') return добавитьСсылку();
 
@@ -474,7 +504,7 @@ const WorshipMaterial = (() => {
         слушать();
         window.applyPermissions?.();
         if (id) WorshipTags.нарисовать($('#теги'), { article_id: id }, { можноПравить: можноПисать() });
-        $('#сохранение').textContent = '';
+        состояние('');
     }
 
     return { init };

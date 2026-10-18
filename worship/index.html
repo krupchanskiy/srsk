@@ -42,9 +42,27 @@
             <div class="flex flex-col gap-2" id="queueList"></div>
         </section>
 
+        <!-- пустые клетки на завтра: их закрывают сегодня, а не в четыре утра -->
+        <section id="emptyCard" hidden class="mb-5 rounded-xl border border-base-300 bg-base-100 p-4">
+            <h2 class="font-bold mb-1">Пустые клетки на завтра · <span id="emptyCount">0</span></h2>
+            <p class="text-sm opacity-70 mb-2">Службы, на которые никто не поставлен.
+                <a class="link" href="schedule.html">Открыть расписание</a></p>
+            <ul class="list-none m-0 p-0" id="empty"></ul>
+        </section>
+
         <div class="flex flex-col desktop:flex-row gap-5 items-start">
 
             <div class="flex-1 min-w-0 w-full order-2 desktop:order-1">
+                <!-- что сейчас: главный вопрос к отделу -->
+                <div class="card bg-base-100 shadow mb-5" id="todayCard" hidden>
+                    <div class="card-body p-6">
+                        <h2 class="card-title text-lg mb-1">Службы сегодня</h2>
+                        <p class="text-sm opacity-60 mb-2">
+                            <a class="link" href="schedule.html">Вся неделя</a></p>
+                        <ul class="list-none m-0 p-0" id="today"></ul>
+                    </div>
+                </div>
+
                 <!-- лента: что поменялось в том, по чему служат -->
                 <div class="card bg-base-100 shadow">
                     <div class="card-body p-6">
@@ -106,10 +124,10 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=102"></script>
+    <script src="../js/layout.js?v=103"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/pages/worship-home.js?v=6"></script>
+    <script src="../js/pages/worship-home.js?v=7"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });

@@ -38,8 +38,12 @@ const WorshipTags = (() => {
                     ${можноПравить ? `<button class="text-error" data-снять="${с.id}" title="Убрать">✕</button>` : ''}
                 </span>`).join('')}
             ${можноПравить ? `
-                <input list="словарьТегов" class="input input-xs input-bordered w-40"
-                       placeholder="+ тег" data-новыйТег maxlength="60">
+                <span class="join">
+                    <input list="словарьТегов" class="input input-xs input-bordered w-40 join-item"
+                           placeholder="+ тег" data-новыйТег maxlength="60">
+                    <button class="btn btn-xs join-item" data-поставитьТег
+                            title="Добавить тег">+</button>
+                </span>
                 <datalist id="словарьТегов">
                     ${(словарь.data || []).map(т => `<option value="${e(т.name)}">`).join('')}
                 </datalist>` : ''}
@@ -48,7 +52,20 @@ const WorshipTags = (() => {
         if (!можноПравить || контейнер.dataset.слушает) return;
         контейнер.dataset.слушает = '1';
 
+        const добавитьИзПоля = async () => {
+            const поле2 = контейнер.querySelector('[data-новыйТег]');
+            const имя = поле2?.value.trim();
+            if (!имя) return;
+            поле2.value = '';
+            await поставить(цель, имя);
+            await нарисовать(контейнер, цель, { можноПравить });
+        };
+
         контейнер.addEventListener('click', async ev => {
+            if (ev.target.closest('[data-поставитьТег]')) {
+                ev.preventDefault();
+                return добавитьИзПоля();
+            }
             const снять = ev.target.closest('[data-снять]');
             if (!снять) return;
             const { error } = await Layout.db.from('worship_tag_links')
@@ -58,14 +75,9 @@ const WorshipTags = (() => {
         });
 
         контейнер.addEventListener('keydown', async ev => {
-            const поле2 = ev.target.closest('[data-новыйТег]');
-            if (!поле2 || ev.key !== 'Enter') return;
+            if (!ev.target.closest('[data-новыйТег]') || ev.key !== 'Enter') return;
             ev.preventDefault();
-            const имя = поле2.value.trim();
-            if (!имя) return;
-            поле2.value = '';
-            await поставить(цель, имя);
-            await нарисовать(контейнер, цель, { можноПравить });
+            await добавитьИзПоля();
         });
     }
 

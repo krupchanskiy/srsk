@@ -86,7 +86,9 @@ const WorshipLibrary = (() => {
                 </span>
                 <span class="text-sm opacity-60 whitespace-nowrap">${
                     м.author_name ? e(м.author_name) + ' · ' : ''}${
-                    файлов > 1 ? файлов + ' файла · ' : ''}${дата(м.updated_at)}</span>
+                    файлов > 1 ? Layout.pluralize(файлов, {
+                        ru: ['файл', 'файла', 'файлов'],
+                        en: ['file', 'files'], hi: 'फ़ाइल' }) + ' · ' : ''}${дата(м.updated_at)}</span>
             </a>
         </li>`;
     }
@@ -194,10 +196,16 @@ const WorshipLibrary = (() => {
     }
 
     async function применить(правка, id) {
-        const { error } = await Layout.db.from('worship_sections')
+        // отказ политики — это ноль строк, а не ошибка: без .select() раздел
+        // «сохраняется» на экране и остаётся прежним в базе
+        const { data, error } = await Layout.db.from('worship_sections')
             .update({ ...правка, updated_at: new Date().toISOString(),
                       updated_by: window.currentUser?.id || null })
-            .eq('id', id);
+            .eq('id', id).select('id');
+        if (!error && !data?.length) {
+            Layout.showNotification('Не сохранилось: разделы ведёт старший пуджари', 'error');
+            return;
+        }
         if (error) return Layout.handleError(error, 'Раздел');
         await перечитать();
     }

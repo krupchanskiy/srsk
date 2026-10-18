@@ -17,6 +17,41 @@ const WorshipKit = (() => {
     const id = new URLSearchParams(location.search).get('id');
     let подборка = null, пункты = [], выдачи = [], имена = {};
 
+    /** confirm() во встроенном браузере всегда отвечает «нет» — спрашиваем своей модалкой. */
+    function спросить(заголовок, текст) {
+        return new Promise(готово => {
+            $('#пдЗаголовок').textContent = заголовок;
+            $('#пдТекст').textContent = текст || '';
+            const окно = $('#подтверждение');
+            const да = $('#пдДа');
+            const обработчик = () => { окно.close(); готово(true); };
+            да.addEventListener('click', обработчик, { once: true });
+            окно.addEventListener('close', () => {
+                да.removeEventListener('click', обработчик);
+                готово(false);
+            }, { once: true });
+            окно.showModal();
+        });
+    }
+
+    /**
+     * RLS-отказ на UPDATE — это ноль строк, а не ошибка: без .select() человек
+     * видит «сохранено», а в базе остаётся старое. Поэтому каждая запись
+     * возвращает строку, и пустой ответ — тоже отказ.
+     */
+    async function записать(запрос, что) {
+        const { data, error } = await запрос.select('id');
+        if (error) { Layout.handleError(error, что); return false; }
+        if (!data?.length) {
+            Layout.showNotification('Не сохранилось: похоже, нет прав на эту запись', 'error');
+            return false;
+        }
+        return true;
+    }
+
+    /** Свободный текст в фильтре PostgREST: запятая и скобка меняют смысл условия. */
+    const вКавычках = s => '"' + String(s).replace(/["\\]/g, '\\$&') + '"';
+
     async function загрузить() {
         if (!id) return false;
         const [п, и, в] = await Promise.all([
@@ -89,7 +124,7 @@ const WorshipKit = (() => {
 
         if (п.article_id) {
             const а = имена.статьи[п.article_id];
-            if (!а) return '';
+            if (!а) return недоступен(номер, 'статья');
             const куда = а.kind === 'material' ? 'material' : 'article';
             return `
             <li class="py-3 border-b border-base-200 last:border-0">
@@ -106,7 +141,7 @@ const WorshipKit = (() => {
         }
 
         const н = имена.наборы[п.album_id];
-        if (!н) return '';
+        if (!н) return недоступен(номер, 'набор фотографий');
         return `
         <li class="py-3 border-b border-base-200 last:border-0">
             <div class="flex flex-wrap items-baseline gap-2">
@@ -119,6 +154,19 @@ const WorshipKit = (() => {
                     DateUtils.formatShort(DateUtils.parseDate(н.event_date))}</span>
             </div>
             ${ручки(п)}
+        </li>`;
+    }
+
+    /**
+     * Пункт, цель которого недоступна читателю (черновик, закрытый набор),
+     * раньше просто пропадал — дорожка шла «1, 2, 4» и человек гадал,
+     * что он пропустил.
+     */
+    function недоступен(номер, что) {
+        return `
+        <li class="py-3 border-b border-base-200 last:border-0 opacity-60">
+            <span class="opacity-40">${номер}.</span>
+            <span class="italic">этот пункт (${что}) сейчас недоступен</span>
         </li>`;
     }
 
@@ -218,50 +266,135 @@ const WorshipKit = (() => {
         else строка.article_id = значение;
 
         const { error } = await Layout.db.from('worship_kit_items').insert(строка);
-        if (error) return Layout.handleError(error, 'Пункт подборки');
+        if (error) {
+            // политика не пускает закрытый набор: сообщение понятнее сырого RLS
+            if (/row-level security/i.test(error.message || '')) {
+                return Layout.showNotification(
+                    'Закрытый или убранный в архив набор в подборку не кладётся', 'warning');
+            }
+            return Layout.handleError(error, 'Пункт подборки');
+        }
         $('#выборМодал').close();
         await перечитать();
     }
 
     // ---------- выдача ----------
     async function выдать(кому) {
+        const окно = $('#выдачаМодал');
+        const поиск = $('#вПоиск');
+
         if (кому === 'человек') {
-            const имя = prompt('Кому выдаём? Впишите часть имени.');
-            if (!имя || !имя.trim()) return;
-            const { data } = await Layout.db.from('vaishnavas')
-                .select('id, spiritual_name, first_name, last_name')
-                .or(`spiritual_name.ilike.%${имя.trim()}%,first_name.ilike.%${имя.trim()}%,last_name.ilike.%${имя.trim()}%`)
-                .limit(10);
-            if (!data?.length) return Layout.showNotification('Никого не нашлось', 'warning');
-
-            const список = data.map((ч, i) => `${i + 1}. ${
-                ч.spiritual_name || `${ч.first_name || ''} ${ч.last_name || ''}`.trim()}`).join('\n');
-            const выбор = prompt(`Кому именно?\n${список}\n\nВпишите номер:`);
-            const ч = data[Number(выбор) - 1];
-            if (!ч) return;
-
-            if (!confirm(`Выдать подборку «${подборка.title}»? Её содержимое увидит ${
-                ч.spiritual_name || ч.first_name} — в портале гостя, ещё до приезда.`)) return;
-
-            const { error } = await Layout.db.rpc('worship_kit_grant',
-                { p_kit: id, p_vaishnava: ч.id, p_retreat: null });
-            if (error) return Layout.handleError(error, 'Выдача подборки');
+            $('#вЗаголовок').textContent = 'Кому выдаём подборку?';
+            $('#вПодсказка').textContent = 'Содержимое увидит человек вне отдела — в портале гостя, ещё до приезда.';
+            поиск.hidden = false;
+            поиск.value = '';
+            $('#вСписок').innerHTML = '<li class="py-3 text-sm opacity-60">Впишите часть имени.</li>';
+            поиск.oninput = Layout.debounce(async () => {
+                const имя = поиск.value.trim();
+                if (имя.length < 2) {
+                    $('#вСписок').innerHTML = '<li class="py-3 text-sm opacity-60">Впишите хотя бы две буквы.</li>';
+                    return;
+                }
+                const кав = вКавычках(`%${имя}%`);
+                const { data, error } = await Layout.db.from('vaishnavas')
+                    .select('id, spiritual_name, first_name, last_name')
+                    .or(`spiritual_name.ilike.${кав},first_name.ilike.${кав},last_name.ilike.${кав}`)
+                    .limit(20);
+                if (error) return Layout.handleError(error, 'Поиск человека');
+                $('#вСписок').innerHTML = (data || []).map(ч => {
+                    const имя2 = ч.spiritual_name ||
+                        `${ч.first_name || ''} ${ч.last_name || ''}`.trim() || 'без имени';
+                    return `
+                    <li class="border-b border-base-200 last:border-0 py-2 flex items-center gap-3">
+                        <span class="flex-1 min-w-0 font-semibold">${e(имя2)}</span>
+                        <button class="btn btn-sm btn-outline" data-выдать-человеку="${ч.id}"
+                                data-имя="${e(имя2)}">Выдать</button>
+                    </li>`;
+                }).join('') || '<li class="py-3 text-sm opacity-60">Никого не нашлось</li>';
+            }, 300);
         } else {
-            const { data } = await Layout.db.from('retreats')
-                .select('id, name_ru, start_date').order('start_date', { ascending: false }).limit(10);
-            if (!data?.length) return Layout.showNotification('Ретритов нет', 'warning');
-            const список = data.map((р, i) => `${i + 1}. ${р.name_ru} (${р.start_date})`).join('\n');
-            const выбор = prompt(`Какому ретриту?\n${список}\n\nВпишите номер:`);
-            const р = data[Number(выбор) - 1];
-            if (!р) return;
-
-            if (!confirm(`Выдать подборку всем участникам ретрита «${р.name_ru}»?`)) return;
-            const { error } = await Layout.db.rpc('worship_kit_grant',
-                { p_kit: id, p_vaishnava: null, p_retreat: р.id });
-            if (error) return Layout.handleError(error, 'Выдача подборки');
+            $('#вЗаголовок').textContent = 'Какому ретриту?';
+            $('#вПодсказка').textContent = 'Подборку получат волонтёры и команда ретрита — гости и важные гости нет.';
+            поиск.hidden = true;
+            const { data, error } = await Layout.db.from('retreats')
+                .select('id, name_ru, name_en, name_hi, start_date')
+                .order('start_date', { ascending: false }).limit(20);
+            if (error) return Layout.handleError(error, 'Ретриты');
+            $('#вСписок').innerHTML = (data || []).map(р => `
+                <li class="border-b border-base-200 last:border-0 py-2 flex items-center gap-3">
+                    <span class="flex-1 min-w-0">
+                        <span class="font-semibold">${e(Layout.getName(р))}</span>
+                        <span class="block text-sm opacity-60">${
+                            DateUtils.formatShort(DateUtils.parseDate(р.start_date))}</span>
+                    </span>
+                    <button class="btn btn-sm btn-outline" data-выдать-ретриту="${р.id}"
+                            data-имя="${e(Layout.getName(р))}">Выдать</button>
+                </li>`).join('') || '<li class="py-3 text-sm opacity-60">Ретритов нет</li>';
         }
+        окно.showModal();
+    }
+
+    async function выдачу(кому, значение, имя) {
+        const согласен = await спросить(
+            кому === 'человек' ? 'Выдать подборку?' : 'Выдать подборку всему ретриту?',
+            кому === 'человек'
+                ? `Содержимое подборки «${подборка.title}» увидит ${имя} — в портале гостя, ещё до приезда.`
+                : `Подборку «${подборка.title}» получат волонтёры и команда ретрита «${имя}».`);
+        if (!согласен) return;
+
+        const { error } = await Layout.db.rpc('worship_kit_grant', {
+            p_kit: id,
+            p_vaishnava: кому === 'человек' ? значение : null,
+            p_retreat: кому === 'человек' ? null : значение,
+        });
+        if (error) return Layout.handleError(error, 'Выдача подборки');
+        $('#выдачаМодал').close();
         await перечитать();
         Layout.showNotification('Выдано', 'success');
+    }
+
+    function правитьПодборку() {
+        $('#пНазвание').value = подборка.title || '';
+        $('#пОписание').value = подборка.description || '';
+        $('#пЯзык').value = подборка.lang || 'ru';
+        $('#правкаМодал').showModal();
+    }
+
+    async function сохранитьПодборку() {
+        const название = $('#пНазвание').value.trim();
+        if (!название) return Layout.showNotification('Без названия подборку не найти', 'warning');
+        const ок = await записать(Layout.db.from('worship_kits').update({
+            title: название,
+            description: $('#пОписание').value.trim() || null,
+            lang: $('#пЯзык').value,
+            updated_at: new Date().toISOString(),
+            updated_by: window.currentUser?.id || null,
+        }).eq('id', id), 'Подборка');
+        if (!ок) return;
+        $('#правкаМодал').close();
+        await перечитать();
+    }
+
+    /** Свой текст между пунктами: новый, если пункт не передан. */
+    let правимПункт = null;
+    function правитьТекстПункта(п) {
+        правимПункт = п || null;
+        $('#тТекст').value = п?.note || '';
+        $('#текстМодал').showModal();
+    }
+
+    async function сохранитьТекстПункта() {
+        const текст = $('#тТекст').value.trim();
+        if (!текст) return Layout.showNotification('Пустую связку добавлять незачем', 'warning');
+        if (!правимПункт) {
+            $('#текстМодал').close();
+            return положить('note', текст);
+        }
+        const ок = await записать(Layout.db.from('worship_kit_items')
+            .update({ note: текст }).eq('id', правимПункт.id), 'Пункт');
+        if (!ок) return;
+        $('#текстМодал').close();
+        await перечитать();
     }
 
     async function перечитать() {
@@ -275,11 +408,7 @@ const WorshipKit = (() => {
 
             const добавить = ev.target.closest('[data-добавить]');
             if (добавить) {
-                if (добавить.dataset.добавить === 'note') {
-                    const текст = prompt('Свой текст между пунктами: «сначала прочти это, потом посмотри, как выглядит»');
-                    if (!текст || !текст.trim()) return;
-                    return положить('note', текст.trim());
-                }
+                if (добавить.dataset.добавить === 'note') return правитьТекстПункта(null);
                 return выбрать(добавить.dataset.добавить);
             }
 
@@ -290,28 +419,31 @@ const WorshipKit = (() => {
                 if (i < 0 || j < 0 || j >= пункты.length) return;
                 // порядок задаёт составитель: меняем местами двумя запросами,
                 // пунктов в дорожке единицы
-                await Layout.db.from('worship_kit_items')
-                    .update({ sort_order: пункты[j].sort_order }).eq('id', пункты[i].id);
-                await Layout.db.from('worship_kit_items')
-                    .update({ sort_order: пункты[i].sort_order }).eq('id', пункты[j].id);
+                const ок = await записать(Layout.db.from('worship_kit_items')
+                    .update({ sort_order: пункты[j].sort_order }).eq('id', пункты[i].id), 'Порядок');
+                if (!ок) return;
+                await записать(Layout.db.from('worship_kit_items')
+                    .update({ sort_order: пункты[i].sort_order }).eq('id', пункты[j].id), 'Порядок');
                 return перечитать();
             }
 
             const правитьТекст = ev.target.closest('[data-правитьТекст]');
             if (правитьТекст) {
-                const п = пункты.find(x => x.id === правитьТекст.dataset.правитьтекст
-                                        || x.id === правитьТекст.getAttribute('data-правитьТекст'));
-                const текст = prompt('Текст между пунктами', п?.note || '');
-                if (текст === null || !текст.trim()) return;
-                const { error } = await Layout.db.from('worship_kit_items')
-                    .update({ note: текст.trim() }).eq('id', п.id);
-                if (error) return Layout.handleError(error, 'Пункт');
-                return перечитать();
+                const пид = правитьТекст.getAttribute('data-правитьТекст');
+                return правитьТекстПункта(пункты.find(x => x.id === пид));
             }
+
+            const выдатьЧ = ev.target.closest('[data-выдать-человеку]');
+            if (выдатьЧ) return выдачу('человек', выдатьЧ.dataset.выдатьЧеловеку
+                || выдатьЧ.getAttribute('data-выдать-человеку'), выдатьЧ.dataset.имя);
+
+            const выдатьР = ev.target.closest('[data-выдать-ретриту]');
+            if (выдатьР) return выдачу('ретрит', выдатьР.getAttribute('data-выдать-ретриту'),
+                выдатьР.dataset.имя);
 
             const убрать = ev.target.closest('[data-убрать]');
             if (убрать) {
-                if (!confirm('Убрать пункт из подборки?')) return;
+                if (!await спросить('Убрать пункт из подборки?')) return;
                 const { error } = await Layout.db.from('worship_kit_items')
                     .delete().eq('id', убрать.dataset.убрать);
                 if (error) return Layout.handleError(error, 'Пункт');
@@ -320,7 +452,8 @@ const WorshipKit = (() => {
 
             const отозвать = ev.target.closest('[data-отозвать]');
             if (отозвать) {
-                if (!confirm('Отозвать выдачу? Доступ к содержимому закроется сразу.')) return;
+                if (!await спросить('Отозвать выдачу?',
+                    'Доступ к содержимому закроется сразу.')) return;
                 const { error } = await Layout.db.rpc('worship_kit_revoke',
                     { p_grant: отозвать.dataset.отозвать });
                 if (error) return Layout.handleError(error, 'Отзыв выдачи');
@@ -329,28 +462,19 @@ const WorshipKit = (() => {
 
             const b = ev.target.closest('button');
             if (!b) return;
+            if (b.id === 'пСохранить') return сохранитьПодборку();
+            if (b.id === 'тСохранить') return сохранитьТекстПункта();
             if (b.id === 'печать') return print();
             if (b.id === 'выдатьЧеловеку') return выдать('человек');
             if (b.id === 'выдатьРетриту') return выдать('ретрит');
             if (b.id === 'включение') {
-                const { error } = await Layout.db.from('worship_kits')
+                const ок = await записать(Layout.db.from('worship_kits')
                     .update({ is_active: !подборка.is_active, updated_at: new Date().toISOString(),
-                              updated_by: window.currentUser?.id || null }).eq('id', id);
-                if (error) return Layout.handleError(error, 'Подборка');
-                return перечитать();
+                              updated_by: window.currentUser?.id || null }).eq('id', id), 'Подборка');
+                if (ок) return перечитать();
+                return;
             }
-            if (b.id === 'правка') {
-                const название = prompt('Название подборки', подборка.title);
-                if (название === null || !название.trim()) return;
-                const описание = prompt('Описание: для кого и когда', подборка.description || '');
-                if (описание === null) return;
-                const { error } = await Layout.db.from('worship_kits').update({
-                    title: название.trim(), description: описание.trim() || null,
-                    updated_at: new Date().toISOString(), updated_by: window.currentUser?.id || null,
-                }).eq('id', id);
-                if (error) return Layout.handleError(error, 'Подборка');
-                return перечитать();
-            }
+            if (b.id === 'правка') return правитьПодборку();
         });
     }
 

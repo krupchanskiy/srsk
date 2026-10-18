@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=4"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Расписание — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=8">
+    <style>
+        /* Неделю печатают и вешают в пуджарской: альбомный A4, без ручек. */
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; }
+            #header-placeholder, #footer-placeholder, #actions, #отклонения,
+            .no-print { display: none !important; }
+            main { max-width: none !important; padding: 0 !important; }
+            .card { box-shadow: none !important; border: 0 !important; }
+            body { background: #fff !important; }
+            table { font-size: 11px; }
+            #шахматка { display: block !important; }
+            #день { display: none !important; }
+        }
+        /* клетка расписания: имена переносятся, пустая кликается целиком */
+        .клетка { vertical-align: top; min-width: 110px; }
+        .клетка.своя { background: color-mix(in srgb, var(--current-color) 12%, transparent); }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1400px;">
+
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+            <div class="flex-1 min-w-full desktop:min-w-0">
+                <h1 class="text-3xl font-bold tracking-tight" data-i18n="worship_schedule_title">Расписание</h1>
+                <p class="text-sm opacity-60 mt-1" id="подзаголовок">&nbsp;</p>
+            </div>
+            <div class="flex flex-wrap gap-2 no-print" id="actions"></div>
+        </div>
+
+        <!-- свои службы наверху: человек заходит сюда за своим, а не за обзором -->
+        <section id="мои" hidden class="mb-4 rounded-xl p-4"
+                 style="background: color-mix(in srgb, var(--current-color) 10%, transparent);">
+            <h2 class="font-bold mb-2" data-i18n="worship_my_duties">Ваши ближайшие службы</h2>
+            <ul class="list-none m-0 p-0" id="моиСписок"></ul>
+        </section>
+
+        <!-- переключение недели -->
+        <div class="flex flex-wrap items-center gap-2 mb-3 no-print">
+            <button class="btn btn-sm btn-outline" id="назад">‹</button>
+            <button class="btn btn-sm" id="сегодня" data-i18n="worship_today">Сегодня</button>
+            <button class="btn btn-sm btn-outline" id="вперёд">›</button>
+            <span class="font-semibold ml-2" id="периодНадпись"></span>
+            <span class="flex-1"></span>
+            <div class="join">
+                <button class="btn btn-sm join-item" data-вид="неделя" data-i18n="worship_view_week">Неделя</button>
+                <button class="btn btn-sm join-item" data-вид="день" data-i18n="worship_view_day">День</button>
+            </div>
+        </div>
+
+        <!-- неделя -->
+        <div class="card bg-base-100 shadow mb-4" id="шахматка">
+            <div class="card-body p-0 overflow-x-auto">
+                <table class="table table-sm">
+                    <thead><tr id="шапкаДней"></tr></thead>
+                    <tbody id="строкиСлужб"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- день: на телефоне семь столбцов не помещаются -->
+        <div class="card bg-base-100 shadow mb-4" id="день" hidden>
+            <div class="card-body p-5">
+                <ul class="list-none m-0 p-0" id="деньСписок"></ul>
+            </div>
+        </div>
+
+        <!-- отклонения дня: праздник или отмена -->
+        <div class="card bg-base-100 shadow" id="отклонения" data-permission="worship_approve">
+            <div class="card-body p-5">
+                <h2 class="card-title text-lg mb-1" data-i18n="worship_overrides_title">Отклонения дня</h2>
+                <p class="text-sm opacity-60 mb-3" data-i18n="worship_overrides_hint">Праздник или
+                    экадаши — это не второе расписание, а точечная правка: разовая служба
+                    либо отметка «сегодня не проводится».</p>
+                <ul class="list-none m-0 p-0 mb-3" id="отклоненияСписок"></ul>
+                <div class="flex flex-wrap gap-2">
+                    <button class="btn btn-sm btn-outline" id="разовая">Разовая служба</button>
+                    <button class="btn btn-sm btn-outline" id="отменить">Отменить службу</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- кого ставим в клетку -->
+    <dialog id="назначение" class="modal">
+        <div class="modal-box max-w-xl">
+            <h3 class="font-bold text-lg mb-1" id="нЗаголовок"></h3>
+            <p class="text-sm opacity-60 mb-3" id="нПодсказка"></p>
+            <div class="flex flex-wrap gap-2 mb-3">
+                <select id="нРоль" class="select select-bordered select-sm w-40">
+                    <option value="pujari">пуджари</option>
+                    <option value="kirtan">киртания</option>
+                    <option value="helper">помощник</option>
+                </select>
+                <input id="нПоиск" type="search" class="input input-bordered input-sm flex-1 min-w-40"
+                       placeholder="Найти по имени…">
+            </div>
+            <ul class="list-none m-0 p-0 max-h-80 overflow-y-auto" id="нСписок"></ul>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <!-- службы ведёт старший: название, время, порядок, стандарт -->
+    <dialog id="службыМодал" class="modal">
+        <div class="modal-box max-w-2xl">
+            <h3 class="font-bold text-lg mb-1" data-i18n="worship_services_title">Службы</h3>
+            <p class="text-sm opacity-60 mb-4" data-i18n="worship_services_hint">Службы идут каждый
+                день одним порядком — меняются люди. Пришла зима, сдвинули время: правится здесь.</p>
+            <ul class="list-none m-0 p-0 mb-4" id="службыСписок"></ul>
+            <div class="flex flex-wrap gap-2 items-end border-t border-base-200 pt-3">
+                <label class="form-control flex-1 min-w-40">
+                    <span class="label-text text-xs mb-1">Название</span>
+                    <input id="сНазвание" type="text" class="input input-bordered input-sm" maxlength="100">
+                </label>
+                <label class="form-control">
+                    <span class="label-text text-xs mb-1">Время</span>
+                    <input id="сВремя" type="time" class="input input-bordered input-sm w-32">
+                </label>
+                <button class="btn btn-sm" id="сДобавить"
+                        style="background: var(--current-color); color:#fff;">Добавить</button>
+            </div>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Готово</button></form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <!-- разовая служба или отмена -->
+    <dialog id="отклонениеМодал" class="modal">
+        <div class="modal-box max-w-lg">
+            <h3 class="font-bold text-lg mb-3" id="оЗаголовок"></h3>
+            <label class="form-control mb-3">
+                <span class="label-text mb-1">День</span>
+                <input id="оДата" type="date" class="input input-bordered input-sm w-48">
+            </label>
+            <div id="оРазовая">
+                <label class="form-control mb-3">
+                    <span class="label-text mb-1">Название службы</span>
+                    <input id="оНазвание" type="text" class="input input-bordered" maxlength="100"
+                           placeholder="Например: Абхишека Гаура-пурнимы">
+                </label>
+                <label class="form-control mb-3">
+                    <span class="label-text mb-1">Время</span>
+                    <input id="оВремя" type="time" class="input input-bordered w-40">
+                </label>
+            </div>
+            <label class="form-control mb-3" id="оСлужбаБлок" hidden>
+                <span class="label-text mb-1">Какую службу не проводим</span>
+                <select id="оСлужба" class="select select-bordered"></select>
+            </label>
+            <label class="form-control">
+                <span class="label-text mb-1">Причина</span>
+                <input id="оПричина" type="text" class="input input-bordered" maxlength="200"
+                       placeholder="Экадаши, фестиваль, ремонт">
+            </label>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+                <button class="btn btn-sm" id="оСохранить"
+                        style="background: var(--current-color); color:#fff;">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <!-- подтверждение: confirm() во встроенном браузере всегда «нет» -->
+    <dialog id="подтверждение" class="modal">
+        <div class="modal-box max-w-md">
+            <h3 class="font-bold text-lg mb-2" id="пдЗаголовок"></h3>
+            <p class="text-sm" id="пдТекст"></p>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+                <button class="btn btn-sm" id="пдДа"
+                        style="background: var(--current-color); color:#fff;">Да</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/cache.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/layout.js?v=103"></script>
+    <script src="../js/date-utils.js"></script>
+    <script src="../js/auth-check.js?v=12"></script>
+    <script src="../js/pages/worship-schedule.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
+            await WorshipSchedule.init();
+        }
+        init();
+    </script>
+</body>
+</html>

@@ -32,8 +32,9 @@
 
     <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 900px;">
 
-        <div class="text-sm mb-3">
+        <div class="text-sm mb-3 flex flex-wrap gap-3">
             <a href="library.html" class="link link-hover opacity-70" data-i18n="worship_library_title">Библиотека</a>
+            <a href="search.html" class="link link-hover opacity-70">Поиск по модулю</a>
         </div>
 
         <div class="flex flex-wrap items-start gap-3 mb-4">
@@ -120,20 +121,31 @@
         </div>
     </main>
 
-    <input type="file" id="файл" hidden>
+    <!-- на телефоне после правки текста кнопка «Сохранить» оставалась
+         в самом верху длинной страницы -->
+    <div class="sticky bottom-0 z-20 bg-base-200/95 border-t border-base-300 py-2 px-4
+                flex items-center gap-3 no-print" data-permission="worship_write">
+        <span class="text-sm opacity-60" id="сохранениеНизу"></span>
+        <span class="flex-1"></span>
+        <button class="btn btn-sm" id="сохранитьНизу"
+                style="background: var(--current-color); color:#fff;">Сохранить</button>
+    </div>
+
+    <input type="file" id="файл" multiple hidden
+           accept="image/jpeg,image/png,image/webp,image/heic,application/pdf,audio/*,video/mp4,video/quicktime">
 
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=102"></script>
+    <script src="../js/layout.js?v=103"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/media.js?v=1"></script>
+    <script src="../js/media.js?v=2"></script>
     <script src="../js/worship-doc.js?v=5"></script>
-    <script src="../js/worship-tags.js?v=1"></script>
-    <script src="../js/pages/worship-material.js?v=3"></script>
+    <script src="../js/worship-tags.js?v=2"></script>
+    <script src="../js/pages/worship-material.js?v=4"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_library' });

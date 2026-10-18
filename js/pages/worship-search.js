@@ -19,16 +19,19 @@ const WorshipSearch = (() => {
         { вид: 'album', имя: 'Наборы фото', куда: id => `album.html?id=${id}` },
     ];
 
+    const ПРЕДЕЛ = 60;              // столько строк просит функция поиска
+    const ТЕГОВ_СРАЗУ = 16;         // остальные — под «ещё»
+
     let запрос = new URLSearchParams(location.search).get('q') || '';
     let тег = new URLSearchParams(location.search).get('tag') || '';
-    let теги = [], строки = [];
+    let теги = [], строки = [], всеТеги = false;
 
     async function найти() {
         if (!запрос.trim() && !тег) { строки = []; return; }
 
         if (запрос.trim()) {
             const { data, error } = await Layout.db.rpc('worship_search',
-                { p_query: запрос.trim(), p_limit: 60 });
+                { p_query: запрос.trim(), p_limit: ПРЕДЕЛ });
             if (error) { Layout.handleError(error, 'Поиск'); return; }
             строки = data || [];
         } else {
@@ -80,10 +83,20 @@ const WorshipSearch = (() => {
     // ---------- отрисовка ----------
     function рисоватьТеги() {
         if (!теги.length) { $('#теги').innerHTML = ''; return; }
+        // полсотни тегов стеной кнопок закрывают саму выдачу: показываем
+        // первые, выбранный всегда среди них, остальные — по «ещё»
+        const видимые = всеТеги ? теги
+            : [...теги.slice(0, ТЕГОВ_СРАЗУ),
+               ...(тег && !теги.slice(0, ТЕГОВ_СРАЗУ).some(т => т.id === тег)
+                   ? теги.filter(т => т.id === тег) : [])];
+        const скрыто = теги.length - видимые.length;
+
         $('#теги').innerHTML = '<span class="text-sm opacity-60 mr-1">Теги:</span>' +
-            теги.map(т => `
+            видимые.map(т => `
                 <button class="btn btn-xs ${т.id === тег ? 'btn-active' : 'btn-outline'}"
                         data-тег="${т.id}">${e(т.name)}</button>`).join('') +
+            (скрыто > 0
+                ? `<button class="btn btn-xs btn-ghost" id="ещёТеги">ещё ${скрыто}</button>` : '') +
             (тег ? '<button class="btn btn-xs btn-ghost" data-тег="">сбросить</button>' : '');
     }
 
@@ -109,7 +122,14 @@ const WorshipSearch = (() => {
             return;
         }
 
-        тело.innerHTML = ГРУППЫ.map(г => {
+        // выдача обрезана пределом — человек должен знать, что это не всё
+        const обрезано = запрос.trim() && строки.length >= ПРЕДЕЛ;
+
+        тело.innerHTML = (обрезано
+            ? `<div class="alert alert-info py-2 px-4 mb-4 text-sm">
+                   Показаны первые ${ПРЕДЕЛ} находок — уточните запрос или выберите тег.
+               </div>`
+            : '') + ГРУППЫ.map(г => {
             const свои = строки.filter(с => с.вид === г.вид);
             if (!свои.length) return '';
             return `
@@ -150,6 +170,12 @@ const WorshipSearch = (() => {
             запрос = ev.target.value;
             обновить();
         }, 400));
+
+        document.addEventListener('click', ev => {
+            if (!ev.target.closest('#ещёТеги')) return;
+            всеТеги = true;
+            рисоватьТеги();
+        });
 
         $('#словарь').addEventListener('click', вестиТеги);
         document.addEventListener('click', async ev => {

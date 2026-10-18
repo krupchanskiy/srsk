@@ -68,9 +68,12 @@ const WorshipKits = (() => {
                             ${п.description ? `<span class="block text-sm opacity-70 mt-0.5">${e(п.description)}</span>` : ''}
                         </span>
                         <span class="text-sm opacity-60 whitespace-nowrap">
-                            ${пунктов[п.id] || 0} ${Layout.pluralize(пунктов[п.id] || 0, {
-                                ru: ['пункт', 'пункта', 'пунктов'], en: ['item', 'items'], hi: 'मद' }).split(' ').slice(1).join(' ')}
-                            ${выдач[п.id] ? ` · выдана ${выдач[п.id]}` : ''}
+                            ${Layout.pluralize(пунктов[п.id] || 0, {
+                                ru: ['пункт', 'пункта', 'пунктов'],
+                                en: ['item', 'items'], hi: 'मद' })}
+                            ${выдач[п.id] ? ' · ' + Layout.pluralize(выдач[п.id], {
+                                ru: ['выдача', 'выдачи', 'выдач'],
+                                en: ['grant', 'grants'], hi: 'वितरण' }) : ''}
                         </span>
                     </a>
                 </li>`).join('')}

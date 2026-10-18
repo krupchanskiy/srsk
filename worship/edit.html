@@ -94,6 +94,14 @@
                            data-i18n-placeholder="worship_change_placeholder" placeholder="Одной строкой: что поменяли и почему" maxlength="200">
                     <div class="label py-1"><span class="label-text-alt opacity-60" data-i18n="worship_change_hint">Старший увидит это в очереди, а отдел — в истории.</span></div>
                 </label>
+                <!-- теги ставятся здесь же: отдельный заход на страницу статьи
+                     ради одного слова никто не делает -->
+                <div class="form-control" id="тегиБлок" hidden>
+                    <div class="label py-1">
+                        <span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_tags">Теги</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2" id="теги"></div>
+                </div>
             </div>
         </div>
 
@@ -151,12 +159,13 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=102"></script>
+    <script src="../js/layout.js?v=103"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/media.js?v=1"></script>
+    <script src="../js/media.js?v=2"></script>
+    <script src="../js/worship-tags.js?v=2"></script>
     <script src="../js/worship-doc.js?v=5"></script>
-    <script src="../js/pages/worship-edit.js?v=10"></script>
+    <script src="../js/pages/worship-edit.js?v=11"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

@@ -81,6 +81,83 @@
         </div>
     </main>
 
+    <!-- правка подборки: раньше это были три prompt подряд -->
+    <dialog id="правкаМодал" class="modal">
+        <div class="modal-box max-w-lg">
+            <h3 class="font-bold text-lg mb-3">Подборка</h3>
+            <label class="form-control mb-3">
+                <span class="label-text mb-1">Название</span>
+                <input id="пНазвание" type="text" class="input input-bordered" maxlength="200">
+            </label>
+            <label class="form-control mb-3">
+                <span class="label-text mb-1">Для кого и когда</span>
+                <textarea id="пОписание" class="textarea textarea-bordered" rows="3"
+                          placeholder="Например: для волонтёра, который приезжает на кухню впервые"></textarea>
+            </label>
+            <label class="form-control mb-1">
+                <span class="label-text mb-1">Язык подборки</span>
+                <select id="пЯзык" class="select select-bordered select-sm w-40">
+                    <option value="ru">русский</option>
+                    <option value="en">English</option>
+                    <option value="hi">हिन्दी</option>
+                </select>
+            </label>
+            <p class="text-sm opacity-60">Язык нужен, чтобы индийскому волонтёру не
+                выдали дорожку по-русски.</p>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+                <button class="btn btn-sm" id="пСохранить"
+                        style="background: var(--current-color); color:#fff;">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <!-- свой текст между пунктами: в prompt перенос строки не наберёшь -->
+    <dialog id="текстМодал" class="modal">
+        <div class="modal-box max-w-lg">
+            <h3 class="font-bold text-lg mb-1">Свой текст</h3>
+            <p class="text-sm opacity-60 mb-3">Связка между пунктами: «сначала прочти это,
+                потом посмотри, как это выглядит».</p>
+            <textarea id="тТекст" class="textarea textarea-bordered w-full" rows="4"></textarea>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+                <button class="btn btn-sm" id="тСохранить"
+                        style="background: var(--current-color); color:#fff;">Сохранить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <!-- выдача: кому именно. Раньше — три prompt с номерами списка -->
+    <dialog id="выдачаМодал" class="modal">
+        <div class="modal-box max-w-xl">
+            <h3 class="font-bold text-lg mb-1" id="вЗаголовок"></h3>
+            <p class="text-sm opacity-60 mb-3" id="вПодсказка"></p>
+            <input id="вПоиск" type="search" class="input input-bordered input-sm w-full mb-3"
+                   placeholder="Часть имени…" hidden>
+            <ul class="list-none m-0 p-0 max-h-80 overflow-y-auto" id="вСписок"></ul>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
+    <!-- подтверждение выдачи: встроенный браузер не показывает confirm() -->
+    <dialog id="подтверждение" class="modal">
+        <div class="modal-box max-w-md">
+            <h3 class="font-bold text-lg mb-2" id="пдЗаголовок"></h3>
+            <p class="text-sm" id="пдТекст"></p>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm">Отмена</button></form>
+                <button class="btn btn-sm" id="пдДа"
+                        style="background: var(--current-color); color:#fff;">Да</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
     <!-- выбор того, что кладём в подборку -->
     <dialog id="выборМодал" class="modal">
         <div class="modal-box max-w-xl">
@@ -101,10 +178,10 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=102"></script>
+    <script src="../js/layout.js?v=103"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/pages/worship-kit.js?v=1"></script>
+    <script src="../js/pages/worship-kit.js?v=2"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_kits' });

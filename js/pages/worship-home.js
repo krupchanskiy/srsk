@@ -6,8 +6,9 @@
  * Ниже — то, что ждёт конкретного человека: очередь у старшего, черновики
  * у пуджари, лента изменений у всех.
  *
- * Блоки расписания появятся вторым этапом; пустых заглушек под них здесь нет —
- * страница показывает только то, что уже работает.
+ * Расписание тут двумя блоками: службы на сегодня (следующая выделена) —
+ * всем, кто видит модуль, и пустые клетки на завтра — старшему. Пустых
+ * заглушек нет: блок, которому нечего показать, не рисуется вовсе.
  */
 const WorshipHome = (() => {
     const $ = s => document.querySelector(s);
@@ -122,6 +123,96 @@ const WorshipHome = (() => {
             </li>`).join('');
     }
 
+    /**
+     * Службы на сегодня: главный вопрос к отделу — «что сейчас», а не
+     * «покажи оглавление». Следующая по времени выделена.
+     */
+    async function деньСегодня() {
+        const сегодня = DateUtils.toISO(new Date());
+        const [с, о, н] = await Promise.all([
+            Layout.db.from('worship_services')
+                .select('id, name_ru, name_en, name_hi, time_of_day, article_id')
+                .eq('is_active', true).order('time_of_day'),
+            Layout.db.from('worship_day_overrides')
+                .select('id, service_id, title, time_of_day, reason').eq('duty_date', сегодня),
+            Layout.db.from('worship_duties')
+                .select('id, service_id, override_id, person_id, role').eq('duty_date', сегодня),
+        ]);
+        if (с.error || о.error || н.error) return;      // расписание не повод ронять главную
+        const службы = с.data || [], отклонения = о.data || [], назначения = н.data || [];
+        if (!службы.length && !отклонения.length) return;
+
+        // имена: они нужны только тем, кто видит модуль, гостю этот экран недоступен
+        let имена = {};
+        const persons = [...new Set(назначения.map(д => д.person_id))];
+        if (persons.length) {
+            const { data: люди } = await Layout.db.from('worship_people')
+                .select('id, vaishnava_id').in('id', persons);
+            const карточки = (люди || []).map(ч => ч.vaishnava_id);
+            const { data: в } = карточки.length
+                ? await Layout.db.from('vaishnavas')
+                    .select('id, spiritual_name, first_name, last_name').in('id', карточки)
+                : { data: [] };
+            const по = Object.fromEntries((в || []).map(x => [x.id,
+                x.spiritual_name || `${x.first_name || ''} ${x.last_name || ''}`.trim() || 'без имени']));
+            имена = Object.fromEntries((люди || []).map(ч => [ч.id, по[ч.vaishnava_id]]));
+        }
+
+        const отменена = id => отклонения.some(о2 => о2.service_id === id);
+        const строки = [
+            ...службы.filter(с2 => !отменена(с2.id)).map(с2 => ({
+                время: с2.time_of_day, имя: Layout.getName(с2), article_id: с2.article_id,
+                кто: назначения.filter(д => д.service_id === с2.id), разовая: false })),
+            ...отклонения.filter(о2 => о2.title).map(о2 => ({
+                время: о2.time_of_day, имя: о2.title, article_id: null,
+                кто: назначения.filter(д => д.override_id === о2.id), разовая: true })),
+        ].sort((a, b) => (a.время || '').localeCompare(b.время || ''));
+
+        const сейчас = new Date().toTimeString().slice(0, 8);
+        const следующая = строки.find(с2 => (с2.время || '') >= сейчас);
+
+        $('#todayCard').hidden = false;
+        $('#today').innerHTML = строки.map(с2 => `
+            <li class="border-b border-base-200 last:border-0 py-2 ${с2 === следующая ? 'font-semibold' : ''}">
+                <span class="inline-block w-14 opacity-${с2 === следующая ? '100' : '60'}">${
+                    e((с2.время || '').slice(0, 5))}</span>
+                ${с2.article_id
+                    ? `<a class="link link-hover" href="article.html?id=${с2.article_id}">${e(с2.имя)}</a>`
+                    : e(с2.имя)}
+                ${с2.разовая ? '<span class="badge badge-sm ml-1">разовая</span>' : ''}
+                ${с2 === следующая ? '<span class="badge badge-sm ml-1">следующая</span>' : ''}
+                <span class="block text-sm opacity-60 pl-14">${
+                    с2.кто.length ? с2.кто.map(д => e(имена[д.person_id] || 'кто-то')).join(', ')
+                                  : 'никто не поставлен'}</span>
+            </li>`).join('');
+    }
+
+    /** Старшему — пустые клетки на завтра: их закрывают сегодня, а не утром. */
+    async function пустыеЗавтра() {
+        if (!можноУтверждать()) return;
+        const завтра = DateUtils.toISO(DateUtils.addDays(new Date(), 1));
+        const [с, о, н] = await Promise.all([
+            Layout.db.from('worship_services')
+                .select('id, name_ru, name_en, name_hi, time_of_day').eq('is_active', true).order('time_of_day'),
+            Layout.db.from('worship_day_overrides').select('service_id, title').eq('duty_date', завтра),
+            Layout.db.from('worship_duties').select('service_id, override_id').eq('duty_date', завтра),
+        ]);
+        if (с.error || о.error || н.error) return;
+
+        const отменена = id => (о.data || []).some(x => x.service_id === id);
+        const занята = id => (н.data || []).some(x => x.service_id === id);
+        const пустые = (с.data || []).filter(x => !отменена(x.id) && !занята(x.id));
+        if (!пустые.length) return;
+
+        $('#emptyCard').hidden = false;
+        $('#emptyCount').textContent = пустые.length;
+        $('#empty').innerHTML = пустые.map(x => `
+            <li class="py-1 text-sm">
+                <span class="inline-block w-14 opacity-60">${e(x.time_of_day.slice(0, 5))}</span>
+                ${e(Layout.getName(x))}
+            </li>`).join('');
+    }
+
     async function личное() {
         const { data, error } = await Layout.db.from('worship_bookmarks')
             .select('kind, article_id, created_at').order('created_at', { ascending: false });
@@ -177,7 +268,8 @@ const WorshipHome = (() => {
         статьи = с.data || [];
 
         рисоватьРазделы();
-        await Promise.all([лента(), черновики(), очередь(), личное(), подборки()]);
+        await Promise.all([лента(), черновики(), очередь(), личное(), подборки(),
+                           деньСегодня(), пустыеЗавтра()]);
     }
 
     return { init };

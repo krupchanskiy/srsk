@@ -96,11 +96,15 @@ const WorshipAlbum = (() => {
                         : `<span class="text-sm opacity-70">${e(с.caption)}</span>`}
                     ${можноПисать() && !набор.is_archived ? `
                     <div class="flex flex-wrap gap-1 mt-1">
-                        <button class="btn btn-ghost btn-xs" data-двигать="-1" data-id="${с.id}">←</button>
-                        <button class="btn btn-ghost btn-xs" data-двигать="1" data-id="${с.id}">→</button>
-                        <button class="btn btn-ghost btn-xs" data-обложка="${с.id}"
-                                ${набор.cover_image_id === с.id ? 'disabled' : ''}>обложка</button>
-                        <button class="btn btn-ghost btn-xs text-error" data-убрать="${с.id}">✕</button>
+                        <button class="btn btn-ghost btn-sm px-2" data-двигать="-1" data-id="${с.id}"
+                                title="Левее">←</button>
+                        <button class="btn btn-ghost btn-sm px-2" data-двигать="1" data-id="${с.id}"
+                                title="Правее">→</button>
+                        <button class="btn btn-ghost btn-sm px-2" data-обложка="${с.id}"
+                                title="Сделать обложкой"
+                                ${набор.cover_image_id === с.id ? 'disabled' : ''}>★</button>
+                        <button class="btn btn-ghost btn-sm px-2 text-error" data-убрать="${с.id}"
+                                title="Убрать снимок">✕</button>
                     </div>` : ''}
                 </figcaption>
             </figure>`).join('') ||
@@ -165,6 +169,36 @@ const WorshipAlbum = (() => {
         if (!неудачи.length) setTimeout(() => { $('#ход').hidden = true; }, 2500);
     }
 
+    function пометкаСохранения(поле, текст, цвет = 'opacity-60') {
+        let метка = поле.parentElement.querySelector('[data-метка]');
+        if (!метка) {
+            метка = document.createElement('span');
+            метка.dataset.метка = '1';
+            метка.className = 'block text-xs mt-0.5';
+            поле.parentElement.insertBefore(метка, поле.nextSibling);
+        }
+        метка.className = `block text-xs mt-0.5 ${цвет}`;
+        метка.textContent = текст;
+    }
+
+    async function сохранитьПодпись(поле) {
+        const id = поле.dataset.подпись;
+        const было = снимки.find(с => с.id === id)?.caption || '';
+        const стало = поле.value.trim();
+        if (было === стало) { пометкаСохранения(поле, ''); return; }
+
+        const { error } = await Layout.db.rpc('worship_image_caption',
+            { p_image: id, p_caption: стало });
+        if (error) {
+            пометкаСохранения(поле, 'не сохранилось', 'text-error');
+            return Layout.handleError(error, 'Подпись');
+        }
+        const с = снимки.find(x => x.id === id);
+        if (с) с.caption = стало || null;
+        пометкаСохранения(поле, 'сохранено', 'text-success');
+        setTimeout(() => пометкаСохранения(поле, ''), 2000);
+    }
+
     async function перечитать() {
         if (await загрузить()) { рисоватьШапку(); рисоватьСнимки(); window.applyPermissions?.(); }
     }
@@ -177,13 +211,25 @@ const WorshipAlbum = (() => {
             await загрузитьПачку(файлы);
         });
 
-        document.addEventListener('input', Layout.debounce(async ev => {
+        // У каждого поля свой таймер: один общий debounce гасил предыдущий,
+        // и при подписывании двадцати снимков подряд выживали единицы —
+        // причём молча, человек был уверен, что всё записалось.
+        const таймеры = new Map();
+        document.addEventListener('input', ev => {
             const поле = ev.target.closest('[data-подпись]');
             if (!поле) return;
-            const { error } = await Layout.db.from('worship_images')
-                .update({ caption: поле.value.trim() || null }).eq('id', поле.dataset.подпись);
-            if (error) Layout.handleError(error, 'Подпись');
-        }, 700));
+            const id = поле.dataset.подпись;
+            clearTimeout(таймеры.get(id));
+            пометкаСохранения(поле, 'пишу…');
+            таймеры.set(id, setTimeout(() => сохранитьПодпись(поле), 600));
+        });
+        // уход с поля сохраняет сразу: не ждать таймера, если человек уже дальше
+        document.addEventListener('focusout', ev => {
+            const поле = ev.target.closest('[data-подпись]');
+            if (!поле) return;
+            clearTimeout(таймеры.get(поле.dataset.подпись));
+            сохранитьПодпись(поле);
+        });
 
         document.addEventListener('click', async ev => {
             const смотреть = ev.target.closest('[data-смотреть]');
@@ -203,9 +249,8 @@ const WorshipAlbum = (() => {
 
             const обложка = ev.target.closest('[data-обложка]');
             if (обложка) {
-                const { error } = await Layout.db.from('worship_albums')
-                    .update({ cover_image_id: обложка.dataset.обложка, updated_at: new Date().toISOString() })
-                    .eq('id', id);
+                const { error } = await Layout.db.rpc('worship_album_update',
+                    { p_album: id, p_payload: { cover_image_id: обложка.dataset.обложка } });
                 if (error) return Layout.handleError(error, 'Обложка');
                 return перечитать();
             }
@@ -242,32 +287,53 @@ const WorshipAlbum = (() => {
                 return перечитать();
             }
             if (b.id === 'архив') {
-                const { error } = await Layout.db.from('worship_albums')
-                    .update({ is_archived: !набор.is_archived, updated_at: new Date().toISOString(),
-                              updated_by: window.currentUser?.id || null })
-                    .eq('id', id);
+                const { error } = await Layout.db.rpc('worship_album_update',
+                    { p_album: id, p_payload: { is_archived: !набор.is_archived } });
                 if (error) return Layout.handleError(error, 'Архив набора');
                 return перечитать();
             }
             if (b.id === 'правка') return править();
+            if (b.id === 'сохранитьПравку') return сохранитьПравку();
         });
     }
 
     async function править() {
-        const название = prompt('Название набора', набор.title);
-        if (название === null || !название.trim()) return;
-        const дата = prompt('Дата события (ГГГГ-ММ-ДД)', набор.event_date);
-        if (дата === null || !/^\d{4}-\d{2}-\d{2}$/.test(дата)) {
-            return дата !== null && Layout.showNotification('Дата нужна в виде 2026-03-14', 'warning');
-        }
-        const описание = prompt('Описание', набор.description || '');
-        if (описание === null) return;
+        $('#правкаНазвание').value = набор.title;
+        $('#правкаДата').value = набор.event_date;
+        $('#правкаОписание').value = набор.description || '';
+        $('#правкаИнструкция').checked = набор.is_guide;
 
-        const { error } = await Layout.db.from('worship_albums').update({
-            title: название.trim(), event_date: дата, description: описание.trim() || null,
-            updated_at: new Date().toISOString(), updated_by: window.currentUser?.id || null,
-        }).eq('id', id);
+        // связь со статьёй: ТЗ просит её, и по ней на странице стандарта
+        // видно, что к нему есть набор снимков
+        const { data: статьи } = await Layout.db.from('worship_articles')
+            .select('id, title').eq('kind', 'standard').eq('status', 'published').order('title');
+        $('#правкаСтатья').innerHTML = '<option value="">Ни к чему не привязан</option>' +
+            (статьи || []).map(а => `<option value="${а.id}" ${
+                набор.article_id === а.id ? 'selected' : ''}>${e(а.title)}</option>`).join('');
+
+        $('#правкаМодал').showModal();
+    }
+
+    async function сохранитьПравку() {
+        const название = $('#правкаНазвание').value.trim();
+        const дата = $('#правкаДата').value;
+        if (!название) { Layout.showNotification('Без названия набор не найти', 'warning'); return; }
+        if (!дата) { Layout.showNotification('Поставьте дату события', 'warning'); return; }
+
+        // через функцию: политика пускает только завёдшего набор или старшего,
+        // а обычный update вернул бы ноль строк без ошибки
+        const { error } = await Layout.db.rpc('worship_album_update', {
+            p_album: id,
+            p_payload: {
+                title: название,
+                event_date: дата,
+                description: $('#правкаОписание').value.trim(),
+                article_id: $('#правкаСтатья').value || '',
+                is_guide: $('#правкаИнструкция').checked,
+            },
+        });
         if (error) return Layout.handleError(error, 'Правка набора');
+        $('#правкаМодал').close();
         await перечитать();
     }
 
@@ -288,6 +354,8 @@ const WorshipAlbum = (() => {
         window.applyPermissions?.();
         WorshipTags.нарисовать(document.querySelector('#теги'), { album_id: id },
                                { можноПравить: можноПисать() && !набор.is_archived });
+        // ссылки на снимки живут час: обновляем, пока страница открыта
+        Media.держатьСсылки(async () => { await обновитьСсылки(); рисоватьСнимки(); });
     }
 
     return { init };
