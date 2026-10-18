@@ -16,6 +16,7 @@
  * нормой. В базу — только по кнопке.
  */
 const WorshipEdit = (() => {
+    const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
     const $ = s => document.querySelector(s);
     const e = str => Layout.escapeHtml(str ?? '');
 
@@ -52,7 +53,11 @@ const WorshipEdit = (() => {
             if (!статья) { Layout.showNotification('Статья не найдена', 'warning'); return false; }
 
             версия = ответы[2].data;
-            if (версия?.status === 'submitted') {
+            // Правку, которая ждёт решения, открывает тот, кто это решение
+            // принимает: иначе ради одной запятой её пришлось бы возвращать
+            // автору. Автору без права утверждения вход закрыт — двое в одной
+            // редакции затирали бы друг друга, пока она на утверждении.
+            if (версия?.status === 'submitted' && !можноУтверждать()) {
                 Layout.showNotification('Правка отправлена старшему — сначала отзовите её', 'warning');
                 setTimeout(() => location.href = `article.html?id=${id}`, 1500);
                 return false;
@@ -74,6 +79,7 @@ const WorshipEdit = (() => {
     // ---------- отрисовка формы ----------
     function рисоватьШапку() {
         $('#режим').textContent = !id ? 'Новая статья'
+            : версия?.status === 'submitted' ? 'Правка, которая ждёт вашего решения'
             : статья.status === 'published' ? 'Правка действующего стандарта'
             : 'Черновик';
 
@@ -578,8 +584,8 @@ const WorshipEdit = (() => {
         $('#сохранить').addEventListener('click', сохранитьИПерейти);
         $('#сохранитьНизу').addEventListener('click', сохранитьИПерейти);
 
-        $('#отправить').addEventListener('click', отправить);
-        $('#отправитьНизу').addEventListener('click', отправить);
+        $('#отправить').addEventListener('click', отправитьИлиУтвердить);
+        $('#отправитьНизу').addEventListener('click', отправитьИлиУтвердить);
         $('#отмена').addEventListener('click', отменить);
         $('#удалить').addEventListener('click', удалить);
 
@@ -598,6 +604,31 @@ const WorshipEdit = (() => {
             ev.preventDefault();
             ev.returnValue = '';
         });
+    }
+
+    /** Старший правит присланную редакцию и утверждает её сам, не гоняя автора. */
+    const правимОтправленную = () => версия?.status === 'submitted' && можноУтверждать();
+
+    function подписатьГлавнуюКнопку() {
+        if (!правимОтправленную()) return;
+        ['#отправить', '#отправитьНизу'].forEach(s2 => {
+            const б = $(s2);
+            if (б) б.textContent = 'Утвердить';
+        });
+    }
+
+    async function отправитьИлиУтвердить() {
+        if (!правимОтправленную()) return отправить();
+
+        if (!await спросить('Утвердить правку?',
+            'С этого момента по этому тексту служат в храме. Ваши изменения сохранятся в неё.')) return;
+        const ответ = await сохранить({});
+        if (!ответ) return;
+        const { data, error } = await Layout.db.rpc('worship_approve', { p_article: ответ.article_id });
+        if (error) return Layout.handleError(error, 'Утверждение');
+        грязно = false;
+        Layout.showNotification(data?.повтор ? 'Уже утверждено' : `Утверждено, версия ${data?.номер}`, 'success');
+        location.href = `article.html?id=${ответ.article_id}`;
     }
 
     async function отправить() {
@@ -652,6 +683,7 @@ const WorshipEdit = (() => {
             WorshipTags.нарисовать($('#теги'), { article_id: id }, { можноПравить: true });
         }
         отметка('', 'text-sm');
+        подписатьГлавнуюКнопку();
         // после проверки — не чистим: если несохранённое вернули, человек
         // должен видеть «не сохранено», иначе решит, что всё уже в базе
         проверитьНесохранённое();

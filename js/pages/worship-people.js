@@ -434,15 +434,35 @@ const WorshipPeople = (() => {
         }).join('') || '<li class="py-3 text-sm opacity-60">Никого не нашлось</li>';
     }
 
+    /** Кем человека добавляют: выбрано в окне, по умолчанию — команда. */
+    let новыйВид = 'team';
+
+    function рисоватьНовыйВид() {
+        document.querySelectorAll('[data-новый-вид]').forEach(б =>
+            б.classList.toggle('btn-active', б.getAttribute('data-новый-вид') === новыйВид));
+        $('#дСрокБлок').hidden = новыйВид !== 'volunteer';
+    }
+
     async function добавить(vaishnavaId) {
+        const бессрочно = $('#дБессрочно').checked;
+        const срок = новыйВид === 'volunteer' && !бессрочно
+            ? ($('#дСрокПо').value || null) : null;
+        if (новыйВид === 'volunteer' && !срок && !бессрочно) {
+            Layout.showNotification('Поставьте день окончания или отметьте, что срок не известен', 'warning');
+            return $('#дСрокПо').focus();
+        }
+
         // вернуть выведенного — это не новая запись: человек один
         const был = люди.find(ч => ч.vaishnava_id === vaishnavaId);
         const запрос = был
             ? Layout.db.from('worship_people').update({
-                is_active: true, updated_at: new Date().toISOString(),
+                is_active: true, kind: новыйВид, active_to: срок,
+                updated_at: new Date().toISOString(),
                 updated_by: window.currentUser?.id || null }).eq('id', был.id)
             : Layout.db.from('worship_people').insert({
-                vaishnava_id: vaishnavaId, created_by: window.currentUser?.id || null });
+                vaishnava_id: vaishnavaId, kind: новыйВид, active_to: срок,
+                active_from: DateUtils.toISO(new Date()),
+                created_by: window.currentUser?.id || null });
 
         const { data, error } = await запрос.select('id');
         if (error) return Layout.handleError(error, 'Человек');
@@ -494,8 +514,19 @@ const WorshipPeople = (() => {
 
             const b = ev.target.closest('button');
             if (!b) return;
+            const новый = ev.target.closest('[data-новый-вид]');
+            if (новый) {
+                новыйВид = новый.getAttribute('data-новый-вид');
+                рисоватьНовыйВид();
+                return;
+            }
+
             if (b.id === 'добавить') {
                 $('#дПоиск').value = '';
+                новыйВид = 'team';
+                $('#дСрокПо').value = '';
+                $('#дБессрочно').checked = false;
+                рисоватьНовыйВид();
                 $('#дСписок').innerHTML = '<li class="py-3 text-sm opacity-60">Впишите часть имени.</li>';
                 return $('#добавлениеМодал').showModal();
             }
