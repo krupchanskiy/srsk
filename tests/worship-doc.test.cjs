@@ -133,3 +133,14 @@ test('ссылка на заголовок внутри статьи разре�
     assert.equal(Док.адрес('#z3'), '#z3');
     assert.equal(Док.адрес('#шаг семь'), null);     // пробелы в якорь не кладём
 });
+
+test('пробел внутри адреса делает его негодным, а не склеивает', () => {
+    assert.equal(Док.адрес('a b.html'), null);
+    assert.equal(Док.адрес('  article.html  '), 'article.html');   // по краям — обрезаем
+});
+
+test('якорь в другой статье модуля разрешён', () => {
+    assert.equal(Док.адрес('article.html#z3'), 'article.html#z3');
+    assert.equal(Док.адрес('article.html?id=1#шаг'), 'article.html?id=1#шаг');
+    assert.equal(Док.адрес('#z3 onmouseover=1'), null);
+});

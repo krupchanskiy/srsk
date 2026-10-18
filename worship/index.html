@@ -44,7 +44,7 @@
 
         <div class="flex flex-col desktop:flex-row gap-5 items-start">
 
-            <div class="flex-1 min-w-0 w-full">
+            <div class="flex-1 min-w-0 w-full order-2 desktop:order-1">
                 <!-- лента: что поменялось в том, по чему служат -->
                 <div class="card bg-base-100 shadow">
                     <div class="card-body p-6">
@@ -57,14 +57,16 @@
                 <!-- незаконченное: своё, а не чужое -->
                 <div class="card bg-base-100 shadow mt-5" id="draftsCard" hidden>
                     <div class="card-body p-6">
-                        <h2 class="card-title text-lg mb-1" data-i18n="worship_drafts_title">Ваши черновики</h2>
+                        <h2 class="card-title text-lg mb-1" data-i18n="worship_drafts_title">Черновики отдела</h2>
                         <p class="text-sm opacity-60 mb-2" data-i18n="worship_drafts_hint">Начатое и недописанное.</p>
                         <ul class="list-none m-0 p-0" id="drafts"></ul>
                     </div>
                 </div>
             </div>
 
-            <aside class="w-full desktop:w-80 shrink-0 flex flex-col gap-5">
+            <!-- на узком экране закладки и недавнее идут первыми: «открыть свой
+                 стандарт» — ежедневное дело, лента изменений — недельное -->
+            <aside class="w-full desktop:w-80 shrink-0 flex flex-col gap-5 order-1 desktop:order-2">
                 <div class="card bg-base-100 shadow" id="marksCard" hidden>
                     <div class="card-body p-5">
                         <h2 class="font-bold mb-2" data-i18n="worship_marks_title">Закладки</h2>
@@ -95,10 +97,10 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=98"></script>
+    <script src="../js/layout.js?v=99"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/pages/worship-home.js?v=3"></script>
+    <script src="../js/pages/worship-home.js?v=4"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });

@@ -50,7 +50,7 @@ const WorshipHome = (() => {
         if (!можноПисать()) return;
         const я = window.currentUser?.id;
         const { data, error } = await Layout.db.from('worship_versions')
-            .select('article_id, title, status, updated_at, created_by')
+            .select('article_id, title, status, updated_at, created_by, return_reason')
             .in('status', ['draft', 'submitted'])
             .order('updated_at', { ascending: false });
         if (error) { Layout.handleError(error, 'Черновики'); return; }
@@ -61,11 +61,27 @@ const WorshipHome = (() => {
         const список = [...свои, ...чужие];
         if (!список.length) return;
 
+        // имена авторов: «чей это черновик» — первый вопрос к чужой строке
+        const кто = [...new Set(список.map(в => в.created_by).filter(Boolean))];
+        let имена = {};
+        if (кто.length) {
+            const { data: люди } = await Layout.db.from('vaishnavas')
+                .select('user_id, spiritual_name, first_name, last_name').in('user_id', кто);
+            имена = Object.fromEntries((люди || []).map(ч => [ч.user_id,
+                ч.spiritual_name || `${ч.first_name || ''} ${ч.last_name || ''}`.trim() || 'отдел']));
+        }
+
         $('#draftsCard').hidden = false;
-        $('#drafts').innerHTML = список.map(в => строка(в.article_id, в.title,
-            `${в.status === 'submitted' ? 'ждёт утверждения' : 'черновик'}${
-                в.created_by === я ? '' : ' · не ваш'} · ${дата(в.updated_at)}`
-        )).join('');
+        $('#drafts').innerHTML = список.map(в => {
+            // возврат старшего виден прямо здесь: иначе о нём узнают случайно,
+            // открыв статью — рассылка до подключения чата молчит
+            const возврат = в.return_reason
+                ? `<span class="badge badge-sm badge-warning mr-1">вернули</span>${e(в.return_reason)} · `
+                : '';
+            const чей = в.created_by === я ? '' : `${e(имена[в.created_by] || 'отдел')} · `;
+            const что = в.status === 'submitted' ? 'ждёт утверждения' : 'черновик';
+            return строка(в.article_id, в.title, `${возврат}${чей}${что} · ${дата(в.updated_at)}`);
+        }).join('');
     }
 
     async function очередь() {

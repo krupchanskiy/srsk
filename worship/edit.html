@@ -51,7 +51,7 @@
         <div class="flex flex-wrap items-center gap-3 mb-4">
             <h1 class="text-2xl font-bold tracking-tight flex-1 min-w-full desktop:min-w-0" id="режим">Новая статья</h1>
             <span class="text-sm opacity-60" id="сохранение"></span>
-            <button class="btn btn-sm btn-ghost" id="отмена" data-i18n="worship_cancel_edit">Отменить правку</button>
+            <button class="btn btn-sm btn-ghost" id="отмена" data-i18n="worship_leave_edit">Выйти без сохранения</button>
             <button class="btn btn-sm btn-outline" id="сохранить" data-i18n="save">Сохранить</button>
             <button class="btn btn-sm" id="отправить"
                     style="background: var(--current-color); color:#fff;" data-i18n="worship_send_senior">Отправить старшему</button>
@@ -66,6 +66,13 @@
             </div>
         </div>
 
+        <!-- замечание старшего должно быть перед глазами, пока человек правит,
+             а не на соседней странице -->
+        <div id="возврат" hidden class="rounded-xl border border-warning/40 bg-warning/10 p-4 mb-4">
+            <div class="font-bold mb-1" data-i18n="worship_returned_title">Старший вернул на доработку</div>
+            <div class="text-sm" id="возвратПричина"></div>
+        </div>
+
         <div class="card bg-base-100 shadow mb-4">
             <div class="card-body p-5 desktop:p-6 gap-4">
                 <label class="form-control">
@@ -76,6 +83,16 @@
                 <label class="form-control">
                     <div class="label py-1"><span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_section">Раздел</span></div>
                     <select id="раздел" class="select select-bordered"></select>
+                </label>
+                <!-- поле обязательно при отправке, поэтому стоит рядом с названием,
+                     а не в самом низу страницы после всего текста -->
+                <label class="form-control" id="картаИзменений">
+                    <div class="label py-1">
+                        <span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_change">Что изменилось</span>
+                    </div>
+                    <input id="примечание" type="text" class="input input-bordered"
+                           data-i18n-placeholder="worship_change_placeholder" placeholder="Одной строкой: что поменяли и почему" maxlength="200">
+                    <div class="label py-1"><span class="label-text-alt opacity-60" data-i18n="worship_change_hint">Старший увидит это в очереди, а отдел — в истории.</span></div>
                 </label>
             </div>
         </div>
@@ -92,6 +109,7 @@
             <button class="btn btn-xs btn-outline" data-добавить="ol">По шагам</button>
             <button class="btn btn-xs btn-outline" data-добавить="note">Заметка</button>
             <button class="btn btn-xs btn-outline" data-добавить="img">Фото</button>
+            <button class="btn btn-xs btn-ghost ml-auto" id="вернутьБлок" hidden>Вернуть убранное</button>
         </div>
 
         <div class="card bg-base-100 shadow">
@@ -101,19 +119,6 @@
                     Enter — новый абзац, Backspace в пустом — убрать блок.
                     Вставка приходит обычным текстом: оформление из Word не переносится.
                 </p>
-            </div>
-        </div>
-
-        <div class="card bg-base-100 shadow mt-4" id="картаИзменений">
-            <div class="card-body p-5 desktop:p-6">
-                <label class="form-control">
-                    <div class="label py-1">
-                        <span class="label-text text-xs uppercase tracking-widest opacity-60" data-i18n="worship_field_change">Что изменилось</span>
-                    </div>
-                    <input id="примечание" type="text" class="input input-bordered"
-                           data-i18n-placeholder="worship_change_placeholder" placeholder="Одной строкой: что поменяли и почему" maxlength="200">
-                    <div class="label py-1"><span class="label-text-alt opacity-60" data-i18n="worship_change_hint">Старший увидит это в очереди, а отдел — в истории.</span></div>
-                </label>
             </div>
         </div>
 
@@ -129,11 +134,11 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=98"></script>
+    <script src="../js/layout.js?v=99"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/worship-doc.js?v=4"></script>
-    <script src="../js/pages/worship-edit.js?v=6"></script>
+    <script src="../js/worship-doc.js?v=5"></script>
+    <script src="../js/pages/worship-edit.js?v=8"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

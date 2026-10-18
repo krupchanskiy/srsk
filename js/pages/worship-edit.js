@@ -72,7 +72,8 @@ const WorshipEdit = (() => {
         }
 
         const документ = WorshipDoc.разобрать(версия?.doc);
-        блоки = документ.blocks.length ? документ.blocks : WorshipDoc.пустой().blocks;
+        блоки = (документ.blocks.length ? документ.blocks : WorshipDoc.пустой().blocks)
+            .map(б => ({ ...б, метка: ++счётчикМеток }));
         базоваяОтметка = версия?.status === 'draft' ? версия.updated_at : null;
         Object.assign(ссылки, await WorshipDoc.ссылкиНаСнимки(Layout.db, { blocks: блоки }));
         return true;
@@ -84,12 +85,20 @@ const WorshipEdit = (() => {
             : статья.status === 'published' ? 'Правка действующего стандарта'
             : 'Черновик';
 
+        // раздел может прийти в адресе — из кнопки «+ статья» в заголовке раздела
+        const изАдреса = new URLSearchParams(location.search).get('section');
+        const выбран = статья?.section_id || изАдреса || '';
         $('#раздел').innerHTML = '<option value="">Без раздела</option>' + разделы.map(р =>
-            `<option value="${р.id}" ${статья?.section_id === р.id ? 'selected' : ''}>${
+            `<option value="${р.id}" ${выбран === р.id ? 'selected' : ''}>${
                 e(Layout.getName(р))}${р.is_active ? '' : ' (скрыт)'}</option>`).join('');
 
         $('#заголовок').value = версия?.title || статья?.title || '';
         $('#примечание').value = версия?.status === 'draft' ? (версия.change_note || '') : '';
+
+        // замечание старшего — перед глазами, а не на соседней странице
+        const причина = версия?.status === 'draft' ? версия.return_reason : null;
+        $('#возврат').hidden = !причина;
+        if (причина) $('#возвратПричина').textContent = причина;
 
         // у первой версии не спрашиваем «что изменилось»: первое наполнение
         // не должно превращаться в полсотни согласований
@@ -106,12 +115,20 @@ const WorshipEdit = (() => {
         обёртка.dataset.i = i;
 
         const ручки = document.createElement('div');
-        ручки.className = 'ручки flex items-center gap-1 mb-1';
+        ручки.className = 'ручки flex flex-wrap items-center gap-1 mb-1';
+        // тип блока меняется на месте: иначе перенос готового документа
+        // превращается в перепечатывание каждого заголовка и пункта
+        const выбор = б.type === 'img' ? '' : `
+            <select class="select select-xs select-bordered" data-тип>
+                ${Object.entries(НАЗВАНИЯ).filter(([т]) => т !== 'img').map(([т, имя]) =>
+                    `<option value="${т}" ${т === б.type ? 'selected' : ''}>${имя}</option>`).join('')}
+            </select>`;
         ручки.innerHTML = `
-            <span class="text-[11px] uppercase tracking-widest opacity-40 mr-1">${НАЗВАНИЯ[б.type]}</span>
-            <button class="btn btn-ghost btn-xs" data-действие="вверх" title="Выше">↑</button>
-            <button class="btn btn-ghost btn-xs" data-действие="вниз" title="Ниже">↓</button>
-            <button class="btn btn-ghost btn-xs text-error" data-действие="убрать" title="Убрать">✕</button>`;
+            ${выбор || `<span class="text-[11px] uppercase tracking-widest opacity-40 mr-1">${
+                НАЗВАНИЯ[б.type]}</span>`}
+            <button class="btn btn-ghost btn-sm px-2" data-действие="вверх" title="Выше">↑</button>
+            <button class="btn btn-ghost btn-sm px-2" data-действие="вниз" title="Ниже">↓</button>
+            <button class="btn btn-ghost btn-sm px-2 text-error" data-действие="убрать" title="Убрать">✕</button>`;
         обёртка.appendChild(ручки);
 
         if (б.type === 'ul' || б.type === 'ol') {
@@ -226,6 +243,7 @@ const WorshipEdit = (() => {
         document.querySelectorAll('#блоки .блок').forEach(узел => {
             const б = блоки[Number(узел.dataset.i)];
             if (!б) return;
+            const метка = б.метка;
             if (б.type === 'ul' || б.type === 'ol') {
                 // пустые пункты НЕ выбрасываем: пока человек пишет, пустой пункт —
                 // это живая строка под курсором, и если убрать её здесь, номер
@@ -233,15 +251,17 @@ const WorshipEdit = (() => {
                 // Backspace сотрёт соседу текст, а Enter вставит пункт не туда.
                 // Отбрасываются они позже, в WorshipDoc.разобрать, при записи
                 const items = [...узел.querySelectorAll('[data-пункт]')].map(собратьОтрезки);
-                собранные.push({ type: б.type, items });
+                собранные.push({ type: б.type, items, метка });
             } else if (б.type === 'img') {
-                собранные.push({ type: 'img', path: б.path || '',
+                собранные.push({ type: 'img', path: б.path || '', метка,
                                  caption: узел.querySelector('[data-подпись]')?.value || '' });
             } else {
-                собранные.push({ type: б.type, spans: собратьОтрезки(узел.querySelector('[data-текст]')) });
+                собранные.push({ type: б.type, метка,
+                                 spans: собратьОтрезки(узел.querySelector('[data-текст]')) });
             }
         });
         блоки = собранные;
+        // метки служебные: в базу уходит разобранный документ, где их нет
         return WorshipDoc.разобрать({ blocks: собранные });
     }
 
@@ -382,15 +402,22 @@ const WorshipEdit = (() => {
         $('#конфликт').hidden = false;
         document.querySelector('#конфликт .font-bold').textContent =
             сообщение || 'Пока вы писали, черновик изменил кто-то другой';
-        $('#конфликтТекст').textContent =
-            `Сохранено ${DateUtils.formatDateTime(new Date(чужая.обновлена))}. ` +
-            'Откройте чужую правку в соседней вкладке и перенесите своё, ' +
-            'либо сохраните поверх — тогда чужая работа пропадёт.';
+        // имя и начало чужого текста прямо здесь: иначе непонятно, с кем
+        // договариваться и что вообще написано вместо твоего
+        const кусок = (чужая.текст || '').trim().slice(0, 300);
+        $('#конфликтТекст').innerHTML = `
+            ${e(чужая.кто || 'Кто-то из отдела')} сохранил ${
+                DateUtils.formatDateTime(new Date(чужая.обновлена))}.
+            ${кусок ? `<span class="block mt-2 p-2 rounded bg-base-100 text-sm">${
+                e(кусок)}${(чужая.текст || '').length > 300 ? '…' : ''}</span>` : ''}
+            <span class="block mt-2">Откройте чужую правку в соседней вкладке и перенесите своё,
+            либо сохраните поверх — тогда чужая работа пропадёт.</span>`;
     }
 
     // ---------- снимки ----------
-    let блокДляСнимка = null;        // сам блок, а не номер: пока открыт выбор файла,
-                                     // блоки могли переставить или убрать
+    let блокДляСнимка = null;        // метка блока, а не его номер в списке: пока
+                                     // открыт выбор файла, блоки могли переставить
+    let счётчикМеток = 0;
 
     /** Уменьшаем до загрузки: у алтаря телефон, а не студия. */
     function уменьшить(файл) {
@@ -436,7 +463,7 @@ const WorshipEdit = (() => {
         свои.push(путь);
 
         собрать();
-        const куда = блоки.indexOf(блокДляСнимка);
+        const куда = блоки.findIndex(б => б.метка === блокДляСнимка);
         if (куда < 0) {                       // блок убрали, пока выбирали файл
             Layout.db.storage.from('worship').remove([путь])
                 .then(({ error }) => { if (error) console.debug('не убрали снимок:', error.message); });
@@ -448,11 +475,96 @@ const WorshipEdit = (() => {
         запомнить();
     }
 
+    // ---------- вставка готового текста ----------
+    /**
+     * Делит вставленный текст на блоки по пустым строкам и по виду строки.
+     * Это не разметка на все случаи, а то, что встречается в документах отдела:
+     * короткая строка без точки на конце — заголовок, «1.» или «—» — пункт.
+     */
+    function разобратьВставку(текст) {
+        const строки = String(текст || '').replace(/\r/g, '').split('\n')
+            .map(с => с.replace(/\s+/g, ' ').trim());
+        const куски = [];
+
+        строки.forEach(строка => {
+            if (!строка) { куски.push(null); return; }      // пустая строка — граница
+
+            const нумерованный = /^(\d{1,2})[.)]\s+(.+)$/.exec(строка);
+            const маркер = /^[-–—•*]\s+(.+)$/.exec(строка);
+            const прошлый = куски[куски.length - 1];
+
+            if (нумерованный || маркер) {
+                const тип = нумерованный ? 'ol' : 'ul';
+                const текстПункта = (нумерованный ? нумерованный[2] : маркер[1]).trim();
+                if (прошлый && прошлый.type === тип) прошлый.items.push(текстПункта);
+                else куски.push({ type: тип, items: [текстПункта] });
+                return;
+            }
+
+            // короткая строка без завершающей точки — обычно заголовок
+            if (строка.length <= 60 && !/[.!?:;,]$/.test(строка)) {
+                куски.push({ type: 'h2', text: строка });
+                return;
+            }
+
+            if (прошлый && прошлый.type === 'p') прошлый.text += ' ' + строка;
+            else куски.push({ type: 'p', text: строка });
+        });
+
+        return куски.filter(Boolean);
+    }
+
+    function вставитьБлоками(поле, куски) {
+        собрать();
+        const узел = поле.closest('.блок');
+        const i = Number(узел.dataset.i);
+        // «пусто» — только про блок целиком: пустая строка внутри списка пустым
+        // блоком не делает, и заменять им весь список нельзя
+        const вСписке = поле.dataset.пункт !== undefined;
+        const пусто = !вСписке && !поле.textContent.trim();
+
+        const новые = куски.map(к => ({
+            метка: ++счётчикМеток,
+            ...(к.items
+                ? { type: к.type, items: к.items.map(т => [{ t: т }]) }
+                : { type: к.type, spans: [{ t: к.text }] }),
+        }));
+
+        // в пустой блок вставляем вместо него, иначе — следом
+        блоки.splice(пусто ? i : i + 1, пусто ? 1 : 0, ...новые);
+        рисоватьБлоки();
+        пометить();
+        запомнить();
+
+        const последний = (пусто ? i : i + 1) + новые.length - 1;
+        document.querySelector(`.блок[data-i="${последний}"] [data-текст]`)?.focus();
+        Layout.showNotification(`Вставлено блоков: ${новые.length}`, 'info');
+    }
+
     // ---------- работа с блоками ----------
+    /** Перекладывает содержимое блока в другой тип, ничего не теряя. */
+    function сменитьТип(б, тип) {
+        if (!б || б.type === тип) return б;
+        const списки = ['ul', 'ol'];
+
+        if (списки.includes(тип)) {
+            const items = списки.includes(б.type)
+                ? б.items
+                : [(б.spans || []).slice()];
+            return { type: тип, метка: б.метка,
+                     items: items.filter(п => п.length).length ? items : [[]] };
+        }
+        const spans = списки.includes(б.type)
+            ? б.items.flatMap((п, i) => i ? [{ t: ' ' }, ...п] : п)
+            : (б.spans || []);
+        return { type: тип, spans, метка: б.метка };
+    }
+
     function новыйБлок(тип) {
-        if (тип === 'ul' || тип === 'ol') return { type: тип, items: [[]] };
-        if (тип === 'img') return { type: 'img', path: '', caption: '' };
-        return { type: тип, spans: [] };
+        const метка = ++счётчикМеток;
+        if (тип === 'ul' || тип === 'ol') return { type: тип, items: [[]], метка };
+        if (тип === 'img') return { type: 'img', path: '', caption: '', метка };
+        return { type: тип, spans: [], метка };
     }
 
     function добавитьБлок(тип, куда = блоки.length) {
@@ -464,9 +576,13 @@ const WorshipEdit = (() => {
         узел?.focus();
     }
 
+    let убранный = null;            // последний удалённый блок, чтобы вернуть
+
     function убратьБлок(i) {
         собрать();
         const б = блоки[i];
+        убранный = { блок: б, место: i };
+        $('#вернутьБлок').hidden = false;
         // снимок, загруженный в эту же правку и никуда не попавший, уносим с собой:
         // иначе хранилище копит кадры, которых нет ни в одной версии
         if (б?.type === 'img' && б.path && свои.includes(б.path)) {
@@ -476,6 +592,17 @@ const WorshipEdit = (() => {
         }
         блоки.splice(i, 1);
         if (!блоки.length) блоки = WorshipDoc.пустой().blocks;
+        рисоватьБлоки();
+        пометить();
+    }
+
+    /** Промах пальцем по ✕ в 4:20 не должен стоить абзаца. */
+    function вернутьБлок() {
+        if (!убранный) return;
+        собрать();
+        блоки.splice(Math.min(убранный.место, блоки.length), 0, убранный.блок);
+        убранный = null;
+        $('#вернутьБлок').hidden = true;
         рисоватьБлоки();
         пометить();
     }
@@ -495,12 +622,22 @@ const WorshipEdit = (() => {
 
         тело.addEventListener('input', () => { пометить(); запомнитьПотом(); });
 
-        // вставка приходит обычным текстом: из Word иначе приезжает чужая вёрстка
+        // Вставка приходит обычным текстом: из Word иначе приезжает чужая вёрстка.
+        // Но переносы строк сохраняем смыслом: отдел будет переносить полсотни
+        // готовых документов, и схлопывать их в один абзац — значит заставить
+        // перепечатывать всё руками.
         тело.addEventListener('paste', ev => {
-            if (!ev.target.closest('[data-текст]')) return;
+            const поле = ev.target.closest('[data-текст]');
+            if (!поле) return;
             ev.preventDefault();
             const текст = (ev.clipboardData || window.clipboardData).getData('text/plain');
-            document.execCommand('insertText', false, текст.replace(/\s*\n\s*/g, ' '));
+            const куски = разобратьВставку(текст);
+
+            if (куски.length <= 1) {
+                document.execCommand('insertText', false, текст.replace(/\s+/g, ' ').trim());
+                return;
+            }
+            вставитьБлоками(поле, куски);
         });
 
         тело.addEventListener('keydown', ev => {
@@ -573,10 +710,21 @@ const WorshipEdit = (() => {
                     break;
                 case 'снимок':
                     собрать();
-                    блокДляСнимка = блоки[i];
+                    блокДляСнимка = блоки[i]?.метка ?? null;
                     $('#файл').click();
                     break;
             }
+        });
+
+        тело.addEventListener('change', ev => {
+            const выбор = ev.target.closest('[data-тип]');
+            if (!выбор) return;
+            собрать();
+            const i = Number(выбор.closest('.блок').dataset.i);
+            блоки[i] = сменитьТип(блоки[i], выбор.value);
+            рисоватьБлоки();
+            пометить();
+            document.querySelector(`.блок[data-i="${i}"] [data-текст]`)?.focus();
         });
 
         $('#файл').addEventListener('change', async ev => {
@@ -592,6 +740,7 @@ const WorshipEdit = (() => {
         // сериализация не понимает, и оформление «не снимается»
         try { document.execCommand('styleWithCSS', false, false); } catch { /* старый браузер */ }
         $('#жирный').addEventListener('click', () => { document.execCommand('bold'); пометить(); });
+        $('#вернутьБлок').addEventListener('click', вернутьБлок);
         $('#ссылка').addEventListener('click', поставитьСсылку);
 
         ['#заголовок', '#раздел', '#примечание'].forEach(s =>
@@ -607,11 +756,13 @@ const WorshipEdit = (() => {
         $('#удалить').addEventListener('click', удалить);
 
         $('#перезаписать').addEventListener('click', async () => {
+            if (!confirm('Чужая правка пропадёт без возможности вернуть. Сохранить моё поверх?')) return;
             знаюСостояние = false;              // сознательная перезапись
             $('#конфликт').hidden = true;
             await сохранить({});
         });
-        $('#открытьЧужое').addEventListener('click', () => window.open(`article.html?id=${id}`, '_blank'));
+        // чужой черновик живёт в редакторе: на странице статьи его не показывают
+        $('#открытьЧужое').addEventListener('click', () => window.open(`edit.html?id=${id}`, '_blank'));
 
         addEventListener('beforeunload', ev => {
             if (!грязно) return;
@@ -647,7 +798,7 @@ const WorshipEdit = (() => {
     }
 
     function отменить() {
-        if (грязно && !confirm('Несохранённое пропадёт. Выйти?')) return;
+        if (грязно && !confirm('Выйти без сохранения? Написанное после последнего сохранения пропадёт.')) return;
         грязно = false;
         забыть();
         location.href = id ? `article.html?id=${id}` : 'standards.html';

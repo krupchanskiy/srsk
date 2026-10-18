@@ -62,21 +62,26 @@ const WorshipStandards = (() => {
         if (статья.status === 'archived') {
             return '<span class="badge badge-sm ml-2 align-middle">не действует</span>';
         }
-        if (открытая === 'submitted') {
-            return '<span class="badge badge-sm badge-warning ml-2 align-middle">на утверждении</span>';
-        }
         if (статья.status === 'draft') {
-            return '<span class="badge badge-sm ml-2 align-middle">черновик</span>';
+            // статьи ещё нет в храме: ждёт решения она сама
+            return открытая === 'submitted'
+                ? '<span class="badge badge-sm badge-warning ml-2 align-middle">на утверждении</span>'
+                : '<span class="badge badge-sm ml-2 align-middle">черновик</span>';
+        }
+        if (открытая === 'submitted') {
+            // статья действует, решения ждёт только правка к ней
+            return '<span class="badge badge-sm badge-warning ml-2 align-middle">есть правка</span>';
         }
         if (открытая === 'draft') {
-            return '<span class="badge badge-sm badge-ghost ml-2 align-middle">есть правка</span>';
+            return '<span class="badge badge-sm badge-ghost ml-2 align-middle">есть черновик</span>';
         }
         return '';
     }
 
     function подходит(статья) {
+        // галочка добавляет отменённые к выдаче, а не заменяет ею: окно архивации
+        // обещает, что отменённый стандарт «останется доступным в поиске»
         if (!фильтр.архив && статья.status === 'archived') return false;
-        if (фильтр.архив && статья.status !== 'archived') return false;
         const q = фильтр.поиск.trim().toLowerCase();
         if (!q) return true;
         // ищем и по тексту: «как делается одевание» — это слова изнутри статьи,
@@ -129,15 +134,15 @@ const WorshipStandards = (() => {
             const статья = статьи.find(с => с.id === в.article_id);
             return `
             <div class="flex flex-col desktop:flex-row desktop:items-center gap-3 bg-base-100 border border-base-300 rounded-lg px-4 py-3">
-                <input type="checkbox" class="checkbox checkbox-sm self-start desktop:self-center"
+                <input type="checkbox" class="checkbox self-start desktop:self-center"
                        data-очередь="${в.article_id}">
-                <a href="article.html?id=${в.article_id}" class="flex-1 min-w-0">
+                <a href="article.html?id=${в.article_id}&v=${в.id}" class="flex-1 min-w-0">
                     <span class="font-semibold block">${e(в.title || статья?.title || 'Без названия')}</span>
                     <span class="text-sm opacity-60">${
                         в.change_note ? '«' + e(в.change_note) + '» · ' : ''}${
                         DateUtils.formatShort(new Date(в.updated_at))}</span>
                 </a>
-                <a href="article.html?id=${в.article_id}" class="btn btn-sm self-start"
+                <a href="article.html?id=${в.article_id}&v=${в.id}" class="btn btn-sm self-start"
                    style="background: var(--current-color); color: #fff;">Открыть</a>
             </div>`;
         }).join('');
@@ -218,12 +223,14 @@ const WorshipStandards = (() => {
             // от самых давних к свежим и только действующее: этот список нужен,
             // чтобы увидеть, что давно не пересматривали, а не «что нового»
             const порядок = видимые
-                .filter(с => фильтр.архив || (с.status === 'published' && с.утверждена))
+                .filter(с => с.status === 'published' && с.утверждена
+                          || (фильтр.архив && с.status === 'archived'))
                 .sort((a, b) => new Date(a.утверждена || a.updated_at) - new Date(b.утверждена || b.updated_at));
             тело.innerHTML = `
                 <div class="card bg-base-100 shadow"><ul class="list-none m-0 p-0">
                     ${порядок.map(строкаСтатьи).join('') ||
-                      '<li class="px-5 py-8 text-center opacity-60">Ничего не нашлось</li>'}
+                      `<li class="px-5 py-8 text-center opacity-60">${
+                        фильтр.поиск ? 'Ничего не нашлось' : 'Утверждённых стандартов пока нет'}</li>`}
                 </ul></div>`;
             return;
         }
@@ -232,13 +239,16 @@ const WorshipStandards = (() => {
         тело.innerHTML = разделы.map(р => {
             const свои = видимые.filter(с => с.section_id === р.id);
             // при поиске и в архиве пустые разделы только мешают считать
-            if (!свои.length && (фильтр.поиск || фильтр.архив)) return '';
+            if (!свои.length && фильтр.поиск) return '';
             return `
             <div class="card bg-base-100 shadow mb-4">
                 <div class="px-5 pt-4 pb-2 flex flex-wrap items-center gap-3">
-                    <h2 class="card-title text-lg">${e(Layout.getName(р))}</h2>
+                    <h2 class="card-title text-lg flex-1 min-w-0">${e(Layout.getName(р))}</h2>
                     <span class="text-sm opacity-50">${свои.length}</span>
                     ${р.is_active ? '' : '<span class="badge badge-sm">скрыт</span>'}
+                    ${можноПисать()
+                        ? `<a href="edit.html?section=${р.id}" class="btn btn-ghost btn-xs"
+                              title="Новая статья в этом разделе">+ статья</a>` : ''}
                 </div>
                 <ul class="list-none m-0 p-0">
                     ${свои.map(строкаСтатьи).join('') ||
@@ -367,6 +377,9 @@ const WorshipStandards = (() => {
                 <button class="btn btn-ghost btn-xs" data-раздел="имя" data-id="${р.id}">Переименовать</button>
                 <button class="btn btn-ghost btn-xs" data-раздел="видимость" data-id="${р.id}">${
                     р.is_active ? 'Скрыть' : 'Вернуть'}</button>
+                ${сколько === 0
+                    ? `<button class="btn btn-ghost btn-xs text-error" data-раздел="убрать"
+                               data-id="${р.id}">Удалить</button>` : ''}
             </li>`;
         }).join('') || '<li class="py-2 text-sm opacity-60">Разделов пока нет</li>';
     }
@@ -379,27 +392,23 @@ const WorshipStandards = (() => {
         if (действие === 'имя') {
             const имя = prompt('Название раздела', Layout.getName(р));
             if (имя === null || !имя.trim()) return;
+            if (повтор(имя, р.id)) return;
             правка = { name_ru: имя.trim() };
         } else if (действие === 'видимость') {
             // раздел с содержимым не удаляется: его статьи остались бы без дома
             правка = { is_active: !р.is_active };
+        } else if (действие === 'убрать') {
+            if (!confirm(`Удалить пустой раздел «${Layout.getName(р)}»?`)) return;
+            const { error } = await Layout.db.rpc('worship_section_delete', { p_section: id });
+            if (error) return Layout.handleError(error, 'Удаление раздела');
+            if (await загрузить() && await дополнитьВерсиями()) { рисовать(); рисоватьРазделыВОкне(); }
+            return;
         } else {
-            const шаг = действие === 'вверх' ? -1 : 1;
-            const сосед = разделы[разделы.indexOf(р) + шаг];
-            if (!сосед) return;
-            // порядковые номера раздаём заново: по умолчанию они нулевые у всех
-            const номера = разделы.map((_, i) => i);
-            const свой = разделы.indexOf(р), чужой = разделы.indexOf(сосед);
-            const пары = разделы.map((x, i) => ({
-                id: x.id,
-                sort_order: i === свой ? номера[чужой] : i === чужой ? номера[свой] : номера[i],
-            }));
-            for (const пара of пары) {
-                const { error } = await Layout.db.from('worship_sections')
-                    .update({ sort_order: пара.sort_order, updated_at: new Date().toISOString() })
-                    .eq('id', пара.id);
-                if (error) return Layout.handleError(error, 'Порядок разделов');
-            }
+            // перестановка идёт одной операцией: построчными запросами сбой
+            // на середине оставлял бы разделы перемешанными
+            const { error } = await Layout.db.rpc('worship_section_reorder',
+                { p_section: id, p_direction: действие === 'вверх' ? -1 : 1 });
+            if (error) return Layout.handleError(error, 'Порядок разделов');
             if (await загрузить() && await дополнитьВерсиями()) { рисовать(); рисоватьРазделыВОкне(); }
             return;
         }
@@ -412,9 +421,18 @@ const WorshipStandards = (() => {
         if (await загрузить() && await дополнитьВерсиями()) { рисовать(); рисоватьРазделыВОкне(); }
     }
 
+    /** Два «Арати» в списке — верный способ потерять половину статей. */
+    function повтор(имя, кромеId) {
+        const есть = разделы.some(р => р.id !== кромеId &&
+            (р.name_ru || '').trim().toLowerCase() === имя.trim().toLowerCase());
+        if (есть) Layout.showNotification('Раздел с таким названием уже есть', 'warning');
+        return есть;
+    }
+
     async function создатьРаздел(имя) {
         const название = (имя ?? prompt('Название раздела, например «Арати»') ?? '').trim();
         if (!название) return;
+        if (повтор(название, null)) return;
         const { error } = await Layout.db.from('worship_sections').insert({
             name_ru: название,
             sort_order: разделы.length,

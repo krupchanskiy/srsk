@@ -62,7 +62,7 @@
             <!-- первое наполнение — это полсотни статей за вечер, по одной их никто не утвердит -->
             <div class="flex flex-wrap items-center gap-3 mt-3">
                 <label class="label cursor-pointer justify-start gap-2 py-0">
-                    <input type="checkbox" class="checkbox checkbox-sm" id="queueAll">
+                    <input type="checkbox" class="checkbox" id="queueAll">
                     <span class="label-text text-sm" data-i18n="worship_select_all">Отметить все</span>
                 </label>
                 <button class="btn btn-sm btn-success text-white" id="approveMany" disabled
@@ -78,8 +78,8 @@
         </section>
 
         <label class="label cursor-pointer justify-start gap-2 mb-3 w-fit">
-            <input type="checkbox" class="checkbox checkbox-sm" id="showArchive">
-            <span class="label-text text-sm" data-i18n="worship_only_archived">Только отменённые</span>
+            <input type="checkbox" class="checkbox" id="showArchive">
+            <span class="label-text text-sm" data-i18n="worship_with_archived">Показывать и отменённые</span>
         </label>
 
         <div id="list"></div>
@@ -89,7 +89,7 @@
     <dialog id="sectionsModal" class="modal">
         <div class="modal-box max-w-xl">
             <h3 class="font-bold text-lg mb-1" data-i18n="worship_sections_title">Разделы</h3>
-            <p class="text-sm opacity-60 mb-4" data-i18n="worship_sections_modal_hint">Порядок задаёт стрелками.
+            <p class="text-sm opacity-60 mb-4" data-i18n="worship_sections_modal_hint">Порядок задаётся стрелками.
                 Раздел с содержимым не удаляется — его можно скрыть: статьи останутся доступны
                 по ссылке и в поиске.</p>
             <ul class="list-none m-0 p-0" id="sectionsList"></ul>
@@ -111,10 +111,10 @@
     <script src="../js/config.js"></script>
     <script src="../js/cache.js"></script>
     <script src="../js/utils.js"></script>
-    <script src="../js/layout.js?v=98"></script>
+    <script src="../js/layout.js?v=99"></script>
     <script src="../js/date-utils.js"></script>
     <script src="../js/auth-check.js?v=12"></script>
-    <script src="../js/pages/worship-standards.js?v=12"></script>
+    <script src="../js/pages/worship-standards.js?v=13"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

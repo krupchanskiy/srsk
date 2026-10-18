@@ -61,27 +61,31 @@ const WorshipArticle = (() => {
                 : Promise.resolve(),
         ]);
         заменяет = зам0.data || [];      // одним стандартом можно отменить несколько
+        заменено = зам1.data || null;
+        вЗакладках = !!з.data;
+        замечания = зам.data || [];
 
-        // ТЗ просит в карточке версии автора и утвердившего: «кто это писал» —
-        // первый вопрос к незнакомому тексту
-        const кто = [...new Set(версии.flatMap(в => [в.created_by, в.approved_by]).filter(Boolean))];
+        // ТЗ просит в карточке версии автора и утвердившего, а у замечания —
+        // того, кто его оставил: «кто это писал» — первый вопрос к чужому тексту
+        const кто = [...new Set([
+            ...версии.flatMap(в => [в.created_by, в.approved_by]),
+            ...замечания.map(з2 => з2.created_by),
+        ].filter(Boolean))];
         if (кто.length) {
             const { data: люди } = await Layout.db.from('vaishnavas')
                 .select('user_id, spiritual_name, first_name, last_name').in('user_id', кто);
             имена = Object.fromEntries((люди || []).map(ч => [ч.user_id,
                 ч.spiritual_name || `${ч.first_name || ''} ${ч.last_name || ''}`.trim() || 'кто-то из отдела']));
         }
-        заменено = зам1.data || null;
-        вЗакладках = !!з.data;
-        замечания = зам.data || [];
 
-
-
-        // Правку, которая ждёт решения, открываем сразу: иначе старший жмёт
-        // «Утвердить», глядя на прежний текст, и утверждает вслепую. Проверять
-        // права здесь не нужно — незавершённые версии приходят только пуджари.
-        показана = версии.find(в => в.status === 'submitted')
+        // По умолчанию открывается ДЕЙСТВУЮЩИЙ текст: у алтаря в 4:20 человек
+        // должен видеть то, по чему служат, а не чужую неутверждённую правку.
+        // Правка открывается осознанно — ссылкой из очереди или из строки
+        // состояния («есть правка на утверждении»), и тогда приходит в адресе.
+        const хотят = new URLSearchParams(location.search).get('v');
+        показана = (хотят && версии.find(в => в.id === хотят))
                 || версии.find(в => в.status === 'published')
+                || версии.find(в => в.status === 'submitted')
                 || версии.find(в => в.status === 'draft')
                 || null;
         return true;
@@ -106,13 +110,14 @@ const WorshipArticle = (() => {
         const д = действующая();
         // ссылка-переключатель: с правки на действующий текст и обратно
         const кДействующей = д && д.id !== показана.id
-            ? ` · <button class="link" data-show="${д.id}">показать действующую</button>` : '';
+            ? ` · <a class="link" href="article.html?id=${статья.id}">показать действующую</a>` : '';
 
         if (показана.status === 'published') {
             const правка = версии.find(в => в.status === 'submitted');
             return `<span class="text-success font-semibold">Действует${
                 показана.approved_at ? ' с ' + дата(показана.approved_at) : ''}</span> · версия ${показана.version_no}${
-                правка ? ` · <button class="link" data-show="${правка.id}">есть правка на утверждении</button>` : ''}${
+                правка ? ` · <a class="link" href="article.html?id=${статья.id}&v=${
+                    правка.id}">есть правка на утверждении</a>` : ''}${
                 заменяет.length ? ' · заменил ' + заменяет.map(з =>
                     `<a class="link" href="article.html?id=${з.id}">${e(з.title)}</a>`).join(', ') : ''}`;
         }
@@ -177,8 +182,12 @@ const WorshipArticle = (() => {
         if (показана?.status === 'published' && статья.status === 'published') {
             кнопки.push('<button class="btn btn-sm btn-outline" id="print">Печать</button>');
         }
-        if (можноУтверждать() && статья.status === 'published' && !наЭкранеПравка) {
-            кнопки.push('<button class="btn btn-sm btn-ghost" id="archive">В архив</button>');
+        if (можноУтверждать() && статья.status === 'published') {
+            кнопки.push(открытая?.status === 'submitted'
+                ? `<button class="btn btn-sm btn-ghost" id="archiveBlocked"
+                           title="Сначала решите по правке: утвердите или верните автору"
+                           >Вывести из действия</button>`
+                : '<button class="btn btn-sm btn-ghost" id="archive">Вывести из действия</button>');
         }
         if (можноУтверждать() && статья.status === 'archived') {
             кнопки.push('<button class="btn btn-sm btn-outline" id="unarchive">Вернуть из архива</button>');
@@ -242,6 +251,7 @@ const WorshipArticle = (() => {
         const открытые = замечания.filter(з => з.state === 'open');
         const закрытые = замечания.filter(з => з.state !== 'open').slice(0, 5);
 
+        const имяАвтора = id => имена[id] || '';
         $('#remarks').innerHTML = [...открытые, ...закрытые].map(з => {
             const пометка = з.state === 'accepted'
                 ? '<span class="badge badge-sm badge-success">учтено</span>'
@@ -257,7 +267,9 @@ const WorshipArticle = (() => {
             <li class="border-b border-base-200 last:border-0 py-3">
                 <div class="flex flex-wrap items-baseline gap-2">
                     ${пометка}
-                    <span class="text-sm opacity-60">${дата(з.created_at)}</span>
+                    <span class="text-sm opacity-60">${
+                        имяАвтора(з.created_by) ? e(имяАвтора(з.created_by)) + ' · ' : ''}${
+                        дата(з.created_at)}</span>
                 </div>
                 <div class="mt-1">${e(з.body)}</div>
                 ${з.close_reason ? `<div class="text-sm opacity-70 mt-1">Ответ: ${e(з.close_reason)}</div>` : ''}
@@ -282,7 +294,7 @@ const WorshipArticle = (() => {
                 ${в.change_note ? `<div class="text-sm mt-1">«${e(в.change_note)}»</div>` : ''}
                 <div class="flex gap-3 mt-1">
                     <button class="link text-sm" data-show="${в.id}">Открыть</button>
-                    ${в.status !== 'published' && можноПисать()
+                    ${в.status !== 'published' && можноПисать() && статья.status !== 'archived'
                         ? `<button class="link text-sm" data-restore="${в.id}">Вернуть эту версию</button>` : ''}
                 </div>
             </li>`).join('') || '<li class="py-3 text-sm opacity-60">Утверждённых версий ещё нет</li>';
@@ -315,6 +327,38 @@ const WorshipArticle = (() => {
     }, 300));
 
     // ---------- действия ----------
+    /**
+     * Окно для связного текста: замечание, причина возврата, ответ на замечание.
+     * Возвращает введённое либо null, если человек передумал.
+     */
+    function спроситьТекст({ заголовок, подсказка, кнопка = 'Отправить', обязательно = true }) {
+        return new Promise(готово => {
+            const окно = $('#textModal');
+            $('#textTitle').textContent = заголовок;
+            $('#textHint').textContent = подсказка || '';
+            $('#textBody').value = '';
+            $('#textGo').textContent = кнопка;
+
+            const отправить = () => {
+                const текст = $('#textBody').value.trim();
+                if (обязательно && !текст) { $('#textBody').focus(); return; }
+                убрать();
+                окно.close();
+                готово(текст);
+            };
+            const закрыть = () => { убрать(); готово(null); };
+            const убрать = () => {
+                $('#textGo').removeEventListener('click', отправить);
+                окно.removeEventListener('close', закрыть);
+            };
+
+            $('#textGo').addEventListener('click', отправить);
+            окно.addEventListener('close', закрыть, { once: true });
+            окно.showModal();
+            setTimeout(() => $('#textBody').focus(), 50);
+        });
+    }
+
     async function открытьАрхивацию() {
         const { data } = await Layout.db.from('worship_articles')
             .select('id, title').eq('kind', 'standard').eq('status', 'published')
@@ -375,11 +419,12 @@ const WorshipArticle = (() => {
             if (учтено || несогласие) {
                 const id = (учтено || несогласие).dataset.remarkOk
                         || (учтено || несогласие).dataset.remarkNo;
-                const причина = несогласие
-                    ? prompt('Одной строкой: почему не согласны? Автор замечания это увидит.')
-                    : prompt('Можно коротко ответить (необязательно)');
-                if (причина === null) return;             // «Отмена» — значит отмена
-                if (несогласие && !причина.trim()) return;
+                const причина = await спроситьТекст(несогласие
+                    ? { заголовок: 'Не согласен', кнопка: 'Закрыть замечание',
+                        подсказка: 'Почему? Автор замечания это увидит.' }
+                    : { заголовок: 'Учтено', кнопка: 'Закрыть замечание', обязательно: false,
+                        подсказка: 'Можно коротко ответить — или просто закрыть.' });
+                if (причина === null) return;             // передумали
                 const { error } = await Layout.db.rpc('worship_remark_close', {
                     p_remark: id, p_state: несогласие ? 'declined' : 'accepted', p_reason: причина });
                 if (error) return Layout.handleError(error, 'Замечание');
@@ -390,8 +435,11 @@ const WorshipArticle = (() => {
             if (!b) return;
 
             if (b.id === 'addRemark') {
-                const текст = prompt('Что не так? Одной-двумя фразами.');
-                if (!текст || !текст.trim()) return;
+                const текст = await спроситьТекст({
+                    заголовок: 'Что не так?',
+                    подсказка: 'Одной-двумя фразами. Уйдёт автору последней версии и старшему.',
+                });
+                if (!текст) return;
                 const { error } = await Layout.db.rpc('worship_remark_add',
                     { p_article: статья.id, p_body: текст });
                 if (error) return Layout.handleError(error, 'Замечание');
@@ -404,7 +452,7 @@ const WorshipArticle = (() => {
             if (b.id === 'diff') return показатьСравнение();
 
             if (b.id === 'approve') {
-                if (!confirm('Утвердить? С этого момента по стандарту служат в храме, отделу уйдёт сообщение.')) return;
+                if (!confirm('Утвердить? С этого момента по этому тексту служат в храме.')) return;
                 const { data, error } = await Layout.db.rpc('worship_approve', { p_article: статья.id });
                 if (error) return Layout.handleError(error, 'Утверждение');
                 if (data?.отозвана) {
@@ -415,8 +463,12 @@ const WorshipArticle = (() => {
                 return перечитать();
             }
             if (b.id === 'return') {
-                const причина = prompt('Что поправить? Причина уйдёт автору.');
-                if (!причина || !причина.trim()) return;
+                const причина = await спроситьТекст({
+                    заголовок: 'Вернуть автору',
+                    подсказка: 'Что поправить? Автор увидит это над текстом, когда откроет правку.',
+                    кнопка: 'Вернуть',
+                });
+                if (!причина) return;
                 const { error } = await Layout.db.rpc('worship_return', { p_article: статья.id, p_reason: причина });
                 if (error) return Layout.handleError(error, 'Возврат автору');
                 Layout.showNotification('Возвращено автору', 'success');
@@ -427,6 +479,11 @@ const WorshipArticle = (() => {
                 if (error) return Layout.handleError(error, 'Отзыв правки');
                 Layout.showNotification('Правка снова у вас в черновиках', 'success');
                 return перечитать();
+            }
+            if (b.id === 'archiveBlocked') {
+                Layout.showNotification(
+                    'Сначала решите по правке: утвердите её или верните автору', 'info');
+                return;
             }
             if (b.id === 'archive') return открытьАрхивацию();
             if (b.id === 'archiveGo') {
@@ -444,6 +501,9 @@ const WorshipArticle = (() => {
                 return перечитать();
             }
             if (b.id === 'unarchive') {
+                if (!confirm(заменено
+                        ? `Вернуть в действие? Сейчас вместо него действует «${заменено.title}», и два стандарта станут противоречить друг другу.`
+                        : 'Вернуть стандарт в действие?')) return;
                 const { error } = await Layout.db.rpc('worship_unarchive', { p_article: статья.id });
                 if (error) return Layout.handleError(error, 'Возврат из архива');
                 Layout.showNotification('Стандарт снова действует', 'success');
