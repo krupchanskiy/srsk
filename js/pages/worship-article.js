@@ -189,15 +189,25 @@ const WorshipArticle = (() => {
     }
 
     function рисоватьДействия() {
-        const открытая = версии.find(в => в.status === 'draft' || в.status === 'submitted');
+        const черновик = версии.find(в => в.status === 'draft');
+        const наУтверждении = версии.find(в => в.status === 'submitted');
         // утверждают и возвращают только тот текст, который сейчас на экране
         const наЭкранеПравка = показана?.status === 'submitted';
         const кнопки = [];
 
+        // Правка, отправленная старшему, редактору не отдаётся: он её
+        // не откроет, пока её не отзовут. Кнопка «Продолжить правку» всё
+        // равно звала туда и возвращала обратно с отказом — теперь её нет,
+        // а вместо неё ссылка на сам текст, который ждёт решения.
         if (можноПисать() && статья.status !== 'archived') {
-            кнопки.push(`<a href="edit.html?id=${статья.id}" class="btn btn-sm"
-                style="background: var(--current-color); color:#fff;">${
-                открытая ? 'Продолжить правку' : 'Править'}</a>`);
+            if (наУтверждении && !наЭкранеПравка) {
+                кнопки.push(`<a href="article.html?id=${статья.id}&v=${наУтверждении.id}"
+                    class="btn btn-sm btn-outline">Открыть правку</a>`);
+            } else if (!наУтверждении) {
+                кнопки.push(`<a href="edit.html?id=${статья.id}" class="btn btn-sm"
+                    style="background: var(--current-color); color:#fff;">${
+                    черновик ? 'Продолжить правку' : 'Править'}</a>`);
+            }
         }
         if (можноУтверждать() && наЭкранеПравка) {
             кнопки.push('<button class="btn btn-sm btn-success text-white" id="approve">Утвердить</button>');
@@ -236,7 +246,7 @@ const WorshipArticle = (() => {
             редкие.push('<li><button id="print">Печать</button></li>');
         }
         if (можноУтверждать() && статья.status === 'published') {
-            редкие.push(открытая?.status === 'submitted'
+            редкие.push(наУтверждении
                 ? `<li><button id="archiveBlocked"
                            title="Сначала решите по правке: утвердите или верните автору"
                            >Вывести из действия</button></li>`
