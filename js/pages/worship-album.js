@@ -21,7 +21,7 @@ const WorshipAlbum = (() => {
         const [н, с] = await Promise.all([
             Layout.db.from('worship_albums').select('*').eq('id', id).maybeSingle(),
             Utils.fetchAll((от, до) => Layout.db.from('worship_images')
-                .select('id, storage_path, caption, sort_order, shot_at, width, height')
+                .select('id, storage_path, thumb_path, caption, sort_order, shot_at, width, height')
                 .eq('album_id', id).order('sort_order').order('shot_at').range(от, до)),
         ]);
         if (н.error || с.error) { Layout.handleError(н.error || с.error, 'Загрузка папки'); return false; }
@@ -33,12 +33,61 @@ const WorshipAlbum = (() => {
         return true;
     }
 
+    /** В плитке — миниатюра, если она уже есть; оригинал — только при просмотре. */
+    const плитка = с => с.thumb_path || с.storage_path;
+
     async function обновитьСсылки() {
         ссылки = {};
         if (!снимки.length) return;
         // запомненные ссылки: при каждом действии в папке перечитываются все
         // снимки, и без этого браузер заново качал их целиком
-        ссылки = await WorshipLinks.подписать(Layout.db, снимки.map(с => с.storage_path));
+        ссылки = await WorshipLinks.подписать(Layout.db, снимки.map(плитка));
+    }
+
+    // ---------- миниатюры ----------
+    const ПРЕДЕЛ_МИНИАТЮРЫ = 480;
+    const путьМиниатюры = путь => путь.replace(/\.jpg$/i, '') + '.thumb.jpg';
+
+    /**
+     * Снимки, загруженные до миниатюр, получают их, когда папку открывает
+     * пуджари: тихо, по одному, в фоне. Не вышло — плитка просто покажет
+     * оригинал, как раньше.
+     */
+    let миниатюрыИдут = false;
+    async function дописатьМиниатюры() {
+        if (миниатюрыИдут || !можноПисать() || typeof Media === 'undefined') return;
+        const без = снимки.filter(с => !с.thumb_path).slice(0, 40);
+        if (!без.length) return;
+        миниатюрыИдут = true;
+        try {
+            const адреса = await WorshipLinks.подписать(Layout.db, без.map(с => с.storage_path));
+            for (const с of без) {
+                try {
+                    if (!адреса[с.storage_path]) continue;
+                    const ответ = await fetch(адреса[с.storage_path]);
+                    if (!ответ.ok) continue;
+                    const кусок = await ответ.blob();
+                    const мини = await Media.подготовить(new File([кусок], 'снимок.jpg', { type: кусок.type || 'image/jpeg' }),
+                        { предел: ПРЕДЕЛ_МИНИАТЮРЫ, качество: 0.78 });
+                    const путь = `${window.currentUser?.id}/${crypto.randomUUID()}.thumb.jpg`;
+                    const { error } = await Layout.db.storage.from('worship')
+                        .upload(путь, мини.тело, { contentType: 'image/jpeg' });
+                    if (error) continue;
+                    const { data, error: ош } = await Layout.db.rpc('worship_image_set_thumb',
+                        { p_image: с.id, p_path: путь });
+                    if (ош || !data?.['записано']) {
+                        // кто-то успел раньше — свой лишний файл убираем
+                        Layout.db.storage.from('worship').remove([путь]).then(() => {});
+                        continue;
+                    }
+                    с.thumb_path = путь;
+                } catch (ош) {
+                    console.debug('миниатюра не вышла:', ош?.message);
+                }
+            }
+        } finally {
+            миниатюрыИдут = false;
+        }
     }
 
     // ---------- отрисовка ----------
@@ -102,8 +151,8 @@ const WorshipAlbum = (() => {
         $('#снимки').innerHTML = снимки.map((с, i) => `
             <figure class="группа relative rounded-xl overflow-hidden bg-base-200">
                 <div class="relative aspect-square cursor-zoom-in" data-смотреть="${i}">
-                    ${ссылки[с.storage_path]
-                        ? `<img src="${ссылки[с.storage_path]}" alt="${e(с.caption)}" loading="lazy"
+                    ${ссылки[плитка(с)]
+                        ? `<img src="${e(ссылки[плитка(с)])}" alt="${e(с.caption)}" loading="lazy"
                                 class="w-full h-full object-cover">`
                         : '<span class="text-xs opacity-50 p-2 block">снимок не загрузился</span>'}
                     <!-- внизу снимка, а не вверху: на телефоне ручки видны всегда,
@@ -167,9 +216,19 @@ const WorshipAlbum = (() => {
                 .upload(путь, готовый.тело, { contentType: 'image/jpeg' });
             if (error) throw new Error(error.message);
 
+            // миниатюра для плитки; не вышла — плитка покажет оригинал
+            let мини = null;
+            try {
+                const м = await Media.подготовить(файл, { предел: ПРЕДЕЛ_МИНИАТЮРЫ, качество: 0.78 });
+                const { error: ошМ } = await Layout.db.storage.from('worship')
+                    .upload(путьМиниатюры(путь), м.тело, { contentType: 'image/jpeg' });
+                if (!ошМ) мини = путьМиниатюры(путь);
+            } catch { /* без миниатюры */ }
+
             const { error: ош } = await Layout.db.from('worship_images').insert({
                 album_id: id,
                 storage_path: путь,
+                thumb_path: мини,
                 caption: null,
                 // первоначальный порядок — по времени съёмки, а не по тому,
                 // в каком порядке человек выбрал файлы
@@ -290,8 +349,10 @@ const WorshipAlbum = (() => {
         document.addEventListener('click', async ev => {
             const смотреть = ev.target.closest('[data-смотреть]');
             if (смотреть) {
+                // в просмотре — оригиналы: плитки показывают миниатюры
+                const оригиналы = await WorshipLinks.подписать(Layout.db, снимки.map(с => с.storage_path));
                 return Media.открыть(снимки.map(с => ({
-                    адрес: ссылки[с.storage_path], подпись: с.caption || '',
+                    адрес: оригиналы[с.storage_path] || ссылки[плитка(с)], подпись: с.caption || '',
                 })), Number(смотреть.dataset.смотреть));
             }
 
@@ -318,8 +379,9 @@ const WorshipAlbum = (() => {
                     { p_image: убрать.dataset.убрать });
                 if (error) return Layout.handleError(error, 'Удаление снимка');
                 if (data?.путь) {
-                    WorshipLinks.забыть(data.путь);
-                    Layout.db.storage.from('worship').remove([data.путь])
+                    const файлы = [data.путь, data['миниатюра']].filter(Boolean);
+                    WorshipLinks.забыть(файлы);
+                    Layout.db.storage.from('worship').remove(файлы)
                         .then(({ error: ош }) => { if (ош) console.debug('файл остался:', ош.message); });
                 }
                 return перечитать();
@@ -402,7 +464,7 @@ const WorshipAlbum = (() => {
             document.querySelector('main').innerHTML = `
                 <div class="card bg-base-100 shadow max-w-xl"><div class="card-body items-start">
                     <h1 class="card-title text-xl">Папка не найдена</h1>
-                    <p class="text-sm opacity-70">Возможно, он закрыт для отдела или убран в архив.</p>
+                    <p class="text-sm opacity-70">Возможно, она закрыта для отдела или убрана в архив.</p>
                     <a href="gallery.html" class="btn btn-sm mt-2"
                        style="background: var(--current-color); color:#fff;">К галерее</a>
                 </div></div>`;
@@ -415,6 +477,8 @@ const WorshipAlbum = (() => {
                                { можноПравить: можноПисать() && !набор.is_archived });
         // ссылки на снимки живут час: обновляем, пока страница открыта
         Media.держатьСсылки(async () => { await обновитьСсылки(); рисоватьСнимки(); });
+        // старые снимки без миниатюр — дописываем в фоне, плитки сменятся при следующем заходе
+        if (!набор.is_archived) дописатьМиниатюры();
     }
 
     return { init };

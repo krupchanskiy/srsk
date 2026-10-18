@@ -31,14 +31,16 @@ const WorshipGallery = (() => {
             // и так отсекает RLS, а сотня id в адресе упиралась в предел URL
             const { data: снимки } = await Utils.fetchAll((от, до) =>
                 Layout.db.from('worship_images')
-                    .select('id, album_id, storage_path, sort_order, shot_at')
+                    .select('id, album_id, storage_path, thumb_path, sort_order, shot_at')
                     .order('sort_order').order('shot_at').order('id').range(от, до));
             const первый = {};
             (снимки || []).forEach(с => { if (!первый[с.album_id]) первый[с.album_id] = с; });
 
+            // на обложке — миниатюра, если она есть: плитка 160 px
+            const обложкаПуть = с => с && (с.thumb_path || с.storage_path);
             const пути = наборы.map(н => {
                 const выбрана = (снимки || []).find(с => с.id === н.cover_image_id);
-                return (выбрана || первый[н.id])?.storage_path;
+                return обложкаПуть(выбрана || первый[н.id]);
             }).filter(Boolean);
 
             обложки = {};
@@ -46,7 +48,7 @@ const WorshipGallery = (() => {
                 const карта = await WorshipLinks.подписать(Layout.db, пути);
                 наборы.forEach(н => {
                     const выбрана = (снимки || []).find(с => с.id === н.cover_image_id);
-                    const путь = (выбрана || первый[н.id])?.storage_path;
+                    const путь = обложкаПуть(выбрана || первый[н.id]);
                     if (путь && карта[путь]) обложки[н.id] = карта[путь];
                 });
             }

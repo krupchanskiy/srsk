@@ -518,7 +518,7 @@ const WorshipEdit = (() => {
             const моё = ++поколение;
 
             const { data: снимки } = await Layout.db.from('worship_images')
-                .select('id, storage_path, caption').eq('album_id', н.id)
+                .select('id, storage_path, thumb_path, caption').eq('album_id', н.id)
                 .order('sort_order').order('shot_at');
             if (моё !== поколение) return;
             if (!снимки?.length) {
@@ -526,7 +526,9 @@ const WorshipEdit = (() => {
                 return;
             }
 
-            const карта = await WorshipLinks.подписать(Layout.db, снимки.map(с => с.storage_path));
+            // в окне выбора — миниатюры; в текст вставляется оригинал
+            const плитка = с => с.thumb_path || с.storage_path;
+            const карта = await WorshipLinks.подписать(Layout.db, снимки.map(плитка));
             if (моё !== поколение) return;
 
             окно.innerHTML = снимки.map(с => `
@@ -534,8 +536,8 @@ const WorshipEdit = (() => {
                                ${н.is_private ? 'opacity-60 cursor-not-allowed' : 'hover:ring-2'}"
                         data-взятьСнимок="${e(с.storage_path)}" ${н.is_private ? 'disabled' : ''}
                         title="${e(с.caption || '')}">
-                    ${карта[с.storage_path]
-                        ? `<img src="${e(карта[с.storage_path])}" alt="${e(с.caption || '')}"
+                    ${карта[плитка(с)]
+                        ? `<img src="${e(карта[плитка(с)])}" alt="${e(с.caption || '')}"
                                 class="w-full h-full object-cover">` : ''}
                 </button>`).join('') + (н.is_private ? `
                 <div class="col-span-full text-sm text-warning mt-2">
