@@ -991,7 +991,9 @@ function openIncome() {
     document.getElementById('incShopMurti').value = '';
     document.getElementById('incShopMurtiNote').value = '';
     document.getElementById('incShopNote').value = '';
+    document.getElementById('incShopFloat').value = '';
     cafeFloatLoaded = false;
+    shopFloatCur = null;
     updateIncomeCategoryList();
     document.getElementById('incAmount').value = '';
     document.getElementById('incComment').value = '';
@@ -1168,11 +1170,32 @@ function syncShopBlock() {
     const first = incomeParts()[0];
     const acc = FinUtils.refs.accounts.find(a => a.account_id === first.account.value);
     document.getElementById('incShopCur').textContent = acc ? `(${acc.name})` : '';
-    const murti = shopMurti();
+    if (acc) loadShopFloat(acc.currency_code);
+    const murti = shopMurti(), float = shopFloat();
     const total = Number(first.amount.value) || 0;
-    document.getElementById('incShopNet').textContent = !murti ? ''
-        : murti > total ? 'Больше, чем поступило на этот счёт'
-        : `Мурти ${FinUtils.fmtMoney(murti, acc?.currency_code)}, магазин ${FinUtils.fmtMoney(Math.round((total - murti) * 100) / 100, acc?.currency_code)}`;
+    const shop = Math.round((total - murti - float) * 100) / 100;
+    document.getElementById('incShopNet').textContent = !murti && !float ? ''
+        : murti + float > total ? 'Больше, чем поступило на этот счёт'
+        : [murti ? `Мурти ${FinUtils.fmtMoney(murti, acc?.currency_code)}` : '',
+           `магазин ${FinUtils.fmtMoney(shop, acc?.currency_code)}`,
+           float ? `сдача ${FinUtils.fmtMoney(float, acc?.currency_code)} вернётся с Магазина` : ''].filter(Boolean).join(', ');
+}
+
+// Сдача магазина (ВГ 18.10, мигр. 709) — как у кафе: выдано на сдачу = остаток Магазина
+// ни на ком; вычитается осознанно, кнопкой с суммой. Доходом идёт остаток, сдача возвращается с Магазина
+const shopFloat = () => isShopIncome() ? Number(document.getElementById('incShopFloat').value) || 0 : 0;
+let shopFloatCur = null;
+async function loadShopFloat(cur) {
+    if (shopFloatCur === cur) return;
+    shopFloatCur = cur;
+    const btn = document.getElementById('incShopFloatBtn');
+    const dept = floatDepts.find(d => d.code === 'shop');
+    const { data } = dept ? await Layout.db.rpc('fin_department_float', { p_department: dept.id, p_currency: cur }) : { data: 0 };
+    if (shopFloatCur !== cur) return;
+    const amount = Number(data) || 0;
+    btn.classList.toggle('hidden', amount <= 0);
+    btn.textContent = `выдано на сдачу ${FinUtils.fmtMoney(amount, cur)} — вычесть`;
+    btn.onclick = () => { document.getElementById('incShopFloat').value = amount; syncShopBlock(); };
 }
 
 // ---- Один платёж за нескольких (правило ВГ, 29.07.2026) ----
@@ -1330,6 +1353,18 @@ async function submitIncome(ev) {
         const shopNote = document.getElementById('incShopNote').value.trim();
         parts.forEach(p => { if (!p.category_id) p.note = shopNote; });
     }
+    // «Касса Магазин»: сдача входит в сданные деньги — доходом магазина только остаток (709)
+    const sFloat = shopFloat();
+    let floatDept = null, floatAccount = null;
+    if (sFloat > 0) {
+        const shopPart = parts.find(p => !p.category_id);
+        if (!shopPart || sFloat > Number(shopPart.amount)) {
+            Layout.showNotification('Сдачи больше, чем пришло за магазин на первый счёт', 'error'); return;
+        }
+        shopPart.amount = Math.round((Number(shopPart.amount) - sFloat) * 100) / 100;
+        floatDept = floatDepts.find(d => d.code === 'shop')?.id;
+        floatAccount = shopPart.account.value;
+    }
     const payload = {
         request_id: requestIds.income,
         occurred_on: document.getElementById('incDate').value,
@@ -1352,9 +1387,14 @@ async function submitIncome(ev) {
         payload.rows = payload.rows.filter(r => r.amount > 0);
         payload.cafe_float = float;
         payload.float_account_id = hallPart.account.value;
+    } else if (sFloat > 0) {
+        payload.rows = payload.rows.filter(r => r.amount > 0);
+        payload.cafe_float = sFloat;
+        payload.float_account_id = floatAccount;
+        payload.float_department_id = floatDept;
     }
     const res = await FinUtils.rpc(isDonation ? 'fin_create_donation'
-        : float > 0 ? 'fin_create_cafe_collection' : 'fin_create_income', payload);
+        : float > 0 || sFloat > 0 ? 'fin_create_cafe_collection' : 'fin_create_income', payload);
     if (FinUtils.handleResult(res)) {
         requestIds.income = null;
         document.getElementById('incomeModal').close();
@@ -1386,9 +1426,12 @@ function openTransfer(sourceId) {
 
 // Кому из держателей получателя легли деньги (ВГ, 15.10.2026, мигр. 698) — как
 // во «Входящих» (689): один держатель ставится сам, у Кафе и Зелёных выбирают.
-// У Кафе есть «выдано на сдачу» — ни на кого, касса 2 этажа (693).
+// У Кафе и Магазина есть «выдано на сдачу» — ни на кого (693, 709).
 const CAFE_DEPT_ID = '4b2b3528-abd8-42de-ad35-935029c29340';
 const FLOAT_PICK = 'float';
+let floatDepts = [];      // департаменты со сдачей: [{ id, code }]
+const isFloatDept = id => !!id && floatDepts.some(d => d.id === id);
+const floatLabel = id => `Выдано на сдачу (${id === CAFE_DEPT_ID ? 'касса 2 этажа, ' : ''}ни на кого)`;
 let deptHolders = null;   // { department_id: [держатели] }
 
 async function loadDeptHolders() {
@@ -1413,7 +1456,8 @@ function transferTargetHolders() {
 // «Уже потрачено» держателя не получает: приход и расход гасятся
 function syncTransferHolder() {
     const list = transferTargetHolders();
-    const show = list.length > 1 && !document.getElementById('trSpent').checked;
+    // у департамента со сдачей выбор нужен и при одном держателе: ему или на сдачу
+    const show = (list.length > 1 || (list.length && isFloatDept(transferTargetDept()))) && !document.getElementById('trSpent').checked;
     const sel = document.getElementById('trHolder');
     document.getElementById('trHolderWrap').classList.toggle('hidden', !show);
     sel.required = show;
@@ -1425,15 +1469,15 @@ function syncTransferHolder() {
         const v = h.vaishnavas || {};
         const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
         return `<option value="${h.vaishnava_id}">${e(name)}${h.nickname ? ` (${e(h.nickname)})` : ''}</option>`;
-    }).join('') + (dept === CAFE_DEPT_ID ? `<option value="${FLOAT_PICK}">Выдано на сдачу (касса 2 этажа, ни на кого)</option>` : '');
+    }).join('') + (isFloatDept(dept) ? `<option value="${FLOAT_PICK}">${floatLabel(dept)}</option>` : '');
 }
 
 function transferHolderValue() {
     if (document.getElementById('trSpent').checked) return null;
     const list = transferTargetHolders();
-    if (list.length === 1) return list[0].vaishnava_id;
+    if (list.length === 1 && !isFloatDept(transferTargetDept())) return list[0].vaishnava_id;
     const v = document.getElementById('trHolder').value;
-    return list.length > 1 && v && v !== FLOAT_PICK ? v : null;
+    return list.length && v && v !== FLOAT_PICK ? v : null;
 }
 
 // «Деньги уже потрачены»: за департамент оплатили напрямую, и одним действием
@@ -1543,6 +1587,8 @@ async function submitTransfer(ev) {
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_dds', itemId: 'fin_dds' });
     await FinUtils.loadRefs();
+    const { data: fd } = await Layout.db.from('fin_departments').select('id, code').eq('change_float', true);
+    floatDepts = fd || [];
     buildFilters();
 
     document.getElementById('expenseForm').addEventListener('submit', FinUtils.lockedSubmit(submitExpense));

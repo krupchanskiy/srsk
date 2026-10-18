@@ -92,7 +92,16 @@ async function selectCurrency(cur) {
     const inFirst = r => Number(r.signed_amount) >= 0 ? 0 : 1;
     const loaded = await Promise.all(own.map(a => Promise.all([loadRows(a.account_id), Layout.db.rpc('fin_account_op_groups', { p_account: a.account_id })])));
     const ext = incomeRows.filter(r => r.currency_code === cur).map(r => ({ ...r, ext: true, ledger_seq: 0 }));
-    const base = [...loaded.flatMap(([list]) => list), ...ext]
+    // ручная правка держателя (fin_reassign_holder) — перевод счёта самому себе: +X и −X, денег не двигает
+    const ownRows = loaded.flatMap(([list]) => list);
+    const selfOps = new Set();
+    const byOp = new Map();
+    ownRows.forEach(r => (byOp.get(r.operation_id) || byOp.set(r.operation_id, []).get(r.operation_id)).push(r));
+    byOp.forEach((list, op) => {
+        if (list.length > 1 && list.every(r => r.type === 'transfer' && !r.contra_account)
+            && Math.abs(list.reduce((x, r) => x + Number(r.signed_amount), 0)) < 0.005) selfOps.add(op);
+    });
+    const base = [...ownRows.filter(r => !selfOps.has(r.operation_id)), ...ext]
         .sort((a, b) => a.occurred_on.localeCompare(b.occurred_on) || inFirst(a) - inFirst(b) || a.ledger_seq - b.ledger_seq);
     rows = pairUp(base, loaded.flatMap(([, g]) => g.data || []));
     // «Остаток после» — только по деньгам на руках у департамента: выручка, сданная на другой счёт, его не меняет

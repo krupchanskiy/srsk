@@ -311,7 +311,8 @@ async function postDraft(id) {
     if (draft?.kind === 'transfer' && draft.target_department_id) {
         const holders = await loadHolders(draft.target_department_id);
         if (!holders) return;
-        if (holders.length > 1) { openHolderPick(draft, holders); return; }
+        // у департамента со сдачей спрашиваем и при одном держателе: ему или на сдачу
+        if (holders.length > 1 || (holders.length && isFloatDept(draft.target_department_id))) { openHolderPick(draft, holders); return; }
     }
     await callPostDraft(id, null);
 }
@@ -336,6 +337,10 @@ function holderName(h) {
 const FLOAT_PICK = 'float';
 // Кафе — по постоянному id (696): переименование департамента не ломает пункт
 const CAFE_DEPT_ID = '4b2b3528-abd8-42de-ad35-935029c29340';
+// «Выдано на сдачу» — у департаментов с признаком change_float: Кафе и Магазин (709)
+let floatDeptIds = new Set();
+const isFloatDept = id => !!id && floatDeptIds.has(id);
+const floatLabelHtml = id => `Выдано на сдачу <span class="opacity-60">(${id === CAFE_DEPT_ID ? 'касса 2 этажа, ' : ''}ни на кого)</span>`;
 
 async function callPostDraft(id, targetHolder) {
     const params = { p_id: id };
@@ -358,9 +363,9 @@ function openHolderPick(draft, holders) {
             <input type="radio" name="holderPick" class="radio radio-sm" value="${h.vaishnava_id}" required>
             <span class="label-text">${e(holderName(h))}</span>
         </label>`;
-    }).join('') + (draft.target_department_id === CAFE_DEPT_ID ? `<label class="label cursor-pointer justify-start gap-3 py-1">
+    }).join('') + (isFloatDept(draft.target_department_id) ? `<label class="label cursor-pointer justify-start gap-3 py-1">
             <input type="radio" name="holderPick" class="radio radio-sm" value="${FLOAT_PICK}" required>
-            <span class="label-text">Выдано на сдачу <span class="opacity-60">(касса 2 этажа, ни на кого)</span></span>
+            <span class="label-text">${floatLabelHtml(draft.target_department_id)}</span>
         </label>` : '');
     document.getElementById('holderModal').showModal();
 }
@@ -610,13 +615,14 @@ async function loadRefineHolders() {
     if (deptId !== (refineIsSelf() ? null : document.getElementById('refineTarget').value)) return;
     document.getElementById('refineHolder').innerHTML = `<option value="">— выберу потом</option>` +
         refineHolders.map(h => `<option value="${h.vaishnava_id}">${e(holderName(h))}</option>`).join('') +
-        (deptId === CAFE_DEPT_ID ? `<option value="${FLOAT_PICK}">Выдано на сдачу (касса 2 этажа, ни на кого)</option>` : '');
+        (isFloatDept(deptId) ? `<option value="${FLOAT_PICK}">Выдано на сдачу (${deptId === CAFE_DEPT_ID ? 'касса 2 этажа, ' : ''}ни на кого)</option>` : '');
     syncRefineSpent();
 }
 
 // «Уже потрачено» держателя не получает: приход и расход гасятся
 function refineHolderShown() {
-    return refineHolders.length > 1 && !document.getElementById('refineSpent').checked;
+    const deptId = refineIsSelf() ? null : document.getElementById('refineTarget').value;
+    return (refineHolders.length > 1 || (refineHolders.length && isFloatDept(deptId))) && !document.getElementById('refineSpent').checked;
 }
 
 // Подсказка статьи по тексту заявки («выдано Уше 1600₹ зп» → Оплата труда).
@@ -890,6 +896,8 @@ async function init() {
 
     const { data: depts } = await Layout.db.from('fin_v_departments').select('id, name, code').order('name');
     departments = depts || [];
+    const { data: fd } = await Layout.db.from('fin_departments').select('id').eq('change_float', true);
+    floatDeptIds = new Set((fd || []).map(d => d.id));
 
     document.querySelectorAll('[data-tab]').forEach(tab =>
         tab.addEventListener('click', () => {
