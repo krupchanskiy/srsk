@@ -60,7 +60,7 @@ const WorshipSchedule = (() => {
                 .select('id, name_ru, name_en, name_hi, time_of_day, sort_order, article_id, is_active')
                 .order('sort_order').order('time_of_day'),
             Layout.db.from('worship_people')
-                .select('id, vaishnava_id, active_from, active_to, is_active'),
+                .select('id, vaishnava_id, active_from, active_to, is_active, kind'),
             Layout.db.from('worship_duties')
                 .select('id, duty_date, service_id, override_id, person_id, role')
                 .gte('duty_date', от).lte('duty_date', до),
@@ -368,8 +368,15 @@ const WorshipSchedule = (() => {
                     </svg>поставить</span></td>`;
         }
 
+        // Команду и волонтёров видно по густоте зелёного: клетку, которую
+        // держит только приехавший на время, старший перепроверяет первой —
+        // срок участия кончится раньше, чем расписание.
+        const командой = свои.some(н => кто_придёт(н, день)
+            && (человек(н.person_id)?.kind || 'team') === 'team');
+        const краска = закрыта ? (командой ? 'закрыта командой' : 'закрыта волонтёром') : 'дыра';
+
         // кто-то стоит, но прийти не может — это такая же дыра, только с именем
-        return `<td class="клетка ${закрыта ? 'закрыта' : 'дыра'}${моя ? ' своя' : ''}${сегодня}">
+        return `<td class="клетка ${краска}${моя ? ' своя' : ''}${сегодня}">
             ${свои.map(н => {
                 const ч = человек(н.person_id);
                 const пометки = состоянияКлетки(н, ч, день, служба);
@@ -484,8 +491,10 @@ const WorshipSchedule = (() => {
             // вычитывать из слов «никто не поставлен»
             const прошло = д < DateUtils.toISO(new Date());
             const закрыта = свои.some(н => кто_придёт(н, д));
+            const командой = свои.some(н => кто_придёт(н, д)
+                && (человек(н.person_id)?.kind || 'team') === 'team');
             const краска = отмена || прошло ? ''
-                : закрыта ? ' закрыта' : ' дыра';
+                : закрыта ? (командой ? ' закрыта командой' : ' закрыта волонтёром') : ' дыра';
             return `
             <li class="клеткаДня${краска} border-b border-base-200 last:border-0 py-3 px-3 -mx-3">
                 <div class="flex flex-wrap items-baseline gap-2">

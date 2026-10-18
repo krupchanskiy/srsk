@@ -39,7 +39,8 @@
             thead th { font-size: 10.5px; padding: .2rem .25rem !important; }
 
             /* на бумаге цвет теряется: состояние несут рамка и штриховка */
-            .клетка.закрыта { background: #fff !important; }
+            .клетка.закрыта, .клетка.закрыта.командой,
+            .клетка.закрыта.волонтёром { background: #fff !important; }
             .клетка.дыра {
                 background: repeating-linear-gradient(45deg,
                     #fff 0 3px, #e8e8e8 3px 6px) !important;
@@ -57,8 +58,12 @@
            вторую сетку поверх табличной и съедали место под длинные имена. */
         .клетка { vertical-align: top; min-width: 128px; padding: .3rem .45rem !important; }
 
-        /* закрыто — спокойный зелёный, дыра — тёплый жёлтый */
+        /* закрыто — спокойный зелёный, дыра — тёплый жёлтый.
+           Команда гуще, волонтёр бледнее: клетку, которую держит только
+           приехавший на время, видно отдельно. */
         .клетка.закрыта { background: oklch(var(--su) / .14); }
+        .клетка.закрыта.командой { background: oklch(var(--su) / .2); }
+        .клетка.закрыта.волонтёром { background: oklch(var(--su) / .08); }
         .клетка.дыра { background: oklch(var(--wa) / .15); }
         .клетка.дыра:hover { background: oklch(var(--wa) / .24); }
         .дыраКнопка {
@@ -107,6 +112,8 @@
 
         /* тот же язык цвета в дневном списке */
         .клеткаДня.закрыта { background: oklch(var(--su) / .12); }
+        .клеткаДня.закрыта.командой { background: oklch(var(--su) / .18); }
+        .клеткаДня.закрыта.волонтёром { background: oklch(var(--su) / .07); }
         .клеткаДня.дыра { background: oklch(var(--wa) / .13); }
 
         /* имя без рамки: строка текста, а не кнопка */
@@ -207,8 +214,13 @@
             </span>
             <span class="flex items-center gap-1.5">
                 <span class="inline-block w-3.5 h-3.5 rounded"
-                      style="background: oklch(var(--su) / .3);"></span>
-                закрыто
+                      style="background: oklch(var(--su) / .4);"></span>
+                закрыто командой
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="inline-block w-3.5 h-3.5 rounded"
+                      style="background: oklch(var(--su) / .16);"></span>
+                закрыто волонтёром
             </span>
             <span class="flex items-center gap-1.5">
                 <span class="inline-block w-3.5 h-3.5 rounded"
@@ -379,7 +391,7 @@
     <script src="../js/layout.js?v=116"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-schedule.js?v=25"></script>
+    <script src="../js/pages/worship-schedule.js?v=26"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
