@@ -10,7 +10,7 @@
   <div class="modal-action"><form method="dialog"><button class="btn btn-sm">Отмена</button></form>
   <button class="btn btn-sm" id="пдДа">Да</button></div></div></dialog>
 <pre id="итоги" class="bg-base-200 p-4 rounded"></pre>
-<script src="../js/utils.js?v=14"></script>
+<script src="../js/utils.js?v=15"></script>
 <script>
 window.прогон = async () => {
     const итоги = [];
@@ -21,7 +21,10 @@ window.прогон = async () => {
     итоги.push('показан вопрос: ' + document.querySelector('#пдЗаголовок').textContent);
 
     document.querySelector('#пдДа').click();          // отвечаем «да» один раз
-    await new Promise(r => setTimeout(r, 200));
+    // ждём, пока очередь покажет второй вопрос, а не отмеряем время наугад
+    for (let i = 0; i < 40 && document.querySelector('#пдЗаголовок').textContent !== 'Снять назначение B?'; i++) {
+        await new Promise(r => setTimeout(r, 50));
+    }
     итоги.push('после первого «Да» показан: ' + document.querySelector('#пдЗаголовок').textContent);
 
     document.querySelector('#подтверждение').close(); // второй закрываем без согласия
