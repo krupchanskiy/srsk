@@ -840,7 +840,8 @@ const WorshipSchedule = (() => {
             if (b.id === 'разовая') return открытьОтклонение('разовая');
             if (b.id === 'отменить') return открытьОтклонение('отмена');
             if (b.id === 'оСохранить') return сохранитьОтклонение();
-            if (b.id === 'копияНедели') return копияНедели();
+            if (b.id === 'копияНедели') return открытьПовтор();
+            if (b.id === 'повторПустить') return копияНедели();
             if (b.id === 'яНеСмогу') {
                 $('#оtС').value = DateUtils.toISO(new Date());
                 $('#оtПо').value = '';
@@ -872,6 +873,8 @@ const WorshipSchedule = (() => {
 
         $('#нПоиск').addEventListener('input', Layout.debounce(рисоватьЛюдейДляКлетки, 200));
         $('#нРоль').addEventListener('change', рисоватьЛюдейДляКлетки);
+        ['#повторОткуда', '#повторСколько'].forEach(s2 =>
+            $(s2).addEventListener('change', пересчитатьПовтор));
     }
 
     async function добавитьСлужбу() {
@@ -913,28 +916,93 @@ const WorshipSchedule = (() => {
             : 'Отмечено', 'success');
     }
 
+    /**
+     * Повтор недели. Раньше вопрос «Повторить прошлую неделю?» не называл
+     * ни дат, ни числа назначений, а источник был один — предыдущая неделя.
+     * Но прошлая неделя бывает праздничной или полупустой, а расписать
+     * хочется сразу месяц.
+     */
+    const началоНеделиСдвигом = н => {
+        const д = new Date(началоНедели);
+        д.setDate(д.getDate() + 7 * н);
+        return д;
+    };
+
+    const периодСловами = от => {
+        const до = new Date(от);
+        до.setDate(до.getDate() + 6);
+        return `${DateUtils.formatShort(от)} — ${DateUtils.formatShort(до)}`;
+    };
+
+    async function открытьПовтор() {
+        // источники: четыре недели назад от открытой
+        $('#повторОткуда').innerHTML = [1, 2, 3, 4].map(н => {
+            const от = началоНеделиСдвигом(-н);
+            const имя = н === 1 ? 'прошлая неделя' : `${н} недели назад`;
+            return `<option value="${н}">${имя} · ${периодСловами(от)}</option>`;
+        }).join('');
+        $('#повторСколько').value = '1';
+        await пересчитатьПовтор();
+        $('#повторМодал').showModal();
+    }
+
+    /** Сколько назначений лежит в выбранной неделе-источнике и куда они лягут. */
+    async function пересчитатьПовтор() {
+        const назад = Number($('#повторОткуда').value || 1);
+        const сколько = Number($('#повторСколько').value || 1);
+        const от = началоНеделиСдвигом(-назад);
+        const доИсточника = new Date(от);
+        доИсточника.setDate(доИсточника.getDate() + 6);
+        const конецПриёмника = началоНеделиСдвигом(сколько - 1);
+        конецПриёмника.setDate(конецПриёмника.getDate() + 6);
+
+        const узел = $('#повторИтог');
+        узел.textContent = 'Считаю…';
+
+        const { count, error } = await Layout.db.from('worship_duties')
+            .select('id', { count: 'exact', head: true })
+            .gte('duty_date', DateUtils.toISO(от))
+            .lte('duty_date', DateUtils.toISO(доИсточника));
+        if (error) { узел.textContent = 'Не удалось посчитать — повтор всё равно сработает'; return; }
+
+        узел.innerHTML = count
+            ? `Возьмём <b>${Layout.pluralize(count, {
+                   ru: ['назначение', 'назначения', 'назначений'],
+                   en: ['duty', 'duties'], hi: 'सेवा' })}</b> за ${периодСловами(от)}<br>
+               и повторим на ${периодСловами(началоНедели)}${сколько > 1
+                   ? ` и дальше, по ${DateUtils.formatShort(конецПриёмника)}` : ''}.`
+            : `За ${периодСловами(от)} никого не ставили — переносить нечего.`;
+    }
+
     async function копияНедели() {
-        const прошлая = new Date(началоНедели);
-        прошлая.setDate(прошлая.getDate() - 7);
-        if (!await спросить('Повторить прошлую неделю?',
-            'Уже стоящие назначения останутся как есть, недоступные пропустятся.')) return;
+        const назад = Number($('#повторОткуда').value || 1);
+        const сколько = Number($('#повторСколько').value || 1);
 
-        const { data, error } = await Layout.db.rpc('worship_week_copy', {
-            p_from: DateUtils.toISO(прошлая),
-            p_to: DateUtils.toISO(началоНедели),
-        });
-        if (error) return Layout.handleError(error, 'Копия недели');
+        let перенесено = 0, пропущено = 0;
+        const недоступны = new Set();
 
+        // каждую неделю переносим отдельным вызовом: функция идемпотентна,
+        // уже стоящие назначения второй раз не создаются
+        for (let i = 0; i < сколько; i++) {
+            const { data, error } = await Layout.db.rpc('worship_week_copy', {
+                p_from: DateUtils.toISO(началоНеделиСдвигом(-назад)),
+                p_to: DateUtils.toISO(началоНеделиСдвигом(i)),
+            });
+            if (error) return Layout.handleError(error, 'Повтор недели');
+            перенесено += data?.['перенесено'] ?? 0;
+            пропущено += data?.['пропущено'] ?? 0;
+            (data?.['недоступны'] || []).forEach(имя => недоступны.add(имя));
+        }
+
+        $('#повторМодал').close();
         await перечитать();
-        const недоступны = data?.['недоступны'] || [];
-        const перенесено = data?.['перенесено'] ?? 0;
-        const пропущено = data?.['пропущено'] ?? 0;
+
         if (!перенесено && !пропущено) {
-            return Layout.showNotification('На прошлой неделе никого не ставили — переносить нечего', 'warning');
+            return Layout.showNotification('Переносить нечего: в той неделе никого не ставили', 'warning');
         }
         Layout.showNotification(
             `Перенесено: ${перенесено}, пропущено: ${пропущено}` +
-            (недоступны.length ? `. В отъезде: ${недоступны.join(', ')}` : ''),
+            (недоступны.size ? `. В отъезде: ${[...недоступны].join(', ')}` : ''),
             'success');
     }
 
