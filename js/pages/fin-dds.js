@@ -1040,6 +1040,9 @@ function syncParticipantBlock() {
     // Ретрит для платежа участника обязателен: без него платёж не привяжется
     // к его балансу по мероприятию
     document.getElementById('incObject').required = need;
+    const prepay = !document.getElementById('incIsDonation').checked && FinUtils.refs.categories
+        .find(c => c.id === document.getElementById('incCategory').value)?.code === 'prepayment_advance';
+    document.getElementById('incPrepayHint').classList.toggle('hidden', !prepay);
     syncCafeBlock();
 }
 

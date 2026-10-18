@@ -303,6 +303,11 @@
                     <select id="incObject" class="select select-bordered select-sm"></select>
                     <div id="incObjectHint" class="text-xs text-info mt-1"></div>
                 </div>
+                <!-- «Предоплата/Аванс» здесь — аванс группы без имени; от человека — через его карточку (ВГ, 18.10) -->
+                <div id="incPrepayHint" class="col-span-2 alert alert-info py-2 text-sm hidden">
+                    <span>Здесь — аванс группы на событие, без имени. Предоплату от конкретного человека вносите через
+                        <a href="participants.html" class="link font-semibold">«Оплата участника»</a> — тогда она попадёт в его карточку и уменьшит его долг.</span>
+                </div>
             </div>
             <!-- Один приход частями в разные кассы/валюты (ВГ, 28.09.2026): первая строка
                  такая же, как добавленные. Канал ставится сам по счёту строки. -->
@@ -555,7 +560,7 @@
 <script src="../js/layout.js?v=103"></script>
 <script src="../js/date-utils.js?v=4"></script>
 <script src="../js/fin-utils.js?v=25"></script>
-<script src="../js/pages/fin-dds.js?v=41"></script>
+<script src="../js/pages/fin-dds.js?v=42"></script>
 
 </body>
 </html>
