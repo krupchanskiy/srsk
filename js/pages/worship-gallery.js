@@ -27,11 +27,12 @@ const WorshipGallery = (() => {
         if (наборы.length) {
             // порциями: PostgREST отдаёт не больше тысячи строк за раз, и после
             // тысячного снимка у наборов пропали бы обложки и счётчик
+            // Без фильтра по списку папок: снимки закрытых и архивных папок
+            // и так отсекает RLS, а сотня id в адресе упиралась в предел URL
             const { data: снимки } = await Utils.fetchAll((от, до) =>
                 Layout.db.from('worship_images')
                     .select('id, album_id, storage_path, sort_order, shot_at')
-                    .in('album_id', наборы.map(н => н.id))
-                    .order('sort_order').order('shot_at').range(от, до));
+                    .order('sort_order').order('shot_at').order('id').range(от, до));
             const первый = {};
             (снимки || []).forEach(с => { if (!первый[с.album_id]) первый[с.album_id] = с; });
 

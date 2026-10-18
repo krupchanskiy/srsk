@@ -32,13 +32,15 @@ const WorshipLibrary = (() => {
 
         вложения = {};
         if (материалы.length) {
-            const ids = материалы.map(м2 => м2.id);
             // порциями: PostgREST отдаёт не больше тысячи строк за раз, и у части
-            // материалов иначе пропали бы значки «файл» и «ссылка»
+            // материалов иначе пропали бы значки «файл» и «ссылка».
+            // Без фильтра по списку id: вложения бывают только у материалов,
+            // а лишнее отсекает RLS. Список из трёхсот id в адресе запроса
+            // упирался в предел длины URL, и библиотека переставала грузиться.
             const { data, error } = await Utils.fetchAll((от, до) =>
                 Layout.db.from('worship_attachments')
                     .select('id, article_id, kind, name, url, storage_path, size_bytes, mime')
-                    .in('article_id', ids).order('sort_order').range(от, до));
+                    .order('sort_order').order('id').range(от, до));
             if (error) { Layout.handleError(error, 'Вложения'); return false; }
             (data || []).forEach(в => {
                 вложения[в.article_id] = вложения[в.article_id] || [];
