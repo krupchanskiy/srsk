@@ -501,36 +501,41 @@ const WorshipEdit = (() => {
             `<option value="${н.id}">${e(н.title)}${
                 н.is_private ? ' — закрытая' : ''}</option>`).join('');
 
+        // быстрый перебор папок: ответ по прежней не должен лечь поверх нынешней
+        let поколение = 0;
         const показать = async () => {
             const н = наборы.find(x => x.id === $('#выборНабора').value);
             const окно = $('#снимкиНабора');
             if (!н) return;
+            const моё = ++поколение;
 
             const { data: снимки } = await Layout.db.from('worship_images')
                 .select('id, storage_path, caption').eq('album_id', н.id)
                 .order('sort_order').order('shot_at');
+            if (моё !== поколение) return;
             if (!снимки?.length) {
-                окно.innerHTML = '<div class="col-span-full text-sm opacity-60 py-4">В наборе пока нет снимков</div>';
+                окно.innerHTML = '<div class="col-span-full text-sm opacity-60 py-4">В папке пока нет снимков</div>';
                 return;
             }
 
             const { data: адреса } = await Layout.db.storage.from('worship')
                 .createSignedUrls(снимки.map(с => с.storage_path), 1800);
+            if (моё !== поколение) return;
             const карта = Object.fromEntries((адреса || [])
                 .filter(а => а.signedUrl).map(а => [а.path, а.signedUrl]));
 
             окно.innerHTML = снимки.map(с => `
                 <button class="relative aspect-square rounded-lg overflow-hidden bg-base-200
                                ${н.is_private ? 'opacity-60 cursor-not-allowed' : 'hover:ring-2'}"
-                        data-взятьСнимок="${с.storage_path}" ${н.is_private ? 'disabled' : ''}
+                        data-взятьСнимок="${e(с.storage_path)}" ${н.is_private ? 'disabled' : ''}
                         title="${e(с.caption || '')}">
                     ${карта[с.storage_path]
-                        ? `<img src="${карта[с.storage_path]}" alt="${e(с.caption || '')}"
+                        ? `<img src="${e(карта[с.storage_path])}" alt="${e(с.caption || '')}"
                                 class="w-full h-full object-cover">` : ''}
                 </button>`).join('') + (н.is_private ? `
                 <div class="col-span-full text-sm text-warning mt-2">
-                    Набор закрыт для отдела. Чтобы вставить снимок в стандарт, откройте набор
-                    на его странице — или положите этот кадр в открытый набор.
+                    Папка закрыта для отдела. Чтобы вставить снимок в стандарт, откройте папку
+                    на её странице — или положите этот кадр в открытую папку.
                 </div>` : '');
         };
 
@@ -540,12 +545,12 @@ const WorshipEdit = (() => {
     }
 
     async function взятьИзГалереи(путь) {
-        // проверяем ещё раз на сервере: набор могли закрыть, пока окно открыто
+        // проверяем ещё раз на сервере: папку могли закрыть, пока окно открыто
         const { data: можно, error } = await Layout.db.rpc('worship_image_is_open', { p_path: путь });
         if (error) return Layout.handleError(error, 'Снимок');
         if (!можно) {
             return Layout.showNotification(
-                'Этот набор закрыт: снимок нельзя вставить в стандарт, который читают все', 'warning');
+                'Эта папка закрыта: снимок нельзя вставить в стандарт, который читают все', 'warning');
         }
 
         const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);

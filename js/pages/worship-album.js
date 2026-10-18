@@ -24,8 +24,8 @@ const WorshipAlbum = (() => {
                 .select('id, storage_path, caption, sort_order, shot_at, width, height')
                 .eq('album_id', id).order('sort_order').order('shot_at').range(от, до)),
         ]);
-        if (н.error || с.error) { Layout.handleError(н.error || с.error, 'Загрузка набора'); return false; }
-        if (!н.data) { Layout.showNotification('Набор не найден или закрыт', 'warning'); return false; }
+        if (н.error || с.error) { Layout.handleError(н.error || с.error, 'Загрузка папки'); return false; }
+        if (!н.data) { Layout.showNotification('Папка не найдена или закрыта', 'warning'); return false; }
 
         набор = н.data;
         снимки = с.data || [];
@@ -92,9 +92,9 @@ const WorshipAlbum = (() => {
         $('#предупреждение').hidden = !набор.is_private;
         if (набор.is_private) {
             $('#предупреждение').innerHTML =
-                'Набор закрыт: его снимки видят только пуджари. Такой снимок нельзя вставить ' +
+                'Папка закрыта: её снимки видят только пуджари. Такой снимок нельзя вставить ' +
                 'в стандарт, который читает весь ашрам, и нельзя выдать в подборке — ' +
-                'сначала откройте набор или положите снимок в открытый.';
+                'сначала откройте папку или положите снимок в открытую.';
         }
     }
 
@@ -313,19 +313,19 @@ const WorshipAlbum = (() => {
             }
             if (b.id === 'видимость') {
                 const станет = !набор.is_private;
-                if (станет && !await спросить('Закрыть набор для отдела?',
-                    'Его снимки перестанут видеть все, кроме пуджари.')) return;
-                if (!станет && !await спросить('Открыть набор всему ашраму?',
+                if (станет && !await спросить('Закрыть папку для отдела?',
+                    'Её снимки перестанут видеть все, кроме пуджари.')) return;
+                if (!станет && !await спросить('Открыть папку всему ашраму?',
                     'Снимки увидит каждый сотрудник, у кого есть доступ к модулю.')) return;
                 const { error } = await Layout.db.rpc('worship_album_visibility',
                     { p_album: id, p_private: станет });
-                if (error) return Layout.handleError(error, 'Видимость набора');
+                if (error) return Layout.handleError(error, 'Видимость папки');
                 return перечитать();
             }
             if (b.id === 'архив') {
                 const { error } = await Layout.db.rpc('worship_album_update',
                     { p_album: id, p_payload: { is_archived: !набор.is_archived } });
-                if (error) return Layout.handleError(error, 'Архив набора');
+                if (error) return Layout.handleError(error, 'Архив папки');
                 return перечитать();
             }
             if (b.id === 'правка') return править();
@@ -368,7 +368,7 @@ const WorshipAlbum = (() => {
                 is_guide: $('#правкаИнструкция').checked,
             },
         });
-        if (error) return Layout.handleError(error, 'Правка набора');
+        if (error) return Layout.handleError(error, 'Правка папки');
         $('#правкаМодал').close();
         await перечитать();
     }
@@ -378,7 +378,7 @@ const WorshipAlbum = (() => {
         if (!await загрузить()) {
             document.querySelector('main').innerHTML = `
                 <div class="card bg-base-100 shadow max-w-xl"><div class="card-body items-start">
-                    <h1 class="card-title text-xl">Набор не найден</h1>
+                    <h1 class="card-title text-xl">Папка не найдена</h1>
                     <p class="text-sm opacity-70">Возможно, он закрыт для отдела или убран в архив.</p>
                     <a href="gallery.html" class="btn btn-sm mt-2"
                        style="background: var(--current-color); color:#fff;">К галерее</a>
