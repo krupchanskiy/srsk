@@ -224,7 +224,8 @@ const modules = {
             ]},
             { id: 'shop_money', items: [
                 { id: 'shop_owners', href: 'shop/owners.html' },
-                { id: 'shop_analytics', href: 'shop/analytics.html' }
+                { id: 'shop_analytics', href: 'shop/analytics.html' },
+                { id: 'dept_account', href: 'shop/account.html' }
             ]}
         ]
     },
@@ -242,7 +243,8 @@ const modules = {
                 { id: 'worship_schedule', href: 'worship/schedule.html' },
                 { id: 'worship_library', href: 'worship/library.html' },
                 { id: 'worship_gallery', href: 'worship/gallery.html' },
-                { id: 'worship_kits', href: 'worship/kits.html' }
+                { id: 'worship_kits', href: 'worship/kits.html' },
+                { id: 'dept_account', href: 'worship/account.html' }
             ]}
         ]
     }
@@ -360,6 +362,9 @@ const pagePermissions = {
     'shop/inventory.html': 'shop_manage',
     'shop/owners.html': ['shop_settle', 'shop_receive'],
     'shop/analytics.html': 'shop_analytics',
+    // «Счёт» департамента — как у кухни: финансисты и руководитель департамента (ВГ 18.10)
+    'shop/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
+    'worship/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
     'worship/index.html': 'worship_view',
     'worship/standards.html': 'worship_view',
     'worship/schedule.html': 'worship_view',
@@ -596,7 +601,7 @@ async function loadTranslations(retried = false) {
     // бампается номер в имени ключа ниже — и кэш сбрасывается сам
     const СУТКИ = 24 * 60 * 60 * 1000;
 
-    const data = await Cache.getOrLoad('translations_v75', async () => {
+    const data = await Cache.getOrLoad('translations_v76', async () => {
         // Одним запросом, а не страницами по тысяче: PostgREST больше тысячи
         // строк за раз не отдаёт, и клиент ходил пять раз подряд, каждый раз
         // ожидая предыдущий ответ — это секунды до первой отрисовки
@@ -632,7 +637,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v75');
+        Cache.invalidate('translations_v76');
         return loadTranslations(true);
     }
 

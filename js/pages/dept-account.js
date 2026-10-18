@@ -187,6 +187,263 @@ function renderTotals(list) {
     $('daccPeriodLine').innerHTML = parts.join(' · ');
 }
 
+// Сводка «Пришло — откуда / Ушло — на что» за период (ВГ 18.10): по статьям, переводы — по другому счёту.
+// Считается по периоду, без фильтров по статье и поиску — чтобы всегда была видна вся картина;
+// строка сводки ставит фильтр на ленту ниже.
+// куда относится проводка в сводке и аналитике: статья, перевод (по другому счёту) или вид операции;
+// null — сторно или проводка другой стороны (приход при sign < 0 и наоборот)
+function groupOf(r, sign) {
+    const v = Number(r.signed_amount);
+    if (isStorno(r) || (sign > 0 ? v <= 0 : v >= 0)) return null;
+    if (r.category_id) return { key: `c:${r.category_id}`, label: r.category_name, pick: { cat: r.category_id } };
+    if (r.type === 'transfer') return {
+        key: `t:${r.contra_account || ''}`,
+        label: `${sign > 0 ? '←' : '→'} ${r.contra_account || FinUtils.typeLabel(r.type)}`,
+        pick: { q: r.contra_account || '' }
+    };
+    return { key: `k:${r.type}`, label: FinUtils.typeLabel(r.type), pick: {} };
+}
+
+function summaryGroups(list, sign) {
+    const groups = new Map();
+    for (const r of list) {
+        const gr = groupOf(r, sign);
+        if (!gr) continue;
+        const g = groups.get(gr.key) || groups.set(gr.key, { ...gr, sum: 0, n: 0 }).get(gr.key);
+        g.sum += Math.abs(Number(r.signed_amount)); g.n++;
+    }
+    return [...groups.values()].sort((a, b) => b.sum - a.sum);
+}
+
+function renderSummary() {
+    const cur = rows[rows.length - 1]?.currency_code || accounts.find(a => a.account_id === currentAccount)?.currency_code || 'INR';
+    const from = $('daccFrom').value, to = $('daccTo').value;
+    const inPeriod = rows.filter(r => (!from || r.occurred_on >= from) && (!to || r.occurred_on <= to));
+    const curCat = $('daccCategory').value, curQ = $('daccSearch').value.trim(), curDir = $('daccDir').value;
+    const anyFilter = curCat || curQ || curDir;
+    const block = (title, sign, color) => {
+        const list = summaryGroups(inPeriod, sign);
+        const total = list.reduce((s, g) => s + g.sum, 0);
+        const lines = list.map(g => {
+            const share = total ? g.sum / total : 0;
+            const dir = sign > 0 ? 'in' : 'out';
+            const active = (g.pick.cat && g.pick.cat === curCat) || (g.pick.q !== undefined && curDir === 'transfer' && g.pick.q === curQ);
+            return `<button type="button" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-base-200 ${active ? 'bg-base-200' : ''}"
+                    data-dacc-pick='${e(JSON.stringify({ ...g.pick, dir }))}'>
+                <div class="flex items-baseline gap-2 text-sm">
+                    <span class="truncate flex-1 ${active ? 'font-semibold' : ''}">${e(g.label)}</span>
+                    <span class="opacity-50 text-xs">${Math.round(share * 100)}%</span>
+                    <span class="font-mono whitespace-nowrap ${color}">${money(g.sum, cur)}</span>
+                </div>
+                <div class="h-1 rounded-full bg-base-200 mt-1"><div class="h-1 rounded-full ${sign > 0 ? 'bg-blue-500' : 'bg-red-500'}" style="width:${Math.max(share * 100, 1).toFixed(1)}%"></div></div>
+            </button>`;
+        }).join('');
+        return `<div class="bg-base-100 rounded-xl shadow-sm p-3">
+            <div class="flex items-baseline justify-between px-2 mb-1">
+                <div class="text-xs uppercase tracking-wide opacity-60">${e(title)}</div>
+                <div class="font-mono font-semibold ${color}">${money(total, cur)}</div>
+            </div>
+            ${lines || `<div class="px-2 py-3 text-sm opacity-60">${e(tr('dacc_sum_empty', 'Нет операций'))}</div>`}
+        </div>`;
+    };
+    $('daccSummary').innerHTML = block(tr('dacc_sum_in', 'Пришло — откуда'), 1, 'text-blue-600')
+        + block(tr('dacc_sum_out', 'Ушло — на что'), -1, 'text-red-600')
+        + `<div class="md:col-span-2 flex items-center gap-3 text-xs opacity-60 px-1">
+            <span>${e(tr('dacc_sum_hint', 'За выбранный период, без отменённых операций. Нажмите строку — покажу эти операции'))}</span>
+            ${anyFilter ? `<button type="button" class="link link-primary opacity-100" data-dacc-pick-reset>${e(tr('dacc_sum_reset', 'Показать все'))}</button>` : ''}
+        </div>`;
+}
+
+// ---------- аналитика: статьи по месяцам / кварталам / годам (ВГ 18.10) ----------
+// Видно, в каком месяце по какой статье ушло больше или меньше обычного: ячейка, которая в полтора раза
+// выше обычной суммы по статье, — оранжевая, вдвое ниже — голубая. Нажатие на ячейку открывает эти операции.
+const CHART_JS = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+const CHART_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#9ca3af'];
+const CHART_TOP = 7;      // столько статей на графике отдельно, остальные — «Прочее»
+let view = 'ops';
+let step = 'month';
+let chartLib = null;
+let anChart = null;
+
+function loadChartLib() {
+    if (window.Chart) return Promise.resolve(window.Chart);
+    if (!chartLib) chartLib = new Promise((res, rej) => {
+        const sc = document.createElement('script');
+        sc.src = CHART_JS; sc.onload = () => res(window.Chart); sc.onerror = () => { chartLib = null; rej(); };
+        document.head.appendChild(sc);
+    });
+    return chartLib;
+}
+
+function bucketOf(iso) {
+    const y = iso.slice(0, 4), m = Number(iso.slice(5, 7));
+    return step === 'month' ? iso.slice(0, 7) : step === 'quarter' ? `${y}-Q${Math.ceil(m / 3)}` : y;
+}
+
+// границы ведра — чтобы ячейка открывала ленту ровно за этот месяц / квартал / год
+function bucketRange(b) {
+    const y = Number(b.slice(0, 4));
+    let m1 = 1, m2 = 12;
+    if (step === 'month') { m1 = m2 = Number(b.slice(5, 7)); }
+    else if (step === 'quarter') { const q = Number(b.slice(6)); m1 = q * 3 - 2; m2 = q * 3; }
+    return [DateUtils.toISO(new Date(y, m1 - 1, 1)), DateUtils.toISO(new Date(y, m2, 0))];
+}
+
+function bucketLabel(b) {
+    const lang = { ru: 'ru-RU', en: 'en-GB', hi: 'hi-IN' }[localStorage.getItem('srsk_lang') || 'ru'] || 'ru-RU';
+    if (step === 'month') {
+        const d = new Date(Number(b.slice(0, 4)), Number(b.slice(5, 7)) - 1, 1);
+        return `${d.toLocaleString(lang, { month: 'short' }).replace('.', '')} ${b.slice(2, 4)}`;
+    }
+    if (step === 'quarter') return `${b.slice(5)} ${b.slice(0, 4)}`;
+    return b;
+}
+
+// все вёдра подряд от «с» до «по» — пустой месяц тоже виден (провал — тоже сигнал)
+function bucketList(from, to) {
+    const out = [];
+    const d = DateUtils.parseDate(from.slice(0, 7) + '-01');
+    const end = DateUtils.parseDate(to);
+    while (d <= end) {
+        const b = bucketOf(DateUtils.toISO(d));
+        if (out[out.length - 1] !== b) out.push(b);
+        d.setMonth(d.getMonth() + 1);
+    }
+    return out;
+}
+
+function analyticsData() {
+    const today = DateUtils.toISO(new Date());
+    const live = rows.filter(r => !isStorno(r));
+    const from = $('daccFrom').value || live[0]?.occurred_on || today;
+    let to = $('daccTo').value || live[live.length - 1]?.occurred_on || today;
+    if (to > today && from <= today) to = today;   // будущие месяцы года — без пустых столбцов
+    const buckets = bucketList(from, to);
+    const idx = new Map(buckets.map((b, i) => [b, i]));
+    const side = sign => {
+        const groups = new Map();
+        const totals = buckets.map(() => 0);
+        for (const r of rows) {
+            if (r.occurred_on < from || r.occurred_on > to) continue;
+            const gr = groupOf(r, sign);
+            if (!gr) continue;
+            const i = idx.get(bucketOf(r.occurred_on));
+            if (i === undefined) continue;
+            const g = groups.get(gr.key) || groups.set(gr.key, { ...gr, cells: buckets.map(() => 0), sum: 0 }).get(gr.key);
+            const v = Math.abs(Number(r.signed_amount));
+            g.cells[i] += v; g.sum += v; totals[i] += v;
+        }
+        return { groups: [...groups.values()].sort((a, b) => b.sum - a.sum), totals };
+    };
+    return { buckets, out: side(-1), inc: side(1) };
+}
+
+function renderAnalytics() {
+    const box = $('daccAnalytics');
+    const cur = rows[rows.length - 1]?.currency_code || accounts.find(a => a.account_id === currentAccount)?.currency_code || 'INR';
+    const d = analyticsData();
+    const n = d.buckets.length;
+    const stepBtn = (s, key, ru) => `<button class="btn btn-sm join-item ${step === s ? 'btn-active' : ''}" data-dacc-step="${s}">${e(tr(key, ru))}</button>`;
+    const fmt = v => v ? money(v, cur) : '<span class="opacity-30">—</span>';
+    const cell = (g, i, rowCls) => {
+        const v = g.cells[i];
+        // перекос — только у регулярной статьи (траты хотя бы в трёх столбцах), и сравнение с её обычной
+        // суммой за те столбцы, где она была: разовая покупка — не перекос, пустой месяц — не провал
+        const used = g.cells.filter(x => x > 0);
+        const usual = used.length >= 3 ? used.reduce((a, b) => a + b, 0) / used.length : 0;
+        let cls = '', hint = '';
+        if (usual && v > 0) {
+            const pct = Math.round((v / usual - 1) * 100);
+            if (v >= usual * 1.5) { cls = 'bg-orange-100 text-orange-900'; hint = `+${pct}% ${tr('dacc_an_vs_avg', 'к обычному')}`; }
+            else if (v <= usual * 0.5) { cls = 'bg-sky-100 text-sky-900'; hint = `${pct}% ${tr('dacc_an_vs_avg', 'к обычному')}`; }
+        }
+        const pick = JSON.stringify({ ...g.pick, dir: rowCls, range: bucketRange(d.buckets[i]) });
+        return `<td class="text-right font-mono whitespace-nowrap ${cls} ${v ? 'cursor-pointer hover:underline' : ''}" ${hint ? `title="${e(hint)}"` : ''} ${v ? `data-dacc-pick='${e(pick)}'` : ''}>${fmt(v)}</td>`;
+    };
+    const section = (title, s, dir, color) => {
+        const totalAll = s.totals.reduce((a, b) => a + b, 0);
+        const head = `<tr class="bg-base-200/60 font-semibold">
+            <td class="sticky left-0 bg-base-200">${e(title)}</td>
+            ${s.totals.map(v => `<td class="text-right font-mono whitespace-nowrap ${color}">${fmt(v)}</td>`).join('')}
+            <td class="text-right font-mono whitespace-nowrap ${color}">${fmt(totalAll)}</td>
+            <td class="text-right font-mono whitespace-nowrap opacity-70">${fmt(totalAll / n)}</td></tr>`;
+        const body = s.groups.map(g => `<tr>
+            <td class="sticky left-0 bg-base-100 max-w-[16rem]"><div class="truncate" title="${e(g.label)}">${e(g.label)}</div></td>
+            ${g.cells.map((_, i) => cell(g, i, dir)).join('')}
+            <td class="text-right font-mono whitespace-nowrap font-semibold">${fmt(g.sum)}</td>
+            <td class="text-right font-mono whitespace-nowrap opacity-70">${fmt(g.sum / n)}</td></tr>`).join('');
+        return head + (body || `<tr><td colspan="${n + 3}" class="opacity-60 text-sm">${e(tr('dacc_sum_empty', 'Нет операций'))}</td></tr>`);
+    };
+    box.innerHTML = `
+        <div class="flex flex-wrap items-center gap-3 mb-3">
+            <div class="join">${stepBtn('month', 'cost_step_month', 'Месяц')}${stepBtn('quarter', 'cost_step_quarter', 'Квартал')}${stepBtn('year', 'cost_step_year', 'Год')}</div>
+            <span class="text-xs opacity-60">${e(tr('dacc_an_hint', 'Период — выбранный выше. Оранжевое — в полтора раза больше обычного по статье, голубое — вдвое меньше. Нажмите сумму — покажу эти операции'))}</span>
+        </div>
+        <div class="bg-base-100 rounded-xl shadow-sm p-3 mb-4"><div style="height:320px"><canvas id="daccChart"></canvas></div></div>
+        <div class="bg-base-100 rounded-xl shadow-sm overflow-x-auto">
+            <table class="table table-sm w-full">
+                <thead><tr>
+                    <th class="sticky left-0 bg-base-100">${e(tr('fin_category', 'Статья'))}</th>
+                    ${d.buckets.map(b => `<th class="text-right whitespace-nowrap">${e(bucketLabel(b))}</th>`).join('')}
+                    <th class="text-right">${e(tr('cost_total', 'Всего'))}</th>
+                    <th class="text-right whitespace-nowrap">${e(tr('dacc_an_avg', 'В среднем'))}</th>
+                </tr></thead>
+                <tbody>
+                    ${section(tr('dacc_sum_out', 'Ушло — на что'), d.out, 'out', 'text-red-600')}
+                    ${section(tr('dacc_sum_in', 'Пришло — откуда'), d.inc, 'in', 'text-blue-600')}
+                </tbody>
+            </table>
+        </div>`;
+    drawChart(d, cur);
+}
+
+async function drawChart(d, cur) {
+    let Chart;
+    try { Chart = await loadChartLib(); } catch {
+        $('daccChart')?.replaceWith(Object.assign(document.createElement('div'), { className: 'text-sm text-error', textContent: tr('cost_charts_load_error', 'Не удалось загрузить графики') }));
+        return;
+    }
+    const canvas = $('daccChart');
+    if (!canvas) return;
+    if (anChart) anChart.destroy();
+    const top = d.out.groups.slice(0, CHART_TOP);
+    const rest = d.out.groups.slice(CHART_TOP);
+    const datasets = top.map((g, i) => ({ label: g.label, data: g.cells, backgroundColor: CHART_COLORS[i], stack: 'out', order: 2 }));
+    if (rest.length) datasets.push({ label: tr('dacc_an_other', 'Прочее'), stack: 'out', order: 2, backgroundColor: CHART_COLORS[CHART_TOP],
+        data: d.buckets.map((_, i) => rest.reduce((s, g) => s + g.cells[i], 0)) });
+    datasets.push({ type: 'line', label: tr('dacc_in', 'Пришло'), data: d.inc.totals, borderColor: '#2563eb', backgroundColor: '#2563eb', borderWidth: 2, pointRadius: 3, order: 1 });
+    anChart = new Chart(canvas, {
+        type: 'bar',
+        data: { labels: d.buckets.map(bucketLabel), datasets },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                tooltip: { callbacks: {
+                    label: c => c.raw ? `${c.dataset.label}: ${money(c.raw, cur)}` : null,
+                    footer: items => `${tr('dacc_out', 'Ушло')}: ${money(d.out.totals[items[0].dataIndex], cur)}`
+                } } },
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { callback: v => Number(v).toLocaleString('ru-RU') } } } }
+    });
+}
+
+function setView(v) {
+    view = v;
+    document.querySelectorAll('[data-dacc-view]').forEach(t => t.classList.toggle('tab-active', t.dataset.daccView === v));
+    $('daccOps').classList.toggle('hidden', v !== 'ops');
+    $('daccAnalytics').classList.toggle('hidden', v !== 'analytics');
+    try { localStorage.setItem('dept_account_view', v); } catch { /* нет хранилища */ }
+    render();
+}
+
+function pickFromSummary(pick) {
+    if (pick.range) { $('daccFrom').value = pick.range[0]; $('daccTo').value = pick.range[1]; markPreset('custom'); }
+    if (view !== 'ops') setView('ops');
+    if (pick.cat) { $('daccCategory').value = pick.cat; $('daccDir').value = ''; $('daccSearch').value = ''; }
+    else if (pick.q !== undefined) { $('daccCategory').value = ''; $('daccDir').value = 'transfer'; $('daccSearch').value = pick.q; }
+    else { $('daccCategory').value = ''; $('daccDir').value = pick.dir; $('daccSearch').value = ''; }
+    render();
+    $('daccHead').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function kindCell(r) {
     const arrow = r.contra_account
         ? ` <span class="opacity-70 whitespace-nowrap">${r.direction === 'out' ? '→' : '←'} ${e(r.contra_account)}</span>` : '';
@@ -260,6 +517,8 @@ function renderTable(list) {
 function render() {
     const list = filtered();
     renderTotals(list);
+    if (view === 'analytics') { renderAnalytics(); return; }
+    renderSummary();
     renderTable(list);
     $('daccCount').textContent = `${tr('fin_shown_count', 'Показано')}: ${list.length}`;
 }
@@ -306,6 +565,30 @@ async function init(options) {
     $('daccSearch').addEventListener('input', Layout.debounce(render, 300));
     document.querySelectorAll('[data-dacc-preset]').forEach(b => b.addEventListener('click', () => setPreset(b.dataset.daccPreset)));
     $('daccCsv').addEventListener('click', exportCsv);
+    $('daccViewTabs').addEventListener('click', ev => {
+        const tab = ev.target.closest('[data-dacc-view]');
+        if (tab && tab.dataset.daccView !== view) setView(tab.dataset.daccView);
+    });
+    $('daccAnalytics').addEventListener('click', ev => {
+        const st = ev.target.closest('[data-dacc-step]');
+        if (st) {
+            step = st.dataset.daccStep;
+            try { localStorage.setItem('dept_account_step', step); } catch { /* нет хранилища */ }
+            renderAnalytics();
+            return;
+        }
+        const c = ev.target.closest('[data-dacc-pick]');
+        if (c) pickFromSummary(JSON.parse(c.dataset.daccPick));
+    });
+    $('daccSummary').addEventListener('click', ev => {
+        if (ev.target.closest('[data-dacc-pick-reset]')) {
+            $('daccCategory').value = ''; $('daccDir').value = ''; $('daccSearch').value = '';
+            render();
+            return;
+        }
+        const btn = ev.target.closest('[data-dacc-pick]');
+        if (btn) pickFromSummary(JSON.parse(btn.dataset.daccPick));
+    });
     $('daccHead').addEventListener('click', ev => {
         const th = ev.target.closest('[data-dacc-sort]');
         if (!th) return;
@@ -328,6 +611,11 @@ async function init(options) {
     if (!r) { preset = 'year'; r = presetRange(preset); }
     $('daccFrom').value = r[0]; $('daccTo').value = r[1];
     markPreset(preset);
+    try {
+        step = localStorage.getItem('dept_account_step') || 'month';
+        if (localStorage.getItem('dept_account_view') === 'analytics') setView('analytics');
+    } catch { /* нет хранилища */ }
+    if (!['month', 'quarter', 'year'].includes(step)) step = 'month';
     await selectAccount(accounts[0].account_id);
 }
 
