@@ -28,6 +28,7 @@
         .разделСписка:hover .ручкиСтроки { opacity: 1; }
         @media (hover: none) { .ручкиСтроки { opacity: .5; } }
         /* свёрнутые разделы стоят вплотную: это оглавление, а не блоки */
+        /* свёрнутые разделы стоят вплотную: это оглавление, а не блоки */
         details.разделСписка:not([open]) { margin-bottom: .35rem; }
         details.разделСписка > summary:hover h2 { color: var(--current-color); }
     </style>
@@ -159,7 +160,7 @@
     <script src="../js/layout.js?v=116"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-standards.js?v=22"></script>
+    <script src="../js/pages/worship-standards.js?v=23"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
