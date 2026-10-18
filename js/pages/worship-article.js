@@ -21,7 +21,7 @@ const WorshipArticle = (() => {
     let снимки = {};                // путь → адрес ограниченного срока
     let замечания = [];
     let вЗакладках = false;
-    let заменяет = null;            // статья, которую эта заменила собой
+    let заменяет = [];              // статьи, которые эта заменила собой
     let заменено = null;            // статья, которой заменили эту
 
     async function загрузить() {
@@ -39,40 +39,38 @@ const WorshipArticle = (() => {
         статья = с;
         версии = вер || [];
 
-        // ТЗ: связь замены видна на обеих статьях, иначе противоречие
-        // между старым и новым стандартом замечают только случайно
-        const { data: зам0 } = await Layout.db.from('worship_articles')
-            .select('id, title').eq('replaced_by_id', id).maybeSingle();
-        заменяет = зам0 || null;
+        // всё остальное об этой статье — одним заходом: на телефоне у алтаря
+        // каждый лишний обмен с сервером виден глазами.
+        // Связь замены берём в обе стороны: ТЗ требует показывать её на обеих
+        // статьях, иначе противоречие между старым и новым замечают случайно
+        const [зам0, зам1, з, зам] = await Promise.all([
+            Layout.db.from('worship_articles').select('id, title')
+                .eq('replaced_by_id', id).order('title'),
+            с.replaced_by_id
+                ? Layout.db.from('worship_articles').select('id, title').eq('id', с.replaced_by_id).maybeSingle()
+                : Promise.resolve({ data: null }),
+            Layout.db.from('worship_bookmarks').select('id')
+                .eq('kind', 'bookmark').eq('article_id', id).maybeSingle(),
+            Layout.db.from('worship_remarks')
+                .select('id, body, state, created_at, created_by, closed_at, close_reason')
+                .eq('article_id', id).order('created_at', { ascending: false }),
+            статья.section_id
+                ? Layout.db.from('worship_sections').select('id, name_ru, name_en, name_hi')
+                    .eq('id', статья.section_id).maybeSingle().then(о => { раздел = о.data; })
+                : Promise.resolve(),
+        ]);
+        заменяет = зам0.data || [];      // одним стандартом можно отменить несколько
+        заменено = зам1.data || null;
+        вЗакладках = !!з.data;
+        замечания = зам.data || [];
 
-        if (с.replaced_by_id) {
-            const { data } = await Layout.db.from('worship_articles')
-                .select('id, title').eq('id', с.replaced_by_id).maybeSingle();
-            заменено = data || null;
-        } else {
-            заменено = null;
-        }
 
-        const { data: з } = await Layout.db.from('worship_bookmarks')
-            .select('id').eq('kind', 'bookmark').eq('article_id', id).maybeSingle();
-        вЗакладках = !!з;
-
-        const { data: зам } = await Layout.db.from('worship_remarks')
-            .select('id, body, state, created_at, created_by, closed_at, close_reason')
-            .eq('article_id', id).order('created_at', { ascending: false });
-        замечания = зам || [];
-
-        if (статья.section_id) {
-            const { data } = await Layout.db.from('worship_sections')
-                .select('id, name_ru, name_en, name_hi').eq('id', статья.section_id).maybeSingle();
-            раздел = data;
-        }
 
         // Правку, которая ждёт решения, открываем сразу: иначе старший жмёт
-        // «Утвердить», глядя на прежний текст, и утверждает вслепую.
-        показана = (можноУтверждать() || можноПисать()) && версии.find(в => в.status === 'submitted')
+        // «Утвердить», глядя на прежний текст, и утверждает вслепую. Проверять
+        // права здесь не нужно — незавершённые версии приходят только пуджари.
+        показана = версии.find(в => в.status === 'submitted')
                 || версии.find(в => в.status === 'published')
-                || версии.find(в => в.status === 'submitted')
                 || версии.find(в => в.status === 'draft')
                 || null;
         return true;
@@ -104,8 +102,8 @@ const WorshipArticle = (() => {
             return `<span class="text-success font-semibold">Действует${
                 показана.approved_at ? ' с ' + дата(показана.approved_at) : ''}</span> · версия ${показана.version_no}${
                 правка ? ` · <button class="link" data-show="${правка.id}">есть правка на утверждении</button>` : ''}${
-                заменяет ? ` · заменил <a class="link" href="article.html?id=${заменяет.id}">${
-                    e(заменяет.title)}</a>` : ''}`;
+                заменяет.length ? ' · заменил ' + заменяет.map(з =>
+                    `<a class="link" href="article.html?id=${з.id}">${e(з.title)}</a>`).join(', ') : ''}`;
         }
         if (показана.status === 'submitted') {
             return `<span class="text-warning font-semibold">Правка ждёт утверждения</span>${
@@ -148,7 +146,8 @@ const WorshipArticle = (() => {
         if (можноПисать() && наЭкранеПравка) {
             кнопки.push('<button class="btn btn-sm btn-ghost" id="withdraw">Отозвать</button>');
         }
-        if (предыдущая(показана)) {
+        // библиотека сравнения приезжает со стороны: без неё кнопка только обманет
+        if (предыдущая(показана) && window.Diff) {
             кнопки.push('<button class="btn btn-sm btn-outline" id="diff">Что изменилось</button>');
         }
         кнопки.push(`<button class="btn btn-sm btn-ghost" id="bookmark" title="${
@@ -304,15 +303,19 @@ const WorshipArticle = (() => {
         $('#archiveModal').showModal();
     }
 
+    let закладкаВРаботе = false;
+
     async function переключитьЗакладку() {
         const я = window.currentUser?.id;
-        if (!я) return;
+        if (!я || закладкаВРаботе) return;   // второй клик подряд давал ошибку вместо закладки
+        закладкаВРаботе = true;
         const запрос = вЗакладках
             ? Layout.db.from('worship_bookmarks').delete()
                 .eq('kind', 'bookmark').eq('article_id', id).eq('user_id', я)
             : Layout.db.from('worship_bookmarks')
                 .insert({ user_id: я, kind: 'bookmark', article_id: id });
         const { error } = await запрос;
+        закладкаВРаботе = false;
         if (error) return Layout.handleError(error, 'Закладка');
         вЗакладках = !вЗакладках;
         рисоватьДействия();
@@ -352,8 +355,9 @@ const WorshipArticle = (() => {
                         || (учтено || несогласие).dataset.remarkNo;
                 const причина = несогласие
                     ? prompt('Одной строкой: почему не согласны? Автор замечания это увидит.')
-                    : prompt('Можно коротко ответить (необязательно)') || null;
-                if (несогласие && (!причина || !причина.trim())) return;
+                    : prompt('Можно коротко ответить (необязательно)');
+                if (причина === null) return;             // «Отмена» — значит отмена
+                if (несогласие && !причина.trim()) return;
                 const { error } = await Layout.db.rpc('worship_remark_close', {
                     p_remark: id, p_state: несогласие ? 'declined' : 'accepted', p_reason: причина });
                 if (error) return Layout.handleError(error, 'Замечание');
@@ -381,6 +385,10 @@ const WorshipArticle = (() => {
                 if (!confirm('Утвердить? С этого момента по стандарту служат в храме, отделу уйдёт сообщение.')) return;
                 const { data, error } = await Layout.db.rpc('worship_approve', { p_article: статья.id });
                 if (error) return Layout.handleError(error, 'Утверждение');
+                if (data?.отозвана) {
+                    Layout.showNotification(data.сообщение || 'Правку отозвали', 'warning');
+                    return перечитать();
+                }
                 Layout.showNotification(data?.повтор ? 'Уже утверждено' : `Утверждено, версия ${data?.номер}`, 'success');
                 return перечитать();
             }

@@ -45,6 +45,8 @@ const WorshipDoc = (() => {
         // ссылка, по делу уводит из ашрама
         if (s.startsWith('//')) return null;
         if (/^(https?:\/\/|mailto:|tel:)/i.test(s)) return s;
+        // ссылка на свой же заголовок: оглавление ходит по таким якорям
+        if (/^#[\w-]+$/.test(s)) return s;
         // внутренняя ссылка на статью модуля
         if (/^[\w./?=&%-]+$/.test(s) && !s.includes(':')) return s;
         return null;

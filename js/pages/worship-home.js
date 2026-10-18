@@ -19,12 +19,13 @@ const WorshipHome = (() => {
 
     let разделы = [], статьи = [];
 
-    function строка(id, заголовок, подпись) {
+    /** `подпись` — уже готовая разметка: собирают её вызывающие, экранируя текст. */
+    function строка(id, заголовок, подписьHTML) {
         return `
         <li class="border-b border-base-200 last:border-0">
             <a href="article.html?id=${id}" class="block py-2.5 hover:opacity-70 transition-opacity">
                 <span class="font-semibold block">${e(заголовок)}</span>
-                ${подпись ? `<span class="text-sm opacity-60">${подпись}</span>` : ''}
+                ${подписьHTML ? `<span class="text-sm opacity-60">${подписьHTML}</span>` : ''}
             </a>
         </li>`;
     }
@@ -124,23 +125,27 @@ const WorshipHome = (() => {
     }
 
     async function init() {
-        const [р, с] = await Promise.all([
-            Layout.db.from('worship_sections').select('id, name_ru, name_en, name_hi')
-                .eq('kind', 'standard').eq('is_active', true).order('sort_order'),
-            Layout.db.from('worship_articles').select('id, title, section_id, status').eq('kind', 'standard'),
-        ]);
-        разделы = р.data || [];
-        статьи = с.data || [];
-
-        рисоватьРазделы();
-        await Promise.all([лента(), черновики(), очередь(), личное()]);
-
-        // поиск уводит на список: держать два разных поиска в модуле незачем
+        // поиск уводит на список: держать два разных поиска в модуле незачем.
+        // Слушатель вешаем первым — иначе Enter, нажатый до конца загрузки,
+        // перезагрузит страницу и потеряет набранное
         $('#searchForm').addEventListener('submit', ev => {
             ev.preventDefault();
             const q = $('#q').value.trim();
             location.href = q ? `standards.html?q=${encodeURIComponent(q)}` : 'standards.html';
         });
+
+        const [р, с] = await Promise.all([
+            Layout.db.from('worship_sections').select('id, name_ru, name_en, name_hi')
+                .eq('kind', 'standard').eq('is_active', true).order('sort_order'),
+            Layout.db.from('worship_articles').select('id, title, section_id, status').eq('kind', 'standard'),
+        ]);
+        // без этого сбой запроса выглядит как «модуль пуст», а не как ошибка
+        if (р.error || с.error) { Layout.handleError(р.error || с.error, 'Загрузка модуля'); return; }
+        разделы = р.data || [];
+        статьи = с.data || [];
+
+        рисоватьРазделы();
+        await Promise.all([лента(), черновики(), очередь(), личное()]);
     }
 
     return { init };

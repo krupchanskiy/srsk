@@ -227,8 +227,12 @@ const WorshipEdit = (() => {
             const б = блоки[Number(узел.dataset.i)];
             if (!б) return;
             if (б.type === 'ul' || б.type === 'ol') {
-                const items = [...узел.querySelectorAll('[data-пункт]')]
-                    .map(собратьОтрезки).filter(о => о.length);
+                // пустые пункты НЕ выбрасываем: пока человек пишет, пустой пункт —
+                // это живая строка под курсором, и если убрать её здесь, номер
+                // пункта в разметке перестанет совпадать с номером в блоке —
+                // Backspace сотрёт соседу текст, а Enter вставит пункт не туда.
+                // Отбрасываются они позже, в WorshipDoc.разобрать, при записи
+                const items = [...узел.querySelectorAll('[data-пункт]')].map(собратьОтрезки);
                 собранные.push({ type: б.type, items });
             } else if (б.type === 'img') {
                 собранные.push({ type: 'img', path: б.path || '',
@@ -266,8 +270,10 @@ const WorshipEdit = (() => {
         try { запись = JSON.parse(sessionStorage.getItem(ключЧерновика()) || 'null'); } catch { /* */ }
         if (!запись?.doc) return;
 
-        const вБазе = WorshipDoc.текст(версия?.doc);
-        const вПамяти = WorshipDoc.текст(запись.doc);
+        // сверяем документ целиком: по плоскому тексту правка оформления,
+        // ссылки или подписи к фото выглядела бы как «ничего не изменилось»
+        const вБазе = JSON.stringify(WorshipDoc.разобрать(версия?.doc));
+        const вПамяти = JSON.stringify(WorshipDoc.разобрать(запись.doc));
         if (вБазе === вПамяти && (запись.title || '') === ($('#заголовок').value || '')) {
             забыть();
             return;
@@ -278,7 +284,7 @@ const WorshipEdit = (() => {
         }
         блоки = WorshipDoc.разобрать(запись.doc).blocks;
         $('#заголовок').value = запись.title || '';
-        if (запись.section_id) $('#раздел').value = запись.section_id;
+        $('#раздел').value = запись.section_id || '';     // «без раздела» тоже выбор
         $('#примечание').value = запись.change_note || '';
         рисоватьБлоки();
         пометить();
@@ -311,6 +317,7 @@ const WorshipEdit = (() => {
         }
 
         сохраняется = true;
+        кнопкиЗаняты(true);
         $('#сохранение').textContent = 'сохраняю…';
         $('#сохранение').className = 'text-sm opacity-60';
 
@@ -327,6 +334,11 @@ const WorshipEdit = (() => {
 
         const { data, error } = await Layout.db.rpc('worship_save_draft', { payload: полезное });
         сохраняется = false;
+        кнопкиЗаняты(false);
+        // осознанная перезапись действует ровно на одно сохранение: иначе после
+        // неудачной попытки защита от чужой правки осталась бы выключенной
+        const былаПерезапись = !знаюСостояние;
+        знаюСостояние = true;
 
         if (error) {
             $('#сохранение').textContent = 'не сохранено';
@@ -337,12 +349,12 @@ const WorshipEdit = (() => {
         if (data?.конфликт) {
             $('#сохранение').textContent = 'не сохранено';
             $('#сохранение').className = 'text-sm text-error';
-            показатьКонфликт(data['чужая_версия']);
+            показатьКонфликт(data['чужая_версия'], data['сообщение']);
             return null;
         }
+        if (былаПерезапись) $('#конфликт').hidden = true;
 
         базоваяОтметка = data.updated_at;
-        знаюСостояние = true;
         грязно = false;
         свои = [];
         забыть();
@@ -351,8 +363,17 @@ const WorshipEdit = (() => {
         return data;
     }
 
-    function показатьКонфликт(чужая) {
+    function кнопкиЗаняты(занято) {
+        ['#сохранить', '#отправить', '#перезаписать'].forEach(s => {
+            const б = $(s);
+            if (б) б.disabled = занято;
+        });
+    }
+
+    function показатьКонфликт(чужая, сообщение) {
         $('#конфликт').hidden = false;
+        document.querySelector('#конфликт .font-bold').textContent =
+            сообщение || 'Пока вы писали, черновик изменил кто-то другой';
         $('#конфликтТекст').textContent =
             `Сохранено ${DateUtils.formatDateTime(new Date(чужая.обновлена))}. ` +
             'Откройте чужую правку в соседней вкладке и перенесите своё, ' +
@@ -360,7 +381,8 @@ const WorshipEdit = (() => {
     }
 
     // ---------- снимки ----------
-    let блокДляСнимка = null;
+    let блокДляСнимка = null;        // сам блок, а не номер: пока открыт выбор файла,
+                                     // блоки могли переставить или убрать
 
     /** Уменьшаем до загрузки: у алтаря телефон, а не студия. */
     function уменьшить(файл) {
@@ -387,7 +409,7 @@ const WorshipEdit = (() => {
     }
 
     async function загрузитьСнимок(файл) {
-        if (блокДляСнимка === null) return;
+        if (!блокДляСнимка) return;
         let тело;
         try { тело = await уменьшить(файл); }
         catch (ош) { Layout.showNotification(ош.message, 'error'); return; }
@@ -399,11 +421,20 @@ const WorshipEdit = (() => {
         if (error) { Layout.handleError(error, 'Загрузка фото'); return; }
 
         const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
+        if (!data?.signedUrl) {
+            Layout.showNotification('Фото загрузилось, но не показывается — обновите страницу', 'warning');
+        }
         ссылки[путь] = data?.signedUrl || '';
         свои.push(путь);
 
         собрать();
-        блоки[блокДляСнимка].path = путь;
+        const куда = блоки.indexOf(блокДляСнимка);
+        if (куда < 0) {                       // блок убрали, пока выбирали файл
+            Layout.db.storage.from('worship').remove([путь])
+                .then(({ error }) => { if (error) console.debug('не убрали снимок:', error.message); });
+            return;
+        }
+        блоки[куда].path = путь;
         рисоватьБлоки();
         пометить();
         запомнить();
@@ -432,7 +463,7 @@ const WorshipEdit = (() => {
         // иначе хранилище копит кадры, которых нет ни в одной версии
         if (б?.type === 'img' && б.path && свои.includes(б.path)) {
             Layout.db.storage.from('worship').remove([б.path])
-                .catch(ош => console.debug('не убрали снимок:', ош?.message));
+                .then(({ error }) => { if (error) console.debug('не убрали снимок:', error.message); });
             свои = свои.filter(п => п !== б.path);
         }
         блоки.splice(i, 1);
@@ -533,7 +564,8 @@ const WorshipEdit = (() => {
                     пометить();
                     break;
                 case 'снимок':
-                    блокДляСнимка = i;
+                    собрать();
+                    блокДляСнимка = блоки[i];
                     $('#файл').click();
                     break;
             }
@@ -548,6 +580,9 @@ const WorshipEdit = (() => {
         document.querySelectorAll('[data-добавить]').forEach(б =>
             б.addEventListener('click', () => добавитьБлок(б.dataset.добавить)));
 
+        // без этого Chrome снимает жирный не тегом, а <span style>, которого
+        // сериализация не понимает, и оформление «не снимается»
+        try { document.execCommand('styleWithCSS', false, false); } catch { /* старый браузер */ }
         $('#жирный').addEventListener('click', () => { document.execCommand('bold'); пометить(); });
         $('#ссылка').addEventListener('click', поставитьСсылку);
 

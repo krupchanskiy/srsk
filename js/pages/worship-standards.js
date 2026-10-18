@@ -42,7 +42,11 @@ const WorshipStandards = (() => {
                 .eq('status', 'submitted').order('updated_at');
             if (error) { Layout.handleError(error, 'Очередь на утверждение'); return false; }
             очередь = data || [];
+        }
 
+        // замечания — вторая стопка работы отдела, и смотрит её любой пуджари,
+        // а не только тот, кто утверждает
+        if (можноПисать()) {
             const зам = await Layout.db.from('worship_remarks')
                 .select('id, article_id, body, created_at')
                 .eq('state', 'open').order('created_at');
@@ -234,13 +238,20 @@ const WorshipStandards = (() => {
     async function дополнитьВерсиями() {
         const ids = статьи.map(с => с.id);
         if (!ids.length) return true;
-        const { data, error } = await Layout.db.from('worship_versions')
-            .select('article_id, status, version_no, approved_at')
-            .in('article_id', ids);
-        if (error) { Layout.handleError(error, 'Версии статей'); return false; }
+
+        // по сотне статей за раз: выдача обрезается на тысяче строк, а версий
+        // у статьи несколько — иначе значки и номера начнут молча врать
+        const строки = [];
+        for (let i = 0; i < ids.length; i += 100) {
+            const { data, error } = await Layout.db.from('worship_versions')
+                .select('article_id, status, version_no, approved_at')
+                .in('article_id', ids.slice(i, i + 100));
+            if (error) { Layout.handleError(error, 'Версии статей'); return false; }
+            строки.push(...(data || []));
+        }
 
         const поСтатье = {};
-        (data || []).forEach(в => {
+        (строки).forEach(в => {
             поСтатье[в.article_id] = поСтатье[в.article_id] || {};
             if (в.status === 'published') {
                 поСтатье[в.article_id].версия = в.version_no;
