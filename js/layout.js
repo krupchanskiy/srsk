@@ -903,6 +903,18 @@ function buildLocationOptions() {
             el.appendChild(finBtn);
         }
 
+        // Кнопка "Поклонение" — по праву модуля; суперпользователь видит всегда
+        if (!window.hasPermission || window.hasPermission('worship_view')) {
+            const worshipBtn = document.createElement('button');
+            worshipBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
+            if (currentModule === 'worship') {
+                worshipBtn.classList.add('font-medium');
+            }
+            worshipBtn.dataset.module = 'worship';
+            worshipBtn.textContent = t('module_worship'); // безопасно
+            el.appendChild(worshipBtn);
+        }
+
         // Кнопка "Фото" — только для пользователей с upload_photos
         if (window.hasPermission && window.hasPermission('upload_photos')) {
             const photosBtn = document.createElement('button');
