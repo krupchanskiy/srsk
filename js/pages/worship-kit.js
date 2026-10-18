@@ -230,7 +230,9 @@ const WorshipKit = (() => {
                     <span class="font-semibold">${
                         г.vaishnava_id ? e(имена.люди[г.vaishnava_id] || 'человек')
                                        : e(имена.ретриты[г.retreat_id] || 'ретрит')}</span>
-                    <span class="badge badge-sm ml-2">${г.vaishnava_id ? 'человек' : 'все волонтёры ретрита'}</span>
+                    <!-- у бейджа высота строки: длинная подпись в нём вылезала за рамку -->
+                    <span class="badge badge-sm ml-2 h-auto py-0.5 whitespace-nowrap">${
+                        г.vaishnava_id ? 'человек' : 'все волонтёры ретрита'}</span>
                     <span class="block text-sm opacity-60">выдана ${
                         DateUtils.formatShort(new Date(г.granted_at))}</span>
                 </span>
