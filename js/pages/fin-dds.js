@@ -945,9 +945,35 @@ async function maybeSuggestIncomeObject() {
         }
         return;
     }
+    const code = FinUtils.refs.categories.find(c => c.id === catId)?.code;
+    if (code === 'shop_cash' || code === 'murti') return suggestShopObject();
     if (!FinUtils.isCafeCategory(catId)) return;
     const objId = await FinUtils.nearestRetreatObject(document.getElementById('incDate').value);
     if (objId) objSel.value = objId;
+}
+
+// Магазин и мурти (ВГ, 18.10.2026): продажа во время ретрита — наш или сторонний — относится
+// к нему; вне ретритов — без ретрита. В отличие от кафе не тянем ближайший по датам.
+// Ретриты те же, что у кафе (cafe_eligible: внутренние проекты вроде Художников — нет).
+// При наложении — начавшийся позже, как у кафе
+async function suggestShopObject() {
+    const hint = document.getElementById('incObjectHint');
+    const objSel = document.getElementById('incObject');
+    const date = document.getElementById('incDate').value;
+    const token = ++incHintToken;
+    const ranges = await FinUtils.loadRetreatRanges();
+    if (token !== incHintToken || !incObjectAuto) return;
+    const r = date && ranges.filter(x => x.start_date <= date && date <= x.end_date)
+        .sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+    if (r) {
+        FinUtils.setObjectValue(objSel, r.object_id);
+        incPrasadAutoObject = r.object_id;
+        const name = FinUtils.refs.objects.find(o => o.id === r.object_id)?.display_name || '';
+        if (hint) hint.textContent = `В эти даты идёт «${name}» — приход отнесён к нему. Не так — выберите «Без ретрита».`;
+    } else {
+        if (incPrasadAutoObject && objSel.value === incPrasadAutoObject) objSel.value = '';
+        incPrasadAutoObject = null;
+    }
 }
 
 function openIncome() {
