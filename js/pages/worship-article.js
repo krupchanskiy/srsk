@@ -221,7 +221,9 @@ const WorshipArticle = (() => {
             кнопки.push('<button class="btn btn-sm btn-success text-white" id="approve">Утвердить</button>');
             кнопки.push('<button class="btn btn-sm btn-outline" id="return">Вернуть автору</button>');
         }
-        if (можноПисать() && наЭкранеПравка) {
+        // отозвать с утверждения — автор правки или старший (так же решает база)
+        if (можноПисать() && наЭкранеПравка
+            && (показана?.created_by === window.currentUser?.id || можноУтверждать())) {
             кнопки.push('<button class="btn btn-sm btn-ghost" id="withdraw">Отозвать</button>');
         }
         // звёздочка значком, а не текстовым символом: ★ набиралось размером
