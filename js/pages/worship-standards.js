@@ -78,6 +78,9 @@ const WorshipStandards = (() => {
         return '';
     }
 
+    /** Человек ищет — значит, он уже не в режиме обзора. */
+    const ищем = () => !!фильтр.поиск.trim();
+
     function подходит(статья) {
         // галочка добавляет отменённые к выдаче, а не заменяет ею: окно архивации
         // обещает, что отменённый стандарт «останется доступным в поиске»
@@ -129,7 +132,9 @@ const WorshipStandards = (() => {
 
     function рисоватьОчередь() {
         const блок = $('#queue');
-        if (!можноУтверждать() || !очередь.length) { блок.hidden = true; return; }
+        // во время поиска стопки работы сверху отодвигают выдачу за край
+        // экрана: человек печатает и не видит, что нашлось
+        if (!можноУтверждать() || !очередь.length || ищем()) { блок.hidden = true; return; }
         блок.hidden = false;
         $('#queueCount').textContent = очередь.length;
         $('#queueList').innerHTML = очередь.map(в => {
@@ -153,7 +158,7 @@ const WorshipStandards = (() => {
 
     function рисоватьЗамечания() {
         const блок = $('#remarksBox');
-        if (!можноПисать() || !замечания.length) { блок.hidden = true; return; }
+        if (!можноПисать() || !замечания.length || ищем()) { блок.hidden = true; return; }
         блок.hidden = false;
         $('#remarksCount').textContent = замечания.length;
         $('#remarksList').innerHTML = замечания.map(з => {
@@ -210,6 +215,7 @@ const WorshipStandards = (() => {
     function рисоватьСписок() {
         const видимые = статьи.filter(подходит);
         const тело = $('#list');
+        рисоватьИтогПоиска(видимые.length);
 
         if (!разделы.length && !статьи.length) {
             тело.innerHTML = `
@@ -269,6 +275,20 @@ const WorshipStandards = (() => {
             </section>` : '');
     }
 
+    /** Сколько нашлось и чем это отличается от полного списка. */
+    function рисоватьИтогПоиска(сколько) {
+        const строка = $('#итогПоиска');
+        if (!ищем()) { строка.hidden = true; return; }
+        строка.hidden = false;
+        строка.innerHTML = `
+            <span class="font-semibold">${сколько
+                ? Layout.pluralize(сколько, { ru: ['статья', 'статьи', 'статей'],
+                    en: ['article', 'articles'], hi: 'लेख' })
+                : 'Ничего не нашлось'}</span>
+            <span class="opacity-70">по запросу «${e(фильтр.поиск.trim())}»</span>
+            <button class="btn btn-ghost btn-xs" id="сброситьПоиск">показать всё</button>`;
+    }
+
     function рисовать() {
         рисоватьОчередь();
         рисоватьЗамечания();
@@ -318,7 +338,14 @@ const WorshipStandards = (() => {
     // ---------- события ----------
     function слушать() {
         if (фильтр.поиск) $('#q').value = фильтр.поиск;
-        $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисоватьСписок(); });
+        $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисовать(); });
+        document.addEventListener('click', ev => {
+            if (!ev.target.closest('#сброситьПоиск')) return;
+            фильтр.поиск = '';
+            $('#q').value = '';
+            рисовать();
+            $('#q').focus();
+        });
         $('#showArchive').addEventListener('change', ev => { фильтр.архив = ev.target.checked; рисоватьСписок(); });
         $('#queueAll').addEventListener('change', ev => {
             document.querySelectorAll('[data-очередь]').forEach(ч => { ч.checked = ev.target.checked; });

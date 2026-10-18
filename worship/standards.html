@@ -61,6 +61,10 @@
             </div>
         </div>
 
+        <!-- итог поиска прямо под полем: пока он был только в самой выдаче,
+             при поиске сверху оставались стопки работы и находки уезжали за экран -->
+        <div id="итогПоиска" hidden class="flex flex-wrap items-center gap-2 mb-3 text-sm"></div>
+
         <div id="старшийОтъезд" hidden class="alert alert-warning mb-4 text-sm"></div>
 
         <!-- очередь: единственное место, где работа ждёт конкретного человека -->
@@ -129,7 +133,7 @@
     <script src="../js/layout.js?v=111"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-standards.js?v=18"></script>
+    <script src="../js/pages/worship-standards.js?v=19"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
