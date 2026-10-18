@@ -52,15 +52,21 @@ const WorshipSchedule = (() => {
     const дни = () => Array.from({ length: 7 }, (_, i) => DateUtils.toISO(деньНедели(i)));
 
     // ---------- загрузка ----------
-    async function загрузить() {
+    // Листание недель часто идёт быстрыми щелчками: ответ по прежней неделе
+    // может прийти позже свежего и нарисовать чужие назначения под новыми
+    // датами. Поколение отсекает такие опоздавшие ответы.
+    let поколение = 0;
+
+    /**
+     * всё = false — только то, что зависит от открытых дней (назначения,
+     * отклонения, отметки). Службы, люди, допуски и стандарты от недели
+     * не зависят, и при листании их незачем тянуть заново.
+     */
+    async function загрузить(всё = true) {
+        const моё = ++поколение;
         const от = дни()[0], до = дни()[6];
 
-        const [с, л, н, о, от2] = await Promise.all([
-            Layout.db.from('worship_services')
-                .select('id, name_ru, name_en, name_hi, time_of_day, sort_order, article_id, is_active')
-                .order('sort_order').order('time_of_day'),
-            Layout.db.from('worship_people')
-                .select('id, vaishnava_id, active_from, active_to, is_active, kind'),
+        const [н, о, от2, с, л, доп, ст] = await Promise.all([
             Layout.db.from('worship_duties')
                 .select('id, duty_date, service_id, override_id, person_id, role')
                 .gte('duty_date', от).lte('duty_date', до),
@@ -70,49 +76,60 @@ const WorshipSchedule = (() => {
             Layout.db.from('worship_absences')
                 .select('id, person_id, date_from, date_to, reason')
                 .lte('date_from', до),
+            всё ? Layout.db.from('worship_services')
+                .select('id, name_ru, name_en, name_hi, time_of_day, sort_order, article_id, is_active')
+                .order('sort_order').order('time_of_day') : null,
+            всё ? Layout.db.from('worship_people')
+                .select('id, vaishnava_id, active_from, active_to, is_active, kind') : null,
+            // допуски нужны для пометок в выборе человека и в клетке
+            всё ? Layout.db.from('worship_person_services').select('person_id, service_id') : null,
+            // стандарты нужны, чтобы у службы можно было задать «как делается»
+            всё ? Layout.db.from('worship_articles')
+                .select('id, title').eq('kind', 'standard').eq('status', 'published').order('title') : null,
         ]);
-        const ошибка = с.error || л.error || н.error || о.error || от2.error;
+        if (моё !== поколение) return false;
+        const ошибка = [н, о, от2, с, л, доп, ст].find(r => r?.error)?.error;
         if (ошибка) { Layout.handleError(ошибка, 'Расписание'); return false; }
 
-        службы = с.data || [];
+        if (всё) {
+            let новые = л.data || [];
+            let я = null;
+            const ids = новые.map(ч => ч.vaishnava_id);
+            if (ids.length) {
+                const { data, error } = await Layout.db.from('vaishnavas')
+                    .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
+                    .in('id', ids);
+                if (моё !== поколение) return false;
+                if (error) { Layout.handleError(error, 'Расписание'); return false; }
+                const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
+                новые = новые.map(ч => {
+                    const в = карточки[ч.vaishnava_id] || {};
+                    return {
+                        ...ч,
+                        имя: в.spiritual_name ||
+                            `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени',
+                        безВхода: !в.user_id,
+                        безБота: !!в.user_id && !в.telegram_chat_id,
+                    };
+                }).sort((a, b) => a.имя.localeCompare(b.имя, 'ru'));
+                я = новые.find(ч => карточки[ч.vaishnava_id]?.user_id === window.currentUser?.id) || null;
+            }
+            новые.forEach(ч => {
+                ч.допуск = new Set((доп.data || [])
+                    .filter(д => д.person_id === ч.id).map(д => д.service_id));
+            });
+            службы = с.data || [];
+            люди = новые;
+            яЧеловек = я;
+            стандарты = ст.data || [];
+            await загрузитьМои();
+            if (моё !== поколение) return false;
+        }
+
         назначения = н.data || [];
         отклонения = о.data || [];
         // бессрочная отметка не имеет даты окончания — её не отфильтровать запросом
         отметки = (от2.data || []).filter(а => !а.date_to || а.date_to >= от);
-
-        люди = л.data || [];
-        const ids = люди.map(ч => ч.vaishnava_id);
-        if (ids.length) {
-            const { data } = await Layout.db.from('vaishnavas')
-                .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
-                .in('id', ids);
-            const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
-            люди = люди.map(ч => {
-                const в = карточки[ч.vaishnava_id] || {};
-                return {
-                    ...ч,
-                    имя: в.spiritual_name ||
-                        `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени',
-                    безВхода: !в.user_id,
-                    безБота: !!в.user_id && !в.telegram_chat_id,
-                };
-            }).sort((a, b) => a.имя.localeCompare(b.имя, 'ru'));
-            яЧеловек = люди.find(ч => карточки[ч.vaishnava_id]?.user_id === window.currentUser?.id) || null;
-        }
-
-        // допуски нужны для пометок в выборе человека и в клетке
-        const { data: допуски } = await Layout.db.from('worship_person_services').select('person_id, service_id');
-        люди.forEach(ч => {
-            ч.допуск = new Set((допуски || [])
-                .filter(д => д.person_id === ч.id).map(д => д.service_id));
-        });
-
-        // стандарты нужны, чтобы у службы можно было задать «как делается»
-        const { data: ст } = await Layout.db.from('worship_articles')
-            .select('id, title').eq('kind', 'standard').eq('status', 'published').order('title');
-        стандарты = ст || [];
-
-        await загрузитьМои();
         return true;
     }
 
@@ -123,6 +140,7 @@ const WorshipSchedule = (() => {
      */
     async function загрузитьМои() {
         мои = [];
+        моиОтклонения = [];
         if (!яЧеловек) return;
         const сегодня = DateUtils.toISO(new Date());
         const { data } = await Layout.db.from('worship_duties')
@@ -152,10 +170,18 @@ const WorshipSchedule = (() => {
 
     const разовыеДня = день => отклонения.filter(о => о.title && о.duty_date === день);
 
-    /** Назначение, которое и правда закроет службу: человек в отделе и не в отъезде. */
+    /**
+     * Назначение, которое и правда закроет службу: человек в отделе, его срок
+     * участия этот день покрывает, и он не в отъезде. Клетка с волонтёром,
+     * у которого срок истёк, раньше красилась зелёным, хотя сама же
+     * зачёркивала его с пометкой «срок истёк».
+     */
     const кто_придёт = (н, день) => {
         const ч = человек(н.person_id);
-        return !!ч && ч.is_active !== false && !вОтъезде(ч.id, день);
+        return !!ч && ч.is_active !== false
+            && (!ч.active_to || ч.active_to >= день)
+            && (!ч.active_from || ч.active_from <= день)
+            && !вОтъезде(ч.id, день);
     };
 
     const вКлетке = (день, serviceId, overrideId) => назначения.filter(н =>
@@ -227,8 +253,11 @@ const WorshipSchedule = (() => {
     function рисоватьМои() {
         if (!яЧеловек || !мои.length) { $('#мои').hidden = true; return; }
 
-        const отменён = н => н.service_id && моиОтклонения.some(о =>
-            о.service_id === н.service_id && о.duty_date === н.duty_date);
+        // снятая с расписания служба — тоже «не проводится»: назначения на неё
+        // остаются в базе, но приходить к ней не нужно
+        const отключена = н => н.service_id && службы.find(с => с.id === н.service_id)?.is_active === false;
+        const отменён = н => отключена(н) || (н.service_id && моиОтклонения.some(о =>
+            о.service_id === н.service_id && о.duty_date === н.duty_date));
         const живые = мои.filter(н => !отменён(н)).slice(0, 5);
         const снятые = мои.filter(отменён);
 
@@ -240,7 +269,8 @@ const WorshipSchedule = (() => {
             <li class="py-1 flex flex-wrap items-baseline gap-2 opacity-70">
                 <span class="font-semibold line-through">${e(деньПоЧеловечески(н.duty_date))}</span>
                 <span class="line-through">${e(имяСлужбы(н))}</span>
-                <span class="badge badge-sm badge-warning">в этот день не проводится</span>
+                <span class="badge badge-sm badge-warning">${отключена(н)
+                    ? 'служба снята с расписания' : 'в этот день не проводится'}</span>
             </li>`).join('');
     }
 
@@ -454,6 +484,7 @@ const WorshipSchedule = (() => {
         if (вОтъезде(ч.id, день)) { список.push(['в отъезде', 'badge-warning']); зачеркнуть = true; }
         if (ч.is_active === false) { список.push(['не в отделе', 'badge-warning']); зачеркнуть = true; }
         if (ч.active_to && ч.active_to < день) { список.push(['срок истёк', 'badge-warning']); зачеркнуть = true; }
+        if (ч.active_from && ч.active_from > день) { список.push(['ещё не в отделе', 'badge-warning']); зачеркнуть = true; }
 
         // «занят в это же время» — именно по времени, а не по дню: при четырёх
         // службах «в этот день» загорится у всех и перестанет что-либо значить
@@ -556,8 +587,8 @@ const WorshipSchedule = (() => {
         window.applyPermissions?.();
     }
 
-    async function перечитать() {
-        if (await загрузить()) рисовать();
+    async function перечитать(всё = true) {
+        if (await загрузить(всё)) рисовать();
     }
 
     /**
@@ -821,17 +852,26 @@ const WorshipSchedule = (() => {
                     выбранныйДень = DateUtils.toISO(д);
                     началоНедели = началоОт(д);
                 } else {
-                    началоНедели.setDate(началоНедели.getDate() + 7 * знак);
+                    // новый объект, а не setDate на прежнем: загрузка, которая
+                    // ещё идёт, держит ссылку на старое начало недели
+                    const д = new Date(началоНедели);
+                    д.setDate(д.getDate() + 7 * знак);
+                    началоНедели = д;
+                    // выбранный день едет вместе с неделей: иначе вид «день»
+                    // показывал бы дату, назначений которой нет среди загруженных,
+                    // и честно писал «никто не поставлен» при заполненном дне
+                    выбранныйДень = DateUtils.toISO(д);
                 }
-                return перечитать();
+                return перечитать(false);
             }
             if (b.id === 'сегодня') {
                 началоНедели = началоОт(new Date());
                 выбранныйДень = DateUtils.toISO(new Date());
-                return перечитать();
+                return перечитать(false);
             }
             if (b.dataset.вид) {
                 вид = b.dataset.вид;
+                if (!дни().includes(выбранныйДень)) выбранныйДень = дни()[0];
                 return рисовать();
             }
             if (b.id === 'печать') return print();
