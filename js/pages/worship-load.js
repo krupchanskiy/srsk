@@ -268,8 +268,8 @@ const WorshipLoad = (() => {
             ['В среднем на человека', несущие.length ? дробь(среднее) : '—',
                 несущие.length ? словоСлужб(среднее) : ''],
         ].map(([подпись, число, хвост]) => `
-            <div class="bg-base-100 rounded-xl shadow-sm px-4 py-3">
-                <div class="надзаголовок">${e(подпись)}</div>
+            <div class="rounded-xl shadow-sm px-3 py-3 sm:px-4" style="background: oklch(var(--b1));">
+                <div class="надзаголовок" style="letter-spacing: .04em;">${e(подпись)}</div>
                 <div class="text-2xl font-bold tabular-nums leading-tight mt-0.5">${e(String(число))}</div>
                 <div class="text-sm opacity-70">${e(хвост)}</div>
             </div>`).join('');
@@ -277,15 +277,16 @@ const WorshipLoad = (() => {
         // ---- кто сколько несёт ----
         $('#люди').innerHTML = несущие.map(ч => `
             <li class="py-2.5 border-b border-base-200 last:border-0">
-                <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <a href="people.html?id=${ч.id}" class="link link-hover font-semibold">${e(ч.имя)}</a>
-                    <span class="flex-1"></span>
-                    <span class="text-sm opacity-70 tabular-nums">${
-                        ч.ранних ? `из них ранних ${ч.ранних} · ` : ''}${
-                        ч.помощником ? `помощником ${ч.помощником} · ` : ''}${
-                        ч.подряд > 2 ? `${дней(ч.подряд)} подряд · ` : ''}${дней(ч.дней)} со службой</span>
-                    <span class="font-bold tabular-nums w-8 text-right">${ч.служб}</span>
+                <!-- имя и число — одной строкой, подробности под ними: на телефоне
+                     число переносилось и висело посреди строки отдельно от имени -->
+                <div class="flex items-baseline gap-3">
+                    <a href="people.html?id=${ч.id}" class="link link-hover font-semibold flex-1 min-w-0">${e(ч.имя)}</a>
+                    <span class="font-bold tabular-nums text-right">${ч.служб}</span>
                 </div>
+                <div class="text-sm opacity-70 tabular-nums">${
+                    ч.ранних ? `из них ранних ${ч.ранних} · ` : ''}${
+                    ч.помощником ? `помощником ${ч.помощником} · ` : ''}${
+                    ч.подряд > 2 ? `${дней(ч.подряд)} подряд · ` : ''}${дней(ч.дней)} со службой</div>
                 <!-- полоса на всю ширину: сравнивают соседей глазами, а не числа -->
                 <div class="h-2 rounded-full mt-1.5" style="background: oklch(var(--b2));">
                     <div class="h-2 rounded-full" style="width: ${
