@@ -345,7 +345,24 @@
     }
 
     // ---------------- Modal: save ----------------
+    // Двойной щелчок по «Сохранить» вставлял операции дважды — переносы
+    // и пожертвования сверх суммы платежа (лимит проверяется только здесь).
+    let распределениеИдёт = false;
     async function saveDistribution() {
+        if (распределениеИдёт) return;
+        распределениеИдёт = true;
+        const кнопка = document.getElementById('distSaveBtn');
+        if (кнопка) кнопка.disabled = true;
+        try {
+            await сохранитьРаспределение();
+        } finally {
+            распределениеИдёт = false;
+            // доступность кнопки снова решает пересчёт остатка
+            if (кнопка && _modalEl?.open) кнопка.disabled = false;
+        }
+    }
+
+    async function сохранитьРаспределение() {
         const rows = document.querySelectorAll('#distRows > div');
         const ctx = _modalCtx;
 
@@ -363,7 +380,7 @@
                 amount: amount,
                 currency: ctx.currency,
                 rate_to_inr: ctx.rate,
-                amount_inr: amount * ctx.rate,
+                amount_inr: Math.round(amount * ctx.rate * 100) / 100,
                 created_by: window.currentUser?.vaishnava_id || null,
                 is_confirmed: true,   // по умолчанию для transfer/donation
                 confirmed_at: new Date().toISOString(),
