@@ -55,11 +55,16 @@ const WorshipLoad = (() => {
     }
 
     // ---------- загрузка ----------
+    // переключение периода быстрыми щелчками: ответ по прежнему периоду
+    // не должен лечь поверх свежего
+    let поколение = 0;
+
     async function загрузить() {
+        const моё = ++поколение;
         const { от, до } = границы();
 
         const [л, с, н, о, откл] = await Promise.all([
-            Layout.db.from('worship_people').select('id, vaishnava_id, is_active, active_to, kind'),
+            Layout.db.from('worship_people').select('id, vaishnava_id, is_active, active_from, active_to, kind'),
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, is_active')
                 .order('time_of_day'),
@@ -71,26 +76,29 @@ const WorshipLoad = (() => {
                 .select('id, duty_date, service_id, title, time_of_day')
                 .gte('duty_date', от).lte('duty_date', до),
         ]);
+        if (моё !== поколение) return false;
         const ошибка = л.error || с.error || н.error || о.error || откл.error;
         if (ошибка) { Layout.handleError(ошибка, 'Загрузка отдела'); return false; }
 
-        службы = с.data || [];
-        назначения = н.data || [];
-        отметки = о.data || [];
-        отклонения = откл.data || [];
-        люди = л.data || [];
-
-        const ids = люди.map(ч => ч.vaishnava_id).filter(Boolean);
+        let новые = л.data || [];
+        const ids = новые.map(ч => ч.vaishnava_id).filter(Boolean);
         if (ids.length) {
             const { data } = await Layout.db.from('vaishnavas')
                 .select('id, spiritual_name, first_name, last_name').in('id', ids);
+            if (моё !== поколение) return false;
             const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
-            люди = люди.map(ч => {
+            новые = новые.map(ч => {
                 const в = карточки[ч.vaishnava_id] || {};
                 return { ...ч, имя: в.spiritual_name
                     || `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени' };
             });
         }
+
+        службы = с.data || [];
+        назначения = н.data || [];
+        отметки = о.data || [];
+        отклонения = откл.data || [];
+        люди = новые;
         return true;
     }
 
@@ -100,10 +108,22 @@ const WorshipLoad = (() => {
 
     const человек = id => люди.find(ч => ч.id === id);
 
-    /** Назначение, которое и правда закрывает службу. */
+    /**
+     * Назначение, которое и правда закрывает службу — по тем же правилам,
+     * что и шахматка: человек в отделе, срок участия покрывает день, он не
+     * в отъезде, а сама служба в этот день проводится. Назначение на
+     * отменённую или снятую с расписания службу — не нагрузка.
+     */
     const настоящее = н => {
         const ч = человек(н.person_id);
-        return !!ч && ч.is_active !== false && !вОтъезде(ч.id, н.duty_date);
+        if (!ч || ч.is_active === false || вОтъезде(ч.id, н.duty_date)) return false;
+        if (ч.active_to && ч.active_to < н.duty_date) return false;
+        if (ч.active_from && ч.active_from > н.duty_date) return false;
+        if (н.service_id) {
+            if (службы.find(с => с.id === н.service_id)?.is_active === false) return false;
+            if (отменена(н.service_id, н.duty_date)) return false;
+        }
+        return true;
     };
 
     const времяСлужбы = н => службы.find(с => с.id === н.service_id)?.time_of_day
@@ -145,6 +165,17 @@ const WorshipLoad = (() => {
         return { надо, закрыто };
     }
 
+    /**
+     * «Ни разу не поставлен» — упрёк только тому, кого было можно поставить:
+     * волонтёр с истёкшим сроком или ещё не приехавший сюда не попадает.
+     */
+    const вОтделеВПериод = ч => {
+        const { от, до } = границы();
+        return ч.is_active !== false
+            && (!ч.active_to || ч.active_to >= от)
+            && (!ч.active_from || ч.active_from <= до);
+    };
+
     const вСоставе = ч => состав === 'все' || (ч.kind || 'team') === состав;
 
     /** Сводка по каждому человеку отдела. */
@@ -167,9 +198,16 @@ const WorshipLoad = (() => {
     function самаяДлиннаяСерия(дни) {
         let лучшая = 0, текущая = 0, прошлый = null;
         for (const д of дни) {
+            // «следующий день» — по календарю, а не по 24 часам: в сутках
+            // перехода на летнее время их 23 или 25, и серия рвалась
             const дата = DateUtils.parseDate(д);
-            if (прошлый && (дата - прошлый) === 86400000) текущая++;
-            else текущая = 1;
+            let подряд = false;
+            if (прошлый) {
+                const завтра = new Date(прошлый);
+                завтра.setDate(завтра.getDate() + 1);
+                подряд = DateUtils.toISO(завтра) === д;
+            }
+            текущая = подряд ? текущая + 1 : 1;
             лучшая = Math.max(лучшая, текущая);
             прошлый = дата;
         }
@@ -224,10 +262,11 @@ const WorshipLoad = (() => {
             ['Закрыто', надо ? `${Math.round(закрыто / надо * 100)}%` : '—',
                 надо ? `${закрыто} из ${надо}` : 'расписания нет'],
             ['Несут службы', несущие.length,
-                `из ${люди.filter(ч => ч.is_active !== false && вСоставе(ч)).length}${
+                `из ${люди.filter(ч => вОтделеВПериод(ч) && вСоставе(ч)).length}${
                     состав === 'все' ? ' в отделе'
                         : состав === 'team' ? ' в команде' : ' среди волонтёров'}`],
-            ['В среднем на человека', несущие.length ? среднее.toFixed(1) : '—', 'служб'],
+            ['В среднем на человека', несущие.length ? дробь(среднее) : '—',
+                несущие.length ? словоСлужб(среднее) : ''],
         ].map(([подпись, число, хвост]) => `
             <div class="bg-base-100 rounded-xl shadow-sm px-4 py-3">
                 <div class="надзаголовок">${e(подпись)}</div>
@@ -256,7 +295,7 @@ const WorshipLoad = (() => {
             </li>`).join('') || '<li class="py-4 text-sm opacity-70">За этот период никого не ставили</li>';
 
         // ---- кого не ставили ----
-        const свободные = строки.filter(ч => !ч.служб && ч.is_active !== false);
+        const свободные = строки.filter(ч => !ч.служб && вОтделеВПериод(ч));
         $('#свободныеБлок').hidden = !свободные.length;
         $('#свободные').innerHTML = свободные.map(ч =>
             `<a href="people.html?id=${ч.id}" class="badge badge-outline">${e(ч.имя)}</a>`).join(' ');
@@ -281,13 +320,21 @@ const WorshipLoad = (() => {
      * Короткий список того, на что стоит посмотреть. Цифры выше показывают
      * положение дел, а это — места, где оно расходится со здравым смыслом.
      */
+    /** 5,2 — с запятой, как пишут по-русски; целое — без «,0». */
+    const дробь = x => (Math.round(x * 10) / 10).toString().replace('.', ',');
+    /** «5,2 службы», но «5 служб»: дробь всегда в родительном единственного. */
+    const словоСлужб = x => Number.isInteger(Math.round(x * 10) / 10)
+        ? Layout.pluralize(Math.round(x), { ru: ['служба', 'службы', 'служб'], en: ['service', 'services'], hi: 'सेवा' })
+              .replace(/^\d+\s*/, '')
+        : 'службы';
+
     function рисоватьНаходки(строки, несущие, среднее) {
         const находки = [];
 
         const перегруженные = несущие.filter(ч => среднее >= 1 && ч.служб >= среднее * 1.8);
         if (перегруженные.length) {
             находки.push(`Больше других несут: <b>${перегруженные.map(ч => e(ч.имя)).join(', ')}</b> — `
-                + `при среднем ${среднее.toFixed(1)} службы на человека.`);
+                + `при среднем ${дробь(среднее)} ${словоСлужб(среднее)} на человека.`);
         }
 
         const безПерерыва = несущие.filter(ч => ч.подряд >= 5);
@@ -296,11 +343,10 @@ const WorshipLoad = (() => {
                 + безПерерыва.map(ч => `<b>${e(ч.имя)}</b> — ${дней(ч.подряд)} подряд`).join(', ') + '.');
         }
 
-        const свободные = строки.filter(ч => !ч.служб && ч.is_active !== false);
+        const свободные = строки.filter(ч => !ч.служб && вОтделеВПериод(ч));
         if (свободные.length && несущие.length) {
-            находки.push(`${Layout.pluralize(свободные.length, {
-                ru: ['человек в отделе', 'человека в отделе', 'человек в отделе'],
-                en: ['person', 'people'], hi: 'लोग' })} ни разу не поставлены — `
+            // имена, а не число: старшему нужно знать, кого звать
+            находки.push(`Ни разу не поставлены: <b>${свободные.map(ч => e(ч.имя)).join(', ')}</b> — `
                 + `нагрузку есть на кого разделить.`);
         }
 
