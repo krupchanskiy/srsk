@@ -61,6 +61,11 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             transition: box-shadow 0.2s, transform 0.2s;
         }
+        /* «→» под мышью появляется при наведении, на сенсорном экране видна всегда */
+        @media (hover: hover) {
+            .kanban-card .кнопкаДальше { opacity: 0; transition: opacity .15s; }
+            .kanban-card:hover .кнопкаДальше, .kanban-card .кнопкаДальше:focus-visible { opacity: 1; }
+        }
         .kanban-card:hover {
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             transform: translateY(-1px);
@@ -521,7 +526,7 @@ function renderCard(deal) {
     }
 
     return `
-        <div class="kanban-card ${isOverdue ? 'overdue' : ''} ${tempOpacity}"
+        <div class="kanban-card group ${isOverdue ? 'overdue' : ''} ${tempOpacity}"
              data-id="${deal.id}"
              onclick="openDeal('${deal.id}')">
             <div class="flex items-start justify-between gap-1 mb-1">
@@ -547,7 +552,7 @@ function renderCard(deal) {
                 </div>
                 <div class="flex items-center gap-1">
                     ${renderCardAmount(deal)}
-                    ${deal.status !== 'completed' && deal.status !== 'cancelled' ? `<button class="btn btn-xs btn-ghost btn-circle opacity-0 group-hover:opacity-100" onclick="event.stopPropagation(); quickAdvance('${deal.id}', '${deal.status}')" title="Следующий статус">→</button>` : ''}
+                    ${deal.status !== 'completed' && deal.status !== 'cancelled' ? `<button class="btn btn-xs btn-ghost btn-circle кнопкаДальше" onclick="event.stopPropagation(); quickAdvance('${deal.id}', '${deal.status}', this)" title="Следующий статус" aria-label="Следующий статус">→</button>` : ''}
                 </div>
             </div>
             ${departedBadge(deal)?.html || ''}
@@ -612,6 +617,10 @@ function initSortable() {
         const sortable = new Sortable(el, {
             group: 'kanban',
             animation: 150,
+            // на телефоне палец сначала прокручивает колонку, а тащит карточку
+            // только после удержания — иначе прокрутка двигала сделку по стадиям
+            delay: 250,
+            delayOnTouchOnly: true,
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
             dragClass: 'sortable-drag',
@@ -665,11 +674,29 @@ function openDeal(id) {
     window.location.href = `deal.html?id=${id}`;
 }
 
-async function quickAdvance(dealId, currentStatus) {
-    const nextStatus = CrmUtils.getNextStatus(currentStatus);
-    if (!nextStatus) return;
+// Кнопка «→» была всегда прозрачной (у карточки не было класса group),
+// но нажималась: тап в угол карточки на телефоне молча двигал сделку дальше,
+// а двойной — сразу на две стадии. Теперь кнопка видна, спрашивает и не
+// срабатывает второй раз, пока идёт первый.
+const сделкиВПути = new Set();
 
-    const { error } = await Layout.db.from('crm_deals').update({ status: nextStatus }).eq('id', dealId);
+async function quickAdvance(dealId, currentStatus, кнопка) {
+    const nextStatus = CrmUtils.getNextStatus(currentStatus);
+    if (!nextStatus || сделкиВПути.has(dealId)) return;
+    if (!confirm(`${CrmUtils.getStatusLabel(currentStatus)} → ${CrmUtils.getStatusLabel(nextStatus)}?`)) return;
+    сделкиВПути.add(dealId);
+    if (кнопка) кнопка.disabled = true;
+
+    // смена только из того статуса, который видел менеджер: если коллега
+    // уже передвинул сделку, второй щелчок её не перескочит
+    const { data: сменено, error } = await Layout.db.from('crm_deals').update({ status: nextStatus })
+        .eq('id', dealId).eq('status', currentStatus).select('id');
+    сделкиВПути.delete(dealId);
+    if (кнопка) кнопка.disabled = false;
+    if (!error && !сменено?.length) {
+        Layout.showNotification('Сделку уже передвинули — обновляю доску', 'warning');
+        return loadDeals();
+    }
     if (error) {
         // Блокировка стадии из БД (ТЗ 1.6) — показываем её текст как есть
         Layout.showNotification(error.message, 'error');

@@ -2328,11 +2328,25 @@ function formatHistoryAction(ev, systemById) {
     return e(ev.action);
 }
 
+let платёжИдёт = false;
+
 async function savePayment(event) {
     event.preventDefault();
+    // двойной щелчок по «Сохранить» заводил два платежа (и два уведомления
+    // в Telegram о неподтверждённой оплате): модалка закрывалась только
+    // после ответа базы
+    if (платёжИдёт) return;
     const currency = document.getElementById('paymentCurrency').value;
     const rate = parseFloat(document.getElementById('paymentCurrency').selectedOptions[0]?.dataset.rate) || 1;
-    const amount = parseFloat(document.getElementById('paymentAmount').value);
+    const amount = parseFloat(String(document.getElementById('paymentAmount').value).replace(',', '.'));
+    if (!(amount > 0)) {
+        Layout.showNotification('Укажите сумму больше нуля', 'warning');
+        return;
+    }
+    платёжИдёт = true;
+    const кнопка = event.submitter || event.target.querySelector?.('[type=submit]');
+    if (кнопка) кнопка.disabled = true;
+    try {
 
     const paymentDate = document.getElementById('paymentDate').value;
     const data = {
@@ -2340,7 +2354,8 @@ async function savePayment(event) {
         amount: amount,
         currency: currency,
         rate_to_inr: rate,
-        amount_inr: amount * rate,
+        // без хвостов плавающей точки: 4 платежа в базе уже хранят 1234.5600000001
+        amount_inr: Math.round(amount * rate * 100) / 100,
         payment_type: document.getElementById('paymentType').value,
         payment_system_id: document.getElementById('paymentSystem')?.value || null,
         notes: document.getElementById('paymentNotes').value.trim() || null,
@@ -2358,6 +2373,10 @@ async function savePayment(event) {
     updateTabCounts();
     renderTab();
     await refreshDeal();
+    } finally {
+        платёжИдёт = false;
+        if (кнопка) кнопка.disabled = false;
+    }
 }
 
 async function deletePayment(id) {
@@ -3067,25 +3086,30 @@ async function loadPlacement() {
     bookingData = null;
 
     // 1. Ищем resident по vaishnava_id
+    // Ошибку чтения нельзя принимать за «размещения нет»: ниже по такому
+    // ответу удаляется бронь. При сбое сети открытие карточки сносило
+    // настоящую бронь гостя.
     if (guest) {
-        const { data } = await Layout.db
+        const { data, error } = await Layout.db
             .from('residents')
             .select('id, check_in, check_out, status, room_id, booking_id, rooms(number, floor, buildings(name_ru, name_en, name_hi))')
             .eq('vaishnava_id', guest.id)
             .eq('retreat_id', retreat.id)
             .limit(1)
             .maybeSingle();
+        if (error) { console.warn('размещение:', error.message); return; }
         placementData = data;
     }
 
     // 2. Если не нашли, ищем по deal.booking_id (бронь из CRM)
     if (!placementData && deal.booking_id) {
-        const { data } = await Layout.db
+        const { data, error } = await Layout.db
             .from('residents')
             .select('id, check_in, check_out, status, room_id, booking_id, rooms(number, floor, buildings(name_ru, name_en, name_hi))')
             .eq('booking_id', deal.booking_id)
             .limit(1)
             .maybeSingle();
+        if (error) { console.warn('размещение:', error.message); return; }
         placementData = data;
 
         if (placementData) {
@@ -3097,11 +3121,14 @@ async function loadPlacement() {
                 .maybeSingle();
             bookingData = bData;
         } else {
-            // Resident удалён (например через шахматку) — чистим висячую бронь
-            await Layout.db.from('bookings').delete().eq('id', deal.booking_id);
-            await Layout.db.from('crm_deals')
+            // Resident удалён (например через шахматку) — чистим висячую бронь.
+            // Ссылку в сделке снимаем, только если бронь и правда удалилась
+            const { error: ошБрони } = await Layout.db.from('bookings').delete().eq('id', deal.booking_id);
+            if (ошБрони) { console.warn('висячая бронь осталась:', ошБрони.message); return; }
+            const { error: ошСделки } = await Layout.db.from('crm_deals')
                 .update({ booking_id: null, room_id: null })
                 .eq('id', dealId);
+            if (ошСделки) { console.warn('сделка:', ошСделки.message); return; }
             deal.booking_id = null;
             deal.room_id    = null;
         }
@@ -3333,6 +3360,10 @@ const BUILDING_STAFF_IDS   = [
 
 // Слушаем сообщение от iframe после успешного бронирования
 window.addEventListener('message', async (event) => {
+    // только от своего окна бронирования: иначе любая вкладка, у которой
+    // есть ссылка на эту, подсовывала сделкам группы чужой booking_id
+    if (event.origin !== location.origin) return;
+    if (event.source !== document.getElementById('roomBookingIframe')?.contentWindow) return;
     if (event.data?.type !== 'crm_booking_saved') return;
     document.getElementById('roomBookingIframeModal').close();
     document.getElementById('roomBookingIframe').src = '';
