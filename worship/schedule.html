@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=20">
+    <link rel="stylesheet" href="../css/common.css?v=21">
     <style>
         /* Неделю печатают и вешают в пуджарской: альбомный A4, без ручек. */
         /* Лист вешают в пуджарской: нужна вся неделя на одной странице,
@@ -160,11 +160,11 @@
         </div>
 
         <!-- люди отдела — вкладка рядом с шахматкой, а не отдельный раздел меню -->
-        <div role="tablist" class="tabs tabs-bordered mb-4 no-print w-fit">
-            <a role="tab" class="tab tab-active" href="schedule.html"
+        <div role="tablist" class="tabs tabs-bordered mb-4 no-print w-fit max-w-full overflow-x-auto">
+            <a role="tab" class="tab tab-active whitespace-nowrap" href="schedule.html"
                data-i18n="worship_schedule_title">Расписание</a>
-            <a role="tab" class="tab" href="people.html" data-i18n="worship_people_title">Люди отдела</a>
-            <a role="tab" class="tab" href="load.html" data-i18n="worship_load_title">Загрузка</a>
+            <a role="tab" class="tab whitespace-nowrap" href="people.html" data-i18n="worship_people_title">Люди отдела</a>
+            <a role="tab" class="tab whitespace-nowrap" href="load.html" data-i18n="worship_load_title">Загрузка</a>
         </div>
 
         <div id="старшийОтъезд" hidden class="alert alert-warning mb-4 text-sm no-print"></div>
@@ -180,9 +180,9 @@
              занимали три строки подряд — теперь стрелки обнимают период -->
         <div class="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3 no-print">
             <div class="flex items-center gap-1 flex-1 min-w-56">
-                <button class="btn btn-sm btn-ghost px-2" id="назад" aria-label="Предыдущая неделя">‹</button>
+                <button class="btn btn-ghost btn-sm min-h-11 min-w-11 px-0 text-xl" id="назад" aria-label="Предыдущая неделя">‹</button>
                 <span class="font-semibold flex-1 text-center whitespace-nowrap" id="периодНадпись"></span>
-                <button class="btn btn-sm btn-ghost px-2" id="вперёд" aria-label="Следующая неделя">›</button>
+                <button class="btn btn-ghost btn-sm min-h-11 min-w-11 px-0 text-xl" id="вперёд" aria-label="Следующая неделя">›</button>
             </div>
             <div class="flex items-center gap-2 ml-auto">
                 <button class="btn btn-sm btn-outline" id="сегодня" data-i18n="worship_today">Сегодня</button>
@@ -429,7 +429,7 @@
     <script src="../js/layout.js?v=117"></script>
     <script src="../js/date-utils.js?v=4"></script>
     <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-schedule.js?v=31"></script>
+    <script src="../js/pages/worship-schedule.js?v=32"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

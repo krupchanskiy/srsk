@@ -312,6 +312,15 @@ main .tabs-boxed .tab {
     height: auto !important;
     min-height: 2.25rem !important;
 }
+/* на телефоне три вкладки по 20px отступа не помещаются в 343px:
+   последняя уезжала за край */
+@media (max-width: 480px) {
+    main .tabs .tab,
+    main .tabs-boxed .tab {
+        font-size: 0.9375rem !important;
+        padding: 0.5rem 0.75rem !important;
+    }
+}
 
 .tab-active,
 .tabs .tab-active,

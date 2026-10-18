@@ -538,13 +538,22 @@ const WorshipSchedule = (() => {
                 </div>
                 <div class="mt-1 flex flex-wrap items-center gap-2">
                     ${свои.length
-                        ? свои.map(н => `
-                            <a class="link link-hover text-sm" href="people.html?id=${н.person_id}">
+                        ? свои.map(н => {
+                            // тот же сигнал, что в неделе: уехавший или выбывший зачёркнут
+                            // и назван причиной — иначе на телефоне клетка жёлтая,
+                            // а имя в ней стоит как ни в чём не бывало
+                            const { список: пометки, зачеркнуть } =
+                                состоянияКлетки(н, человек(н.person_id), д, служба);
+                            return `
+                            <a class="link link-hover text-sm ${зачеркнуть ? 'line-through opacity-70' : ''}"
+                               href="people.html?id=${н.person_id}">
                                 ${e(человек(н.person_id)?.имя || 'кто-то')}</a>
+                            ${пометки.map(([т, к]) => `<span class="badge badge-sm ${к}">${e(т)}</span>`).join('')}
                             ${н.role !== 'pujari'
                                 ? `<span class="badge badge-xs">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
                             ${можноВести()
-                                ? `<button class="btn btn-ghost btn-xs" data-снять="${н.id}">✕</button>` : ''}`).join('')
+                                ? `<button class="btn btn-ghost btn-sm px-2" data-снять="${н.id}" aria-label="Снять">✕</button>` : ''}`;
+                        }).join('')
                         : `<span class="text-sm ${отмена || д < DateUtils.toISO(new Date())
                                 ? 'opacity-40' : 'opacity-60'}">${
                             отмена ? '' : (д < DateUtils.toISO(new Date())
