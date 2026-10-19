@@ -16,9 +16,12 @@ const WorshipSchedule = (() => {
 
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
     // своя роль словами: «вы — помощник» понятнее серой плашки «помощник»
-    const МОЯ_РОЛЬ = { pujari: 'ведёте', kirtan: 'киртания', helper: 'помощник' };
+    const МОЯ_РОЛЬ = поЯзыку({
+        ru: { pujari: 'ведёте', kirtan: 'киртания', helper: 'помощник' },
+        en: { pujari: 'you lead', kirtan: 'kirtan', helper: 'assistant' },
+        hi: { pujari: 'आप मुख्य', kirtan: 'कीर्तन', helper: 'सहायक' } });
     // «вы» рядом со своим именем: бледной заливки клетки новичок не замечал
-    const ЗНАК_ВЫ = '<span class="badge badge-xs ml-0.5 border-0" style="background: var(--current-color); color:#fff;">вы</span>';
+    const ЗНАК_ВЫ = `<span class="badge badge-xs ml-0.5 border-0" style="background: var(--current-color); color:#fff;">${поЯзыку({ ru: 'вы', en: 'you', hi: 'आप' })}</span>`;
     const ДНИ = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
     // Расписание ведут вперёд, поэтому неделя считается от сегодняшнего дня,
@@ -204,7 +207,7 @@ const WorshipSchedule = (() => {
         // Остальное — обслуживание, ему место под «ещё».
         const редкие = [];
         редкие.push('<li><button id="печать">Распечатать неделю</button></li>');
-        if (яЧеловек && можноВести()) редкие.push('<li><button id="яНеСмогу">Меня не будет</button></li>');
+        if (яЧеловек && можноВести()) редкие.push(`<li><button id="яНеСмогу">${поЯзыку({ ru: 'Меня не будет', en: 'I will be away', hi: 'मैं नहीं रहूँगा' })}</button></li>`);
 
         $('#actions').innerHTML = `
             ${можноВести()
@@ -214,7 +217,7 @@ const WorshipSchedule = (() => {
                         именно здесь: под «ещё» эту кнопку не находили -->
                    <button class="btn btn-sm btn-outline" id="вестиСлужбы">Службы и время</button>`
                 : яЧеловек
-                    ? '<button class="btn btn-sm btn-outline" id="яНеСмогу">Меня не будет</button>'
+                    ? `<button class="btn btn-sm btn-outline" id="яНеСмогу">${поЯзыку({ ru: 'Меня не будет', en: 'I will be away', hi: 'मैं नहीं रहूँगा' })}</button>`
                     : ''}
             <div class="dropdown dropdown-end">
                 <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
@@ -288,7 +291,7 @@ const WorshipSchedule = (() => {
         // её не было видно нигде, и снять ошибочную было негде
         $('#моиСписок').innerHTML = моиОтметки.map(а => `
             <li class="py-1 flex flex-wrap items-baseline gap-2">
-                <span class="badge badge-warning">Вас не будет</span>
+                <span class="badge badge-warning">${поЯзыку({ ru: 'Вас не будет', en: 'You will be away', hi: 'आप नहीं होंगे' })}</span>
                 <span class="font-semibold">${e(срокОтметки(а))}</span>
                 ${а.reason ? `<span class="opacity-70">${e(а.reason)}</span>` : ''}
                 <button class="btn btn-ghost btn-xs" data-снятьМою="${а.id}">отменить</button>
@@ -324,7 +327,7 @@ const WorshipSchedule = (() => {
                 : `<span>${e(имяСлужбы(н))}</span>`}
             <span class="badge badge-sm ${н.role === 'pujari' ? 'badge-outline' : ''}">${e(МОЯ_РОЛЬ[н.role] || н.role)}</span>
             ${меняНеБудет(н.duty_date)
-                ? '<span class="badge badge-sm badge-warning">вас не будет — нужна замена</span>' : ''}
+                ? `<span class="badge badge-sm badge-warning">${поЯзыку({ ru: 'вас не будет — нужна замена', en: 'you are away — find a substitute', hi: 'आप नहीं होंगे — बदली चाहिए' })}</span>` : ''}
         </li>`;
     }
 
@@ -894,7 +897,13 @@ const WorshipSchedule = (() => {
 
             const снять = ev.target.closest('[data-снять]');
             if (снять) {
-                if (!await спросить('Снять назначение?')) return;
+                // в вопросе — кого и откуда: ✕ стоит рядом с именем, и в
+                // недельной сетке легко задеть соседнюю клетку
+                const н = назначения.find(x => x.id === снять.dataset.снять);
+                const кто = н && человек(н.person_id)?.имя;
+                if (!await спросить(кто ? `Снять ${кто}?` : 'Снять назначение?',
+                    н ? `${имяСлужбы(н)}, ${деньПоЧеловечески(н.duty_date)}. `
+                        + 'Клетка останется пустой — поставьте другого.' : '')) return;
                 const { error } = await Layout.db.rpc('worship_duty_clear', { p_duty: снять.dataset.снять });
                 if (error) return Layout.handleError(error, 'Назначение');
                 return перечитать();

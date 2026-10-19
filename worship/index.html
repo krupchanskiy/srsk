@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="../js/color-init.js?v=8"></script>
+    <script src="../js/color-init.js?v=9"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Поклонение — ШРСК</title>
@@ -104,8 +104,8 @@
                      их внизу главной среди прочих, без отметки, что это ему -->
                 <div class="card bg-base-100 shadow mb-5" id="выданоКарта" hidden>
                     <div class="card-body p-6">
-                        <h2 class="card-title text-lg mb-1">Вам выдали</h2>
-                        <p class="text-sm opacity-60 mb-2">С этого стоит начать — по порядку, как собрал старший.</p>
+                        <h2 class="card-title text-lg mb-1" data-i18n="worship_given_to_me">Вам выдали</h2>
+                        <p class="text-sm opacity-60 mb-2" data-i18n="worship_given_to_me_hint">С этого стоит начать — по порядку, как собрал старший.</p>
                         <ul class="list-none m-0 p-0" id="выдано"></ul>
                     </div>
                 </div>
@@ -235,12 +235,12 @@
 
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=21"></script>
+    <script src="../js/utils.js?v=22"></script>
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
     <script src="../js/worship-glossary.js?v=1"></script>
-    <script src="../js/pages/worship-home.js?v=30"></script>
+    <script src="../js/pages/worship-home.js?v=31"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });

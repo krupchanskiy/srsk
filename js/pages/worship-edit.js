@@ -50,7 +50,7 @@ const WorshipEdit = (() => {
 
         if (id) {
             статья = ответы[1].data;
-            if (!статья) { Layout.showNotification('Статья не найдена', 'warning'); return false; }
+            if (!статья) { Layout.showNotification('Стандарт не найден', 'warning'); return false; }
 
             версия = ответы[2].data;
             // Правку, которая ждёт решения, открывает тот, кто это решение
@@ -84,7 +84,7 @@ const WorshipEdit = (() => {
 
     // ---------- отрисовка формы ----------
     function рисоватьШапку() {
-        $('#режим').textContent = !id ? 'Новая статья'
+        $('#режим').textContent = !id ? 'Новый стандарт'
             : версия?.status === 'submitted' ? 'Правка, которая ждёт вашего решения'
             : статья.status === 'published' ? 'Правка действующего стандарта'
             : 'Черновик';
@@ -197,7 +197,7 @@ const WorshipEdit = (() => {
         const документ = документИзПоля();
         const заголовок = $('#заголовок').value.trim();
         if (!заголовок) {
-            Layout.showNotification('Без названия статью не найти — впишите его', 'warning');
+            Layout.showNotification('Без названия стандарт не найти — впишите его', 'warning');
             $('#заголовок').focus();
             return null;
         }
@@ -762,7 +762,7 @@ const WorshipEdit = (() => {
 
     async function удалить() {
         if (!await спросить('Удалить черновик?',
-            'Эта статья никогда не действовала, восстановить будет нечем.')) return;
+            'Этот стандарт никогда не действовал, восстановить будет нечем.')) return;
         const { error } = await Layout.db.rpc('worship_delete_draft', { p_article: id });
         if (error) return Layout.handleError(error, 'Удаление черновика');
         грязно = false;

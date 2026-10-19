@@ -203,7 +203,11 @@ const WorshipPeople = (() => {
     }
 
     function рисоватьСлужбыЧеловека() {
-        const свои = назначения.filter(н => н.person_id === открытый.id).slice(0, 8);
+        const все = назначения.filter(н => н.person_id === открытый.id);
+        const свои = все.slice(0, 8);
+        // в списке людей «11 служб впереди», а здесь восемь — остаток называем,
+        // иначе кажется, что три службы потерялись
+        const ещё = все.length - свои.length;
         $('#кСлужбы').innerHTML = свои.map(н => {
             const с = службы.find(x => x.id === н.service_id);
             return `
@@ -215,7 +219,9 @@ const WorshipPeople = (() => {
                     : `<span>${e(с ? Layout.getName(с) : 'разовая служба')}</span>`}
                 ${н.role !== 'pujari' ? `<span class="badge badge-sm whitespace-nowrap">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
             </li>`;
-        }).join('') || '<li class="text-sm opacity-60">Впереди служб нет</li>';
+        }).join('') + (ещё > 0
+            ? `<li class="py-1 text-sm opacity-70">и ещё ${ещё} — <a class="link" href="schedule.html">все в расписании</a></li>`
+            : '') || '<li class="text-sm opacity-60">Впереди служб нет</li>';
     }
 
     function рисоватьДопуски() {

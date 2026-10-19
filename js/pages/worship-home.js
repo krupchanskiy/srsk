@@ -312,7 +312,9 @@ const WorshipHome = (() => {
                         ? `<span class="block text-sm text-error">${
                             // помощник пришёл, а вести службу некому — это тоже дыра
                             с2.кто.some(придёт) ? 'нет ведущего — только помощник'
-                            : с2.кто.length ? 'поставленный не придёт — нужна замена' : 'никто не поставлен'}</span>`
+                            : с2.кто.length
+                                ? поЯзыку({ ru: 'поставленный не придёт — нужна замена', en: 'the assigned person is away — find a substitute', hi: 'नियुक्त व्यक्ति नहीं आएगा — बदली चाहिए' })
+                                : поЯзыку({ ru: 'никто не поставлен', en: 'nobody assigned', hi: 'कोई नियुक्त नहीं' })}</span>`
                         : ''}
                 </span>
             </li>`;
@@ -327,8 +329,11 @@ const WorshipHome = (() => {
     // «я» в отделе — нужно и своим службам, и «вы» в службах дня
     let моёПромис = null;
     const моёId = () => (моёПромис ||= Layout.db.rpc('worship_my_person').then(r => r.data || null));
-    const ЗНАК_ВЫ = '<span class="badge badge-xs ml-0.5 border-0" style="background: var(--current-color); color:#fff;">вы</span>';
-    const МОЯ_РОЛЬ = { pujari: 'ведёте', kirtan: 'киртания', helper: 'помощник' };
+    const ЗНАК_ВЫ = `<span class="badge badge-xs ml-0.5 border-0" style="background: var(--current-color); color:#fff;">${поЯзыку({ ru: 'вы', en: 'you', hi: 'आप' })}</span>`;
+    const МОЯ_РОЛЬ = поЯзыку({
+        ru: { pujari: 'ведёте', kirtan: 'киртания', helper: 'помощник' },
+        en: { pujari: 'you lead', kirtan: 'kirtan', helper: 'assistant' },
+        hi: { pujari: 'आप मुख्य', kirtan: 'कीर्तन', helper: 'सहायक' } });
 
     async function моиСлужбы() {
         const я = await моёId();
@@ -377,7 +382,7 @@ const WorshipHome = (() => {
                 ${!снята ? `<span class="badge badge-sm ml-1 ${н.role === 'pujari' ? 'badge-outline' : ''}">${
                     e(МОЯ_РОЛЬ[н.role] || н.role)}</span>` : ''}
                 ${!снята && меняНеБудет(н.duty_date)
-                    ? '<a href="schedule.html" class="badge badge-sm badge-warning ml-1">вас не будет — нужна замена</a>' : ''}
+                    ? `<a href="schedule.html" class="badge badge-sm badge-warning ml-1">${поЯзыку({ ru: 'вас не будет — нужна замена', en: 'you are away — find a substitute', hi: 'आप नहीं होंगे — बदली चाहिए' })}</a>` : ''}
             </li>`;
         }).join('');
     }

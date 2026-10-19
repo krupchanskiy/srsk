@@ -314,7 +314,7 @@ const WorshipStandards = (() => {
         ${раздел && можноПисать()
             ? `<a href="edit.html?section=${раздел.id}"
                   class="btn btn-ghost btn-xs ручкиСтроки absolute right-3 top-2"
-                  title="Новая статья в этом разделе">+ статья</a>` : ''}
+                  title="Новый стандарт в этом разделе">+ стандарт</a>` : ''}
         </div>`;
     }
 
@@ -352,8 +352,8 @@ const WorshipStandards = (() => {
         строка.hidden = false;
         строка.innerHTML = `
             <span class="font-semibold">${сколько
-                ? Layout.pluralize(сколько, { ru: ['статья', 'статьи', 'статей'],
-                    en: ['article', 'articles'], hi: 'लेख' })
+                ? Layout.pluralize(сколько, { ru: ['стандарт', 'стандарта', 'стандартов'],
+                    en: ['standard', 'standards'], hi: 'मानक' })
                 : 'Ничего не нашлось'}</span>
             <span class="opacity-70">по запросу «${e(фильтр.поиск.trim())}»</span>
             <button class="btn btn-ghost btn-xs" id="сброситьПоиск">показать всё</button>`;

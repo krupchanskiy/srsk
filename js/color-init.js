@@ -43,6 +43,38 @@
         }
     };
     применить();
+
+    // Модуль пока только на русском: подписи и стандарты не переведены.
+    // Гость-волонтёр с английским видел меню по-английски, а всё ниже —
+    // по-русски, и не понимал, это ошибка или так задумано. Говорим прямо.
+    var ТОЛЬКО_РУССКИЙ = {
+        en: 'Parts of the Worship section, including the texts of the standards, are in Russian only for now. If something is unclear, ask the senior pujari.',
+        hi: '«पूजा» अनुभाग का कुछ हिस्सा, मानकों के पाठ सहित, अभी केवल रूसी में है। कुछ अस्पष्ट हो तो वरिष्ठ पुजारी से पूछें।'
+    };
+    function языкМодуля() {
+        if (location.pathname.indexOf('/worship/') === -1 && window.__модуль !== 'worship') return;
+        var язык; try { язык = localStorage.getItem('srsk_lang') || 'ru'; } catch (e) { язык = 'ru'; }
+        var плашка = document.getElementById('толькоРусский');
+        if (!ТОЛЬКО_РУССКИЙ[язык]) { if (плашка) плашка.remove(); return; }
+        var main = document.querySelector('main');
+        if (!main) return;
+        if (!плашка) {
+            плашка = document.createElement('p');
+            плашка.id = 'толькоРусский';
+            плашка.className = 'alert bg-base-100 text-left justify-items-start text-sm mb-4 no-print';
+            плашка.setAttribute('role', 'note');
+            main.insertBefore(плашка, main.firstChild);
+        }
+        плашка.lang = язык;
+        плашка.textContent = ТОЛЬКО_РУССКИЙ[язык];
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', языкМодуля);
+    else языкМодуля();
+    // язык в шапке меняют без перезагрузки
+    document.addEventListener('click', function (ev) {
+        if (ev.target.closest && ev.target.closest('.lang-btn')) setTimeout(языкМодуля, 0);
+    });
+
     // сменили тему телефона, пока страница открыта
     if (window.matchMedia) {
         var мм = window.matchMedia('(prefers-color-scheme: dark)');

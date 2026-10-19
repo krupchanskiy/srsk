@@ -83,15 +83,33 @@ const WorshipBookmarks = (() => {
         const { error } = await Layout.db.from('worship_bookmarks').delete()
             .eq('kind', 'bookmark').eq('article_id', articleId).eq('user_id', я);
         if (error) return Layout.handleError(error, 'Закладка');
+        // ✕ легко задеть пальцем: строка остаётся на месте с «Вернуть»,
+        // пока страницу не перерисуют
+        const строкаСписка = document.querySelector(`[data-убрать="${articleId}"]`)?.closest('li');
         закладки = закладки.filter(з => з.article_id !== articleId);
+        if (!строкаСписка) return рисовать();
+        строкаСписка.innerHTML = `
+            <span class="flex-1 min-w-0 px-5 py-3 opacity-70">«${e(статьи[articleId]?.title)}» убрано из закладок</span>
+            <button class="btn btn-ghost btn-sm shrink-0 цельПальцаКрупно" data-вернуть="${articleId}">Вернуть</button>`;
+    }
+
+    async function вернуть(articleId, кнопка) {
+        const я = window.currentUser?.id;
+        if (!я) return;
+        кнопка.disabled = true;
+        const { error } = await Layout.db.from('worship_bookmarks')
+            .insert({ user_id: я, kind: 'bookmark', article_id: articleId });
+        if (error) { кнопка.disabled = false; return Layout.handleError(error, 'Закладка'); }
+        закладки.unshift({ kind: 'bookmark', article_id: articleId });
         рисовать();
-        Layout.showNotification('Убрано из закладок', 'success');
     }
 
     async function init() {
         document.addEventListener('click', ev => {
             const кнопка = ev.target.closest('[data-убрать]');
-            if (кнопка) убрать(кнопка.dataset.убрать);
+            if (кнопка) return убрать(кнопка.dataset.убрать);
+            const назад = ev.target.closest('[data-вернуть]');
+            if (назад) вернуть(назад.dataset.вернуть, назад);
         });
 
         if (!await загрузить()) return;
