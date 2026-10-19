@@ -211,9 +211,9 @@
             }
         }
 
-        debug('✅ User authenticated');
-        debug('📋 Permissions loaded:', permissions.length);
-        debug('👤 User type:', vaishnava.user_type);
+        window.debug?.('✅ User authenticated');
+        window.debug?.('📋 Permissions loaded:', permissions.length);
+        window.debug?.('👤 User type:', vaishnava.user_type);
         return 'ok';
     }
 
@@ -276,7 +276,7 @@
         // Применить повторно через 500мс для динамического контента
         setTimeout(window.applyPermissions, 500);
 
-        debug('✅ Permissions system ready');
+        window.debug?.('✅ Permissions system ready');
 
         // Предупреждение об общем пароле — не блокирует загрузку страницы
         checkSharedPassword(db);
