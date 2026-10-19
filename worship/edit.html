@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="../js/color-init.js?v=7"></script>
+    <script src="../js/color-init.js?v=8"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Правка стандарта — ШРСК</title>
@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=26">
+    <link rel="stylesheet" href="../css/common.css?v=28">
     <style>
         /* Поле правки выглядит ровно как готовая статья: человек пишет текст,
            а не подгоняет вёрстку. */
@@ -132,8 +132,10 @@
 
         <!-- Панель: один ряд, сгруппированный по смыслу. Десять одинаковых
              кнопок в две строки читались как приборная доска самолёта. -->
+        <!-- на телефоне панель переносится на вторую строку: прокрутка вбок
+             прятала «Фото» и «Очистить» за край, и их не находили -->
         <div class="панельОформления sticky z-20 mb-4 -mx-2 px-2 py-2 bg-base-200/95 backdrop-blur
-                    flex items-center gap-2 overflow-x-auto">
+                    flex flex-wrap items-center gap-2">
             <div class="join">
                 <button class="btn btn-sm btn-ghost join-item px-2" id="откатить"
                         title="Отменить (Ctrl+Z)" aria-label="Отменить">↶</button>
@@ -260,7 +262,7 @@
     <script src="../js/worship-links.js?v=1"></script>
     <script src="../js/worship-doc.js?v=7"></script>
     <script src="../js/worship-editor-doc.js?v=2"></script>
-    <script src="../js/pages/worship-edit.js?v=26"></script>
+    <script src="../js/pages/worship-edit.js?v=27"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

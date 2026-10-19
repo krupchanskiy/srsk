@@ -645,7 +645,22 @@ const WorshipEdit = (() => {
         $('#список').addEventListener('click', () => { команда('insertUnorderedList'); обновитьПанель(); });
         $('#поШагам').addEventListener('click', () => { команда('insertOrderedList'); обновитьПанель(); });
         $('#ссылка').addEventListener('click', поставитьСсылку);
-        $('#убратьОформление').addEventListener('click', () => { команда('removeFormat'); обновитьПанель(); });
+        // «Очистить» стоит рядом с форматированием, и его задевали пальцем:
+        // теперь с вопросом. Выделение запоминаем до окна — окно его сбрасывает
+        $('#убратьОформление').addEventListener('click', async () => {
+            const выбор = getSelection();
+            const диапазон = выбор.rangeCount ? выбор.getRangeAt(0).cloneRange() : null;
+            if (!диапазон || диапазон.collapsed || !$('#текст').contains(диапазон.commonAncestorContainer)) {
+                return Layout.showNotification('Выделите текст, с которого снять оформление', 'info');
+            }
+            if (!await спросить('Снять оформление с выделенного?',
+                'Жирный, заголовки и списки в выделенном станут обычным текстом. Вернуть можно кнопкой ↶.')) return;
+            $('#текст').focus();
+            выбор.removeAllRanges();
+            выбор.addRange(диапазон);
+            команда('removeFormat');
+            обновитьПанель();
+        });
         $('#откатить').addEventListener('click', () => команда('undo'));
         $('#повторить').addEventListener('click', () => команда('redo'));
 

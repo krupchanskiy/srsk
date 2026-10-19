@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="../js/color-init.js?v=7"></script>
+    <script src="../js/color-init.js?v=8"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Стандарт — ШРСК</title>
@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=26">
+    <link rel="stylesheet" href="../css/common.css?v=28">
     <style>
         /* Печать: лист уходит на стену алтарной, поэтому на бумаге остаётся
            только текст стандарта и строка, по какой версии служат. */
@@ -39,6 +39,15 @@
         }
             /* оглавление держится под шапкой, какой бы высоты та ни была */
         .оглавление { position: sticky; top: calc(var(--высота-шапки, 116px) + 1rem); }
+        /* «У алтаря»: крупно, без лишнего, шаги отмечаются касанием */
+        body.уАлтаря #body { font-size: 1.25em; line-height: 1.65; }
+        body.уАлтаря #body ol > li { cursor: pointer; border-radius: .5rem; padding: .3rem .5rem; margin-left: -.5rem; }
+        body.уАлтаря #body ol > li.сделано { opacity: .45; text-decoration: line-through; }
+        body.уАлтаря #теги, body.уАлтаря #соседи, body.уАлтаря #remarksCard,
+        body.уАлтаря #historyCard, body.уАлтаря #toc { display: none !important; }
+        body.уАлтаря main { padding-bottom: 5rem; }
+        /* у алтаря правка не нужна — остаются закладка и «ещё» (там же выход) */
+        body.уАлтаря #actions > :not(.dropdown):not(#bookmark) { display: none !important; }
         @media (max-width: 1199px) { .оглавление { position: static; } }
         /* на компьютере оглавление всегда раскрыто, стрелка не нужна */
         @media (min-width: 1200px) { #tocBox > summary { pointer-events: none; } }
@@ -135,7 +144,7 @@
                     <!-- на телефоне кнопка встаёт под заголовком: справа от него ей не хватало
                          места, и «Замечания» уезжали на отдельную строку под стрелкой -->
                     <div class="relative flex flex-col-reverse items-start gap-1 sm:block" id="замечанияБлок">
-                    <button class="btn btn-xs btn-outline sm:absolute right-0 top-0.5 no-print" id="addRemark"
+                    <button class="btn btn-xs btn-outline sm:absolute right-0 top-0.5 no-print цельПальцаКрупно" id="addRemark"
                             data-i18n="worship_add_remark">Сообщить о неточности</button>
                     <details id="remarksCard" class="group">
                         <summary class="flex flex-wrap items-center gap-2 cursor-pointer list-none py-1 sm:pr-48">
@@ -242,6 +251,18 @@
         <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
     </dialog>
 
+    <!-- «У алтаря»: шаги отмечаются касанием, экран не гаснет -->
+    <div id="алтарьПанель" hidden
+         class="fixed left-0 right-0 bottom-0 z-40 no-print border-t border-base-300 bg-base-100 px-4 pt-2"
+         style="padding-bottom: calc(.5rem + env(safe-area-inset-bottom, 0px));">
+        <div class="max-w-3xl mx-auto flex items-center gap-2">
+            <span class="font-semibold flex-1" id="алтарьСчёт">У алтаря</span>
+            <button class="btn btn-sm btn-ghost" id="алтарьСброс">Сбросить</button>
+            <button class="btn btn-sm" id="алтарьВыйти"
+                    style="background: var(--current-color); color:#fff;">Выйти</button>
+        </div>
+    </div>
+
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js?v=5"></script>
@@ -253,7 +274,7 @@
     <script src="../js/worship-links.js?v=1"></script>
     <script src="../js/worship-doc.js?v=7"></script>
     <script src="../js/worship-tags.js?v=8"></script>
-    <script src="../js/pages/worship-article.js?v=31"></script>
+    <script src="../js/pages/worship-article.js?v=34"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

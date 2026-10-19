@@ -125,9 +125,9 @@ const WorshipAlbum = (() => {
         }
 
         $('#actions').innerHTML = `
-            ${можноПисать() && !набор.is_archived && снимки.length > 1
+            ${можноПисать() && !набор.is_archived && снимки.length
                 ? `<button class="btn btn-sm ${упорядочиваем ? 'btn-active' : 'btn-outline'}" id="упорядочить">${
-                    упорядочиваем ? 'Готово' : 'Упорядочить'}</button>` : ''}
+                    упорядочиваем ? 'Готово' : 'Править снимки'}</button>` : ''}
             ${можноДобавлять() && !набор.is_archived
                 ? `<button class="btn btn-sm" id="добавить"
                         style="background: var(--current-color); color:#fff;">Добавить снимки</button>`
@@ -192,13 +192,15 @@ const WorshipAlbum = (() => {
                      строк. Поле появляется при наведении, пустая подпись места
                      не занимает. -->
                 <figcaption class="px-1 pt-2 pb-1 ${с.caption ? '' : 'подписьПустая'}">
-                    ${можноПисать() && !набор.is_archived
+                    ${можноПисать() && !набор.is_archived && упорядочиваем
                         ? `<input class="w-full bg-transparent border-0 border-b border-transparent
                                         hover:border-base-300 focus:border-base-300 focus:outline-none
                                         text-sm py-0.5 px-0 placeholder:opacity-50"
                                   data-подпись="${с.id}" value="${e(с.caption)}"
                                   placeholder="Подписать" maxlength="200">`
-                        : `<span class="text-sm opacity-70">${e(с.caption)}</span>`}
+                        // подпись целиком, в несколько строк: в одну строку
+                        // «Корона: как садится…» обрывалась на полуслове
+                        : `<span class="text-sm opacity-80 block leading-snug">${e(с.caption)}</span>`}
                 </figcaption>
             </figure>`).join('') ||
             `<div class="bg-base-100 rounded-xl shadow-sm p-8 text-center" style="grid-column: 1 / -1;">

@@ -56,7 +56,7 @@ const WorshipBookmarks = (() => {
                     с.summary ? ' · ' + e(с.summary) : ''}</span>
             </a>
             ${сУбиранием
-                ? `<button class="btn btn-ghost btn-xs ручкиСтроки shrink-0" data-убрать="${з.article_id}"
+                ? `<button class="btn btn-ghost btn-xs ручкиСтроки shrink-0 цельПальцаКрупно" data-убрать="${з.article_id}"
                            title="Убрать из закладок" aria-label="Убрать из закладок">✕</button>` : ''}
         </li>`;
     }

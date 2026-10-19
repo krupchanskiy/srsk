@@ -117,6 +117,12 @@ body > header .nav-link.opacity-60 { opacity: 0.76 !important; }
 /* Зелёный DaisyUI (#00a96e) на сером фоне страницы — 2.71:1. */
 :is(main, dialog) .text-success { color: #166534 !important; }
 
+/* Ночной режим (пока только «Поклонение», см. color-init.js): тёмные
+   буквы выше на тёмном фоне не читаются — светлые оттенки тех же цветов */
+[data-theme="dark"] :is(main, dialog) .text-error { color: #ff8a80 !important; }
+[data-theme="dark"] :is(main, dialog) .text-warning { color: #ffcc80 !important; }
+[data-theme="dark"] :is(main, dialog) .text-success { color: #86efac !important; }
+
 /* DaisyUI приглушает шапку и итог таблиц до 60% — 4.0:1 на белом,
    а вложенная прозрачность подписей роняет их ещё ниже. */
 main .table :where(thead, tfoot) { color: oklch(var(--bc) / 0.8); }
@@ -327,6 +333,8 @@ main .tabs-boxed .tab {
    заголовок не отделялся от содержимого. */
 .шапкаРаздела { background: color-mix(in srgb, var(--current-color) 15%, white); }
 .подШапкойРаздела { border-top: 1px solid color-mix(in srgb, var(--current-color) 30%, white); }
+[data-theme="dark"] .шапкаРаздела { background: color-mix(in srgb, var(--current-color) 35%, oklch(var(--b1))); }
+[data-theme="dark"] .подШапкойРаздела { border-top-color: color-mix(in srgb, var(--current-color) 45%, oklch(var(--b1))); }
 
 /* Мелкие значки-кнопки (✕ у тега, стрелки порядка) под мышь хороши,
    а пальцу нужно хотя бы 36px: на телефоне вместо ✕ попадали в сам тег */
@@ -337,6 +345,12 @@ main .tabs-boxed .tab {
         display: inline-flex;
         align-items: center;
         justify-content: center;
+    }
+    /* главные кнопки, которыми пользуются одной рукой у алтаря
+       (закладка, «ещё», «Сообщить о неточности») — полные 44px */
+    .цельПальцаКрупно {
+        min-width: 2.75rem !important;
+        min-height: 2.75rem !important;
     }
 }
 

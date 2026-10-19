@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="../js/color-init.js?v=7"></script>
+    <script src="../js/color-init.js?v=8"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Загрузка отдела — ШРСК</title>
@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=26">
+    <link rel="stylesheet" href="../css/common.css?v=28">
     <style>
         /* строка человека: имя | семь дней | итог недели. На телефоне
            дни уходят под имя и растягиваются на всю ширину */
@@ -52,6 +52,8 @@
         .метка { font-size: .75rem; font-weight: 600; border-radius: 999px; padding: .05rem .5rem; white-space: nowrap; }
         .метка.перегружен { background: #fde4e1; color: #a1281b; }
         .метка.недогружен, .метка.неСтавили { background: #fbefc9; color: #7a4f00; }
+        [data-theme="dark"] .метка.перегружен { background: #5c1f19; color: #ffb4a8; }
+        [data-theme="dark"] .метка.недогружен, [data-theme="dark"] .метка.неСтавили { background: #4a3a10; color: #ffd98a; }
         .метка.норма { background: oklch(var(--b2)); color: oklch(var(--bc) / .7); }
         .метка.отъезд { background: oklch(var(--b2)); color: oklch(var(--bc) / .6); }
         /* зебра: глазу не сбиться со строки, когда ведёт по дням к итогу */

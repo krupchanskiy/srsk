@@ -525,6 +525,17 @@ const WorshipHome = (() => {
 
     async function init() {
         помнитьГруппы();
+        // ночной режим: как в телефоне → ночь → день (color-init.js)
+        const ночь = $('#ночь');
+        if (ночь && window.srskNight) {
+            const подписать = () => { ночь.title = ночь.ariaLabel = window.srskNight.подпись(); };
+            подписать();
+            ночь.addEventListener('click', () => {
+                window.srskNight.переключить();
+                подписать();
+                Layout.showNotification(window.srskNight.подпись(), 'info');
+            });
+        }
         // поиск идёт сразу по стандартам, библиотеке и наборам фото: человек
         // не знает, в каком хранилище ответ. Слушатель вешаем первым — иначе
         // Enter, нажатый до конца загрузки, перезагрузит страницу

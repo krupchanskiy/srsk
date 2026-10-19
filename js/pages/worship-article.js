@@ -228,7 +228,7 @@ const WorshipArticle = (() => {
         }
         // звёздочка значком, а не текстовым символом: ★ набиралось размером
         // шрифта кнопки и выглядело вдвое мельче соседей
-        кнопки.push(`<button class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200"
+        кнопки.push(`<button class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200 цельПальцаКрупно"
             id="bookmark" title="${
             вЗакладках ? 'Убрать из закладок' : 'В закладки'}" aria-label="${
             вЗакладках ? 'Убрать из закладок' : 'В закладки'}"
@@ -246,6 +246,13 @@ const WorshipArticle = (() => {
         // вывод из действия — собраны под «ещё»: пятью кнопками в два ряда
         // экран начинался с приборной доски, а не со стандарта.
         const редкие = [];
+        if (показана?.status === 'published') {
+            редкие.push('<li><button id="уАлтаря">У алтаря: крупно и по шагам</button></li>');
+        }
+        // ночной режим — у алтаря в 4 утра белый экран слепит (см. color-init.js)
+        if (window.srskNight) {
+            редкие.push(`<li><button id="ночь">${e(window.srskNight.подпись())}</button></li>`);
+        }
         // библиотека сравнения подгружается при щелчке (см. библиотекаСравнения)
         if (предыдущая(показана)) {
             редкие.push('<li><button id="diff">Что изменилось</button></li>');
@@ -269,7 +276,7 @@ const WorshipArticle = (() => {
         if (редкие.length) {
             кнопки.push(`
             <div class="dropdown dropdown-end">
-                <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
+                <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200 цельПальцаКрупно" aria-label="Ещё действия">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
                         <circle cx="12" cy="19" r="1.7"></circle>
@@ -339,6 +346,53 @@ const WorshipArticle = (() => {
         снимкиВПути = null;
         снимки = await запрос;
     }
+
+    // ---------- «У алтаря» ----------
+    // Пуджари проходит стандарт прямо у алтаря, с мокрыми руками: крупный
+    // шрифт, шаги отмечаются касанием, экран не гаснет. Отметки живут до
+    // конца дня на этом устройстве — завтра служба снова с начала.
+    let уАлтаря = false, замокЭкрана = null, отмеченные = null;
+    const ключШагов = () => `worship_steps_${id}_${DateUtils.todayAshramISO()}`;
+    function сделанные() {
+        if (!отмеченные) {
+            try { отмеченные = new Set(JSON.parse(sessionStorage.getItem(ключШагов()) || '[]')); }
+            catch { отмеченные = new Set(); }
+        }
+        return отмеченные;
+    }
+    function запомнитьСделанные() {
+        try { sessionStorage.setItem(ключШагов(), JSON.stringify([...сделанные()])); } catch { /* ignore */ }
+    }
+    function разметитьШаги() {
+        const шаги = [...document.querySelectorAll('#body ol > li')];
+        шаги.forEach((ш, i) => { ш.dataset.шаг = i; ш.classList.toggle('сделано', сделанные().has(i)); });
+        const сделано = шаги.filter(ш => ш.classList.contains('сделано')).length;
+        $('#алтарьСчёт').textContent = шаги.length
+            ? `Сделано ${сделано} из ${шаги.length}` : 'У алтаря';
+    }
+    async function держатьЭкран() {
+        try { замокЭкрана = await navigator.wakeLock?.request('screen'); } catch { замокЭкрана = null; }
+    }
+    async function переключитьАлтарь() {
+        уАлтаря = !уАлтаря;
+        document.body.classList.toggle('уАлтаря', уАлтаря);
+        $('#алтарьПанель').hidden = !уАлтаря;
+        if (уАлтаря) { разметитьШаги(); await держатьЭкран(); window.scrollTo({ top: 0 }); }
+        else { try { await замокЭкрана?.release(); } catch { /* ignore */ } замокЭкрана = null; }
+    }
+    // замок экрана снимается, когда вкладка уходит в фон, — вернулись, берём снова
+    document.addEventListener('visibilitychange', () => {
+        if (уАлтаря && document.visibilityState === 'visible') держатьЭкран();
+    });
+    document.addEventListener('click', ev => {
+        if (!уАлтаря) return;
+        const шаг = ev.target.closest('#body ol > li');
+        if (!шаг || ev.target.closest('a')) return;
+        const i = Number(шаг.dataset.шаг);
+        if (сделанные().has(i)) сделанные().delete(i); else сделанные().add(i);
+        запомнитьСделанные();
+        разметитьШаги();
+    });
 
     function рисоватьТекст() {
         const тело = $('#body');
@@ -642,6 +696,13 @@ const WorshipArticle = (() => {
             }
 
             if (b.id === 'bookmark') return переключитьЗакладку();
+            if (b.id === 'уАлтаря' || b.id === 'алтарьВыйти') return переключитьАлтарь();
+            if (b.id === 'алтарьСброс') { сделанные().clear(); запомнитьСделанные(); return разметитьШаги(); }
+            if (b.id === 'ночь') {
+                const р = window.srskNight.переключить();
+                b.textContent = window.srskNight.подпись(р);
+                return Layout.showNotification(window.srskNight.подпись(р), 'info');
+            }
             if (b.id === 'print') return print();
             if (b.id === 'diff') return показатьСравнение();
 
