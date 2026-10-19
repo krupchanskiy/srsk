@@ -19,6 +19,47 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/common.css?v=29">
+    <style>
+        /* карточка человека: шапка и нижняя полоса стоят, середина листается */
+        .кКарта { display: flex; flex-direction: column; max-height: min(92vh, 56rem); overflow: hidden; }
+        .кШапка { display: flex; align-items: flex-start; gap: 1rem; padding: 1.25rem 1.25rem 1rem;
+                  border-bottom: 1px solid oklch(var(--b2)); }
+        .кЛицо { flex: none; width: 3.25rem; height: 3.25rem; border-radius: 9999px;
+                 display: grid; place-items: center; font-weight: 700; font-size: 1.1rem;
+                 color: var(--current-color-text, var(--current-color));
+                 background: color-mix(in oklab, var(--current-color) 14%, transparent); }
+        .кТело { overflow-y: auto; padding: 1.25rem; overscroll-behavior: contain; }
+        .кНиз { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+                padding: .75rem 1.25rem calc(.75rem + env(safe-area-inset-bottom, 0px));
+                border-top: 1px solid oklch(var(--b2)); background: oklch(var(--b1)); }
+        .кРаздел { font-size: .8125rem; font-weight: 600; letter-spacing: .02em;
+                   color: oklch(var(--bc) / .7); margin-bottom: .5rem; }
+        .кЧип { display: inline-flex; align-items: center; gap: .3rem; font-size: .8125rem;
+                line-height: 1; padding: .35rem .6rem; border-radius: 9999px;
+                background: oklch(var(--b2)); white-space: nowrap; }
+        .кЧип svg { width: .9rem; height: .9rem; opacity: .7; }
+        a.кЧип:hover { background: oklch(var(--b3)); }
+        .кЧип.свой { color: var(--current-color-text, var(--current-color));
+                     background: color-mix(in oklab, var(--current-color) 12%, transparent); font-weight: 600; }
+        .кЧип.хорошо { color: oklch(var(--su)); background: color-mix(in oklab, oklch(var(--su)) 12%, transparent); }
+        .кЗаметка { font-size: .875rem; padding: .6rem .8rem; border-radius: .6rem; margin-bottom: 1.25rem;
+                    background: color-mix(in oklab, oklch(var(--wa)) 14%, transparent); }
+        /* допуск — таблетка-переключатель: отмеченная заметна издалека */
+        .кДопуск { display: inline-flex; align-items: center; gap: .45rem; cursor: pointer;
+                   padding: .4rem .75rem; border-radius: 9999px; font-size: .875rem;
+                   border: 1px solid oklch(var(--b3)); transition: background-color .15s, border-color .15s; }
+        .кДопуск:has(input:checked) { border-color: var(--current-color);
+                   background: color-mix(in oklab, var(--current-color) 12%, transparent); }
+        .кДопуск:has(input:disabled) { cursor: default; }
+        .кДопуск input { width: 1rem; height: 1rem; accent-color: var(--current-color); }
+        /* ближайшая служба: день и время колонками, чтобы глаз шёл по ним вниз */
+        .кСлужба { display: grid; grid-template-columns: 5.5rem 3rem 1fr; gap: .5rem; align-items: baseline;
+                   padding: .45rem 0; border-bottom: 1px solid oklch(var(--b2)); }
+        .кСлужба:last-child { border-bottom: 0; }
+        @media (prefers-reduced-motion: reduce) { .кДопуск { transition: none; } }
+        /* коричневый модуля на тёмном фоне не читается — буквы светлее */
+        [data-theme="dark"] .кЛицо, [data-theme="dark"] .кЧип.свой { color: #e2b98c; }
+    </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -78,80 +119,104 @@
     </main>
 
     <!-- карточка человека -->
-    <dialog id="карточка" class="modal">
-        <div class="modal-box max-w-2xl">
-            <h3 class="font-bold text-xl mb-1" id="кИмя"></h3>
-            <p class="text-sm opacity-60 mb-4" id="кПодпись"></p>
-
-            <!-- Команда или волонтёр: с команды спрос другой, а волонтёра,
-                 который приехал на две недели, не ставят семь дней подряд.
-                 Нагрузку этих групп смотрят порознь во вкладке «Загрузка». -->
-            <div class="mb-4" id="кВидБлок" hidden>
-                <h4 class="надзаголовок mb-2">Кто в отделе</h4>
-                <div class="join выбор">
-                    <button class="btn btn-sm join-item" data-вид-человека="team">Команда</button>
-                    <button class="btn btn-sm join-item" data-вид-человека="volunteer">Волонтёр</button>
+    <!-- карточка человека: шапка с тем, кто это и как с ним связаться;
+         слева — его служение, справа — то, что настраивает старший.
+         На телефоне — лист снизу, кнопки всегда под пальцем -->
+    <dialog id="карточка" class="modal modal-bottom sm:modal-middle">
+        <div class="modal-box кКарта p-0 max-w-3xl">
+            <header class="кШапка">
+                <div class="кЛицо" id="кИнициалы" aria-hidden="true"></div>
+                <div class="min-w-0 flex-1">
+                    <h3 class="text-2xl font-bold leading-tight" id="кИмя"></h3>
+                    <p class="text-sm opacity-70 mt-0.5" id="кМирское" hidden></p>
+                    <div class="flex flex-wrap gap-1.5 mt-2" id="кЧипы"></div>
                 </div>
-                <p class="text-sm opacity-70 mt-1" id="кВидПодпись"></p>
-            </div>
+                <form method="dialog" class="shrink-0">
+                    <button class="btn btn-sm btn-circle btn-ghost" aria-label="Закрыть">✕</button>
+                </form>
+            </header>
 
-            <!-- срок участия: у волонтёра он есть, у постоянного пуджари пуст -->
-            <div class="mb-4" id="кСрокБлок" hidden>
-                <h4 class="надзаголовок mb-2">Срок участия</h4>
-                <div class="flex flex-wrap items-end gap-3">
-                    <label class="form-control">
-                        <span class="label-text text-xs mb-1">С какого дня</span>
-                        <input id="кСрокС" type="date" class="input input-bordered input-sm">
-                    </label>
-                    <label class="form-control">
-                        <span class="label-text text-xs mb-1">По какой</span>
-                        <input id="кСрокПо" type="date" class="input input-bordered input-sm">
-                    </label>
-                    <button class="btn btn-sm" id="кСрокСохранить"
-                            style="background: var(--current-color); color:#fff;">Сохранить</button>
+            <div class="кТело">
+                <p class="кЗаметка" id="кТелеграм" hidden></p>
+
+                <div class="grid gap-x-8 gap-y-6 md:grid-cols-2" id="кСетка">
+                    <!-- служение: что у человека впереди -->
+                    <div class="flex flex-col gap-6 min-w-0">
+                        <section>
+                            <h4 class="кРаздел">Ближайшие службы</h4>
+                            <ul class="list-none m-0 p-0" id="кСлужбы"></ul>
+                        </section>
+
+                        <section>
+                            <h4 class="кРаздел">Отъезды</h4>
+                            <ul class="list-none m-0 p-0 mb-2" id="кОтметки"></ul>
+                            <button class="btn btn-sm btn-outline" id="кДобавитьОтметку">Отметить отъезд</button>
+                        </section>
+                    </div>
+
+                    <!-- настройки старшего -->
+                    <div class="flex flex-col gap-6 min-w-0" id="кНастройки">
+                        <!-- Команда или волонтёр: с команды спрос другой, а волонтёра,
+                             который приехал на две недели, не ставят семь дней подряд.
+                             Нагрузку этих групп смотрят порознь во вкладке «Загрузка». -->
+                        <section id="кВидБлок" hidden>
+                            <h4 class="кРаздел">Кто в отделе</h4>
+                            <div class="join выбор">
+                                <button class="btn btn-sm join-item" data-вид-человека="team">Команда</button>
+                                <button class="btn btn-sm join-item" data-вид-человека="volunteer">Волонтёр</button>
+                            </div>
+                            <p class="text-sm opacity-70 mt-1.5" id="кВидПодпись"></p>
+                        </section>
+
+                        <!-- срок участия: у волонтёра он есть, у постоянного пуджари пуст -->
+                        <section id="кСрокБлок" hidden>
+                            <h4 class="кРаздел">Срок участия</h4>
+                            <div class="flex flex-wrap items-end gap-2">
+                                <label class="form-control">
+                                    <span class="label-text text-xs mb-1">С какого дня</span>
+                                    <input id="кСрокС" type="date" class="input input-bordered input-sm w-36">
+                                </label>
+                                <label class="form-control">
+                                    <span class="label-text text-xs mb-1">По какой</span>
+                                    <input id="кСрокПо" type="date" class="input input-bordered input-sm w-36">
+                                </label>
+                                <button class="btn btn-sm" id="кСрокСохранить"
+                                        style="background: var(--current-color); color:#fff;">Сохранить</button>
+                            </div>
+                            <p class="text-xs opacity-70 mt-1.5">После окончания срока человек уходит из выбора,
+                                а уже стоящие клетки помечаются.</p>
+                        </section>
+
+                        <section>
+                            <h4 class="кРаздел">Допуск к службам</h4>
+                            <div class="flex flex-wrap gap-2" id="кДопуски"></div>
+                            <p class="text-xs opacity-70 mt-1.5">Подсказка при назначении, а не запрет.</p>
+                        </section>
+                    </div>
                 </div>
-                <p class="text-sm opacity-60 mt-1">После окончания срока человек уходит из выбора,
-                    а уже стоящие клетки помечаются.</p>
+
+                <!-- заметки видит только старший: это отдельное хранилище, а не поле карточки -->
+                <section class="mt-6 pt-5 border-t border-base-200" id="кЗаметкиБлок" data-permission="worship_approve">
+                    <h4 class="кРаздел">Заметки старшего</h4>
+                    <p class="text-xs opacity-70 mb-2">Рабочие ограничения — «уезжает в мае», «не ставить рано».</p>
+                    <ul class="list-none m-0 p-0 mb-2" id="кЗаметки"></ul>
+                    <div class="flex flex-wrap gap-2">
+                        <input id="кЗаметкаТекст" type="text" class="input input-bordered input-sm flex-1 min-w-40"
+                               maxlength="300" placeholder="Коротко и по делу">
+                        <button class="btn btn-sm" id="кЗаметкаДобавить"
+                                style="background: var(--current-color); color:#fff;">Записать</button>
+                    </div>
+                </section>
             </div>
 
-            <div class="mb-4">
-                <h4 class="надзаголовок mb-2">Ближайшие службы</h4>
-                <ul class="list-none m-0 p-0" id="кСлужбы"></ul>
-            </div>
-
-            <div class="mb-4">
-                <h4 class="font-bold text-sm uppercase tracking-widest opacity-60 mb-2">Допуск к службам</h4>
-                <p class="text-sm opacity-60 mb-2">Это подсказка при назначении, а не запрет.</p>
-                <div class="flex flex-wrap gap-2" id="кДопуски"></div>
-            </div>
-
-            <div class="mb-4">
-                <h4 class="font-bold text-sm uppercase tracking-widest opacity-60 mb-2">Отметки недоступности</h4>
-                <ul class="list-none m-0 p-0 mb-2" id="кОтметки"></ul>
-                <button class="btn btn-xs btn-outline" id="кДобавитьОтметку">Отметить отъезд</button>
-            </div>
-
-            <!-- заметки видит только старший: это отдельное хранилище, а не поле карточки -->
-            <div class="mb-4" id="кЗаметкиБлок" data-permission="worship_approve">
-                <h4 class="font-bold text-sm uppercase tracking-widest opacity-60 mb-1">Заметки</h4>
-                <p class="text-sm opacity-60 mb-2">Рабочие ограничения — «уезжает в мае»,
-                    «не ставить рано». Каждая подписана автором и датой.</p>
-                <ul class="list-none m-0 p-0 mb-2" id="кЗаметки"></ul>
-                <div class="flex flex-wrap gap-2">
-                    <input id="кЗаметкаТекст" type="text" class="input input-bordered input-sm flex-1 min-w-40"
-                           maxlength="300" placeholder="Коротко и по делу">
-                    <button class="btn btn-sm" id="кЗаметкаДобавить"
-                            style="background: var(--current-color); color:#fff;">Записать</button>
-                </div>
-            </div>
-
-            <div class="modal-action">
+            <footer class="кНиз">
                 <button class="btn btn-sm btn-ghost text-error" id="кИсключить"
                         data-permission="worship_approve">В резерв</button>
                 <button class="btn btn-sm btn-ghost text-error" id="кУбрать" hidden>Убрать из резерва</button>
+                <span class="flex-1"></span>
                 <button class="btn btn-sm btn-outline" id="кВернуть" hidden>Вернуть в отдел</button>
                 <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
-            </div>
+            </footer>
         </div>
         <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
     </dialog>
@@ -254,7 +319,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-people.js?v=26"></script>
+    <script src="../js/pages/worship-people.js?v=27"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

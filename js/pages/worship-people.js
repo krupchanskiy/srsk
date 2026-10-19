@@ -188,15 +188,7 @@ const WorshipPeople = (() => {
         открытый = люди.find(ч => ч.id === id);
         if (!открытый) return;
 
-        $('#кИмя').textContent = открытый.имя;
-        $('#кПодпись').textContent = [
-            открытый.is_active ? null : 'в резерве',
-            открытый.active_from ? `с ${DateUtils.formatShort(DateUtils.parseDate(открытый.active_from))}` : null,
-            открытый.active_to ? `по ${DateUtils.formatShort(DateUtils.parseDate(открытый.active_to))}` : null,
-            открытый.безВхода ? 'входа в систему нет — о переменах скажите голосом' : null,
-            открытый.безБота ? 'Телеграм не подключён — напоминания не дойдут. Подключается кнопкой на главной «Поклонения»' : null,
-            открытый.телефон || null,
-        ].filter(Boolean).join(' · ');
+        рисоватьШапку();
 
         $('#кСрокС').value = открытый.active_from || '';
         $('#кСрокПо').value = открытый.active_to || '';
@@ -217,6 +209,47 @@ const WorshipPeople = (() => {
         $('#карточка').showModal();
     }
 
+    const ЗНАЧОК = {
+        телефон: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.5 2.7.6a2 2 0 0 1 1.7 2z"/></svg>',
+        телеграм: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4L3 11l6 2 2 6 3-4 5 4 2-15z"/><path d="M9 13l9-7"/></svg>',
+        срок: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
+    };
+
+    /** Шапка карточки: кто это, в каком он качестве и как с ним связаться. */
+    function рисоватьШапку() {
+        const ч = открытый;
+        $('#кИмя').textContent = ч.имя;
+        $('#кИнициалы').textContent = ч.имя.split(/[\s-]+/).filter(Boolean).slice(0, 2)
+            .map(с => с[0].toUpperCase()).join('');
+        const мирское = ч.worldly && ч.worldly !== ч.имя ? ч.worldly : '';
+        $('#кМирское').hidden = !мирское;
+        $('#кМирское').textContent = мирское;
+
+        const к = iso => DateUtils.formatShort(DateUtils.parseDate(iso));
+        const срок = ч.active_from && ч.active_to ? `${к(ч.active_from)} — ${к(ч.active_to)}`
+            : ч.active_to ? `по ${к(ч.active_to)}` : ч.active_from ? `с ${к(ч.active_from)}` : '';
+        const чипы = [
+            `<span class="кЧип свой">${ч.kind === 'volunteer' ? 'Волонтёр' : 'Команда'}</span>`,
+            ч.is_active === false ? '<span class="кЧип">в резерве</span>' : '',
+            срок ? `<span class="кЧип">${ЗНАЧОК.срок}${e(срок)}</span>` : '',
+            ч.телефон ? `<a class="кЧип tabular-nums" href="tel:${e(ч.телефон.replace(/[^\d+]/g, ''))}">${ЗНАЧОК.телефон}${e(ч.телефон)}</a>` : '',
+            ч.безВхода ? '<span class="кЧип">нет входа</span>'
+                : ч.безБота ? `<span class="кЧип">${ЗНАЧОК.телеграм}без Телеграма</span>`
+                : `<span class="кЧип хорошо">${ЗНАЧОК.телеграм}Телеграм подключён</span>`,
+        ];
+        $('#кЧипы').innerHTML = чипы.join('');
+
+        // что из этого следует — одной строкой и только тому, кто может помочь
+        const заметка = ч.безВхода
+            ? 'Входа в систему нет — о переменах в расписании говорите ему голосом.'
+            : ч.безБота && (можноВести() || ч.мой)
+                ? (ч.мой ? 'Напоминания о службах не дойдут, пока вы не подключите Телеграм кнопкой на главной «Поклонения».'
+                         : 'Напоминания о службах не дойдут. Попросите нажать «Подключить Телеграм» на главной «Поклонения».')
+                : '';
+        $('#кТелеграм').hidden = !заметка;
+        $('#кТелеграм').textContent = заметка;
+    }
+
     function рисоватьСлужбыЧеловека() {
         const все = назначения.filter(н => н.person_id === открытый.id);
         const свои = все.slice(0, 8);
@@ -226,40 +259,44 @@ const WorshipPeople = (() => {
         $('#кСлужбы').innerHTML = свои.map(н => {
             const с = службы.find(x => x.id === н.service_id);
             return `
-            <li class="py-1 flex flex-wrap items-baseline gap-2">
-                <span class="font-semibold">${DateUtils.formatShort(DateUtils.parseDate(н.duty_date))}</span>
-                <span class="opacity-60">${e((с?.time_of_day || '').slice(0, 5))}</span>
-                ${с?.article_id
-                    ? `<a class="link" href="article.html?id=${с.article_id}">${e(Layout.getName(с))}</a>`
-                    : `<span>${e(с ? Layout.getName(с) : 'разовая служба')}</span>`}
-                ${н.role !== 'pujari' ? `<span class="badge badge-sm whitespace-nowrap">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
+            <li class="кСлужба">
+                <span class="font-semibold text-sm">${e(window.деньПоЧеловечески(н.duty_date))}</span>
+                <span class="text-sm opacity-70 tabular-nums">${e((с?.time_of_day || '').slice(0, 5))}</span>
+                <span class="min-w-0">
+                    ${с?.article_id
+                        ? `<a class="link link-hover" href="article.html?id=${с.article_id}">${e(Layout.getName(с))}</a>`
+                        : `<span>${e(с ? Layout.getName(с) : 'разовая служба')}</span>`}
+                    ${н.role !== 'pujari' ? `<span class="badge badge-sm whitespace-nowrap ml-1">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
+                </span>
             </li>`;
         }).join('') + (ещё > 0
-            ? `<li class="py-1 text-sm opacity-70">и ещё ${ещё} — <a class="link" href="schedule.html">все в расписании</a></li>`
-            : '') || '<li class="text-sm opacity-60">Впереди служб нет</li>';
+            ? `<li class="pt-2 text-sm opacity-70">и ещё ${ещё} — <a class="link" href="schedule.html">все в расписании</a></li>`
+            : '') || '<li class="text-sm opacity-70">Впереди служб нет</li>';
     }
 
     function рисоватьДопуски() {
         $('#кДопуски').innerHTML = службы.filter(с => с.is_active).map(с => `
-            <label class="label cursor-pointer justify-start gap-2 py-0 pr-3">
-                <input type="checkbox" class="checkbox checkbox-sm" data-допуск="${с.id}"
+            <label class="кДопуск">
+                <input type="checkbox" data-допуск="${с.id}"
                        ${открытый.допуск.has(с.id) ? 'checked' : ''}
                        ${можноВести() ? '' : 'disabled'}>
-                <span class="label-text text-sm">${e(Layout.getName(с))}</span>
-            </label>`).join('') || '<span class="text-sm opacity-60">Служб пока нет</span>';
+                <span>${e(Layout.getName(с))}</span>
+            </label>`).join('') || '<span class="text-sm opacity-70">Служб пока нет</span>';
     }
 
     function рисоватьОтметки() {
         const свои = отметки.filter(а => а.person_id === открытый.id);
         const можноСнимать = можноВести() || открытый.мой;
         $('#кОтметки').innerHTML = свои.map(а => `
-            <li class="flex flex-wrap items-center gap-2 py-1">
-                <span>${DateUtils.formatShort(DateUtils.parseDate(а.date_from))} —
-                    ${а.date_to ? DateUtils.formatShort(DateUtils.parseDate(а.date_to)) : 'пока не снимет'}</span>
-                ${а.reason ? `<span class="text-sm opacity-60">${e(а.reason)}</span>` : ''}
+            <li class="flex items-center gap-2 py-1.5 border-b border-base-200 last:border-0">
+                <span class="flex-1 min-w-0">
+                    <span class="font-semibold text-sm">${DateUtils.formatShort(DateUtils.parseDate(а.date_from))} —
+                        ${а.date_to ? DateUtils.formatShort(DateUtils.parseDate(а.date_to)) : 'пока не снимет'}</span>
+                    ${а.reason ? `<span class="block text-sm opacity-70">${e(а.reason)}</span>` : ''}
+                </span>
                 ${можноСнимать
                     ? `<button class="btn btn-ghost btn-xs text-error" data-снятьОтметку="${а.id}">снять</button>` : ''}
-            </li>`).join('') || '<li class="text-sm opacity-60">Отметок нет</li>';
+            </li>`).join('') || '<li class="text-sm opacity-70">Отъездов не отмечено</li>';
     }
 
     async function рисоватьЗаметки() {
@@ -378,6 +415,7 @@ const WorshipPeople = (() => {
         if (!data?.length) return Layout.showNotification('Не сохранилось: состав ведёт старший', 'error');
         открытый.kind = вид;
         рисоватьВид();
+        рисоватьШапку();
         await перечитать();
     }
 
@@ -398,6 +436,9 @@ const WorshipPeople = (() => {
             return false;
         }
         await перечитать();
+        // шапка карточки показывает срок — обновляем её по свежим данным
+        открытый = люди.find(ч => ч.id === открытый.id) || открытый;
+        рисоватьШапку();
         return true;
     }
 
