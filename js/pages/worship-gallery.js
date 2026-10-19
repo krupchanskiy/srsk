@@ -12,6 +12,8 @@ const WorshipGallery = (() => {
     const $ = s => document.querySelector(s);
     const e = str => Layout.escapeHtml(str ?? '');
     const можноПисать = () => !!window.hasPermission?.('worship_write');
+    // папку заводит только старший (миграция 276)
+    const можноЗаводить = () => !!window.hasPermission?.('worship_approve');
 
     let наборы = [], обложки = {};
     let фильтр = { поиск: '', архив: false };
@@ -107,7 +109,7 @@ const WorshipGallery = (() => {
                     <div class="font-semibold mb-1">Папок пока нет</div>
                     <p class="text-sm opacity-70 max-w-md mx-auto">Папка — это снимки на одну тему:
                         как наряжали на Гаура-пурниму, как уложена ткань, как выглядел алтарь.</p>
-                    ${можноПисать()
+                    ${можноЗаводить()
                         ? '<button class="btn btn-sm mt-3" id="newAlbumEmpty" style="background: var(--current-color); color:#fff;">Создать первую папку</button>'
                         : ''}
                 </div>`;

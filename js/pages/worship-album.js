@@ -11,6 +11,9 @@ const WorshipAlbum = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
     const можноПисать = () => !!window.hasPermission?.('worship_write');
     const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
+    // снимки в папку грузит каждый, кто видит модуль; убирает — старший;
+    // подписи, порядок и сама папка — пуджари (миграция 276)
+    const можноДобавлять = () => !!window.hasPermission?.('worship_view');
 
     const id = new URLSearchParams(location.search).get('id');
     let набор = null, снимки = [], ссылки = {};
@@ -55,7 +58,7 @@ const WorshipAlbum = (() => {
      */
     let миниатюрыИдут = false;
     async function дописатьМиниатюры() {
-        if (миниатюрыИдут || !можноПисать() || typeof Media === 'undefined') return;
+        if (миниатюрыИдут || !можноДобавлять() || typeof Media === 'undefined') return;
         const без = снимки.filter(с => !с.thumb_path).slice(0, 40);
         if (!без.length) return;
         миниатюрыИдут = true;
@@ -119,7 +122,7 @@ const WorshipAlbum = (() => {
         }
 
         $('#actions').innerHTML = `
-            ${можноПисать() && !набор.is_archived
+            ${можноДобавлять() && !набор.is_archived
                 ? `<button class="btn btn-sm" id="добавить"
                         style="background: var(--current-color); color:#fff;">Добавить снимки</button>`
                 : ''}
@@ -174,8 +177,8 @@ const WorshipAlbum = (() => {
                             data-id="${с.id}" title="Правее">→</button>
                     <button class="btn btn-xs btn-circle bg-base-100/90 border-0" data-обложка="${с.id}"
                             title="Сделать обложкой" ${набор.cover_image_id === с.id ? 'disabled' : ''}>★</button>
-                    <button class="btn btn-xs btn-circle bg-base-100/90 border-0 text-error"
-                            data-убрать="${с.id}" title="Убрать снимок">✕</button>
+                    ${можноУтверждать() ? `<button class="btn btn-xs btn-circle bg-base-100/90 border-0 text-error"
+                            data-убрать="${с.id}" title="Убрать снимок">✕</button>` : ''}
                 </div>` : ''}
 
                 <!-- Подпись есть не у каждого снимка, и приглашение «подписать»

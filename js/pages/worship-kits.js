@@ -23,18 +23,35 @@ const WorshipKits = (() => {
         if (подборки.length) {
             const ids = подборки.map(п => п.id);
             const [и, в] = await Promise.all([
-                Layout.db.from('worship_kit_items').select('kit_id').in('kit_id', ids),
+                Layout.db.from('worship_kit_items').select('kit_id, article_id, album_id').in('kit_id', ids),
                 можноПисать()
                     ? Layout.db.from('worship_kit_grants')
-                        .select('kit_id, revoked_at').in('kit_id', ids).is('revoked_at', null)
+                        .select('kit_id, vaishnava_id, retreat_id').in('kit_id', ids).is('revoked_at', null)
                     : Promise.resolve({ data: [] }),
             ]);
+            // считаем только то, что читают и смотрят: пояснения между
+            // пунктами — подводка к ним, а не содержание подборки
             пунктов = {};
-            (и.data || []).forEach(п => { пунктов[п.kit_id] = (пунктов[п.kit_id] || 0) + 1; });
+            (и.data || []).filter(п => п.article_id || п.album_id)
+                .forEach(п => { пунктов[п.kit_id] = (пунктов[п.kit_id] || 0) + 1; });
+            // подборку выдают человеку или целому ретриту — считаем порознь
             выдач = {};
-            (в.data || []).forEach(г => { выдач[г.kit_id] = (выдач[г.kit_id] || 0) + 1; });
+            (в.data || []).forEach(г => {
+                const к = выдач[г.kit_id] ||= { людям: 0, ретритам: 0 };
+                if (г.vaishnava_id) к.людям++; else if (г.retreat_id) к.ретритам++;
+            });
         }
         return true;
+    }
+
+    /** «выдана 2 людям и 1 ретриту» — кому подборка сейчас открыта в портале. */
+    function выдана(в) {
+        if (!в || !(в.людям || в.ретритам)) return '';
+        const части = [
+            в.людям && Layout.pluralize(в.людям, { ru: ['человеку', 'людям', 'людям'], en: ['person', 'people'], hi: 'व्यक्ति' }),
+            в.ретритам && Layout.pluralize(в.ретритам, { ru: ['ретриту', 'ретритам', 'ретритам'], en: ['retreat', 'retreats'], hi: 'रिट्रीट' }),
+        ].filter(Boolean);
+        return `<span class="opacity-70"> · выдана ${части.join(' и ')}</span>`;
     }
 
     function рисовать() {
@@ -79,9 +96,7 @@ const WorshipKits = (() => {
                                     ru: ['пункт', 'пункта', 'пунктов'],
                                     en: ['item', 'items'], hi: 'मद' })
                                 : 'пока пусто'}
-                            ${выдач[п.id] ? '<span class="opacity-70"> · ' + Layout.pluralize(выдач[п.id], {
-                                ru: ['выдача', 'выдачи', 'выдач'],
-                                en: ['grant', 'grants'], hi: 'वितरण' }) + '</span>' : ''}
+                            ${выдана(выдач[п.id])}
                         </span>
                     </a>
                 </li>`).join('')}

@@ -242,7 +242,8 @@ const modules = {
                 { id: 'worship_library', href: 'worship/library.html' },
                 { id: 'worship_gallery', href: 'worship/gallery.html' },
                 { id: 'worship_kits', href: 'worship/kits.html' },
-                { id: 'worship_bookmarks', href: 'worship/bookmarks.html' }
+                // звёздочка вместо слова: знак закладок понятен всем и занимает меньше места
+                { id: 'worship_bookmarks', href: 'worship/bookmarks.html', icon: 'star' }
             ]}
         ]
     },
@@ -457,6 +458,19 @@ function waitForAuth() {
         window.addEventListener('authReady', resolve, { once: true });
     });
 }
+
+// Подпись пункта меню. У пункта с icon в узких местах (полоса подменю,
+// подвал) — только значок; название остаётся в подсказке и для диктора.
+const NAV_ICONS = {
+    star: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-4px"><path d="M11.48 3.5a.56.56 0 011.04 0l2.13 5.11a.56.56 0 00.47.35l5.52.44c.5.04.7.66.32.99l-4.2 3.6a.56.56 0 00-.18.56l1.28 5.39a.56.56 0 01-.84.61l-4.73-2.89a.56.56 0 00-.59 0l-4.73 2.89a.56.56 0 01-.84-.61l1.28-5.39a.56.56 0 00-.18-.56l-4.2-3.6a.56.56 0 01.32-.99l5.52-.44a.56.56 0 00.47-.35l2.13-5.11z"/></svg>'
+};
+function navLabel(item, withText = false) {
+    const text = t('nav_' + item.id);
+    const icon = item.icon && NAV_ICONS[item.icon];
+    if (!icon) return text;
+    return withText ? `${icon} ${text}` : `${icon}<span class="sr-only">${text}</span>`;
+}
+const navTitle = item => item.icon ? ` title="${t('nav_' + item.id)}"` : '';
 
 // Найти первый доступный модуль (для автопереключения)
 function getFirstAccessibleModule() {
@@ -839,7 +853,7 @@ function getFooterHTML() {
             ${footerLinks.length > 1 ? `
             <nav class="flex flex-wrap justify-center gap-4 sm:gap-6 mb-4" id="footerNav">
                 ${footerLinks.map(item => `
-                    <a href="${adjustHref(item.href)}" class="text-sm font-medium uppercase tracking-wide ${item.id === currentPage.itemId ? 'text-primary' : 'opacity-60 hover:opacity-100'}">${t('nav_' + item.id)}${item.badgeKey ? renderMenuItemBadge(item.id) : ''}</a>
+                    <a href="${adjustHref(item.href)}"${navTitle(item)} class="text-sm font-medium uppercase tracking-wide ${item.id === currentPage.itemId ? 'text-primary' : 'opacity-60 hover:opacity-100'}">${navLabel(item)}${item.badgeKey ? renderMenuItemBadge(item.id) : ''}</a>
                 `).join('')}
             </nav>
             ` : '<div id="footerNav"></div>'}
@@ -1081,7 +1095,7 @@ function buildMobileMenu() {
                     </svg>
                 </button>
                 <div class="submenu pl-4">
-                    ${items.map(item => `<a href="${adjustHref(item.href)}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200 ${item.id === currentPage.itemId ? 'text-primary' : ''}">${t('nav_' + item.id)}${item.badgeKey ? renderMenuItemBadge(item.id) : ''}</a>`).join('')}
+                    ${items.map(item => `<a href="${adjustHref(item.href)}" class="block px-4 py-3 text-base font-medium rounded-lg hover:bg-base-200 ${item.id === currentPage.itemId ? 'text-primary' : ''}">${navLabel(item, true)}${item.badgeKey ? renderMenuItemBadge(item.id) : ''}</a>`).join('')}
                 </div>
             </div>
         `;
@@ -1108,7 +1122,7 @@ function buildSubmenuBar() {
         if (items.length === 1) return '';
         return `
             <nav class="container mx-auto ${centered ? 'justify-center' : 'px-4'} flex items-center submenu-group ${id !== currentPage.menuId ? 'hidden' : ''}" data-group="${id}">
-                ${items.map(item => `<a href="${adjustHref(item.href)}" class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase ${item.id === currentPage.itemId ? 'active' : 'text-white/70 hover:text-white'}">${t('nav_' + item.id)}${item.badgeKey ? renderMenuItemBadge(item.id) : ''}</a>`).join('')}
+                ${items.map(item => `<a href="${adjustHref(item.href)}"${navTitle(item)} class="submenu-link px-5 py-2 text-base font-semibold tracking-wide uppercase ${item.id === currentPage.itemId ? 'active' : 'text-white/70 hover:text-white'}">${navLabel(item)}${item.badgeKey ? renderMenuItemBadge(item.id) : ''}</a>`).join('')}
             </nav>
         `;
     }).join('');

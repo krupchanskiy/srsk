@@ -14,6 +14,10 @@ const WorshipMaterial = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
     const можноПисать = () => !!window.hasPermission?.('worship_write');
     const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
+    // Править материал может пуджари, а любой, кто видит модуль, — новый
+    // и свой. Приложить файл — каждый; убрать вложение — старший (миграция 276)
+    const можноПравить = () => можноПисать() || !id
+        || (!!статья?.created_by && статья.created_by === window.currentUser?.id);
 
     const ПРЕДЕЛ_ФАЙЛА = 200 * 1024 * 1024;
 
@@ -96,11 +100,13 @@ const WorshipMaterial = (() => {
                 e(Layout.getName(р))}${р.is_active ? '' : ' (скрыт)'}</option>`).join('');
 
         ['#заголовок', '#описание', '#автор', '#источник', '#раздел'].forEach(s => {
-            $(s).disabled = !можноПисать();
+            $(s).disabled = !можноПравить();
         });
         // читателю текст не правится: поле было редактируемым у всех,
         // правка читателя никуда не сохранялась и пропадала молча
-        $('#текст').contentEditable = можноПисать() ? 'true' : 'false';
+        $('#текст').contentEditable = можноПравить() ? 'true' : 'false';
+        $('#панельПравки').hidden = !можноПравить();
+        $('#низСохранить').hidden = !можноПравить();
 
         // «Сохранить» теперь одна — липкая внизу страницы: раньше на экране
         // висели две одинаковые кнопки, и было непонятно, чем они отличаются.
@@ -143,7 +149,7 @@ const WorshipMaterial = (() => {
                         : `${(в.size_bytes / 1024 / 1024).toFixed(1)} МБ${в.mime ? ' · ' + e(в.mime) : ''}`}</span>
                 </span>
                 <button class="btn btn-sm btn-outline" data-открыть="${в.id}">Открыть</button>
-                ${можноПисать()
+                ${можноУтверждать()
                     ? `<button class="btn btn-sm btn-ghost text-error" data-убрать="${в.id}">Убрать</button>` : ''}
             </li>`).join('') || '<li class="py-2 text-sm opacity-60">Пока ничего не приложено</li>';
     }
