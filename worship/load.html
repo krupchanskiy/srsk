@@ -47,6 +47,9 @@
             background: repeating-linear-gradient(135deg, oklch(var(--b2)) 0 5px, oklch(var(--b3)) 5px 7px);
         }
         .деньЯч.сегодня { outline: 2px solid var(--current-color); outline-offset: 1px; }
+        /* клетка — ссылка в этот день расписания */
+        a.деньЯч { text-decoration: none; }
+        a.деньЯч:hover { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--current-color) 55%, transparent); }
         .шапкаДня { font-size: .75rem; text-align: center; line-height: 1.15; opacity: .7; }
         .шапкаДня.сегодня { opacity: 1; font-weight: 700; color: var(--current-color-text, var(--current-color)); }
         .метка { font-size: .75rem; font-weight: 600; border-radius: 999px; padding: .05rem .5rem; white-space: nowrap; }
@@ -136,7 +139,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-load.js?v=12"></script>
+    <script src="../js/pages/worship-load.js?v=13"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

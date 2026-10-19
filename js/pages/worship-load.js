@@ -275,8 +275,9 @@ const WorshipLoad = (() => {
                     с.минут ? ` — ${часы(с.минут)}` : ' — длительность не задана'}`).join('\n')
                 : 'служб нет';
             const день = DateUtils.parseDate(x.д);
-            return `<div class="${классы}" ${фон} title="${e(подсказка)}"
-                         aria-label="${e(`${имя}, ${ДНИ[(день.getDay() + 6) % 7]} ${день.getDate()}: ${подсказка}`)}">${e(текст)}</div>`;
+            // клетка ведёт в этот день расписания: увидел перегруз — поправил
+            return `<a href="schedule.html?день=${x.д}" class="${классы}" ${фон} title="${e(подсказка)}"
+                         aria-label="${e(`${имя}, ${ДНИ[(день.getDay() + 6) % 7]} ${день.getDate()}: ${подсказка}`)}">${e(текст)}</a>`;
         };
 
         $('#загрузка').innerHTML = шапка + (строки.map(ч => `
@@ -329,7 +330,8 @@ const WorshipLoad = (() => {
 
         $('#службы').innerHTML = строки.map(с => `
             <li class="py-2 border-b border-base-200 last:border-0
-                       flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                       flex flex-wrap items-baseline gap-x-3 gap-y-1 cursor-pointer hover:bg-base-200/50 -mx-2 px-2 rounded"
+                data-неделя-расписания="${дни[0]}">
                 <span class="text-sm opacity-70 tabular-nums w-12">${e(с.время)}</span>
                 <span class="font-semibold">${e(с.имя)}</span>
                 <span class="flex-1"></span>
@@ -356,6 +358,12 @@ const WorshipLoad = (() => {
 
     async function init() {
         document.addEventListener('click', ev => {
+            // строка «где остаются дыры» — в эту неделю расписания
+            const кНеделе = ev.target.closest('[data-неделя-расписания]');
+            if (кНеделе) {
+                location.href = `schedule.html?день=${кНеделе.getAttribute('data-неделя-расписания')}&вид=неделя`;
+                return;
+            }
             const н = ev.target.closest('[data-неделя]');
             if (н) {
                 const шаг = Number(н.dataset.неделя);

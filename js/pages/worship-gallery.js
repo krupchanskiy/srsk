@@ -21,7 +21,9 @@ const WorshipGallery = (() => {
     async function загрузить() {
         const { data, error } = await Layout.db.from('worship_albums')
             .select('id, title, description, is_private, is_guide, is_archived, cover_image_id, created_by, created_at')
-            .order('title');
+            // свежие папки сверху: «как наряжали на этот праздник» ищут среди
+            // последних, а по алфавиту «Картик 2024» стоял между 2025-ми
+            .order('created_at', { ascending: false });
         if (error) { Layout.handleError(error, 'Загрузка галереи'); return false; }
         наборы = data || [];
 

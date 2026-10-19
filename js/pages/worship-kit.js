@@ -343,13 +343,19 @@ const WorshipKit = (() => {
                     .limit(20);
                 if (error) return Layout.handleError(error, 'Поиск человека');
                 $('#вСписок').innerHTML = (data || []).map(ч => {
-                    const имя2 = ч.spiritual_name ||
-                        `${ч.first_name || ''} ${ч.last_name || ''}`.trim() || 'без имени';
+                    const мирское = `${ч.first_name || ''} ${ч.last_name || ''}`.trim();
+                    const имя2 = ч.spiritual_name || мирское || 'без имени';
+                    // уже выданным второй раз «Выдать» не предлагаем
+                    const уже = выдачи.some(г => г.vaishnava_id === ч.id);
                     return `
                     <li class="border-b border-base-200 last:border-0 py-2 flex items-center gap-3">
-                        <span class="flex-1 min-w-0 font-semibold">${e(имя2)}</span>
-                        <button class="btn btn-sm btn-outline" data-выдать-человеку="${ч.id}"
-                                data-имя="${e(имя2)}">Выдать</button>
+                        <span class="flex-1 min-w-0">
+                            <span class="font-semibold">${e(имя2)}</span>
+                            ${ч.spiritual_name && мирское ? `<span class="block text-sm opacity-70">${e(мирское)}</span>` : ''}
+                        </span>
+                        ${уже ? '<span class="text-sm opacity-60">уже выдана</span>'
+                            : `<button class="btn btn-sm btn-outline" data-выдать-человеку="${ч.id}"
+                                data-имя="${e(имя2)}">Выдать</button>`}
                     </li>`;
                 }).join('') || '<li class="py-3 text-sm opacity-60">Никого не нашлось</li>';
             }, 300);
@@ -368,8 +374,10 @@ const WorshipKit = (() => {
                         <span class="block text-sm opacity-60">${
                             DateUtils.formatShort(DateUtils.parseDate(р.start_date))}</span>
                     </span>
-                    <button class="btn btn-sm btn-outline" data-выдать-ретриту="${р.id}"
-                            data-имя="${e(Layout.getName(р))}">Выдать</button>
+                    ${выдачи.some(г => г.retreat_id === р.id)
+                        ? '<span class="text-sm opacity-60">уже выдана</span>'
+                        : `<button class="btn btn-sm btn-outline" data-выдать-ретриту="${р.id}"
+                            data-имя="${e(Layout.getName(р))}">Выдать</button>`}
                 </li>`).join('') || '<li class="py-3 text-sm opacity-60">Ретритов нет</li>';
         }
         окно.showModal();

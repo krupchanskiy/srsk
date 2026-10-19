@@ -105,9 +105,7 @@ const WorshipPeople = (() => {
                             : ''}
                     ${ч.безВхода
                         ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">нет входа</span>' : ''}
-                    ${ч.active_to
-                        ? `<span class="block text-sm opacity-70">участвует по ${
-                            DateUtils.formatShort(DateUtils.parseDate(ч.active_to))}</span>` : ''}
+                    ${срокСловами(ч) ? `<span class="block text-sm opacity-70">${срокСловами(ч)}</span>` : ''}
                 </span>
                 ${служб(ч.id) || ч.is_active !== false ? `
                 <span class="text-sm opacity-70 whitespace-nowrap tabular-nums">
@@ -166,6 +164,16 @@ const WorshipPeople = (() => {
     }
 
     // ---------- карточка ----------
+    /** «в отделе с 26 окт», «участвует по 30 окт», «срок участия кончился 19 сен». */
+    function срокСловами(ч) {
+        const сегодня = DateUtils.todayAshramISO();
+        const к = iso => DateUtils.formatShort(DateUtils.parseDate(iso));
+        if (ч.active_from && ч.active_from > сегодня) return `в отделе с ${к(ч.active_from)}`;
+        if (ч.active_to && ч.active_to < сегодня) return `срок участия кончился ${к(ч.active_to)}`;
+        if (ч.active_to) return `участвует по ${к(ч.active_to)}`;
+        return '';
+    }
+
     async function открыть(id) {
         открытый = люди.find(ч => ч.id === id);
         if (!открытый) return;
@@ -479,17 +487,22 @@ const WorshipPeople = (() => {
             Layout.showNotification('Поставьте день окончания или отметьте, что срок не известен', 'warning');
             return $('#дСрокПо').focus();
         }
+        const с = $('#дСрокС').value || DateUtils.todayAshramISO();
+        if (срок && срок < с) {
+            Layout.showNotification('День окончания раньше дня начала', 'warning');
+            return $('#дСрокПо').focus();
+        }
 
         // вернуть выведенного — это не новая запись: человек один
         const был = люди.find(ч => ч.vaishnava_id === vaishnavaId);
         const запрос = был
             ? Layout.db.from('worship_people').update({
-                is_active: true, kind: новыйВид, active_to: срок,
+                is_active: true, kind: новыйВид, active_from: с, active_to: срок,
                 updated_at: new Date().toISOString(),
                 updated_by: window.currentUser?.id || null }).eq('id', был.id)
             : Layout.db.from('worship_people').insert({
                 vaishnava_id: vaishnavaId, kind: новыйВид, active_to: срок,
-                active_from: DateUtils.todayAshramISO(),
+                active_from: с,
                 created_by: window.currentUser?.id || null });
 
         const { data, error } = await запрос.select('id');
@@ -498,6 +511,11 @@ const WorshipPeople = (() => {
 
         $('#добавлениеМодал').close();
         await перечитать();
+        // сразу в карточку: следующий шаг — отметить, к каким службам допущен
+        if (data[0]?.id) {
+            await открыть(data[0].id);
+            Layout.showNotification('Добавлен. Отметьте, к каким службам допущен', 'success');
+        }
     }
 
     async function перечитать() {
@@ -552,6 +570,7 @@ const WorshipPeople = (() => {
             if (b.id === 'добавить') {
                 $('#дПоиск').value = '';
                 новыйВид = 'team';
+                $('#дСрокС').value = DateUtils.todayAshramISO();
                 $('#дСрокПо').value = '';
                 $('#дБессрочно').checked = false;
                 рисоватьНовыйВид();
