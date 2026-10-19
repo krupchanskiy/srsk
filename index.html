@@ -296,7 +296,7 @@
     <script src="js/utils.js?v=20"></script>
     <script src="js/translit.js"></script>
     <script src="js/auto-translate.js"></script>
-    <script src="js/layout.js?v=121"></script>
+    <script src="js/layout.js?v=122"></script>
     <script>
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
@@ -393,8 +393,8 @@
             показать('departmentsModule', ['fin_admin', 'fin_observer', 'fin_dept_viewer']
                 .some(п => window.hasPermission?.(п)));
 
-            // Показать модуль "Управление" только суперпользователям
-            if (window.currentUser?.is_superuser) {
+            // Показать модуль "Управление" суперпользователям и наблюдателям (ретриты, праздники — мигр. 722)
+            if (window.currentUser?.is_superuser || window.hasPermission?.('view_retreats')) {
                 document.getElementById('adminModule')?.classList.remove('hidden');
             }
 

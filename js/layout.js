@@ -476,7 +476,7 @@ const navTitle = item => item.icon ? ` title="${t('nav_' + item.id)}"` : '';
 function getFirstAccessibleModule() {
     const order = ['kitchen', 'housing', 'crm', 'finance', 'shop', 'worship', 'departments', 'photos', 'portal', 'admin'];
     for (const id of order) {
-        if (id === 'admin' && !window.currentUser?.is_superuser) continue;
+        // «Управление» — суперпользователю целиком, наблюдателю — то, что ему видно (ретриты, праздники)
         const config = filterMenuByPermissions(modules[id]?.menuConfig || []);
         if (config.some(s => s.items.length > 0)) return id;
     }
@@ -1013,8 +1013,8 @@ function buildLocationOptions() {
             el.appendChild(portalBtn);
         }
 
-        // Кнопка "Управление" — только для суперпользователей
-        if (window.currentUser?.is_superuser) {
+        // Кнопка "Управление" — суперпользователям и тем, кому видна хоть одна его страница (наблюдатель, мигр. 722)
+        if (window.currentUser?.is_superuser || filterMenuByPermissions(modules.admin.menuConfig).length) {
             const adminBtn = document.createElement('button');
             adminBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
             if (isAdmin) {
