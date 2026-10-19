@@ -100,6 +100,16 @@
                     </div>
                 </div>
 
+                <!-- старшему — открытые замечания отдела: раньше они жили только
+                     внизу каждого стандарта, и о них узнавали случайно -->
+                <div class="card bg-base-100 shadow mb-5" id="отделЗамечанияКарта" hidden>
+                    <div class="card-body p-6">
+                        <h2 class="card-title text-lg mb-1">Замечания отдела · <span id="отделЗамечанийСколько">0</span></h2>
+                        <p class="text-sm opacity-60 mb-2">Неточности в стандартах, которые ещё никто не разобрал.</p>
+                        <ul class="list-none m-0 p-0" id="отделЗамечания"></ul>
+                    </div>
+                </div>
+
                 <!-- лента: что поменялось в том, по чему служат -->
                 <div class="card bg-base-100 shadow">
                     <div class="card-body p-6">
@@ -115,6 +125,16 @@
                         <h2 class="card-title text-lg mb-1" data-i18n="worship_drafts_title">Черновики отдела</h2>
                         <p class="text-sm opacity-60 mb-2" data-i18n="worship_drafts_hint">Начатое и недописанное.</p>
                         <ul class="list-none m-0 p-0" id="drafts"></ul>
+                    </div>
+                </div>
+
+                <!-- свои замечания и их судьба: раньше после «Отправлено»
+                     замечание пропадало из виду, и ответа ждать было негде -->
+                <div class="card bg-base-100 shadow mt-5" id="моиЗамечанияКарта" hidden>
+                    <div class="card-body p-6">
+                        <h2 class="card-title text-lg mb-1">Ваши замечания</h2>
+                        <p class="text-sm opacity-60 mb-2">Что вы заметили в стандартах и что с этим сделали.</p>
+                        <ul class="list-none m-0 p-0" id="моиЗамечания"></ul>
                     </div>
                 </div>
             </div>
@@ -198,7 +218,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-home.js?v=25"></script>
+    <script src="../js/pages/worship-home.js?v=27"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });

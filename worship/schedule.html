@@ -56,6 +56,8 @@
             .клетка.своя { background: #fff !important; }
             #итогДней td { font-size: 10px; }
             tr, .клетка { break-inside: avoid; }
+            /* лист на стене — служба, время, кто; служебное старшего на бумаге не нужно */
+            #итогДней, .клетка .text-error { display: none !important; }
         }
         /* Шахматку читают взглядом по диагонали: «где закрыто, где дыры».
            Состояние несёт заливка самой клетки — рамки вокруг имён добавляли
@@ -185,7 +187,7 @@
             <a role="tab" class="tab tab-active whitespace-nowrap" href="schedule.html"
                data-i18n="worship_schedule_title">Расписание</a>
             <a role="tab" class="tab whitespace-nowrap" href="people.html" data-i18n="worship_people_title">Люди отдела</a>
-            <a role="tab" class="tab whitespace-nowrap" href="load.html" data-i18n="worship_load_title">Загрузка</a>
+            <a role="tab" class="tab whitespace-nowrap" href="load.html" data-permission="worship_write" data-i18n="worship_load_title">Загрузка</a>
         </div>
 
         <div id="старшийОтъезд" hidden class="alert alert-warning mb-4 text-sm no-print"></div>
@@ -462,7 +464,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-schedule.js?v=39"></script>
+    <script src="../js/pages/worship-schedule.js?v=40"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

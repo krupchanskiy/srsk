@@ -400,7 +400,7 @@ const WorshipSchedule = (() => {
                             ? `<button class="btn btn-ghost btn-xs no-print px-1" data-снять="${н.id}"
                                        title="Снять">✕</button>` : ''}
                     </div>`).join('')}
-                ${повисшие.length
+                ${повисшие.length && можноВести()
                     ? '<span class="block text-error font-semibold">их надо снять или предупредить</span>' : ''}</td>`;
         }
 
@@ -485,6 +485,8 @@ const WorshipSchedule = (() => {
             return;
         }
 
+        // итог по дням — работа ведущего; читателю строка ни о чём не говорит
+        $('#итогДней').hidden = !можноВести();
         $('#итогДней').innerHTML = `<tr>
             <td class="text-xs font-semibold">Закрыто за день</td>
             ${список.map(д => {

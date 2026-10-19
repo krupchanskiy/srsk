@@ -56,6 +56,9 @@ const WorshipKits = (() => {
 
     function рисовать() {
         const тело = $('#list');
+        // пустую подборку читателю не показываем: «пока пусто, её собирает
+        // старший» только мешало найти ту, что уже можно читать
+        if (!можноПисать()) подборки = подборки.filter(п => пунктов[п.id]);
         if (!подборки.length) {
             тело.innerHTML = `
                 <div class="card bg-base-100 shadow"><div class="card-body items-start">

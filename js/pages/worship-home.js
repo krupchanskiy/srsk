@@ -184,11 +184,20 @@ const WorshipHome = (() => {
     async function подборки() {
         // берём на одну больше, чем показываем: так видно, что список
         // не кончился, даже если точный счёт не пришёл
-        const { data, count } = await Layout.db.from('worship_kits')
+        const { data: все, count } = await Layout.db.from('worship_kits')
             .select('id, title', { count: 'exact' })
             .eq('is_active', true).order('title').limit(ПОКАЗЫВАЕМ + 1);
-        if (!data?.length) return;
-        const всего = count ?? data.length;
+        if (!все?.length) return;
+        let data = все, всего = count ?? все.length;
+        // пустая подборка читателю ни к чему — её ещё собирают
+        if (!можноПисать()) {
+            const { data: пункты } = await Layout.db.from('worship_kit_items')
+                .select('kit_id, article_id, album_id').in('kit_id', все.map(п => п.id));
+            const непустые = new Set((пункты || []).filter(п => п.article_id || п.album_id).map(п => п.kit_id));
+            data = все.filter(п => непустые.has(п.id));
+            всего = data.length;
+            if (!data.length) return;
+        }
 
         // описание подборки в сводке не нужно: сюда заходят по названию,
         // а подробности ждут на самой странице подборки
@@ -422,6 +431,51 @@ const WorshipHome = (() => {
             </li>`).join('');
     }
 
+    /**
+     * Замечания: свои — каждому (и чем кончились), открытые отдела — старшему.
+     * RLS отдаёт пишущим все замечания, остальным — только свои.
+     */
+    async function замечания() {
+        const я = window.currentUser?.id;
+        const { data, error } = await Layout.db.from('worship_remarks')
+            .select('id, article_id, body, state, created_at, created_by, close_reason, closed_at')
+            .order('created_at', { ascending: false }).limit(60);
+        if (error || !data?.length) return;
+        await основа;
+        const заголовок = id => статьи.find(с => с.id === id)?.title || 'Стандарт';
+        const свои = data.filter(з => з.created_by === я)
+            // открытые и разобранные за последний месяц: старое уже не нужно
+            .filter(з => з.state === 'open' || (з.closed_at && Date.now() - new Date(з.closed_at) < 30 * 864e5))
+            .slice(0, 5);
+        const открытыеОтдела = можноУтверждать() ? data.filter(з => з.state === 'open') : [];
+        const имена = await именаЛюдей(открытыеОтдела.map(з => з.created_by));
+
+        const судьба = з => з.state === 'accepted'
+            ? `<span class="text-success font-semibold">учтено</span>`
+            : з.state === 'declined' ? '<span class="font-semibold">не согласились</span>'
+            : '<span class="opacity-70">ждёт ответа</span>';
+        if (свои.length) {
+            $('#моиЗамечанияКарта').hidden = false;
+            $('#моиЗамечания').innerHTML = свои.map(з => `
+                <li class="border-b border-base-200 last:border-0 py-2">
+                    <a class="link link-hover font-semibold" href="article.html?id=${з.article_id}">${e(заголовок(з.article_id))}</a>
+                    <div class="text-sm mt-0.5">${e(з.body)}</div>
+                    <div class="text-sm mt-0.5">${судьба(з)}${з.close_reason
+                        ? ` <span class="opacity-80">— «${e(з.close_reason)}»</span>` : ''}</div>
+                </li>`).join('');
+        }
+        if (открытыеОтдела.length) {
+            $('#отделЗамечанияКарта').hidden = false;
+            $('#отделЗамечанийСколько').textContent = открытыеОтдела.length;
+            $('#отделЗамечания').innerHTML = открытыеОтдела.slice(0, 6).map(з => `
+                <li class="border-b border-base-200 last:border-0 py-2">
+                    <a class="link link-hover font-semibold" href="article.html?id=${з.article_id}">${e(заголовок(з.article_id))}</a>
+                    <div class="text-sm mt-0.5">${e(з.body)}</div>
+                    <div class="text-sm opacity-60 mt-0.5">${[имена[з.created_by], дата(з.created_at)].filter(Boolean).map(e).join(' · ')}</div>
+                </li>`).join('');
+        }
+    }
+
     async function личное() {
         const { data, error } = await Layout.db.from('worship_bookmarks')
             .select('kind, article_id, created_at').order('created_at', { ascending: false });
@@ -496,7 +550,7 @@ const WorshipHome = (() => {
             рисоватьРазделы();
         })();
         await Promise.all([основа, лента(), черновики(), очередь(), личное(), подборки(),
-                           моиСлужбы(), деньСегодня(), пустыеЗавтра()]);
+                           моиСлужбы(), деньСегодня(), пустыеЗавтра(), замечания()]);
     }
 
     return { init };
