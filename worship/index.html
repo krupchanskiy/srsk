@@ -65,6 +65,19 @@
         <p class="text-sm opacity-70 -mt-4 mb-5">Непонятное слово?
             <button type="button" class="link" id="словарик">Словарик алтарной</button></p>
 
+        <!-- телеграм: без привязки к боту личные напоминания уходят в пустоту.
+             Карточка видна только участнику отдела, пока он не подключится -->
+        <section id="телеграмКарта" hidden class="mb-5 rounded-xl border border-base-300 bg-base-100 p-4
+                 flex flex-wrap items-center gap-x-4 gap-y-3">
+            <div class="flex-1 min-w-[16rem]">
+                <h2 class="text-lg font-bold mb-1">Напоминания в Телеграме</h2>
+                <p class="text-sm opacity-70" id="телеграмТекст">Накануне вечером пришлём, какие у вас
+                    завтра службы, а если старший поменяет расписание — сразу скажем.</p>
+            </div>
+            <a class="btn btn-sm" id="телеграмКнопка" target="_blank" rel="noopener"
+               style="background: var(--current-color); color:#fff;">Подключить Телеграм</a>
+        </section>
+
         <!-- ждут решения: единственное место, где работа ждёт конкретного
              человека. Свёрнуто: счётчик говорит всё, а развёрнутая стопка
              отодвигала главный вопрос дня — «что сейчас» — под сгиб -->
@@ -240,7 +253,7 @@
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
     <script src="../js/worship-glossary.js?v=1"></script>
-    <script src="../js/pages/worship-home.js?v=31"></script>
+    <script src="../js/pages/worship-home.js?v=32"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });

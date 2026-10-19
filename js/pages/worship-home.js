@@ -552,6 +552,36 @@ const WorshipHome = (() => {
         $('#sectionsCard').hidden = false;
     }
 
+    /**
+     * Подключение телеграма. Ссылку с ключом готовим заранее и ставим в
+     * обычную <a>: окно, открытое после ожидания ответа базы, телефон
+     * блокирует как всплывающее. Вернулся из телеграма — проверяем снова.
+     */
+    async function телеграм(повтор = false) {
+        const карта = $('#телеграмКарта');
+        const { data } = await Layout.db.rpc('worship_my_telegram');
+        if (!data?.в_отделе) return;
+        if (data.подключён) {
+            if (повтор && !карта.hidden) {
+                $('#телеграмТекст').textContent = 'Подключено. Напоминания будут приходить от бота @SRSKteambot.';
+                $('#телеграмКнопка').hidden = true;
+            }
+            return;
+        }
+        const я = window.currentUser?.vaishnava_id;
+        if (!я || повтор) return;
+        const { data: ключ, error } = await Layout.db.rpc('tg_gen_link_token', { p_vaishnava: я });
+        if (error || !ключ) return;
+        $('#телеграмКнопка').href = `https://t.me/SRSKteambot?start=${ключ}`;
+        $('#телеграмКнопка').addEventListener('click', () => {
+            $('#телеграмТекст').textContent = 'В Телеграме нажмите «Запустить» (Start) и вернитесь сюда.';
+        });
+        карта.hidden = false;
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') телеграм(true);
+        });
+    }
+
     async function init() {
         помнитьГруппы();
         $('#словарик')?.addEventListener('click', () => window.WorshipGlossary?.окно());
@@ -591,7 +621,8 @@ const WorshipHome = (() => {
             рисоватьРазделы();
         })();
         await Promise.all([основа, лента(), черновики(), очередь(), личное(), подборки(),
-                           моиСлужбы(), деньСегодня(), пустыеЗавтра(), замечания(), мнеВыдали()]);
+                           моиСлужбы(), деньСегодня(), пустыеЗавтра(), замечания(), мнеВыдали(),
+                           телеграм()]);
     }
 
     return { init };

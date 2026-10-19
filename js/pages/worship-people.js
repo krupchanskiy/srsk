@@ -103,6 +103,8 @@ const WorshipPeople = (() => {
                             ? `<span class="badge badge-sm whitespace-nowrap ml-1">уезжает ${
                                 DateUtils.formatShort(DateUtils.parseDate(отъезд.date_from))}</span>`
                             : ''}
+                    ${ч.is_active && ч.безБота && можноВести()
+                        ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1" title="Напоминания в Телеграм не дойдут">без Телеграма</span>' : ''}
                     ${ч.безВхода
                         ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">нет входа</span>' : ''}
                     ${срокСловами(ч) ? `<span class="block text-sm opacity-70">${срокСловами(ч)}</span>` : ''}
@@ -184,7 +186,7 @@ const WorshipPeople = (() => {
             открытый.active_from ? `с ${DateUtils.formatShort(DateUtils.parseDate(открытый.active_from))}` : null,
             открытый.active_to ? `по ${DateUtils.formatShort(DateUtils.parseDate(открытый.active_to))}` : null,
             открытый.безВхода ? 'входа в систему нет — о переменах скажите голосом' : null,
-            открытый.безБота ? 'бот не подключён — напоминание не дойдёт' : null,
+            открытый.безБота ? 'Телеграм не подключён — напоминания не дойдут. Подключается кнопкой на главной «Поклонения»' : null,
             открытый.телефон || null,
         ].filter(Boolean).join(' · ');
 
@@ -442,7 +444,7 @@ const WorshipPeople = (() => {
         // свободный текст в фильтре PostgREST: запятая и скобка меняют условие
         const кав = '"' + `%${имя}%`.replace(/["\\]/g, '\\$&') + '"';
         const { data, error } = await Layout.db.from('vaishnavas')
-            .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
+            .select('id, spiritual_name, first_name, last_name, user_id')
             .or(`spiritual_name.ilike.${кав},first_name.ilike.${кав},last_name.ilike.${кав}`)
             .limit(20);
         if (моё !== поколениеПоиска) return;
@@ -463,8 +465,7 @@ const WorshipPeople = (() => {
                     <span class="font-semibold">${e(имя2)}</span>
                     ${!в.user_id
                         ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">нет входа</span>'
-                        : !в.telegram_chat_id
-                            ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">бот не подключён</span>' : ''}
+                        : ''}
                     ${в.spiritual_name && мирское
                         ? `<span class="block text-sm opacity-70">${e(мирское)}</span>` : ''}
                 </span>
