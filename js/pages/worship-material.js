@@ -17,6 +17,33 @@ const WorshipMaterial = (() => {
 
     const ПРЕДЕЛ_ФАЙЛА = 200 * 1024 * 1024;
 
+    // Тип по расширению. Браузеры называют его по-разному (fb2 — то пусто,
+    // то text/xml; djvu — как придётся), а хранилище принимает точный список.
+    // Поэтому знакомое расширение решает само, слова браузера — запасной путь
+    const ТИП_ПО_РАСШИРЕНИЮ = {
+        pdf: 'application/pdf', doc: 'application/msword',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        rtf: 'application/rtf', odt: 'application/vnd.oasis.opendocument.text',
+        xls: 'application/vnd.ms-excel',
+        xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ods: 'application/vnd.oasis.opendocument.spreadsheet', csv: 'text/csv',
+        ppt: 'application/vnd.ms-powerpoint',
+        pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        odp: 'application/vnd.oasis.opendocument.presentation',
+        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic',
+        gif: 'image/gif', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff', svg: 'image/svg+xml',
+        epub: 'application/epub+zip', fb2: 'application/x-fictionbook+xml',
+        mobi: 'application/x-mobipocket-ebook', azw: 'application/vnd.amazon.ebook',
+        azw3: 'application/vnd.amazon.ebook', djvu: 'image/vnd.djvu', djv: 'image/vnd.djvu',
+        mp3: 'audio/mpeg', m4a: 'audio/x-m4a', aac: 'audio/aac', ogg: 'audio/ogg', wav: 'audio/wav', heif: 'image/heif',
+        mp4: 'video/mp4', mov: 'video/quicktime',
+    };
+    const типФайла = ф => ТИП_ПО_РАСШИРЕНИЮ[(ф.name.split('.').pop() || '').toLowerCase()]
+        || ф.type || '';
+    // браузер их не показывает (а svg открывать в нём небезопасно: внутри
+    // бывает скрипт) — такие файлы скачиваются под своим именем
+    const СКАЧИВАТЬ = /msword|officedocument|opendocument|ms-excel|ms-powerpoint|rtf|csv|svg|tiff|bmp|epub|fictionbook|mobipocket|amazon|djvu/;
+
     let id = new URLSearchParams(location.search).get('id');
     let статья = null, версия = null, разделы = [], вложения = [];
     let грязно = false, сохраняется = false;
@@ -242,12 +269,8 @@ const WorshipMaterial = (() => {
             Layout.showNotification('Без названия материал не найти', 'warning');
             return $('#заголовок').focus(), null;
         }
-        // описание обязательно: это прямое требование ТЗ, и оно про то,
-        // чтобы через полгода библиотека оставалась читаемой
-        if (!описание) {
-            Layout.showNotification('Напишите одной фразой, о чём материал', 'warning');
-            return $('#описание').focus(), null;
-        }
+        // описание необязательно: материалу достаточно названия
+        // (решение Адриана 19.10.2026; в базе — миграция 275)
 
         сохраняется = true;
         состояние('сохраняю…');
@@ -317,20 +340,21 @@ const WorshipMaterial = (() => {
             const путь = `${window.currentUser?.id}/${crypto.randomUUID()}-${
                 файл.name.replace(/[^\w.-]+/g, '_')}`;
             const { error } = await Layout.db.storage.from('worship')
-                .upload(путь, файл, { contentType: файл.type || 'application/pdf' });
+                .upload(путь, файл, { contentType: типФайла(файл) || 'application/octet-stream' });
             if (error) {
                 // хранилище принимает конкретный список типов, и его отказ
                 // выглядит как «mime type … is not supported» — непонятно
                 if (/mime type/i.test(error.message || '')) {
                     throw new Error('такой тип файла библиотека не принимает: ' +
-                        'снимки, pdf, аудио и видео — да, остальное нет');
+                        'картинки, pdf, документы, таблицы и презентации (Word, Excel, PowerPoint), ' +
+                        'электронные книги (epub, fb2, mobi, djvu), аудио и видео — да, остальное нет');
                 }
                 throw new Error(error.message);
             }
 
             const { error: ош } = await Layout.db.from('worship_attachments').insert({
                 article_id: id, kind: 'file', storage_path: путь, name: файл.name,
-                mime: файл.type || null, size_bytes: файл.size,
+                mime: типФайла(файл) || null, size_bytes: файл.size,
                 sort_order: вложения.length, created_by: window.currentUser?.id || null,
             });
             if (ош) throw new Error(ош.message);
@@ -383,7 +407,8 @@ const WorshipMaterial = (() => {
 
         // бакет приватный: отдаём ссылку ограниченного срока
         const { data, error } = await Layout.db.storage.from('worship')
-            .createSignedUrl(в.storage_path, 300);
+            .createSignedUrl(в.storage_path, 300,
+                СКАЧИВАТЬ.test(в.mime || '') ? { download: в.name } : undefined);
         if (error) return Layout.handleError(error, 'Открытие файла');
         window.open(data.signedUrl, '_blank', 'noopener');
     }

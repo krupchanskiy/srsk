@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=25">
+    <link rel="stylesheet" href="../css/common.css?v=26">
     <style>
         .кусок { outline: none; min-height: 1.6em; line-height: 1.7; }
         .кусок:empty::before { content: attr(data-подсказка); opacity: .35; }
@@ -69,7 +69,7 @@
             <textarea id="описание" rows="2"
                       class="w-full bg-transparent border-0 px-0 mt-2 text-[17px] resize-none
                              focus:outline-none placeholder:opacity-40"
-                      placeholder="О чём это: чтобы через полгода было понятно, зачем этот файл"
+                      placeholder="О чём это — необязательно, но через полгода пригодится"
                       maxlength="500"></textarea>
 
             <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm">
@@ -182,22 +182,22 @@
     </div>
 
     <input type="file" id="файл" multiple hidden
-           accept="image/jpeg,image/png,image/webp,image/heic,application/pdf,audio/*,video/mp4,video/quicktime">
+           accept="image/*,.heic,.heif,application/pdf,audio/*,video/mp4,video/quicktime,.doc,.docx,.rtf,.odt,.xls,.xlsx,.ods,.csv,.ppt,.pptx,.odp,.epub,.fb2,.mobi,.azw,.azw3,.djvu,.djv">
 
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=20"></script>
-    <script src="../js/layout.js?v=118"></script>
+    <script src="../js/layout.js?v=119"></script>
     <script src="../js/date-utils.js?v=5"></script>
-    <script src="../js/auth-check.js?v=14"></script>
+    <script src="../js/auth-check.js?v=17"></script>
     <script src="../js/media.js?v=2"></script>
     <script src="../js/worship-links.js?v=1"></script>
     <script src="../js/worship-doc.js?v=7"></script>
     <script src="../js/worship-editor-doc.js?v=2"></script>
     <script src="../js/worship-tags.js?v=7"></script>
-    <script src="../js/pages/worship-material.js?v=14"></script>
+    <script src="../js/pages/worship-material.js?v=17"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_library' });

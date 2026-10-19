@@ -190,7 +190,9 @@ const WorshipHome = (() => {
      */
     async function деньСегодня(дата, завтрашний) {
         const сегодня = дата || DateUtils.todayAshramISO();
-        const [с, о, н] = await Promise.all([
+        // люди и отметки отъезда — в том же круге, что и расписание:
+        // вторым кругом они добавляли к главной ещё одну поездку до базы
+        const [с, о, н, весь, отм] = await Promise.all([
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, article_id')
                 .eq('is_active', true).order('time_of_day'),
@@ -198,6 +200,9 @@ const WorshipHome = (() => {
                 .select('id, service_id, title, time_of_day, reason').eq('duty_date', сегодня),
             Layout.db.from('worship_duties')
                 .select('id, service_id, override_id, person_id, role').eq('duty_date', сегодня),
+            Layout.db.rpc('worship_people_list'),
+            Layout.db.from('worship_absences')
+                .select('person_id, date_from, date_to').lte('date_from', сегодня),
         ]);
         if (с.error || о.error || н.error) return;      // расписание не повод ронять главную
         const службы = с.data || [], отклонения = о.data || [], назначения = н.data || [];
@@ -208,20 +213,10 @@ const WorshipHome = (() => {
         let придёт = () => true;
         const persons = [...new Set(назначения.map(д => д.person_id))];
         if (persons.length) {
-            const [{ data: люди }, { data: отметки }] = await Promise.all([
-                Layout.db.from('worship_people')
-                    .select('id, vaishnava_id, is_active, active_from, active_to').in('id', persons),
-                Layout.db.from('worship_absences')
-                    .select('person_id, date_from, date_to').in('person_id', persons).lte('date_from', сегодня),
-            ]);
-            const карточки = (люди || []).map(ч => ч.vaishnava_id);
-            const { data: в } = карточки.length
-                ? await Layout.db.from('vaishnavas')
-                    .select('id, spiritual_name, first_name, last_name').in('id', карточки)
-                : { data: [] };
-            const по = Object.fromEntries((в || []).map(x => [x.id,
-                x.spiritual_name || `${x.first_name || ''} ${x.last_name || ''}`.trim() || 'без имени']));
-            имена = Object.fromEntries((люди || []).map(ч => [ч.id, по[ч.vaishnava_id]]));
+            const весьОтдел = весь.data, отметки = отм.data;
+            const нужные = new Set(persons);
+            const люди = (весьОтдел || []).filter(ч => нужные.has(ч.id));
+            имена = Object.fromEntries(люди.map(ч => [ч.id, ч.name]));
             // те же правила, что в шахматке: заболевший, выбывший или волонтёр
             // с истёкшим сроком службу не закрывает — и здесь не должен
             // выглядеть тем, кто к ней встанет
@@ -268,7 +263,8 @@ const WorshipHome = (() => {
             <li class="flex items-baseline gap-3 border-b border-base-200 last:border-0 py-2 ${
                 прошла ? 'opacity-50' : ''} ${с2 === следующая ? 'font-semibold' : ''}">
                 <span class="w-12 shrink-0 tabular-nums ${
-                    с2 === следующая ? '' : 'opacity-70'}">${e((с2.время || '').slice(0, 5))}</span>
+                    // у прошедшей строка уже приглушена — второй слой делал время нечитаемым
+                    с2 === следующая || прошла ? '' : 'opacity-70'}">${e((с2.время || '').slice(0, 5))}</span>
                 <span class="flex-1 min-w-0">
                     ${с2.article_id
                         ? `<a class="link link-hover" href="article.html?id=${с2.article_id}">${e(с2.имя)}</a>`
@@ -278,7 +274,7 @@ const WorshipHome = (() => {
                         ? '<span class="badge badge-sm ml-1" style="background: var(--current-color); color:#fff; border:0;">следующая</span>'
                         : ''}
                     ${с2.кто.length
-                        ? `<span class="block text-sm opacity-70">${
+                        ? `<span class="block text-sm ${прошла ? "" : "opacity-70"}">${
                             с2.кто.map(д => придёт(д)
                                 ? e(имена[д.person_id] || 'кто-то')
                                 : `<s>${e(имена[д.person_id] || 'кто-то')}</s>`).join(', ')}</span>`

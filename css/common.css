@@ -322,6 +322,12 @@ main .tabs-boxed .tab {
     height: auto !important;
     min-height: 2.25rem !important;
 }
+/* Шапка раздела (стандарты, библиотека, группы на главной «Поклонения»):
+   плашка цвета модуля. При 9% она почти сливалась с серым фоном страницы —
+   заголовок не отделялся от содержимого. */
+.шапкаРаздела { background: color-mix(in srgb, var(--current-color) 15%, white); }
+.подШапкойРаздела { border-top: 1px solid color-mix(in srgb, var(--current-color) 30%, white); }
+
 /* Мелкие значки-кнопки (✕ у тега, стрелки порядка) под мышь хороши,
    а пальцу нужно хотя бы 36px: на телефоне вместо ✕ попадали в сам тег */
 @media (pointer: coarse) {

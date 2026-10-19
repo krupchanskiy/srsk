@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=25">
+    <link rel="stylesheet" href="../css/common.css?v=26">
     <style>
         /* Неделю печатают и вешают в пуджарской: альбомный A4, без ручек. */
         /* Лист вешают в пуджарской: нужна вся неделя на одной странице,
@@ -286,7 +286,9 @@
 
     <!-- службы ведёт старший: название, время, порядок, стандарт -->
     <dialog id="службыМодал" class="modal">
-        <div class="modal-box max-w-2xl">
+        <!-- шире прочих окон: в строке службы название, время, длительность,
+             стандарт и кнопки порядка — в 2xl и 3xl кнопки съезжали на вторую строку -->
+        <div class="modal-box max-w-4xl">
             <h3 class="font-bold text-lg mb-1" data-i18n="worship_services_title">Службы</h3>
             <p class="text-sm opacity-60 mb-4" data-i18n="worship_services_hint">Службы идут каждый
                 день одним порядком — меняются люди. Пришла зима, сдвинули время: правится здесь.</p>
@@ -299,6 +301,11 @@
                 <label class="form-control">
                     <span class="label-text text-xs mb-1">Время</span>
                     <input id="сВремя" type="time" class="input input-bordered input-sm w-32">
+                </label>
+                <label class="form-control">
+                    <span class="label-text text-xs mb-1">Длится, мин</span>
+                    <input id="сДлительность" type="number" min="5" max="720" step="5"
+                           class="input input-bordered input-sm w-24 tabular-nums" placeholder="60">
                 </label>
                 <button class="btn btn-sm" id="сДобавить"
                         style="background: var(--current-color); color:#fff;">Добавить</button>
@@ -327,6 +334,11 @@
                 <label class="form-control mb-3">
                     <span class="label-text mb-1">Время</span>
                     <input id="оВремя" type="time" class="input input-bordered w-40">
+                </label>
+                <label class="form-control mb-3">
+                    <span class="label-text mb-1">Длится, минут</span>
+                    <input id="оДлительность" type="number" min="5" max="720" step="5"
+                           class="input input-bordered w-40 tabular-nums" placeholder="необязательно">
                 </label>
             </div>
             <label class="form-control mb-3" id="оСлужбаБлок" hidden>
@@ -432,10 +444,10 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=20"></script>
-    <script src="../js/layout.js?v=118"></script>
+    <script src="../js/layout.js?v=119"></script>
     <script src="../js/date-utils.js?v=5"></script>
-    <script src="../js/auth-check.js?v=14"></script>
-    <script src="../js/pages/worship-schedule.js?v=35"></script>
+    <script src="../js/auth-check.js?v=17"></script>
+    <script src="../js/pages/worship-schedule.js?v=37"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
