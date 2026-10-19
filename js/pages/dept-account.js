@@ -437,53 +437,62 @@ function bucketList(from, to) {
 
 // Аналитика — результат департамента (ВГ 19.10): сколько заработал и сколько потратил за каждый
 // месяц / квартал / год и что в итоге. Выдачи на подотчёт — не доход, их здесь нет (они в «Подотчёте»).
-// Выручка — приходы по статьям департамента с любого счёта; расходы — траты с его счетов и траты других
-// департаментов по его объектам (изготовление мурти Мастерской — в аналитике Магазина, мигр. 715).
-// Все валюты вместе, в рупиях по курсу дня операции (amount_base); сторно не учитывается.
-let allOwn = [];       // проводки всех собственных счетов департамента (без временной кассы)
+// Данные — fin_department_analytics (мигр. 718), правила на сервере:
+//   выручка — статьи департамента и статьи его производственных линий (у Мастерской — «Мурти»);
+//   расходы — траты с его счетов (без временной кассы); у продавца — ещё себестоимость линии
+//   у производителя (мурти Мастерской — и в Магазине, одни и те же цифры);
+//   траты на ретриты — затраты ретрита, в итог не входят, показаны отдельно (ВГ 19.10).
+// Все валюты вместе, в рупиях по курсу дня операции; сторно не учитывается.
+let anRows = [];
 // рупии со знаком операции: в ленте amount_base всегда положительный, знак — у signed_amount
 const baseSigned = r => Math.sign(Number(r.signed_amount)) * Math.abs(Number(r.amount_base));
-let costExtra = [];    // траты других департаментов по объектам этого (fin_department_cost_extra)
 
 function analyticsData() {
     const today = DateUtils.toISO(new Date());
-    const rev = incomeRows.filter(r => !isStorno(r));
-    const own = allOwn.filter(r => !isStorno(r) && r.type !== 'transfer' && Number(r.signed_amount) < 0);
-    const extra = costExtra.filter(r => !isStorno(r) && Number(r.signed_amount) < 0);
-    const dates = [...rev, ...own, ...extra].map(r => r.occurred_on).sort();
+    const live = anRows.filter(r => !isStorno(r));
+    const rev = live.filter(r => r.kind === 'revenue');
+    const cost = live.filter(r => r.kind === 'cost');
+    const dates = [...rev, ...cost].map(r => r.occurred_on).sort();
     const from = $('daccFrom').value || dates[0] || today;
     let to = $('daccTo').value || dates[dates.length - 1] || today;
     if (to > today && from <= today) to = today;   // будущие месяцы года — без пустых столбцов
+    const inP = r => r.occurred_on >= from && r.occurred_on <= to;
     const buckets = bucketList(from, to);
     const idx = new Map(buckets.map((b, i) => [b, i]));
     const side = (list, keyOf, value) => {
         const groups = new Map();
         const totals = buckets.map(() => 0);
         for (const r of list) {
-            if (r.occurred_on < from || r.occurred_on > to) continue;
+            if (!inP(r)) continue;
             const i = idx.get(bucketOf(r.occurred_on));
             if (i === undefined) continue;
             const gr = keyOf(r);
-            const g = groups.get(gr.key) || groups.set(gr.key, { ...gr, cells: buckets.map(() => 0), sum: 0, cur: new Map(), rows: [] }).get(gr.key);
+            const g = groups.get(gr.key) || groups.set(gr.key, { ...gr, cells: buckets.map(() => 0), sum: 0, rows: [] }).get(gr.key);
             g.rows.push(r);
             const v = value(r);
             g.cells[i] += v; g.sum += v; totals[i] += v;
-            g.cur.set(r.currency_code, (g.cur.get(r.currency_code) || 0) + Math.abs(Number(r.signed_amount)));
         }
         return { groups: [...groups.values()].sort((a, b) => b.sum - a.sum), totals, sum: totals.reduce((a, b) => a + b, 0) };
     };
-    const revenue = side(rev, r => ({ key: `r:${r.category_id}`, label: r.category_name, pick: { rev: r.category_id } }), r => baseSigned(r));
-    const costs = side([...own.map(r => ({ ...r, src: null })), ...extra.map(r => ({ ...r, src: r.source_department || r.account_name }))],
-        r => r.src
-            ? { key: `x:${r.category_id}:${r.src}`, label: r.category_name, src: r.src, obj: r.object_name, pick: null }
-            : { key: `c:${r.category_id}`, label: r.category_name, pick: { cat: r.category_id } },
+    const revenue = side(rev, r => ({ key: `r:${r.category_id}`, label: r.category_name, line: r.line, pick: { rev: r.category_id } }), r => baseSigned(r));
+    const costs = side(cost,
+        r => r.source
+            ? { key: `x:${r.category_id}:${r.source}`, label: r.category_name, src: r.source, line: r.line }
+            : { key: `c:${r.category_id}`, label: r.category_name, line: r.line, pick: { cat: r.category_id } },
         r => -baseSigned(r));
+    const retreat = side(live.filter(r => r.kind === 'retreat'), r => ({ key: `t:${r.object_name}`, label: r.object_name }), r => -baseSigned(r));
     const result = buckets.map((_, i) => revenue.totals[i] - costs.totals[i]);
     // выручка по валютам за период — какие деньги на самом деле пришли
     const revCur = new Map();
-    rev.filter(r => r.occurred_on >= from && r.occurred_on <= to)
-        .forEach(r => revCur.set(r.currency_code, (revCur.get(r.currency_code) || 0) + Number(r.signed_amount)));
-    return { buckets, from, to, revenue, costs, result, revCur };
+    rev.filter(inP).forEach(r => revCur.set(r.currency_code, (revCur.get(r.currency_code) || 0) + Number(r.signed_amount)));
+    // направления (производственные линии): выручка − себестоимость; без линии — «Остальное»
+    const lineNames = [...new Set([...revenue.groups, ...costs.groups].map(g => g.line).filter(Boolean))];
+    const lines = lineNames.length ? [...lineNames, null].map(name => {
+        const rg = revenue.groups.filter(g => (g.line || null) === name), cg = costs.groups.filter(g => (g.line || null) === name);
+        const r = rg.reduce((x, g) => x + g.sum, 0), c = cg.reduce((x, g) => x + g.sum, 0);
+        return { name, key: `l:${name || ''}`, rev: r, cost: c, res: r - c, rg, cg };
+    }).filter(l => l.rev || l.cost) : [];
+    return { buckets, from, to, revenue, costs, retreat, result, revCur, lines };
 }
 
 // Как «Себестоимость» на кухне (ВГ 19.10): сверху всегда главные цифры, ниже разделы —
@@ -556,9 +565,35 @@ function renderAnalytics() {
                 <div class="text-xs uppercase tracking-wide opacity-60">${e(title)}</div>
                 <div class="font-mono font-semibold ${textCls}">${inr(s.sum)}</div>
             </div>${lines(s.groups, s.sum, color)}</div>`;
+        // по направлениям: продукт — выручка − себестоимость = итог; нажатие раскрывает его статьи
+        const linesCard = d.lines.length ? `<div class="bg-base-100 rounded-xl shadow-sm p-3 md:col-span-2">
+            <div class="text-xs uppercase tracking-wide opacity-60 px-2 mb-1">${e(tr('dacc_an_lines', 'По направлениям'))}</div>
+            ${d.lines.map(l => {
+                const open = anOpen.has(l.key);
+                return `<div class="px-2 py-1.5 rounded-lg cursor-pointer hover:bg-base-200 ${open ? 'bg-base-200' : ''}" data-dacc-an-open="${e(l.key)}">
+                    <div class="flex flex-wrap items-baseline gap-2 text-sm">
+                        <span class="opacity-50 w-3">${open ? '▾' : '▸'}</span>
+                        <span class="flex-1 font-semibold">${e(l.name || tr('dacc_an_rest', 'Остальное'))}</span>
+                        <span class="font-mono text-blue-600">${inr(l.rev)}</span><span class="opacity-50">−</span>
+                        <span class="font-mono text-red-600">${inr(l.cost)}</span><span class="opacity-50">=</span>
+                        <span class="font-mono font-semibold ${l.res >= 0 ? 'text-green-600' : 'text-red-600'}">${sgn(l.res)}</span>
+                    </div></div>${open ? `<div class="ml-6 mb-2 text-sm">${[...l.rg.map(g => [g, 'text-blue-600']), ...l.cg.map(g => [g, 'text-red-600'])].map(([g, c]) => `
+                        <div class="flex items-baseline gap-2 py-0.5"><span class="flex-1">${e(g.label)}${g.src ? ` <span class="badge badge-ghost badge-xs">${e(g.src)}</span>` : ''}</span>
+                        <span class="font-mono ${c}">${inr(g.sum)}</span></div>`).join('')}</div>` : ''}`;
+            }).join('')}</div>` : '';
+        // траты на ретриты — затраты ретритов: видны, но в итог не входят
+        const rOpen = anOpen.has('retreats');
+        const retreatsCard = d.retreat.sum ? `<div class="bg-base-100 rounded-xl shadow-sm p-3 md:col-span-2 opacity-80">
+            <div class="px-2 py-1.5 rounded-lg cursor-pointer hover:bg-base-200" data-dacc-an-open="retreats">
+                <div class="flex items-baseline gap-2 text-sm"><span class="opacity-50 w-3">${rOpen ? '▾' : '▸'}</span>
+                <span class="flex-1">${e(tr('dacc_an_retreats', 'Траты на ретриты — затраты ретритов, в итог не входят'))}</span>
+                <span class="font-mono">${inr(d.retreat.sum)}</span></div></div>
+            ${rOpen ? lines(d.retreat.groups, d.retreat.sum, 'bg-base-300') : ''}</div>` : '';
         body = `<div class="grid md:grid-cols-2 gap-3">
+            ${linesCard}
             ${card(tr('dacc_an_rev_from', 'Выручка — откуда'), d.revenue, 'bg-blue-500', 'text-blue-600')}
             ${card(tr('dacc_an_costs_on', 'Расходы — на что'), d.costs, 'bg-red-500', 'text-red-600')}
+            ${retreatsCard}
         </div>`;
     } else if (anSection === 'table') {
         const fmt = v => v ? inr(v) : '<span class="opacity-30">—</span>';
@@ -806,12 +841,10 @@ async function init(options) {
     accounts = await loadAccounts();
     if (accounts === null) { $('daccNoAccess').classList.remove('hidden'); return; }
     $('daccContent').classList.remove('hidden');
-    const [inc, extra] = await Promise.all([loadIncome(),
-        Layout.db.rpc('fin_department_cost_extra', { p_department: cfg.department })]);
+    const [inc, an] = await Promise.all([loadIncome(),
+        Layout.db.rpc('fin_department_analytics', { p_department: cfg.department })]);
     incomeRows = inc;
-    costExtra = extra.error ? [] : (extra.data || []);
-    allOwn = (await Promise.all(accounts.filter(a => a.purpose === 'own').map(a => loadRows(a.account_id))))
-        .flat().filter(r => !r.is_transit);
+    anRows = an.error ? [] : (an.data || []);
     // вкладки видов: «Выручка» — если у департамента есть приходы по его статьям, «Касса ДДС» — если касса у него хранится
     const hasBox = accounts.some(a => a.purpose === 'cashbox');
     $('daccTabRevenue').classList.toggle('hidden', !incomeRows.length);
