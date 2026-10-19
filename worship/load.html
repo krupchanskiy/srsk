@@ -19,6 +19,43 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/common.css?v=26">
+    <style>
+        /* строка человека: имя | семь дней | итог недели. На телефоне
+           дни уходят под имя и растягиваются на всю ширину */
+        .строкаЗагрузки {
+            display: grid;
+            grid-template-columns: minmax(11rem, 1fr) repeat(7, 3rem) 7.5rem;
+            gap: .35rem .4rem; align-items: center;
+        }
+        .строкаЗагрузки .итог { text-align: right; }
+        @media (max-width: 720px) {
+            .строкаЗагрузки { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+            /* имя и итог — первой строкой, семь дней — второй */
+            .строкаЗагрузки .кто { grid-column: 1 / 6; grid-row: 1; }
+            .строкаЗагрузки .итог { grid-column: 6 / 8; grid-row: 1; }
+            .строкаЗагрузки .деньЯч, .строкаЗагрузки .шапкаДня { grid-row: 2; }
+        }
+        .деньЯч {
+            height: 2.4rem; border-radius: .5rem;
+            display: flex; align-items: center; justify-content: center;
+            font-size: .8rem; font-weight: 600; font-variant-numeric: tabular-nums;
+            background: oklch(var(--b2)); color: oklch(var(--bc) / .55);
+        }
+        .деньЯч.занят { color: oklch(var(--bc)); }
+        .деньЯч.светлый { color: #fff; }
+        .деньЯч.нет {
+            background: repeating-linear-gradient(135deg, oklch(var(--b2)) 0 5px, oklch(var(--b3)) 5px 7px);
+        }
+        .деньЯч.сегодня { outline: 2px solid var(--current-color); outline-offset: 1px; }
+        .шапкаДня { font-size: .75rem; text-align: center; line-height: 1.15; opacity: .7; }
+        .шапкаДня.сегодня { opacity: 1; font-weight: 700; color: var(--current-color-text, var(--current-color)); }
+        .метка { font-size: .75rem; font-weight: 600; border-radius: 999px; padding: .05rem .5rem; white-space: nowrap; }
+        .метка.перегружен { background: #fde4e1; color: #a1281b; }
+        .метка.недогружен, .метка.неСтавили { background: #fbefc9; color: #7a4f00; }
+        .метка.норма { background: oklch(var(--b2)); color: oklch(var(--bc) / .7); }
+        .метка.отъезд { background: oklch(var(--b2)); color: oklch(var(--bc) / .6); }
+        #загрузка[aria-busy="true"] { opacity: .5; transition: opacity .15s; }
+    </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -35,8 +72,9 @@
         <div class="flex flex-wrap items-end gap-3 mb-4">
             <div class="flex-1 min-w-full desktop:min-w-0">
                 <h1 class="text-3xl font-bold tracking-tight" data-i18n="worship_load_title">Загрузка</h1>
-                <p class="text-sm opacity-70 mt-1" data-i18n="worship_load_hint">Кто сколько несёт,
-                    кого ни разу не ставили и какая служба закрывается тяжелее прочих.</p>
+                <!-- без data-i18n: подпись описывает именно эту раскладку -->
+                <p class="text-sm opacity-70 mt-1">Кто сколько несёт по дням недели — в часах
+                    и службах. Мерило — норма отдела за день на месте: отъезд не делает человека отстающим.</p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <!-- команду и волонтёров смотрят порознь: спрос с них разный -->
@@ -45,41 +83,37 @@
                     <button class="btn btn-sm join-item" data-состав="team">Команда</button>
                     <button class="btn btn-sm join-item" data-состав="volunteer">Волонтёры</button>
                 </div>
-                <div class="join выбор">
-                    <button class="btn btn-sm join-item" data-период="неделя">Неделя</button>
-                    <button class="btn btn-sm join-item" data-период="месяц">Месяц</button>
-                    <button class="btn btn-sm join-item" data-период="вперёд">Впереди</button>
+                <!-- неделя листается: нагрузку распределяют и на следующую -->
+                <div class="join">
+                    <button class="btn btn-sm join-item" data-неделя="-1" aria-label="Предыдущая неделя">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+                    </button>
+                    <button class="btn btn-sm join-item tabular-nums min-w-36" data-неделя="0" id="подписьНедели"
+                            title="Вернуться к текущей неделе">—</button>
+                    <button class="btn btn-sm join-item" data-неделя="1" aria-label="Следующая неделя">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- четыре числа, с которых старший начинает разговор о нагрузке -->
-        <div class="grid gap-3 mb-5"
-             style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));" id="сводка"></div>
-
-        <!-- на что посмотреть: не цифры, а расхождения со здравым смыслом -->
-        <section id="находкиБлок" hidden
-                 class="rounded-xl border border-warning/40 bg-warning/10 p-4 mb-5">
-            <h2 class="надзаголовок mb-1">На что обратить внимание</h2>
-            <ul class="list-none m-0 p-0" id="находки"></ul>
-        </section>
-
-        <section class="mb-5">
-            <h2 class="надзаголовок mb-1.5">Кто сколько несёт</h2>
+        <section class="mb-6">
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-1.5">
+                <h2 class="надзаголовок">Кто сколько несёт</h2>
+                <span class="text-sm opacity-70" id="норма"></span>
+            </div>
+            <!-- служба без длительности в часы не попадает — говорим об этом
+                 прямо, иначе человек с такой службой выглядит бездельником -->
+            <p id="безДлительности" hidden class="text-sm mb-2 rounded-lg px-3 py-2 bg-warning/10 border border-warning/40"></p>
             <div class="card bg-base-100 shadow">
-                <div class="card-body p-5">
-                    <ul class="list-none m-0 p-0" id="люди"></ul>
-                </div>
+                <div class="card-body p-4 sm:p-5" id="загрузка" aria-live="polite"></div>
             </div>
         </section>
 
-        <section id="свободныеБлок" hidden class="mb-5">
-            <h2 class="надзаголовок mb-1.5">Ни разу не ставили</h2>
-            <div class="flex flex-wrap gap-2" id="свободные"></div>
-        </section>
-
         <section>
-            <h2 class="надзаголовок mb-1.5">Службы: где остаются дыры</h2>
+            <h2 class="надзаголовок mb-1.5">Службы недели: где остаются дыры</h2>
             <div class="card bg-base-100 shadow">
                 <div class="card-body p-5">
                     <ul class="list-none m-0 p-0" id="службы"></ul>
@@ -96,7 +130,7 @@
     <script src="../js/layout.js?v=119"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=15"></script>
-    <script src="../js/pages/worship-load.js?v=8"></script>
+    <script src="../js/pages/worship-load.js?v=9"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
