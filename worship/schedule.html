@@ -49,7 +49,6 @@
             .дыраКнопка { display: none !important; }
             /* «сегодня» на листе, который висит неделю, ничего не значит */
             .клетка.сегодня, th.сегодня, #итогДней td.сегодня {
-                border-left: 0 !important; border-right: 0 !important;
                 background-color: transparent;
             }
             th.сегодня { color: inherit !important; background: transparent !important; }
@@ -58,6 +57,24 @@
             tr, .клетка { break-inside: avoid; }
             /* лист на стене — служба, время, кто; служебное старшего на бумаге не нужно */
             #итогДней, .клетка .text-error { display: none !important; }
+
+            /* сетка: в чёрно-белой печати заливки сливаются, и без линий
+               не понять, чьё имя в какой клетке. Каждая клетка в рамке */
+            #шахматка, #шахматка .card-body { box-shadow: none !important; border-radius: 0 !important; }
+            /* на 2px уже листа: при ширине 100% правая линия ложилась на край и срезалась */
+            #шахматка table { border-collapse: collapse !important; border: 1.5px solid #000 !important;
+                             width: calc(100% - 3px) !important; }
+            #шахматка th, #шахматка td {
+                border: 1px solid #000 !important;
+                position: static !important;      /* закреплённая колонка экрана на бумаге не нужна */
+                background-color: #fff;
+                color: #000 !important;
+            }
+            #шахматка thead th { border-bottom-width: 1.5px !important; font-weight: 700; }
+            /* правый край таблицы не обрезаем: прокрутка нужна только экрану */
+            #шахматка .card-body { overflow: visible !important; }
+            /* «вы» и «нет допуска» — для экрана того, кто смотрит; на стене не нужны */
+            .служебная { display: none !important; }
         }
         /* Шахматку читают взглядом по диагонали: «где закрыто, где дыры».
            Состояние несёт заливка самой клетки — рамки вокруг имён добавляли
@@ -475,7 +492,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-schedule.js?v=44"></script>
+    <script src="../js/pages/worship-schedule.js?v=45"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

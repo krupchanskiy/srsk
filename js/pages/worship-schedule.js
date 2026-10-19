@@ -21,7 +21,7 @@ const WorshipSchedule = (() => {
         en: { pujari: 'you lead', kirtan: 'kirtan', helper: 'assistant' },
         hi: { pujari: 'आप मुख्य', kirtan: 'कीर्तन', helper: 'सहायक' } });
     // «вы» рядом со своим именем: бледной заливки клетки новичок не замечал
-    const ЗНАК_ВЫ = `<span class="badge badge-xs ml-0.5 border-0" style="background: var(--current-color); color:#fff;">${поЯзыку({ ru: 'вы', en: 'you', hi: 'आप' })}</span>`;
+    const ЗНАК_ВЫ = `<span class="badge badge-xs ml-0.5 border-0 служебная" style="background: var(--current-color); color:#fff;">${поЯзыку({ ru: 'вы', en: 'you', hi: 'आप' })}</span>`;
     const ДНИ = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
     // Расписание ведут вперёд, поэтому неделя считается от сегодняшнего дня,
@@ -532,7 +532,7 @@ const WorshipSchedule = (() => {
         // «нет допуска» — только у тех, кому допуски заданы: у кого их нет вовсе,
         // отметка горела бы в каждой клетке (так её и убирали). Видит ведущий
         if (можноВести() && служба && ч.допуск?.size && !ч.допуск.has(служба.id)) {
-            список.push(['нет допуска', 'badge-warning']);
+            список.push(['нет допуска', 'badge-warning служебная']);   // на печать не идёт
         }
 
         // «занят в это же время» — именно по времени, а не по дню: при четырёх
