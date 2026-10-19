@@ -261,6 +261,13 @@
             background: #ef4444;
             border-radius: 3px;
         }
+        /* причина раскрывается в список отказов с комментариями */
+        details.cancellation-group > summary { list-style: none; cursor: pointer; }
+        details.cancellation-group > summary::-webkit-details-marker { display: none; }
+        details.cancellation-group[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+        .cancellation-deals { background: rgba(0,0,0,0.015); border-radius: 0 0 10px 10px; }
+        .cancellation-deal { display: block; padding: .5rem .875rem; border-top: 1px solid rgba(0,0,0,0.05); }
+        .cancellation-deal:hover { background: rgba(0,0,0,0.03); }
     </style>
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
@@ -479,7 +486,7 @@
 <script src="../js/auth-check.js?v=17"></script>
 <script src="../js/cache.js?v=2"></script>
 <script src="../js/utils.js?v=20"></script>
-<script src="../js/layout.js?v=119"></script>
+<script src="../js/layout.js?v=120"></script>
 <script src="../js/date-utils.js?v=5"></script>
 <script src="../js/crm-utils.js?v=7"></script>
 
@@ -581,7 +588,8 @@ async function loadDeals(retreatId) {
             *,
             vaishnavas:vaishnava_id(spiritual_name, first_name, last_name, phone),
             manager:manager_id(id, spiritual_name, first_name, last_name),
-            cancellation_reason:cancellation_reason_id(code, name_ru, name_en)
+            cancellation_reason:cancellation_reason_id(code, name_ru, name_en),
+            retreat:retreat_id(name_ru, name_en, name_hi)
         `);
 
     if (retreatId) query = query.eq('retreat_id', retreatId);
@@ -836,31 +844,60 @@ function renderCancellations() {
         const name = reason ? Layout.getName(reason) : 'Не указана';
 
         if (!byReason[key]) {
-            byReason[key] = { name, count: 0 };
+            byReason[key] = { name, count: 0, сделки: [] };
         }
         byReason[key].count++;
+        byReason[key].сделки.push(deal);
     });
 
     const reasons = Object.values(byReason).sort((a, b) => b.count - a.count);
     const total = cancelled.length;
     const maxCount = Math.max(...reasons.map(r => r.count), 1);
 
+    // Каждая причина раскрывается в список отказов: кто, на какой ретрит,
+    // чей менеджер и что он написал. Отдельной страницы для отказов нет —
+    // смотреть комментарии по одной сделке было неудобно
+    const строкаСделки = d => {
+        const гость = d.vaishnavas ? CrmUtils.getGuestName(d.vaishnavas) : 'Без имени';
+        const подпись = [
+            !document.getElementById('filterRetreat').value && d.retreat ? Layout.getName(d.retreat) : null,
+            d.manager ? CrmUtils.getGuestName(d.manager) : null,
+        ].filter(Boolean).map(e).join(' · ');
+        return `
+            <a href="deal.html?id=${d.id}" class="cancellation-deal">
+                <div class="text-sm font-medium">${e(гость)}</div>
+                ${подпись ? `<div class="text-xs text-base-content/50">${подпись}</div>` : ''}
+                ${d.cancellation_note
+                    ? `<div class="text-sm mt-0.5 whitespace-pre-line">${e(d.cancellation_note)}</div>`
+                    : '<div class="text-xs text-base-content/40 mt-0.5">без комментария</div>'}
+            </a>`;
+    };
+
     container.innerHTML = reasons.map(r => {
         const percent = Math.round(r.count / total * 100);
         const width = r.count / maxCount * 100;
+        // с комментарием — выше: их и открывают читать
+        const сделки = [...r.сделки].sort((a, b) =>
+            Number(!a.cancellation_note) - Number(!b.cancellation_note)
+            || CrmUtils.getGuestName(a.vaishnavas || {}).localeCompare(CrmUtils.getGuestName(b.vaishnavas || {}), 'ru'));
         return `
-            <div class="cancellation-item">
-                <div class="flex-1">
-                    <div class="text-sm font-medium">${e(r.name)}</div>
-                    <div class="text-xs text-base-content/50">${r.count} шт.</div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="cancellation-bar">
-                        <div class="cancellation-bar-fill" style="width: ${width}%"></div>
+            <details class="cancellation-group">
+                <summary class="cancellation-item">
+                    <div class="flex-1">
+                        <div class="text-sm font-medium">${e(r.name)}</div>
+                        <div class="text-xs text-base-content/50">${r.count} шт.${
+                            r.сделки.some(d => d.cancellation_note)
+                                ? ` · с комментарием ${r.сделки.filter(d => d.cancellation_note).length}` : ''}</div>
                     </div>
-                    <span class="text-sm font-medium w-10 text-right">${percent}%</span>
-                </div>
-            </div>
+                    <div class="flex items-center gap-3">
+                        <div class="cancellation-bar">
+                            <div class="cancellation-bar-fill" style="width: ${width}%"></div>
+                        </div>
+                        <span class="text-sm font-medium w-10 text-right">${percent}%</span>
+                    </div>
+                </summary>
+                <div class="cancellation-deals">${сделки.map(строкаСделки).join('')}</div>
+            </details>
         `;
     }).join('');
 }

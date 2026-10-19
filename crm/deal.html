@@ -359,6 +359,15 @@
                         <button class="btn btn-sm btn-block btn-outline gap-2" onclick="openTemplatesModal()" id="templatesBtn" data-i18n="crm_message_templates">
                             Шаблоны сообщений
                         </button>
+                        <!-- причина и комментарий отказа: раньше записывались, но нигде
+                             не показывались; «Изменить» нужен и чтобы дописать причину
+                             старым отказам, отменённым до обязательной причины -->
+                        <div id="cancelInfo" hidden class="rounded-lg border border-error/30 bg-error/5 p-3 text-sm">
+                            <div class="font-semibold text-error mb-0.5">Причина отказа</div>
+                            <div id="cancelReasonText"></div>
+                            <div id="cancelNoteText" class="opacity-80 whitespace-pre-line mt-1"></div>
+                            <button class="btn btn-xs btn-ghost mt-2 px-1" onclick="editCancelReason()">Изменить причину</button>
+                        </div>
                         <button class="btn btn-sm btn-block btn-outline text-error gap-2" onclick="cancelDeal()" id="cancelBtn" data-i18n="crm_cancel_deal">
                             Отменить сделку
                         </button>
@@ -660,7 +669,7 @@
 <script src="../js/auth-check.js?v=17"></script>
 <script src="../js/cache.js?v=2"></script>
 <script src="../js/utils.js?v=20"></script>
-<script src="../js/layout.js?v=119"></script>
+<script src="../js/layout.js?v=120"></script>
 <script src="../js/date-utils.js?v=5"></script>
 <script src="../js/crm-utils.js?v=7"></script>
 <script src="../js/crm-cancel-reason.js?v=1"></script>
@@ -971,6 +980,7 @@ function renderSidebar() {
 
     // Скрыть кнопку отмены если уже отменено, показать удаление
     document.getElementById('cancelBtn').classList.toggle('hidden', deal.status === 'cancelled');
+    renderCancelInfo();
 
     // Кнопка доступа к порталу
     const accessBtn = document.getElementById('createAccessBtn');
@@ -1982,7 +1992,11 @@ async function changeStatus(newStatus) {
 
     deal.status = newStatus;
     Object.assign(deal, reason);
+    if (reason.cancellation_reason_id) {
+        deal.cancellation_reason = (CrmCancelReason._reasons || []).find(r => r.id === reason.cancellation_reason_id) || null;
+    }
     document.getElementById('cancelBtn').classList.toggle('hidden', newStatus === 'cancelled');
+    renderCancelInfo();
 
     // Обновляем плашку статуса
     const statusColor = CrmUtils.STATUS_COLORS[newStatus] || '#6b7280';
@@ -2123,6 +2137,30 @@ function copyAccessData(btn) {
             btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" /></svg> ' + t('copy');
         }, 2000);
     });
+}
+
+/** Причина и комментарий отказа — видны у отменённой сделки. */
+function renderCancelInfo() {
+    const box = document.getElementById('cancelInfo');
+    box.hidden = deal.status !== 'cancelled';
+    if (box.hidden) return;
+    const причина = deal.cancellation_reason;
+    document.getElementById('cancelReasonText').innerHTML = причина
+        ? e(Layout.getName(причина))
+        : '<span class="text-warning">не указана — отменено до того, как причину стали спрашивать</span>';
+    document.getElementById('cancelNoteText').textContent = deal.cancellation_note || '';
+}
+
+/** Поменять или дописать причину у уже отменённой сделки — стадия не меняется. */
+async function editCancelReason() {
+    const reason = await CrmCancelReason.ask();
+    if (!reason) return;
+    const { error } = await Layout.db.from('crm_deals').update(reason).eq('id', dealId);
+    if (error) return Layout.handleError(error, 'Причина отказа');
+    Object.assign(deal, reason);
+    deal.cancellation_reason = (CrmCancelReason._reasons || []).find(r => r.id === reason.cancellation_reason_id) || null;
+    renderCancelInfo();
+    Layout.showNotification('Причина отказа сохранена', 'success');
 }
 
 async function cancelDeal() {

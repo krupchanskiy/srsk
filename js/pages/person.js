@@ -206,7 +206,7 @@ async function loadRegistrations(personId) {
 // их итог: стадия, условия, деньги, отказ, ссылка на переписку
 async function loadPersonDeals(personId) {
     const { data } = await Layout.db.from('crm_deals')
-        .select('id, retreat_id, status, cancellation_reason, checklist_accommodation, checklist_meals, manager:manager_id(spiritual_name, first_name, last_name), retreats(id, name_ru, name_en, name_hi, start_date, end_date), crm_communications(count), promises:crm_communications(summary, due_date, created_at, type)')
+        .select('id, retreat_id, status, cancellation_reason, cancellation_note, reason:cancellation_reason_id(name_ru, name_en, name_hi), checklist_accommodation, checklist_meals, manager:manager_id(spiritual_name, first_name, last_name), retreats(id, name_ru, name_en, name_hi, start_date, end_date), crm_communications(count), promises:crm_communications(summary, due_date, created_at, type)')
         .eq('vaishnava_id', personId)
         .eq('promises.type', 'payment_promise')
         .order('created_at', { ascending: false });
@@ -241,7 +241,13 @@ function renderDealSummary(retreatId) {
 
         if (deal.status === 'cancelled') {
             const reasons = { changed_mind: 'передумал', financial: 'финансы', visa: 'виза', health: 'здоровье', rescheduled: 'перенёс', no_response: 'не отвечает', other: 'другое' };
-            rows.push(`<div><span class="opacity-60">Причина отказа:</span> ${deal.cancellation_reason ? (reasons[deal.cancellation_reason] || e(deal.cancellation_reason)) : '<span class="text-warning">не указана</span>'}</div>`);
+            // причина живёт в справочнике (cancellation_reason_id, мигр. 675);
+            // текстовое поле — от старых отказов, читаем его только как запасное
+            const причина = deal.reason ? e(Layout.getName(deal.reason))
+                : deal.cancellation_reason ? (reasons[deal.cancellation_reason] || e(deal.cancellation_reason))
+                : '<span class="text-warning">не указана</span>';
+            rows.push(`<div><span class="opacity-60">Причина отказа:</span> ${причина}${
+                deal.cancellation_note ? ` <span class="opacity-60">—</span> ${e(deal.cancellation_note)}` : ''}</div>`);
         } else {
             const acc = { guest_house: 'Гостевой дом ШРСК', staff_house: 'Служебные дома ШРСК', partner_hotel: 'Отель-партнёр', self: 'Сам организует' };
             const meals = { in_ashram: 'В ашраме', self: 'Сам' };
