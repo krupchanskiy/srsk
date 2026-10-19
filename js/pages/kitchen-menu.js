@@ -254,13 +254,21 @@ function getCook(id) {
 }
 
 // ==================== DATA LOADING ====================
+// Все поля рецепта, кроме инструкций на трёх языках: меню их нигде не
+// показывает, а это две трети веса ответа (165 из 244 КБ на основной кухне)
+const RECIPE_COLS = 'id, category_id, name_ru, name_en, name_hi, translit, '
+    + 'description_ru, description_en, description_hi, output_amount, output_unit, '
+    + 'portion_amount, portion_unit, cooking_time, photo_url, created_at, updated_at, '
+    + 'ekadashi, location_id';
+
 async function loadData() {
     const locationId = getCurrentLocation()?.id;
 
-    // Запускаем все независимые запросы параллельно
+    // Запускаем все независимые запросы параллельно — и приёмы пищи
+    // с едоками тоже: им справочники не нужны, а ждали они их целый круг
     let recipesQuery = Layout.db
         .from('recipes')
-        .select('*, category:recipe_categories(*)');
+        .select(`${RECIPE_COLS}, category:recipe_categories(*)`);
     if (locationId) {
         recipesQuery = recipesQuery.eq('location_id', locationId);
     }
@@ -271,7 +279,8 @@ async function loadData() {
         retreatsResult,
         holidaysResult,
         cooksResult,
-        unitsResult
+        unitsResult,
+        menuResult
     ] = await Promise.all([
         recipesQuery,
         Cache.getOrLoad('recipe_categories', async () => {
@@ -295,7 +304,8 @@ async function loadData() {
             const { data, error } = await Layout.db.from('units').select('*');
             if (error) { console.error('Error loading units:', error); return null; }
             return data;
-        })
+        }),
+        fetchMenuData()
     ]);
 
     recipes = recipesResult.data || [];
@@ -305,16 +315,27 @@ async function loadData() {
     cooks = cooksResult.data || [];
     units = unitsResult || [];
 
-    // Load menu for current period
-    await loadMenuData();
+    // цену порции и отрисовку делает init: цене нужны права, они грузятся рядом
+    return menuResult;
 }
 
 async function loadMenuData() {
+    const result = await fetchMenuData();
+    if (result === 'skip') return;
+    if (result === 'ok') await loadDishRates();
+    render();
+}
+
+/**
+ * Приёмы пищи и едоки за видимый период — одним кругом.
+ * 'no-location' — кухня не выбрана (меню пустое), 'skip' — период не задан
+ * (рисовать нечего), 'ok' — загружено.
+ */
+async function fetchMenuData() {
     const locationId = getCurrentLocation()?.id;
     if (!locationId) {
         menuData = {};
-        render();
-        return;
+        return 'no-location';
     }
 
     // Calculate date range based on view
@@ -327,7 +348,7 @@ async function loadMenuData() {
         weekEnd.setDate(weekEnd.getDate() + 6);
         endDate = formatDate(weekEnd);
     } else if (currentView === 'period') {
-        if (!periodStart || !periodEnd) return;
+        if (!periodStart || !periodEnd) return 'skip';
         startDate = formatDate(periodStart);
         endDate = formatDate(periodEnd);
     } else {
@@ -335,18 +356,22 @@ async function loadMenuData() {
         endDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
     }
 
-    // Load meals with dishes
-    const { data: mealsData } = await Layout.db
-        .from('menu_meals')
-        .select(`
-            *,
-            cook:vaishnavas(*),
-            dishes:menu_dishes(*, recipe:recipes(*, category:recipe_categories(*))),
-            external:menu_external_items(id, name, amount, kind, per_person, created_at)
-        `)
-        .eq('location_id', locationId)
-        .gte('date', startDate)
-        .lte('date', endDate);
+    // Приёмы пищи с блюдами — и едоки на тот же период, параллельно.
+    // У повара нужно только имя, у рецепта блюда — всё, кроме инструкций
+    const [{ data: mealsData }] = await Promise.all([
+        Layout.db
+            .from('menu_meals')
+            .select(`
+                *,
+                cook:vaishnavas(id, spiritual_name, first_name, last_name),
+                dishes:menu_dishes(*, recipe:recipes(${RECIPE_COLS}, category:recipe_categories(*))),
+                external:menu_external_items(id, name, amount, kind, per_person, created_at)
+            `)
+            .eq('location_id', locationId)
+            .gte('date', startDate)
+            .lte('date', endDate),
+        loadEatingCounts(startDate, endDate),
+    ]);
 
     // Organize by date and meal_type
     menuData = {};
@@ -373,10 +398,7 @@ async function loadMenuData() {
         };
     });
 
-    // Загружаем количество едоков для текущего диапазона
-    await Promise.all([loadEatingCounts(startDate, endDate), loadDishRates()]);
-
-    render();
+    return 'ok';
 }
 
 // Цена порции блюд: только день, только основная кухня, только при доступе к ценам
@@ -2541,20 +2563,26 @@ function setupRecipeDelegation() {
     }
 }
 
-async function init() {
-    await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'menu' });
-    // право «Правка прошлого меню» строгое (без обхода для суперпользователей) — спрашиваем у базы
-    try {
-        const uid = window.currentUser?.id;
-        if (uid) pastMenuRight = (await Layout.db.rpc('kitchen_has_permission', { p_user: uid, p_code: 'edit_past_menu' })).data === true;
-    } catch { pastMenuRight = false; }
-    try {
-        const uid = window.currentUser?.id;
-        const check = async code => (await Layout.db.rpc('kitchen_has_permission', { p_user: uid, p_code: code })).data === true;
-        if (uid) seePrices = (await Promise.all(['view_prices', 'edit_prices', 'edit_archived_prices'].map(check))).some(Boolean);
-    } catch { seePrices = false; }
+// Права «Правка прошлого меню» и на цены строгие (без обхода для
+// суперпользователей) — спрашиваем у базы, все четыре разом
+async function loadKitchenRights() {
+    const uid = window.currentUser?.id;
+    if (!uid) return;
+    const check = async code => (await Layout.db.rpc('kitchen_has_permission', { p_user: uid, p_code: code })).data === true;
+    const [past, ...prices] = await Promise.allSettled(
+        ['edit_past_menu', 'view_prices', 'edit_prices', 'edit_archived_prices'].map(check));
+    pastMenuRight = past.status === 'fulfilled' && past.value;
+    // как раньше: сбой любой из проверок цен — цен не показываем
+    seePrices = prices.every(p => p.status === 'fulfilled') && prices.some(p => p.value);
+}
+
+async function loadDishCooks() {
     const { data: dc } = await Layout.db.from('kitchen_cooks').select('id, name, short, color').order('sort_order');
     dishCooks = dc || [];
+}
+
+async function init() {
+    await Layout.init({ module: 'kitchen', menuId: 'kitchen', itemId: 'menu' });
 
     Layout.$('#externalForm')?.addEventListener('submit', saveExternal);
 
@@ -2573,7 +2601,14 @@ async function init() {
     }
 
     Layout.showLoader();
-    await loadData();
+    // Права, повара блюд, справочники, приёмы пищи и едоки не зависят друг
+    // от друга — одним кругом. Раньше это было пять кругов подряд
+    const [menuResult] = await Promise.all([loadData(), loadKitchenRights(), loadDishCooks()]);
+    // цене порции нужны и блюда, и право видеть цены — поэтому после
+    if (menuResult !== 'skip') {
+        if (menuResult === 'ok') await loadDishRates();
+        render();
+    }
     Layout.hideLoader();
     scrollToPendingMeal();
 
