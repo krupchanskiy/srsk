@@ -87,19 +87,39 @@ const WorshipHome = (() => {
         });
     }
 
+    /**
+     * Имена по id пользователей. vaishnavas отдаёт чужие карточки только
+     * сотрудникам — пуджари без этих прав видел бы «отдел» вместо имени,
+     * поэтому через worship_user_names (мигр. 277): только имя и только отделу.
+     */
+    async function именаЛюдей(ids) {
+        const кто = [...new Set(ids.filter(Boolean))];
+        if (!кто.length) return {};
+        const { data } = await Layout.db.rpc('worship_user_names', { p_users: кто });
+        return Object.fromEntries((data || []).map(ч => [ч.user_id, ч.name]));
+    }
+
     async function лента() {
         const { data, error } = await Layout.db.from('worship_versions')
-            .select('id, article_id, title, version_no, change_note, approved_at')
+            .select('id, article_id, title, version_no, change_note, approved_at, created_by, approved_by')
             .eq('status', 'published').not('approved_at', 'is', null)
             .order('approved_at', { ascending: false }).limit(8);
         if (error) { Layout.handleError(error, 'Лента изменений'); return; }
 
         // отменённые в ленту не попадают: «утверждён» рядом с «не действует»
         // читается как противоречие, а не как история
-        await основа;
+        const [, имена] = await Promise.all([основа,
+            именаЛюдей((data || []).flatMap(в => [в.created_by, в.approved_by]))]);
         const действующие = new Set(статьи.filter(с => с.status === 'published').map(с => с.id));
+        // кто правил — сразу за датой; кто утверждал — только если другой человек
+        const кто = в => {
+            const автор = имена[в.created_by];
+            const утвердил = в.approved_by && в.approved_by !== в.created_by ? имена[в.approved_by] : null;
+            return [автор && e(автор), утвердил && `утверждение — ${e(утвердил)}`]
+                .filter(Boolean).map(x => ' · ' + x).join('');
+        };
         $('#feed').innerHTML = (data || []).filter(в => действующие.has(в.article_id)).map(в => строка(в.article_id, в.title,
-            `${дата(в.approved_at)}${в.version_no > 1 && в.change_note
+            `${дата(в.approved_at)}${кто(в)}${в.version_no > 1 && в.change_note
                 ? ' · ' + e(в.change_note) : в.version_no === 1 ? ' · новый стандарт' : ''}`
         )).join('') || '<li class="py-2 text-sm opacity-60">Пока ничего не утверждали</li>';
     }
@@ -120,14 +140,7 @@ const WorshipHome = (() => {
         if (!список.length) return;
 
         // имена авторов: «чей это черновик» — первый вопрос к чужой строке
-        const кто = [...new Set(список.map(в => в.created_by).filter(Boolean))];
-        let имена = {};
-        if (кто.length) {
-            const { data: люди } = await Layout.db.from('vaishnavas')
-                .select('user_id, spiritual_name, first_name, last_name').in('user_id', кто);
-            имена = Object.fromEntries((люди || []).map(ч => [ч.user_id,
-                ч.spiritual_name || `${ч.first_name || ''} ${ч.last_name || ''}`.trim() || 'отдел']));
-        }
+        const имена = await именаЛюдей(список.map(в => в.created_by));
 
         $('#draftsCard').hidden = false;
         $('#drafts').innerHTML = список.map(в => {
@@ -145,10 +158,12 @@ const WorshipHome = (() => {
     async function очередь() {
         if (!можноУтверждать()) return;
         const { data, error } = await Layout.db.from('worship_versions')
-            .select('article_id, title, change_note, updated_at')
+            .select('article_id, title, change_note, updated_at, created_by')
             .eq('status', 'submitted').order('updated_at');
         if (error) { Layout.handleError(error, 'Очередь'); return; }
         if (!data?.length) return;
+        // старшему важно, чью правку он решает
+        const имена = await именаЛюдей(data.map(в => в.created_by));
 
         $('#queueBox').hidden = false;
         $('#queueCount').textContent = data.length;
@@ -158,6 +173,7 @@ const WorshipHome = (() => {
                 <span class="flex-1 min-w-0">
                     <span class="font-semibold block">${e(в.title)}</span>
                     <span class="text-sm opacity-60">${
+                        имена[в.created_by] ? e(имена[в.created_by]) + ' · ' : ''}${
                         в.change_note ? '«' + e(в.change_note) + '» · ' : ''}${дата(в.updated_at)}</span>
                 </span>
                 <span class="btn btn-sm self-start" style="background: var(--current-color); color:#fff;">Открыть</span>
