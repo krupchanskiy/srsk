@@ -499,6 +499,7 @@ function analyticsData() {
 // «Сводка» (откуда выручка и на что расходы), «По месяцам» (таблица), «Графики». Не всё сразу.
 let anSection = 'summary';
 const anOpen = new Set();      // раскрытые статьи в «Сводке»
+const anTableOpen = new Map(); // «По месяцам»: статья → 'all' (все операции) или номер месяца
 let anResultOpen = false;      // раскрыт ли «Итог» по месяцам
 
 // операции статьи — дата, где лежали деньги, комментарий, сумма в своей валюте и в рупиях
@@ -611,8 +612,19 @@ function renderAnalytics() {
                     else if (v <= usual * 0.5) { cls = 'bg-sky-100 text-sky-900'; hint = `${pct}% ${tr('dacc_an_vs_avg', 'к обычному')}`; }
                 }
             }
-            const pick = g.pick && v ? JSON.stringify({ ...g.pick, range: bucketRange(d.buckets[i]) }) : '';
-            return `<td class="text-right font-mono whitespace-nowrap ${cls} ${pick ? 'cursor-pointer hover:underline' : ''}" ${hint ? `title="${e(hint)}"` : ''} ${pick ? `data-dacc-pick='${e(pick)}'` : ''}>${fmt(v)}</td>`;
+            // сумма за месяц раскрывает операции этого месяца прямо под строкой
+            const on = anTableOpen.get(g.key) === i;
+            return `<td class="text-right font-mono whitespace-nowrap ${cls} ${v ? 'cursor-pointer hover:underline' : ''} ${on ? 'ring-1 ring-primary' : ''}" ${hint ? `title="${e(hint)}"` : ''} ${v ? `data-dacc-an-cell="${e(g.key)}|${i}"` : ''}>${fmt(v)}</td>`;
+        };
+        // раскрытая строка: все операции статьи по месяцам или операции одного месяца
+        const openedRow = g => {
+            const st = anTableOpen.get(g.key);
+            if (st === undefined) return '';
+            const parts = d.buckets.map((b, i) => ({ b, i, rows: g.rows.filter(r => bucketOf(r.occurred_on) === b) }))
+                .filter(x => x.rows.length && (st === 'all' || st === x.i));
+            return `<tr class="bg-base-200/30"><td colspan="${n + 3}">${parts.map(x => `
+                <div class="text-xs uppercase tracking-wide opacity-60 mt-1">${e(bucketLabel(x.b))} · ${inr(g.cells[x.i])}</div>
+                ${opsListHtml(x.rows)}`).join('')}</td></tr>`;
         };
         const section = (title, s, kind, color) => `<tr class="bg-base-200/60 font-semibold">
                 <td class="sticky left-0 bg-base-200">${e(title)}</td>
@@ -620,10 +632,10 @@ function renderAnalytics() {
                 <td class="text-right font-mono whitespace-nowrap ${color}">${fmt(s.sum)}</td>
                 <td class="text-right font-mono whitespace-nowrap opacity-70">${fmt(s.sum / n)}</td></tr>`
             + (s.groups.map(g => `<tr>
-                <td class="sticky left-0 bg-base-100 max-w-[18rem]"><div class="truncate" title="${e(g.label)}">${e(g.label)}${g.src ? ` <span class="badge badge-ghost badge-xs">${e(g.src)}</span>` : ''}</div></td>
+                <td class="sticky left-0 bg-base-100 max-w-[18rem] cursor-pointer hover:bg-base-200" data-dacc-an-cell="${e(g.key)}|all"><div class="truncate" title="${e(g.label)}"><span class="opacity-50">${anTableOpen.get(g.key) === 'all' ? '▾' : '▸'}</span> ${e(g.label)} <span class="opacity-50 text-xs">· ${g.rows.length}</span>${g.src ? ` <span class="badge badge-ghost badge-xs">${e(g.src)}</span>` : ''}</div></td>
                 ${g.cells.map((_, i) => cell(g, i, kind)).join('')}
                 <td class="text-right font-mono whitespace-nowrap font-semibold">${fmt(g.sum)}</td>
-                <td class="text-right font-mono whitespace-nowrap opacity-70">${fmt(g.sum / n)}</td></tr>`).join('')
+                <td class="text-right font-mono whitespace-nowrap opacity-70">${fmt(g.sum / n)}</td></tr>${openedRow(g)}`).join('')
               || `<tr><td colspan="${n + 3}" class="opacity-60 text-sm">${e(tr('dacc_sum_empty', 'Нет операций'))}</td></tr>`);
         body = `<div class="bg-base-100 rounded-xl shadow-sm overflow-x-auto">
             <table class="table table-sm w-full">
@@ -644,7 +656,7 @@ function renderAnalytics() {
                 </tbody>
             </table>
         </div>
-        <div class="text-xs opacity-60 mt-2">${e(tr('dacc_an_hint2', 'Оранжевое — трата в полтора раза больше обычной по статье, голубое — вдвое меньше. Нажмите сумму — покажу эти операции'))}</div>`;
+        <div class="text-xs opacity-60 mt-2">${e(tr('dacc_an_hint3', 'Оранжевое — трата в полтора раза больше обычной по статье, голубое — вдвое меньше. Нажмите статью — раскроются все её операции по месяцам, сумму за месяц — операции этого месяца'))}</div>`;
     } else {
         body = `<div class="grid xl:grid-cols-2 gap-3">
             <div class="bg-base-100 rounded-xl shadow-sm p-3">
@@ -892,6 +904,14 @@ async function init(options) {
             return;
         }
         if (ev.target.closest('[data-dacc-an-result]')) { anResultOpen = !anResultOpen; renderAnalytics(); return; }
+        const tc = ev.target.closest('[data-dacc-an-cell]');
+        if (tc) {
+            const [k, raw] = tc.dataset.daccAnCell.split('|');
+            const val = raw === 'all' ? 'all' : Number(raw);
+            if (anTableOpen.get(k) === val) anTableOpen.delete(k); else anTableOpen.set(k, val);
+            renderAnalytics();
+            return;
+        }
         const sec = ev.target.closest('[data-dacc-an]');
         if (sec) {
             anSection = sec.dataset.daccAn;
