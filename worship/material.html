@@ -101,7 +101,8 @@
                 <p class="text-sm opacity-60 mb-2" data-i18n="worship_files_hint">Видео, которое есть на ютубе,
                     добавляйте ссылкой. Файлом — то, чего больше нигде нет.</p>
                 <ul class="list-none m-0 p-0" id="вложения"></ul>
-                <div class="flex flex-wrap gap-2 mt-3" data-permission="worship_write">
+                <!-- приложить файл или ссылку может каждый, кто видит модуль (миграция 276) -->
+                <div class="flex flex-wrap gap-2 mt-3" data-permission="worship_view">
                     <button class="btn btn-sm btn-outline" id="добавитьФайл">Загрузить файл</button>
                     <button class="btn btn-sm btn-outline" id="добавитьСсылку">Добавить ссылку</button>
                 </div>
@@ -116,8 +117,10 @@
              формат документа один на оба экрана. -->
         <div class="card bg-base-100 shadow">
             <div class="card-body p-5 desktop:p-8">
+                <!-- панель правки и «Сохранить» видны тому, кто может править этот
+                     материал: пуджари или его автору — решает worship-material.js -->
                 <div class="flex flex-wrap items-center gap-1 mb-3 pb-3 border-b border-base-200"
-                     data-permission="worship_write">
+                     id="панельПравки" hidden>
                     <div class="join mr-1">
                         <button class="btn btn-sm btn-ghost join-item px-2" id="откатить"
                                 title="Отменить (Ctrl+Z)" aria-label="Отменить">↶</button>
@@ -174,7 +177,7 @@
     <!-- на телефоне после правки текста кнопка «Сохранить» оставалась
          в самом верху длинной страницы -->
     <div class="sticky bottom-0 z-20 bg-base-200/95 border-t border-base-300 py-2 px-4
-                flex items-center gap-3 no-print" data-permission="worship_write">
+                flex items-center gap-3 no-print" id="низСохранить" hidden>
         <span class="text-sm opacity-60" id="сохранениеНизу"></span>
         <span class="flex-1"></span>
         <button class="btn btn-sm" id="сохранитьНизу"
@@ -197,7 +200,7 @@
     <script src="../js/worship-doc.js?v=7"></script>
     <script src="../js/worship-editor-doc.js?v=2"></script>
     <script src="../js/worship-tags.js?v=7"></script>
-    <script src="../js/pages/worship-material.js?v=17"></script>
+    <script src="../js/pages/worship-material.js?v=18"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_library' });

@@ -11,7 +11,12 @@ const WorshipLibrary = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
     const дата = v => v ? DateUtils.formatShort(new Date(v)) : '';
 
-    const можноПисать = () => !!window.hasPermission?.('worship_write');
+    // материал добавляет каждый, кто видит модуль; правит чужие и ведёт
+    // разделы — пуджари, удаляет — старший (миграция 276)
+    const можноДобавлять = () => !!window.hasPermission?.('worship_view');
+    // какие разделы человек свернул сам — помним между заходами
+    const КЛЮЧ_РАЗДЕЛОВ = 'worship_library_collapsed_v1';
+    const ищем = () => !!(фильтр.поиск || фильтр.вид);
 
     let разделы = [], материалы = [], вложения = {};
     let фильтр = { поиск: new URLSearchParams(location.search).get('q') || '', вид: '', архив: false };
@@ -137,7 +142,7 @@ const WorshipLibrary = (() => {
                     <p class="text-sm opacity-70 max-w-lg">Сюда кладут то, что помогает разобраться:
                         книги и сканы, свои заметки, ссылки на лекции, записи, которых больше нигде нет.
                         Утверждать материалы не нужно — они действуют сразу.</p>
-                    ${можноПисать()
+                    ${можноДобавлять()
                         ? '<a href="material.html" class="btn btn-sm mt-2" style="background: var(--current-color); color:#fff;">Добавить первый материал</a>'
                         : ''}
                 </div></div>`;
@@ -147,31 +152,42 @@ const WorshipLibrary = (() => {
         const безРаздела = видимые.filter(м => !м.section_id);
         // Заголовок — шапка той же карточки, как на странице стандартов:
         // отдельной строкой над списком он читался как подпись к соседу сверху
-        const разделHTML = (имя, свои, раздел) => `
-            <section class="разделСписка mb-3 rounded-xl shadow-sm overflow-hidden"
-                     style="background: oklch(var(--b1));">
-                <div class="шапкаРаздела flex flex-wrap items-center gap-3 px-5 py-3">
+        // Раздел сворачивается, как на странице стандартов. «+ материал»
+        // стоит рядом со свёрткой, а не внутри <summary>: заголовок свёртки
+        // сам кнопка, и ссылка в нём читалась бы диктором как одна неясная кнопка
+        const разделHTML = (ключ, имя, свои, раздел) => `
+            <div class="обёрткаРаздела relative mb-3">
+            <details class="разделСписка rounded-xl shadow-sm overflow-hidden"
+                     style="background: oklch(var(--b1));"
+                     data-раздел-ключ="${e(ключ)}"${ищем() || !сохранённые()[ключ] ? ' open' : ''}>
+                <summary class="шапкаРаздела flex flex-wrap items-center gap-2 px-5 py-3 cursor-pointer select-none pr-32">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2.5" stroke-linecap="round" aria-hidden="true"
+                         class="details-chevron transition-transform opacity-60">
+                        <path d="M6 9l6 6 6-6"></path>
+                    </svg>
                     <h2 class="text-base font-bold uppercase tracking-wide ${
                         раздел ? '' : 'opacity-70'}">${e(имя)}</h2>
                     <span class="text-sm opacity-70">${свои.length}</span>
                     ${раздел && !раздел.is_active ? '<span class="badge badge-sm">скрыт</span>' : ''}
-                    <span class="flex-1"></span>
-                    ${раздел && можноПисать()
-                        ? `<a href="material.html?section=${раздел.id}"
-                              class="btn btn-ghost btn-xs ручкиСтроки">+ материал</a>` : ''}
-                </div>
+                </summary>
                 <ul class="подШапкойРаздела list-none m-0 p-0">
                     ${свои.map(строка).join('') ||
                       '<li class="px-5 py-4 text-sm opacity-70">Пока пусто</li>'}
                 </ul>
-            </section>`;
+            </details>
+            ${раздел && можноДобавлять()
+                ? `<a href="material.html?section=${раздел.id}"
+                      class="btn btn-ghost btn-xs ручкиСтроки absolute right-3 top-2"
+                      title="Новый материал в этом разделе">+ материал</a>` : ''}
+            </div>`;
 
         тело.innerHTML = разделы.map(р => {
             const свои = видимые.filter(м => м.section_id === р.id);
             if (!свои.length && (фильтр.поиск || фильтр.вид)) return '';
-            return разделHTML(Layout.getName(р), свои, р);
+            return разделHTML(р.id, Layout.getName(р), свои, р);
         }).join('') + (безРаздела.length
-            ? разделHTML('Без раздела', безРаздела, null) : '');
+            ? разделHTML('без-раздела', 'Без раздела', безРаздела, null) : '');
 
         if (!видимые.length) {
             тело.innerHTML = фильтр.поиск || фильтр.вид
@@ -185,12 +201,35 @@ const WorshipLibrary = (() => {
                        <div class="text-sm opacity-70 max-w-md mx-auto">Сюда кладут книги, сканы, записи
                            лекций и заметки — всё, что помогает разобраться, но ничего не предписывает.
                            В отличие от стандарта, материал не проходит утверждение.</div>
-                       ${можноПисать()
+                       ${можноДобавлять()
                            ? '<a href="material.html" class="btn btn-sm mt-3" style="background: var(--current-color); color:#fff;">Добавить первый материал</a>'
                            : ''}
                    </div>`;
         }
+        расставитьСостояния();
         window.applyPermissions?.();
+    }
+
+    // ---------- свёртка разделов ----------
+    function сохранённые() {
+        try { return JSON.parse(localStorage.getItem(КЛЮЧ_РАЗДЕЛОВ) || '{}'); }
+        catch { return {}; }
+    }
+    function запомнитьРаздел(ключ, свёрнут) {
+        try {
+            const всё = сохранённые();
+            всё[ключ] = свёрнут;
+            localStorage.setItem(КЛЮЧ_РАЗДЕЛОВ, JSON.stringify(всё));
+        } catch { /* приватный режим — просто не запомним */ }
+    }
+    /** «Свернуть всё» имеет смысл, только когда разделов больше одного. */
+    function расставитьСостояния() {
+        const блоки = [...document.querySelectorAll('[data-раздел-ключ]')];
+        const кнопка = $('#свернутьВсё');
+        кнопка.hidden = блоки.length < 2 || ищем();
+        const всеОткрыты = блоки.every(б => б.open);
+        кнопка.textContent = всеОткрыты ? 'Свернуть всё' : 'Развернуть всё';
+        кнопка.dataset.действие = всеОткрыты ? 'свернуть' : 'развернуть';
     }
 
     // ---------- разделы библиотеки ----------
@@ -286,6 +325,27 @@ const WorshipLibrary = (() => {
         $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисовать(); });
         $('#вид').addEventListener('change', ev => { фильтр.вид = ev.target.value; рисовать(); });
         $('#showArchive').addEventListener('change', ev => { фильтр.архив = ev.target.checked; рисовать(); });
+
+        // Запоминаем только щелчок человека по заголовку раздела; при поиске
+        // разделы раскрыты принудительно, и это не его выбор
+        document.addEventListener('click', ev => {
+            const блок = ev.target.closest('summary')?.parentElement;
+            if (!блок?.matches('[data-раздел-ключ]') || ищем()) return;
+            // щелчок ещё не применён: после него раздел будет свёрнут, если сейчас открыт
+            запомнитьРаздел(блок.getAttribute('data-раздел-ключ'), блок.open);
+        });
+        // toggle не всплывает — слушаем на погружении
+        document.addEventListener('toggle', ev => {
+            if (ev.target.closest?.('[data-раздел-ключ]') && !ищем()) расставитьСостояния();
+        }, true);
+        $('#свернутьВсё').addEventListener('click', () => {
+            const развернуть = $('#свернутьВсё').dataset.действие === 'развернуть';
+            document.querySelectorAll('[data-раздел-ключ]').forEach(б => {
+                б.open = развернуть;
+                запомнитьРаздел(б.getAttribute('data-раздел-ключ'), !развернуть);
+            });
+            расставитьСостояния();
+        });
 
         document.addEventListener('click', ev => {
             const раздел = ev.target.closest('[data-раздел]');

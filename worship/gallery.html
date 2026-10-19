@@ -32,7 +32,8 @@
                 <p class="text-sm opacity-70 mt-1" data-i18n="worship_gallery_hint">Папки со снимками:
                     как наряжали, как украшали, как выглядел алтарь.</p>
             </div>
-            <button class="btn btn-sm" id="newAlbum" data-permission="worship_write"
+            <!-- папки заводит старший, снимки в них грузит каждый (миграция 276) -->
+            <button class="btn btn-sm" id="newAlbum" data-permission="worship_approve"
                     style="background: var(--current-color); color: #fff;"
                     data-i18n="worship_new_album">Новая папка</button>
         </div>
@@ -95,7 +96,7 @@
     <script src="../js/auth-check.js?v=17"></script>
     <script src="../js/media.js?v=2"></script>
     <script src="../js/worship-links.js?v=1"></script>
-    <script src="../js/pages/worship-gallery.js?v=9"></script>
+    <script src="../js/pages/worship-gallery.js?v=10"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_gallery' });
