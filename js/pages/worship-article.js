@@ -370,6 +370,12 @@ const WorshipArticle = (() => {
             $('#openRemarkBody').textContent = первое.body;
             const кто = имена[первое.created_by];
             $('#openRemarkWho').textContent = [кто, дата(первое.created_at)].filter(Boolean).join(' · ');
+            const правка = (версии || []).find(в => в.status === 'submitted');
+            $('#openRemarkHint').innerHTML = (показана?.status === 'published'
+                    ? 'Пока замечание не разобрано, служат по утверждённому тексту ниже. '
+                    : 'Пока замечание не разобрано, служат по действующей версии стандарта. ')
+                + 'Если сомневаетесь — спросите старшего пуджари.'
+                + (правка ? ` Исправление уже <a class="link" href="article.html?id=${статья.id}&v=${правка.id}">ждёт утверждения</a>.` : '');
         }
 
         // в заголовке свёрнутого блока — сколько там всего, чтобы не раскрывать вслепую
@@ -465,7 +471,7 @@ const WorshipArticle = (() => {
     /** Теги и соседи по ним: словарь общий, поэтому «есть ещё» честное. */
     async function рисоватьТеги() {
         await WorshipTags.нарисовать(
-            document.querySelector('#теги'), { article_id: id }, { можноПравить: можноПисать() });
+            document.querySelector('#теги'), { article_id: id }, { можноПравить: можноПисать(), правкаПоКнопке: true });
 
         const { статьи, наборы } = await WorshipTags.соседи({ article_id: id });
         const блок = document.querySelector('#соседи');

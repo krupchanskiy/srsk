@@ -14,6 +14,9 @@ const WorshipAlbum = (() => {
     // снимки в папку грузит каждый, кто видит модуль; убирает — старший;
     // подписи, порядок и сама папка — пуджари (миграция 276)
     const можноДобавлять = () => !!window.hasPermission?.('worship_view');
+    // ← → ★ ✕ у каждого снимка — только в режиме «Упорядочить»: при просмотре
+    // их задевали пальцем и случайно двигали снимок или меняли обложку
+    let упорядочиваем = false;
 
     const id = new URLSearchParams(location.search).get('id');
     let набор = null, снимки = [], ссылки = {};
@@ -122,6 +125,9 @@ const WorshipAlbum = (() => {
         }
 
         $('#actions').innerHTML = `
+            ${можноПисать() && !набор.is_archived && снимки.length > 1
+                ? `<button class="btn btn-sm ${упорядочиваем ? 'btn-active' : 'btn-outline'}" id="упорядочить">${
+                    упорядочиваем ? 'Готово' : 'Упорядочить'}</button>` : ''}
             ${можноДобавлять() && !набор.is_archived
                 ? `<button class="btn btn-sm" id="добавить"
                         style="background: var(--current-color); color:#fff;">Добавить снимки</button>`
@@ -169,15 +175,15 @@ const WorshipAlbum = (() => {
                      как наряжали, а не переставлять кадры. Раньше под каждым
                      снимком стояли четыре кнопки и поле ввода — они занимали
                      больше места, чем сам снимок. -->
-                ${можноПисать() && !набор.is_archived ? `
-                <div class="ручки absolute top-2 right-2 flex gap-1">
-                    <button class="btn btn-xs btn-circle bg-base-100/90 border-0" data-двигать="-1"
+                ${можноПисать() && !набор.is_archived && упорядочиваем ? `
+                <div class="ручки absolute top-2 right-2 flex gap-1" style="opacity: 1;">
+                    <button class="btn btn-sm btn-circle bg-base-100/90 border-0" data-двигать="-1"
                             data-id="${с.id}" title="Левее">←</button>
-                    <button class="btn btn-xs btn-circle bg-base-100/90 border-0" data-двигать="1"
+                    <button class="btn btn-sm btn-circle bg-base-100/90 border-0" data-двигать="1"
                             data-id="${с.id}" title="Правее">→</button>
-                    <button class="btn btn-xs btn-circle bg-base-100/90 border-0" data-обложка="${с.id}"
+                    <button class="btn btn-sm btn-circle bg-base-100/90 border-0" data-обложка="${с.id}"
                             title="Сделать обложкой" ${набор.cover_image_id === с.id ? 'disabled' : ''}>★</button>
-                    ${можноУтверждать() ? `<button class="btn btn-xs btn-circle bg-base-100/90 border-0 text-error"
+                    ${можноУтверждать() ? `<button class="btn btn-sm btn-circle bg-base-100/90 border-0 text-error"
                             data-убрать="${с.id}" title="Убрать снимок">✕</button>` : ''}
                 </div>` : ''}
 
@@ -394,6 +400,7 @@ const WorshipAlbum = (() => {
             if (!b) return;
 
             if (b.id === 'добавить') return $('#файлы').click();
+            if (b.id === 'упорядочить') { упорядочиваем = !упорядочиваем; рисоватьШапку(); return рисоватьСнимки(); }
             if (b.id === 'повторить') {
                 const снова = неудачи;
                 неудачи = [];
@@ -477,7 +484,7 @@ const WorshipAlbum = (() => {
         рисоватьСнимки();
         window.applyPermissions?.();
         WorshipTags.нарисовать(document.querySelector('#теги'), { album_id: id },
-                               { можноПравить: можноПисать() && !набор.is_archived });
+                               { можноПравить: можноПисать() && !набор.is_archived, правкаПоКнопке: true });
         // ссылки на снимки живут час: обновляем, пока страница открыта
         Media.держатьСсылки(async () => { await обновитьСсылки(); рисоватьСнимки(); });
         // старые снимки без миниатюр — дописываем в фоне, плитки сменятся при следующем заходе

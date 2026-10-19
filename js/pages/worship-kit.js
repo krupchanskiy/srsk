@@ -84,6 +84,10 @@ const WorshipKit = (() => {
     }
 
     // ---------- отрисовка ----------
+    // ↑ ↓ ✎ ✕ у пунктов — только в режиме «Упорядочить»: подборку читают
+    // чаще, чем пересобирают, и ручки у каждой строки задевали пальцем
+    let упорядочиваем = false;
+
     function рисоватьШапку() {
         $('#название').textContent = подборка.title;
         $('#описание').textContent = подборка.description || '';
@@ -108,6 +112,9 @@ const WorshipKit = (() => {
                 </ul>
             </div>`);
             кнопки.push('<button class="btn btn-sm btn-outline no-print" id="правка">Изменить</button>');
+            if (пункты.length > 1) кнопки.push(`<button class="btn btn-sm no-print ${
+                упорядочиваем ? 'btn-active' : 'btn-outline'}" id="упорядочить">${
+                упорядочиваем ? 'Готово' : 'Упорядочить'}</button>`);
             редкие.push(`<li><button id="включение">${
                 подборка.is_active ? 'Отключить' : 'Включить'}</button></li>`);
         }
@@ -195,7 +202,7 @@ const WorshipKit = (() => {
      * подборку читают чаще, чем пересобирают.
      */
     function ручки(п) {
-        if (!можноПисать()) return '';
+        if (!можноПисать() || !упорядочиваем) return '';
         return `
         <div class="ручкиПункта flex items-center gap-0.5 no-print shrink-0">
             <button class="btn btn-ghost btn-xs px-1 цельПальца" data-двигать="-1" data-id="${п.id}"
@@ -528,6 +535,7 @@ const WorshipKit = (() => {
                 return;
             }
             if (b.id === 'правка') return правитьПодборку();
+            if (b.id === 'упорядочить') { упорядочиваем = !упорядочиваем; рисоватьШапку(); return рисоватьПункты(); }
         });
     }
 

@@ -52,6 +52,9 @@
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
             <div class="text-xs uppercase tracking-widest opacity-60" id="режим">Материал</div>
             <span class="text-sm ml-auto" id="сохранение"></span>
+            <!-- материал открывается для чтения; править — по кнопке (пожелание отдела) -->
+            <button class="btn btn-sm" id="кнопкаПравки" hidden
+                    style="background: var(--current-color); color:#fff;">Изменить</button>
             <div class="flex items-center gap-2" id="actions"></div>
         </div>
 
@@ -72,17 +75,20 @@
                       placeholder="О чём это — необязательно, но через полгода пригодится"
                       maxlength="500"></textarea>
 
+            <!-- в чтении сведения — одной строкой текста, а не пустыми полями анкеты -->
+            <div class="text-sm opacity-80 mt-2" id="сведения" hidden></div>
             <div class="flex flex-wrap items-center gap-x-5 gap-y-2 mt-3 text-sm">
-                <label class="flex items-center gap-2">
+                <label class="flex items-center gap-2 полеПравки">
                     <span class="opacity-70" data-i18n="worship_field_section">Раздел</span>
                     <select id="раздел" class="select select-sm select-bordered min-w-40"></select>
                 </label>
-                <label class="flex items-center gap-2">
+                <label class="flex items-center gap-2 полеПравки">
                     <span class="opacity-70" data-i18n="worship_field_author">Автор</span>
+                    <!-- подсказка «Санатана Госвами» читалась как настоящий автор -->
                     <input id="автор" type="text" class="input input-sm input-bordered w-44 max-w-full"
-                           placeholder="Санатана Госвами" maxlength="200">
+                           placeholder="кто написал" maxlength="200">
                 </label>
-                <label class="flex items-center gap-2 basis-full desktop:basis-auto desktop:flex-1 min-w-0">
+                <label class="flex items-center gap-2 basis-full desktop:basis-auto desktop:flex-1 min-w-0 полеПравки">
                     <span class="opacity-70 whitespace-nowrap" data-i18n="worship_field_source">Откуда</span>
                     <input id="источник" type="text" class="input input-sm input-bordered flex-1 min-w-0"
                            placeholder="Издание, сайт, кто передал" maxlength="300">
@@ -199,8 +205,8 @@
     <script src="../js/worship-links.js?v=1"></script>
     <script src="../js/worship-doc.js?v=7"></script>
     <script src="../js/worship-editor-doc.js?v=2"></script>
-    <script src="../js/worship-tags.js?v=7"></script>
-    <script src="../js/pages/worship-material.js?v=18"></script>
+    <script src="../js/worship-tags.js?v=8"></script>
+    <script src="../js/pages/worship-material.js?v=19"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_library' });

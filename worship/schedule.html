@@ -122,6 +122,21 @@
 
         /* имя без рамки: строка текста, а не кнопка */
         .плашкаИмени { display: flex; align-items: flex-start; gap: .25rem; padding: .1rem 0; }
+        /* колонка служб не уезжает при листании недели вбок: на телефоне
+           помещается один день, и без неё было не понять, какая строка какая */
+        /* общее правило карточек на телефоне даёт обёртке отступ 20px — закреплённая
+           колонка вставала по нему, и слева от неё просвечивали соседние клетки */
+        #шахматка > .card-body { padding: 0 !important; }
+        @media screen {
+            #шахматка table tr > :first-child {
+                position: sticky; left: 0; z-index: 2;
+                background: oklch(var(--b1));
+                box-shadow: 1px 0 0 oklch(var(--b3));
+            }
+        }
+        @media screen and (max-width: 720px) {
+            #шахматка table tr > :first-child { width: 7rem; min-width: 7rem; max-width: 7rem; font-size: .8rem; white-space: normal; }
+        }
         /* своя смена важнее общего «закрыто», поэтому перекрывает зелёный */
         .клетка.своя { background: color-mix(in srgb, var(--current-color) 13%, transparent); }
         .клетка.своя .плашкаИмени a { font-weight: 600; }

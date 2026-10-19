@@ -221,6 +221,7 @@ const WorshipHome = (() => {
                 .select('person_id, date_from, date_to').lte('date_from', сегодня),
         ]);
         if (с.error || о.error || н.error) return;      // расписание не повод ронять главную
+        const моё = await моёId();                     // тот же запрос, что у «моих служб»
         const службы = с.data || [], отклонения = о.data || [], назначения = н.data || [];
         if (!службы.length && !отклонения.length) return;
 
@@ -291,9 +292,12 @@ const WorshipHome = (() => {
                         : ''}
                     ${с2.кто.length
                         ? `<span class="block text-sm ${прошла ? "" : "opacity-70"}">${
-                            с2.кто.map(д => придёт(д)
+                            с2.кто.map(д => (придёт(д)
                                 ? e(имена[д.person_id] || 'кто-то')
-                                : `<s>${e(имена[д.person_id] || 'кто-то')}</s>`).join(', ')}</span>`
+                                // зачёркнутое имя без слов новичку непонятно
+                                : `<s>${e(имена[д.person_id] || 'кто-то')}</s> <span class="text-error">не придёт</span>`)
+                                + (д.role === 'helper' ? ' (помощник)' : д.role === 'kirtan' ? ' (киртания)' : '')
+                                + (д.person_id === моё ? ЗНАК_ВЫ : '')).join(', ')}</span>`
                         : ''}
                     ${!прошла && !с2.кто.some(д => д.role === 'pujari' && придёт(д))
                         ? `<span class="block text-sm text-error">${
@@ -311,8 +315,14 @@ const WorshipHome = (() => {
      * «у вас в 04:45 мангала-арати». Поэтому свои службы идут отдельным
      * блоком и выше общего расписания дня.
      */
+    // «я» в отделе — нужно и своим службам, и «вы» в службах дня
+    let моёПромис = null;
+    const моёId = () => (моёПромис ||= Layout.db.rpc('worship_my_person').then(r => r.data || null));
+    const ЗНАК_ВЫ = '<span class="badge badge-xs ml-0.5 border-0" style="background: var(--current-color); color:#fff;">вы</span>';
+    const МОЯ_РОЛЬ = { pujari: 'ведёте', kirtan: 'киртания', helper: 'помощник' };
+
     async function моиСлужбы() {
-        const { data: я } = await Layout.db.rpc('worship_my_person');
+        const я = await моёId();
         if (!я) return;
 
         const сегодня = DateUtils.todayAshramISO();
@@ -355,6 +365,8 @@ const WorshipHome = (() => {
                     : `<span class="${снята ? 'line-through' : ''}">${e(имя)}</span>`}
                 ${снята ? `<span class="badge badge-sm badge-warning ml-1">${отключена(н)
                     ? 'снята с расписания' : 'не проводится'}</span>` : ''}
+                ${!снята ? `<span class="badge badge-sm ml-1 ${н.role === 'pujari' ? 'badge-outline' : ''}">${
+                    e(МОЯ_РОЛЬ[н.role] || н.role)}</span>` : ''}
                 ${!снята && меняНеБудет(н.duty_date)
                     ? '<a href="schedule.html" class="badge badge-sm badge-warning ml-1">вас не будет — нужна замена</a>' : ''}
             </li>`;

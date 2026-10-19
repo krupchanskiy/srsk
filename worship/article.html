@@ -90,6 +90,8 @@
                 <span class="text-sm opacity-70" id="openRemarkWho"></span>
             </div>
             <div class="text-[15px]" id="openRemarkBody"></div>
+            <!-- у алтаря в 5 утра нужен ответ «как делать сейчас», а не только сомнение -->
+            <div class="text-sm font-semibold mt-2" id="openRemarkHint"></div>
         </div>
 
         <div class="flex flex-col desktop:flex-row gap-6 items-start">
@@ -250,8 +252,8 @@
     <script src="../js/auth-check.js?v=17"></script>
     <script src="../js/worship-links.js?v=1"></script>
     <script src="../js/worship-doc.js?v=7"></script>
-    <script src="../js/worship-tags.js?v=7"></script>
-    <script src="../js/pages/worship-article.js?v=29"></script>
+    <script src="../js/worship-tags.js?v=8"></script>
+    <script src="../js/pages/worship-article.js?v=30"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

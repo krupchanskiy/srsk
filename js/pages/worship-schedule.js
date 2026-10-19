@@ -15,6 +15,10 @@ const WorshipSchedule = (() => {
     const можноВести = () => !!window.hasPermission?.('worship_approve');
 
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
+    // своя роль словами: «вы — помощник» понятнее серой плашки «помощник»
+    const МОЯ_РОЛЬ = { pujari: 'ведёте', kirtan: 'киртания', helper: 'помощник' };
+    // «вы» рядом со своим именем: бледной заливки клетки новичок не замечал
+    const ЗНАК_ВЫ = '<span class="badge badge-xs ml-0.5 border-0" style="background: var(--current-color); color:#fff;">вы</span>';
     const ДНИ = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
     // Расписание ведут вперёд, поэтому неделя считается от сегодняшнего дня,
@@ -318,7 +322,7 @@ const WorshipSchedule = (() => {
             ${с?.article_id
                 ? `<a class="link" href="article.html?id=${с.article_id}">${e(имяСлужбы(н))}</a>`
                 : `<span>${e(имяСлужбы(н))}</span>`}
-            ${н.role !== 'pujari' ? `<span class="badge badge-sm">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
+            <span class="badge badge-sm ${н.role === 'pujari' ? 'badge-outline' : ''}">${e(МОЯ_РОЛЬ[н.role] || н.role)}</span>
             ${меняНеБудет(н.duty_date)
                 ? '<span class="badge badge-sm badge-warning">вас не будет — нужна замена</span>' : ''}
         </li>`;
@@ -446,7 +450,8 @@ const WorshipSchedule = (() => {
                 <div class="плашкаИмени">
                     <span class="flex-1 min-w-0 leading-snug">
                         <a class="link link-hover text-sm ${пометки.зачеркнуть ? 'line-through opacity-60' : ''}"
-                           href="people.html?id=${н.person_id}">${e(ч?.имя || 'кто-то')}</a>
+                           href="people.html?id=${н.person_id}">${e(ч?.имя || 'кто-то')}</a>${
+                            н.person_id === яЧеловек?.id ? ЗНАК_ВЫ : ''}
                         ${н.role !== 'pujari'
                             ? `<span class="badge badge-xs ml-0.5">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
                         ${пометки.список.map(([т, к]) =>
@@ -581,7 +586,8 @@ const WorshipSchedule = (() => {
                             return `
                             <a class="link link-hover text-sm ${зачеркнуть ? 'line-through opacity-70' : ''}"
                                href="people.html?id=${н.person_id}">
-                                ${e(человек(н.person_id)?.имя || 'кто-то')}</a>
+                                ${e(человек(н.person_id)?.имя || 'кто-то')}</a>${
+                                н.person_id === яЧеловек?.id ? ЗНАК_ВЫ : ''}
                             ${пометки.map(([т, к]) => `<span class="badge badge-sm ${к}">${e(т)}</span>`).join('')}
                             ${н.role !== 'pujari'
                                 ? `<span class="badge badge-xs">${e(РОЛИ[н.role] || н.role)}</span>` : ''}

@@ -15,9 +15,15 @@ const WorshipTags = (() => {
     /**
      * Рисует теги в контейнере и позволяет их править.
      * `цель` — { article_id } либо { album_id }.
+     * `правкаПоКнопке` — теги показываются ссылками, а крестики и поле
+     * появляются по «изменить теги»: под стандартом у алтаря ✕ у тега
+     * задевали пальцем (пожелание пуджари).
      */
-    async function нарисовать(контейнер, цель, { можноПравить = false } = {}) {
+    async function нарисовать(контейнер, цель, { можноПравить = false, правкаПоКнопке = false } = {}) {
         if (!контейнер) return;
+        // слушатели вешаются один раз — режим берут отсюда, а не из первого вызова
+        контейнер._теги = { цель, можноПравить, правкаПоКнопке };
+        const правим = можноПравить && (!правкаПоКнопке || контейнер.dataset.правкаТегов === '1');
         const поле = цель.article_id ? 'article_id' : 'album_id';
         const значение = цель.article_id || цель.album_id;
         if (!значение) return;
@@ -38,10 +44,10 @@ const WorshipTags = (() => {
             ${свои.map(с => `
                 <span class="badge badge-outline gap-1">
                     <a class="link link-hover" href="search.html?tag=${с.tag_id}">${e(имена[с.tag_id])}</a>
-                    ${можноПравить ? `<button class="цельПальца opacity-50 hover:opacity-100 hover:text-error transition-opacity"
+                    ${правим ? `<button class="цельПальца opacity-50 hover:opacity-100 hover:text-error transition-opacity"
                                       data-снять="${с.id}" title="Убрать" aria-label="Убрать тег">✕</button>` : ''}
                 </span>`).join('')}
-            ${можноПравить ? `
+            ${правим ? `
                 <span class="join">
                     <input list="словарьТегов" class="input input-xs input-bordered w-40 join-item"
                            placeholder="+ тег" data-новыйТег maxlength="60">
@@ -59,21 +65,31 @@ const WorshipTags = (() => {
                 <datalist id="словарьТегов">
                     ${(словарь.data || []).map(т => `<option value="${e(т.name)}">`).join('')}
                 </datalist>` : ''}
-            ${!свои.length && !можноПравить ? '<span class="text-sm opacity-50">тегов нет</span>' : ''}`;
+            ${!свои.length && !правим ? '<span class="text-sm opacity-50">тегов нет</span>' : ''}
+            ${можноПравить && правкаПоКнопке
+                ? `<button class="btn btn-ghost btn-xs" data-тегиРежим>${правим ? 'готово' : 'изменить теги'}</button>` : ''}`;
 
         if (!можноПравить || контейнер.dataset.слушает) return;
         контейнер.dataset.слушает = '1';
+        const перерисовать = () => {
+            const о = контейнер._теги;
+            return нарисовать(контейнер, о.цель, { можноПравить: о.можноПравить, правкаПоКнопке: о.правкаПоКнопке });
+        };
 
         const добавитьИзПоля = async () => {
             const поле2 = контейнер.querySelector('[data-новыйТег]');
             const имя = поле2?.value.trim();
             if (!имя) return;
             поле2.value = '';
-            await поставить(цель, имя);
-            await нарисовать(контейнер, цель, { можноПравить });
+            await поставить(контейнер._теги.цель, имя);
+            await перерисовать();
         };
 
         контейнер.addEventListener('click', async ev => {
+            if (ev.target.closest('[data-тегиРежим]')) {
+                контейнер.dataset.правкаТегов = контейнер.dataset.правкаТегов === '1' ? '' : '1';
+                return перерисовать();
+            }
             if (ev.target.closest('[data-поставитьТег]')) {
                 ev.preventDefault();
                 return добавитьИзПоля();
@@ -83,7 +99,7 @@ const WorshipTags = (() => {
             const { error } = await Layout.db.from('worship_tag_links')
                 .delete().eq('id', снять.dataset.снять);
             if (error) return Layout.handleError(error, 'Тег');
-            await нарисовать(контейнер, цель, { можноПравить });
+            await перерисовать();
         });
 
         контейнер.addEventListener('keydown', async ev => {
