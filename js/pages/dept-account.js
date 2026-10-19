@@ -476,8 +476,12 @@ function analyticsData() {
     };
     const revenue = side(rev, r => ({ key: `r:${r.category_id}`, label: r.category_name, line: r.line, pick: { rev: r.category_id } }), r => baseSigned(r));
     const costs = side(cost,
+        // себестоимость линии другого департамента — одной строкой «Изготовление мурти» (ВГ 19.10):
+        // её статьи (аренда, такси…) — дело производителя, у продавца они только в раскрытии
         r => r.source
-            ? { key: `x:${r.category_id}:${r.source}`, label: r.category_name, src: r.source, line: r.line }
+            ? (r.line
+                ? { key: `x:${r.line}:${r.source}`, label: `${tr('dacc_an_make', 'Изготовление')} «${r.line}»`, src: r.source, line: r.line, mixed: true }
+                : { key: `x:${r.category_id}:${r.source}`, label: r.category_name, src: r.source, line: r.line })
             : { key: `c:${r.category_id}`, label: r.category_name, line: r.line, pick: { cat: r.category_id } },
         r => -baseSigned(r));
     const retreat = side(live.filter(r => r.kind === 'retreat'), r => ({ key: `t:${r.object_name}`, label: r.object_name }), r => -baseSigned(r));
@@ -503,14 +507,15 @@ const anTableOpen = new Map(); // «По месяцам»: статья → 'all
 let anResultOpen = false;      // раскрыт ли «Итог» по месяцам
 
 // операции статьи — дата, где лежали деньги, комментарий, сумма в своей валюте и в рупиях
-function opsListHtml(list) {
+function opsListHtml(list, withCat) {
     return `<div class="ml-2 mb-2 border-l-2 border-base-300 pl-3 text-sm">${list.slice().sort((a, b) => b.occurred_on.localeCompare(a.occurred_on)).map(r => {
         const extra = [CAFE_POINTS[r.cafe_point], r.note].filter(Boolean).join(' · ');
         const v = Number(r.signed_amount);
         return `<div class="flex items-baseline gap-2 py-0.5">
             <span class="opacity-60 w-14 shrink-0">${e(fmtDay(r.occurred_on))}</span>
             <span class="opacity-60 shrink-0 hidden sm:inline">${e(r.account_name || '')}</span>
-            <span class="truncate flex-1 opacity-80" title="${e([r.comment, extra].filter(Boolean).join(' · '))}">${e(r.comment || extra || '')}</span>
+            <span class="truncate flex-1 opacity-80" title="${e([withCat ? r.category_name : '', r.comment, extra].filter(Boolean).join(' · '))}">${
+                withCat ? `<span class="font-medium">${e(r.category_name)}</span> ` : ''}${e(r.comment || extra || '')}</span>
             <span class="font-mono whitespace-nowrap">${money(Math.abs(v), r.currency_code)}</span>
             ${r.currency_code !== 'INR' ? `<span class="font-mono whitespace-nowrap text-xs opacity-50">≈ ${money(Math.abs(Number(r.amount_base)), 'INR')}</span>` : ''}
         </div>`;
@@ -559,7 +564,7 @@ function renderAnalytics() {
                     <span class="font-mono whitespace-nowrap">${inr(g.sum)}</span>
                 </div>
                 <div class="h-1 rounded-full bg-base-200 mt-1"><div class="h-1 rounded-full ${color}" style="width:${Math.max(share * 100, 1).toFixed(1)}%"></div></div>
-            </div>${open ? opsListHtml(g.rows) : ''}`;
+            </div>${open ? opsListHtml(g.rows, g.mixed) : ''}`;
         }).join('') || `<div class="px-2 py-3 text-sm opacity-60">${e(tr('dacc_sum_empty', 'Нет операций'))}</div>`;
         const card = (title, s, color, textCls) => `<div class="bg-base-100 rounded-xl shadow-sm p-3">
             <div class="flex items-baseline justify-between px-2 mb-1">
@@ -624,7 +629,7 @@ function renderAnalytics() {
                 .filter(x => x.rows.length && (st === 'all' || st === x.i));
             return `<tr class="bg-base-200/30"><td colspan="${n + 3}">${parts.map(x => `
                 <div class="text-xs uppercase tracking-wide opacity-60 mt-1">${e(bucketLabel(x.b))} · ${inr(g.cells[x.i])}</div>
-                ${opsListHtml(x.rows)}`).join('')}</td></tr>`;
+                ${opsListHtml(x.rows, g.mixed)}`).join('')}</td></tr>`;
         };
         const section = (title, s, kind, color) => `<tr class="bg-base-200/60 font-semibold">
                 <td class="sticky left-0 bg-base-200">${e(title)}</td>

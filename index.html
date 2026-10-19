@@ -296,7 +296,7 @@
     <script src="js/utils.js?v=20"></script>
     <script src="js/translit.js"></script>
     <script src="js/auto-translate.js"></script>
-    <script src="js/layout.js?v=120"></script>
+    <script src="js/layout.js?v=121"></script>
     <script>
         window.onLanguageChange = function(lang) {
             Layout.updateAllTranslations();
@@ -360,6 +360,11 @@
             // Показать модуль "Финансы" пользователям с фин-ролями (суперпользователь проходит через hasPermission)
             if (window.hasPermission && (window.hasPermission('fin_admin') || window.hasPermission('fin_observer') || window.hasPermission('fin_account_user'))) {
                 document.getElementById('financeModule')?.classList.remove('hidden');
+            } else if (window.hasPermission?.('fin_dept_viewer')) {
+                // ДДС главам закрыт (мигр. 720) — им из Финансов остаются «Аналитика» и «Счета» своего департамента
+                const fin = document.getElementById('financeModule');
+                fin?.setAttribute('href', 'finance/analytics.html');
+                fin?.classList.remove('hidden');
             }
 
             // Плитка, ведущая туда, куда прав нет, выглядит как поломка:

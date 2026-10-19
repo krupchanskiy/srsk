@@ -350,7 +350,7 @@ const pagePermissions = {
     'guest-portal/materials-admin.html': 'edit_portal_materials',
 
     // Финансы (массив = достаточно любого из прав)
-    // fin_account_user — глава департамента: видит только свой счёт, витрины
+    // fin_account_user — только явная выдача (авто-выдачу главам сняли, мигр. 720); витрины
     // ДДС и счетов фильтруются функцией fin_can_see_account
     'finance/index.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
     'finance/dds.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
@@ -943,8 +943,8 @@ function buildLocationOptions() {
             el.appendChild(crmBtn);
         }
 
-        // Кнопка "Финансы" — админ или наблюдатель финансов
-        if (!window.hasPermission || window.hasPermission('fin_admin') || window.hasPermission('fin_observer')) {
+        // Кнопка "Финансы" — финансисты; главам департаментов — «Аналитика» и «Счета» своего (ДДС им закрыт, мигр. 720)
+        if (!window.hasPermission || ['fin_admin', 'fin_observer', 'fin_dept_viewer'].some(п => window.hasPermission(п))) {
             const finBtn = document.createElement('button');
             finBtn.className = 'w-full text-left px-4 py-2 hover:bg-base-200 text-base-content cursor-pointer';
             if (currentModule === 'finance') {
