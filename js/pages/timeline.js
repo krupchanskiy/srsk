@@ -99,6 +99,12 @@ baseDate.setDate(baseDate.getDate() - 2);
 const TODAY_INDEX = 2;
 
 // Преобразовать дату в dayIndex относительно baseDate
+// День вне всех периодов аренды временного здания (периодов нет — «доступно всегда»)
+function внеАренды(building, dayIndex) {
+    return building.isTemporary && building.rentalRanges.length > 0
+        && !building.rentalRanges.some(([от, до]) => dayIndex >= от && dayIndex <= до);
+}
+
 function dateToDayIndex(dateStr) {
     const date = DateUtils.parseDate(dateStr);
     date.setHours(0, 0, 0, 0);
@@ -179,7 +185,7 @@ async function loadTimelineData() {
     const [buildingsData, roomsRes, residentsRes, retreatsRes, cleaningsRes, holidaysRes, skipsRes] = await Promise.all([
         Cache.getOrLoad('buildings', async () => {
             const { data, error } = await Layout.db.from('buildings')
-                .select('*, building_types(id, slug, color, name_ru, name_en, name_hi)')
+                .select('*, building_types(id, slug, color, name_ru, name_en, name_hi), building_rental_periods(date_from, date_to)')
                 .eq('is_active', true)
                 .order('sort_order');
             if (error) { console.error('Error loading buildings:', error); return null; }
@@ -448,8 +454,11 @@ async function loadTimelineData() {
             id: building.id,
             name: Layout.getName(building),
             isTemporary: building.is_temporary || false,
-            availableFromDay: building.available_from ? dateToDayIndex(building.available_from) : null,
-            availableUntilDay: building.available_until ? dateToDayIndex(building.available_until) : null,
+            // Периоды аренды в индексах дней (мигр. 723); старый кэш — по охвату
+            rentalRanges: (building.building_rental_periods
+                ?? (building.available_from && building.available_until
+                    ? [{ date_from: building.available_from, date_to: building.available_until }] : []))
+                .map(p => [dateToDayIndex(p.date_from), dateToDayIndex(p.date_to)]),
             rooms: buildingRooms.map(room => {
                 const capacity = room.capacity || 1;
                 const roomResidents = residentsByRoom[room.id] || [];
@@ -3460,7 +3469,7 @@ async function showMoveScreen() {
     const [buildingsData, residentsRes] = await Promise.all([
         Cache.getOrLoad('buildings_with_rooms', async () => {
             const { data, error } = await Layout.db.from('buildings')
-                .select('*, rooms(*, room_types(slug))')
+                .select('*, rooms(*, room_types(slug)), building_rental_periods(date_from, date_to)')
                 .eq('is_active', true)
                 .order('sort_order');
             if (error) { console.error('Error loading buildings:', error); return null; }
@@ -3478,7 +3487,7 @@ async function showMoveScreen() {
     // Порядок и набор — как в сетке шахматки: сначала наши здания, потом временные,
     // и временные — только если их аренда пересекается с датами гостя
     const buildings = (buildingsData || [])
-        .filter(b => !b.is_temporary || (b.available_from <= checkOut && b.available_until >= checkIn))
+        .filter(b => !b.is_temporary || (b.available_from && Utils.buildingAvailable(b, checkIn, checkOut)))
         .sort((a, b) => (a.is_temporary ? 1 : 0) - (b.is_temporary ? 1 : 0) || (a.sort_order || 0) - (b.sort_order || 0));
     const residents = residentsRes.data || [];
 
@@ -4086,9 +4095,7 @@ function renderTable() {
             const dayStart = isFirstHalf ? 'day-start' : '';
 
             // Для временных зданий закрашиваем ячейки вне периода аренды
-            const isOutsideRental = building.isTemporary &&
-                ((building.availableFromDay !== null && dayIndex < building.availableFromDay)
-                 || (building.availableUntilDay !== null && dayIndex > building.availableUntilDay));
+            const isOutsideRental = внеАренды(building, dayIndex);
 
             if (isOutsideRental) {
                 html += `<td class="${dayStart}" style="background: #d1d5db;"></td>`;
@@ -4161,16 +4168,11 @@ function renderTable() {
                 const isFirstHalf = halfIndex === 0;
                 const dayStart = isFirstHalf ? 'day-start' : '';
 
-                // Проверка: для временных зданий закрашиваем ячейки вне периода аренды
-                const isOutsideRental = building.isTemporary &&
-                    ((building.availableFromDay !== null && dayIndex < building.availableFromDay) || (building.availableUntilDay !== null && dayIndex > building.availableUntilDay));
+                // Вне периода аренды — серым, но не запрещено: ранний заезд и
+                // поздний выезд во внешнее здание бывают (ВГ 19.10)
+                const isOutsideRental = внеАренды(building, dayIndex);
 
-                if (isOutsideRental) {
-                    html += `<td class="${dayStart}" style="background: #e5e7eb; pointer-events: none;"></td>`;
-                    continue;
-                }
-
-                html += `<td class="${dayStart}">`;
+                html += `<td class="${dayStart}"${isOutsideRental ? ' style="background: #e5e7eb;"' : ''}>`;
 
                 // Показываем сводку только когда номер свёрнут
                 if (roomCollapsed) {
@@ -4240,14 +4242,8 @@ function renderTable() {
                     const today = dayIndex === TODAY_INDEX ? 'today' : '';
                     const ekadashi = isEkadashi(dayIndex) ? 'ekadashi' : '';
 
-                    // Проверка: для временных зданий закрашиваем ячейки вне периода аренды
-                    const isOutsideRental = building.isTemporary &&
-                        ((building.availableFromDay !== null && dayIndex < building.availableFromDay) || (building.availableUntilDay !== null && dayIndex > building.availableUntilDay));
-
-                    if (isOutsideRental) {
-                        html += `<td class="half-day ${dayStart}" style="background: #e5e7eb; pointer-events: none;"></td>`;
-                        continue;
-                    }
+                    // Вне периода аренды — серым, но заселить можно (ранний заезд, поздний выезд)
+                    const isOutsideRental = внеАренды(building, dayIndex);
 
                     // Проверяем есть ли гость начинающийся здесь
                     const guest = bed.guests.find(g =>
@@ -4259,7 +4255,7 @@ function renderTable() {
                     const rName = room.name.replace(/'/g, "\\'");
                     const bedName = bed.name.replace(/'/g, "\\'");
 
-                    html += `<td class="half-day clickable ${dayStart} ${weekend} ${today} ${ekadashi}" data-action="open-action-modal" data-day-index="${dayIndex}" data-room-id="${room.id}" data-building-name="${bName}" data-room-name="${rName}" data-bed-name="${bedName}" data-half-index="${halfIndex}">`;
+                    html += `<td class="half-day clickable ${dayStart} ${weekend} ${today} ${ekadashi}"${isOutsideRental ? ' style="background: #e5e7eb;"' : ''} data-action="open-action-modal" data-day-index="${dayIndex}" data-room-id="${room.id}" data-building-name="${bName}" data-room-name="${rName}" data-bed-name="${bedName}" data-half-index="${halfIndex}">`;
 
                     // Если здесь начинается гость — добавляем плашку
                     // (уборки теперь рендерятся на строке номера, не на строке места)

@@ -210,7 +210,7 @@ const $ = id => document.getElementById(id);
 // ---------- данные ----------
 async function loadRefs() {
     const [b, r, rt, fe, cat] = await Promise.all([
-        Layout.db.from('buildings').select('id, name_ru, name_en, name_hi, is_temporary, sort_order, available_from, available_until')
+        Layout.db.from('buildings').select('id, name_ru, name_en, name_hi, is_temporary, sort_order, available_from, available_until, building_rental_periods(date_from, date_to)')
             .eq('is_active', true).order('sort_order'),
         Layout.db.from('rooms').select('id, number, floor, building_id, capacity, status, room_types(slug)').eq('is_active', true),
         Layout.db.from('retreats')
@@ -405,8 +405,10 @@ function toggleRoom(roomId) {
 function renderRooms() {
     const openNow = new Set([...document.querySelectorAll('#gbBuildings details[open]')].map(d => d.dataset.building));
     const from = $('gbIn').value, to = $('gbOut').value;
-    const shown = S.buildings.filter(b => !S.buildingFilter || S.buildingFilter.includes(b.id)).filter(b => !b.is_temporary || (S.rooms.some(r => r.building_id === b.id && (S.picks[r.id] || S.occ.has(r.id)))
-        || (from && to && b.available_from && b.available_until && b.available_from <= to && b.available_until >= from)));
+    // Внешнее здание, которое менеджер выбрал в сделке, — всегда, даже если аренда
+    // ещё не началась или гость приезжает раньше / уезжает позже периода (ВГ 19.10)
+    const shown = S.buildings.filter(b => !S.buildingFilter || S.buildingFilter.includes(b.id)).filter(b => !b.is_temporary || S.buildingFilter || (S.rooms.some(r => r.building_id === b.id && (S.picks[r.id] || S.occ.has(r.id)))
+        || (from && to && b.building_rental_periods?.length && Utils.buildingAvailable(b, from, to))));
     const html = shown.map((b, i) => {
         const rooms = S.rooms.filter(r => r.building_id === b.id);
         if (!rooms.length) return '';

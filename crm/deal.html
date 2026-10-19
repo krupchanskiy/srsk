@@ -668,8 +668,8 @@
 <script src="../js/config.js?v=5"></script>
 <script src="../js/auth-check.js?v=17"></script>
 <script src="../js/cache.js?v=2"></script>
-<script src="../js/utils.js?v=22"></script>
-<script src="../js/layout.js?v=122"></script>
+<script src="../js/utils.js?v=23"></script>
+<script src="../js/layout.js?v=123"></script>
 <script src="../js/date-utils.js?v=5"></script>
 <script src="../js/crm-utils.js?v=7"></script>
 <script src="../js/crm-cancel-reason.js?v=1"></script>
@@ -813,7 +813,7 @@ async function loadReferenceData() {
         Layout.db.from('crm_deal_tags').select('tag_id').eq('deal_id', dealId),
         // Временные здания (внешние гостиницы)
         Layout.db.from('buildings')
-            .select('id, name_ru, name_en, name_hi')
+            .select('id, name_ru, name_en, name_hi, building_rental_periods(date_from, date_to)')
             .eq('is_temporary', true)
             .eq('is_active', true)
             .order('sort_order'),
@@ -3569,6 +3569,15 @@ async function saveDealField(field, value) {
 }
 
 // ==================== ЧЕКЛИСТ ГОСТЯ ====================
+// « · 21.10–01.11, 05.11–11.11» — ещё не закончившиеся периоды аренды внешнего здания
+function периодыАренды(b) {
+    const сегодня = DateUtils.toISO(new Date());
+    const дм = d => d.slice(8, 10) + '.' + d.slice(5, 7);
+    const периоды = (b.building_rental_periods || []).filter(p => p.date_to >= сегодня)
+        .sort((a, c) => a.date_from.localeCompare(c.date_from));
+    return периоды.length ? ' · ' + периоды.map(p => `${дм(p.date_from)}–${дм(p.date_to)}`).join(', ') : '';
+}
+
 function populateAccommodationSelect() {
     const sel = document.getElementById('cl_accommodation');
     if (!sel) return;
@@ -3577,7 +3586,7 @@ function populateAccommodationSelect() {
         <option value="guest_house">${t('crm_accom_guest_house')}</option>
         <option value="staff_house">${t('crm_accom_staff_house')}</option>
         ${partnerBuildings.length ? `<optgroup label="${t('crm_other_hotels')}">` +
-            partnerBuildings.map(b => `<option value="partner_hotel:${b.id}">${e(Layout.getName(b))}</option>`).join('') +
+            partnerBuildings.map(b => `<option value="partner_hotel:${b.id}">${e(Layout.getName(b) + периодыАренды(b))}</option>`).join('') +
             '</optgroup>' : `<option value="partner_hotel">${t('crm_other_hotels')}</option>`}
         <option value="self">${t('crm_self_arrangement')}</option>
     `;

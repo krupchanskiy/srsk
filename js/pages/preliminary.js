@@ -2143,7 +2143,7 @@ async function loadBuildingsAndRooms() {
     const [allBuildingsData, floorPlansRes] = await Promise.all([
         Cache.getOrLoad('buildings_with_rooms', async () => {
             const { data, error } = await Layout.db.from('buildings')
-                .select('*, rooms(*)')
+                .select('*, rooms(*), building_rental_periods(date_from, date_to)')
                 .eq('is_active', true)
                 .order('sort_order');
             if (error) { console.error('Error loading buildings:', error); return null; }
@@ -2160,19 +2160,16 @@ async function loadBuildingsAndRooms() {
     // Фильтруем временные здания по датам ретрита
     if (retreat?.start_date && retreat?.end_date) {
         allBuildings = allBuildings.filter(b => {
-            // Постоянные здания показываем всегда
-            if (!b.is_temporary) return true;
-            // Временные без дат — доступны всегда
-            if (!b.available_from && !b.available_until) return true;
-            // Временные — только если период аренды пересекается с ретритом
-            return b.available_from <= retreat.end_date && b.available_until >= retreat.start_date;
+            // Постоянные и временные без периодов — всегда; остальные —
+            // если какой-то период аренды пересекается с ретритом
+            return Utils.buildingAvailable(b, retreat.start_date, retreat.end_date);
         });
     } else {
         // Без ретрита показываем постоянные и временные без дат
         allBuildings = allBuildings.filter(b => {
             if (!b.is_temporary) return true;
             // Временные без дат — доступны всегда
-            return !b.available_from && !b.available_until;
+            return !b.building_rental_periods?.length && !b.available_from && !b.available_until;
         });
     }
 

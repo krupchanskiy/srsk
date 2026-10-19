@@ -279,11 +279,11 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
     <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=22"></script>
+    <script src="../js/utils.js?v=23"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=5"></script>
-    <script src="../js/layout.js?v=122"></script>
+    <script src="../js/layout.js?v=123"></script>
     <script>
         // ==================== STATE ====================
         let buildings = [];
@@ -304,7 +304,7 @@
             const data = await Cache.getOrLoad('buildings', async () => {
                 const { data, error } = await Layout.db
                     .from('buildings')
-                    .select('*, building_types(color)')
+                    .select('*, building_types(color), building_rental_periods(date_from, date_to)')
                     .eq('is_active', true)
                     .order('sort_order');
                 if (error) { console.error('Error loading buildings:', error); return null; }

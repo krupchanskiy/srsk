@@ -1092,7 +1092,7 @@ async function loadBuildingsAndRooms() {
     buildings = await Cache.getOrLoad('buildings_with_rooms', async () => {
         const { data, error } = await Layout.db
             .from('buildings')
-            .select('*, rooms(*)')
+            .select('*, rooms(*), building_rental_periods(date_from, date_to)')
             .eq('is_active', true)
             .order('sort_order');
         if (error) { console.error('Error loading buildings:', error); return null; }
@@ -1920,12 +1920,9 @@ async function updateRoomsList() {
 
     // Фильтруем временные здания по датам
     const availableBuildings = buildings.filter(b => {
-        // Постоянные здания показываем всегда
-        if (!b.is_temporary) return true;
-        // Временные без дат — доступны всегда
-        if (!b.available_from && !b.available_until) return true;
-        // Временные с датами — только если период аренды пересекается с датами заезда/выезда
-        return b.available_from <= checkOut && b.available_until >= checkIn;
+        // Постоянные — всегда, временные без периодов — всегда, остальные —
+        // если какой-то период аренды пересекается с датами заезда/выезда
+        return Utils.buildingAvailable(b, checkIn, checkOut);
     });
 
     // Опция "Самостоятельное размещение"

@@ -445,8 +445,22 @@ function поЯзыку(варианты) {
 window.поЯзыку = поЯзыку;
 
 
+/**
+ * Временное здание сдаётся нам на from..to (YYYY-MM-DD)? Постоянное — всегда.
+ * Периоды аренды — building.building_rental_periods (мигр. 723); их нет совсем —
+ * «доступно всегда». Старый кэш без периодов — по охвату available_from/until.
+ */
+function buildingAvailable(building, from, to) {
+    if (!building.is_temporary) return true;
+    const periods = building.building_rental_periods
+        ?? (building.available_from && building.available_until
+            ? [{ date_from: building.available_from, date_to: building.available_until }] : []);
+    if (!periods.length) return true;
+    return periods.some(p => p.date_from <= to && p.date_to >= from);
+}
+
 // Глобальный debug-логгер доступен без префикса — используется часто, как console.log.
 window.debug = debug;
-window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, textOn, badgeStyle, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName, pickResident };
+window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, textOn, badgeStyle, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName, pickResident, buildingAvailable };
 
 })();

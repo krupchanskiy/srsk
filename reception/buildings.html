@@ -124,15 +124,24 @@
                     </div>
 
                     <div id="datesInputSection">
-                        <label class="label"><span class="label-text font-medium" data-i18n="rental_period">Период аренды</span><span class="text-error ml-1" id="datesRequiredMark">*</span></label>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <input type="date" name="available_from" id="availableFromInput" class="input input-bordered w-full" />
-                            </div>
-                            <div>
-                                <input type="date" name="available_until" id="availableUntilInput" class="input input-bordered w-full" />
-                            </div>
+                        <label class="label"><span class="label-text font-medium" data-i18n="rental_period">Период аренды</span><span class="text-error ml-1">*</span></label>
+                        <!-- Несколько периодов: свои даты или ретрит ± до недели (мигр. 723) -->
+                        <div id="rentalPeriods" class="space-y-2"></div>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            <button type="button" class="btn btn-sm btn-ghost gap-1" data-rental-add="dates">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                                <span data-i18n="rental_add_dates">Добавить даты</span>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-ghost gap-1" data-rental-add="retreat">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                                <span data-i18n="rental_add_retreat">Добавить ретрит</span>
+                            </button>
                         </div>
+                        <!-- Закончившиеся периоды не правятся — это история использования -->
+                        <details id="rentalHistory" class="hidden mt-3">
+                            <summary class="cursor-pointer text-sm font-medium opacity-70" data-i18n="rental_history">История использования</summary>
+                            <div id="rentalHistoryList" class="mt-2 space-y-1 text-sm"></div>
+                        </details>
                     </div>
                 </div>
 
@@ -159,19 +168,25 @@
     <script src="../js/auth-check.js?v=17"></script>
     <script src="../js/permissions-ui.js?v=2"></script>
     <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=22"></script>
+    <script src="../js/utils.js?v=23"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=5"></script>
-    <script src="../js/layout.js?v=122"></script>
+    <script src="../js/layout.js?v=123"></script>
     <script>
         // ==================== STATE ====================
         let buildings = [];
         let buildingTypes = [];
         let roomCounts = {};
         let editingBuildingId = null;
+        let retreats = [];
+        // Закончившиеся периоды редактируемого здания — в форме не правятся (история)
+        let pastPeriods = [];
 
         const t = key => Layout.t(key);
+        const tf = (key, fallback) => { const v = Layout.t(key); return v === key ? fallback : v; };
+        const e = str => Layout.escapeHtml(str);
+        const today = () => DateUtils.toISO(new Date());
 
         function formatDate(dateStr) {
             if (!dateStr) return '—';
@@ -194,9 +209,25 @@
         async function loadBuildings() {
             const { data } = await Layout.db
                 .from('buildings')
-                .select('*, building_types(id, slug, name_ru, name_en, name_hi, color)')
+                .select('*, building_types(id, slug, name_ru, name_en, name_hi, color), building_rental_periods(id, date_from, date_to, retreat_id, days_before, days_after)')
                 .order('sort_order');
             return data || [];
+        }
+
+        async function loadRetreats() {
+            const { data, error } = await Layout.db.from('retreats')
+                .select('id, name_ru, name_en, name_hi, start_date, end_date')
+                .not('start_date', 'is', null).not('end_date', 'is', null)
+                .order('start_date');
+            if (error) console.error('Error loading retreats:', error);
+            return data || [];
+        }
+
+        // «17 авг. — 10 сент. · Сева-ретрит (−3/+2)»
+        function periodLabel(p) {
+            const r = p.retreat_id ? retreats.find(x => x.id === p.retreat_id) : null;
+            const shift = r && (p.days_before || p.days_after) ? ` (−${p.days_before}/+${p.days_after})` : '';
+            return `${formatDate(p.date_from)} — ${formatDate(p.date_to)}${r ? ' · ' + Layout.getName(r) + shift : ''}`;
         }
 
         async function loadRoomCounts() {
@@ -264,14 +295,7 @@
                                 </div>
                             </div>
 
-                            ${building.is_temporary && building.available_from && building.available_until ? `
-                                            <div class="text-sm opacity-70 mt-2 flex items-center gap-1">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                </svg>
-                                                ${formatDate(building.available_from)} — ${formatDate(building.available_until)}
-                                            </div>
-                                        ` : ''}
+                            ${building.is_temporary ? renderCardPeriods(building) : ''}
                             ${building.description_ru ? `<p class="text-sm opacity-60 mt-2">${building['description_' + Layout.currentLang] || building.description_ru}</p>` : ''}
 
                             <div class="mt-3 flex gap-2">
@@ -294,6 +318,18 @@
             }).join('');
         }
 
+        // Действующие и будущие периоды на карточке; все закончились — «Аренда закончилась»
+        function renderCardPeriods(building) {
+            const all = building.building_rental_periods || [];
+            if (!all.length) return '';
+            const actual = all.filter(p => p.date_to >= today()).sort((a, b) => a.date_from.localeCompare(b.date_from));
+            const icon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`;
+            const lines = actual.length
+                ? actual.map(p => `<div>${e(periodLabel(p))}</div>`).join('')
+                : `<div>${e(tf('rental_ended', 'Аренда закончилась'))}</div>`;
+            return `<div class="text-sm opacity-70 mt-2 flex items-start gap-1">${icon}<div>${lines}</div></div>`;
+        }
+
         // ==================== BUILDING MODAL ====================
         function populateBuildingTypeSelect() {
             const select = Layout.$('#buildingTypeSelect');
@@ -310,31 +346,99 @@
                 toggleAlwaysAvailable(); // Update dates fields visibility
             } else {
                 section.classList.add('hidden');
-                Layout.$('#availableFromInput').required = false;
-                Layout.$('#availableUntilInput').required = false;
             }
         }
 
         function toggleAlwaysAvailable() {
             const alwaysAvailable = Layout.$('#alwaysAvailableCheckbox').checked;
-            const datesSection = Layout.$('#datesInputSection');
-            const fromInput = Layout.$('#availableFromInput');
-            const untilInput = Layout.$('#availableUntilInput');
-            const requiredMark = Layout.$('#datesRequiredMark');
+            Layout.$('#datesInputSection').classList.toggle('hidden', alwaysAvailable);
+        }
 
-            if (alwaysAvailable) {
-                // Hide dates, make them optional, clear values
-                datesSection.classList.add('hidden');
-                fromInput.required = false;
-                untilInput.required = false;
-                fromInput.value = '';
-                untilInput.value = '';
+        // ---------- периоды аренды ----------
+        const options07 = sel => [0, 1, 2, 3, 4, 5, 6, 7].map(n => `<option value="${n}"${n === sel ? ' selected' : ''}>${n}</option>`).join('');
+        const trashIcon = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+
+        function addRentalRow(kind, p = {}) {
+            const row = document.createElement('div');
+            row.className = 'rental-row flex items-end gap-2';
+            row.dataset.kind = kind;
+            if (kind === 'dates') {
+                row.innerHTML = `
+                    <input type="date" class="input input-bordered input-sm flex-1 min-w-0" data-f="from" value="${e(p.date_from || '')}" />
+                    <input type="date" class="input input-bordered input-sm flex-1 min-w-0" data-f="to" value="${e(p.date_to || '')}" />
+                    <button type="button" class="btn btn-ghost btn-sm btn-square" data-rental-del>${trashIcon}</button>`;
             } else {
-                // Show dates, make them required
-                datesSection.classList.remove('hidden');
-                fromInput.required = true;
-                untilInput.required = true;
+                // В выборе — ещё не закончившиеся ретриты и тот, что уже привязан
+                const list = retreats.filter(r => r.end_date >= today() || r.id === p.retreat_id);
+                row.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <select class="select select-bordered select-sm w-full" data-f="retreat">
+                            <option value="">—</option>
+                            ${list.map(r => `<option value="${r.id}"${r.id === p.retreat_id ? ' selected' : ''}>${e(Layout.getName(r))} · ${formatDate(r.start_date)} — ${formatDate(r.end_date)}</option>`).join('')}
+                        </select>
+                        <div class="text-xs opacity-60 mt-1" data-f="hint"></div>
+                    </div>
+                    <label class="text-xs opacity-70 flex flex-col items-center">${e(tf('rental_days_before', 'Дней до'))}
+                        <select class="select select-bordered select-sm" data-f="before">${options07(p.days_before || 0)}</select></label>
+                    <label class="text-xs opacity-70 flex flex-col items-center">${e(tf('rental_days_after', 'Дней после'))}
+                        <select class="select select-bordered select-sm" data-f="after">${options07(p.days_after || 0)}</select></label>
+                    <button type="button" class="btn btn-ghost btn-sm btn-square" data-rental-del>${trashIcon}</button>`;
+                row.addEventListener('change', () => updateRetreatHint(row));
+                updateRetreatHint(row);
             }
+            Layout.$('#rentalPeriods').appendChild(row);
+        }
+
+        // Под ретритом — итоговые даты аренды с учётом дней до/после
+        function updateRetreatHint(row) {
+            const r = retreats.find(x => x.id === row.querySelector('[data-f="retreat"]').value);
+            const hint = row.querySelector('[data-f="hint"]');
+            if (!r) { hint.textContent = ''; return; }
+            const shift = (iso, days) => { const d = DateUtils.parseDate(iso); d.setDate(d.getDate() + days); return DateUtils.toISO(d); };
+            hint.textContent = `${formatDate(shift(r.start_date, -Number(row.querySelector('[data-f="before"]').value)))} — ${formatDate(shift(r.end_date, Number(row.querySelector('[data-f="after"]').value)))}`;
+        }
+
+        // Собрать периоды из формы; ошибка — текст, иначе массив
+        function collectRentalRows() {
+            const rows = [...Layout.$('#rentalPeriods').querySelectorAll('.rental-row')];
+            const out = [];
+            for (const row of rows) {
+                if (row.dataset.kind === 'dates') {
+                    const from = row.querySelector('[data-f="from"]').value, to = row.querySelector('[data-f="to"]').value;
+                    if (!from && !to) continue;
+                    if (!from || !to || to < from) return t('invalid_dates') === 'invalid_dates' ? 'Проверьте даты периода аренды' : t('invalid_dates');
+                    out.push({ retreat_id: null, days_before: 0, days_after: 0, date_from: from, date_to: to });
+                } else {
+                    const retreatId = row.querySelector('[data-f="retreat"]').value;
+                    if (!retreatId) continue;
+                    const r = retreats.find(x => x.id === retreatId);
+                    // Даты пересчитает триггер в базе; здесь — чтобы прошли NOT NULL
+                    out.push({ retreat_id: retreatId, days_before: Number(row.querySelector('[data-f="before"]').value),
+                        days_after: Number(row.querySelector('[data-f="after"]').value), date_from: r.start_date, date_to: r.end_date });
+                }
+            }
+            return out;
+        }
+
+        // История: закончившиеся периоды и сколько людей жило в здании в эти даты
+        async function renderRentalHistory(buildingId) {
+            const box = Layout.$('#rentalHistory');
+            box.classList.toggle('hidden', !pastPeriods.length);
+            if (!pastPeriods.length) return;
+            const list = Layout.$('#rentalHistoryList');
+            const sorted = [...pastPeriods].sort((a, b) => b.date_from.localeCompare(a.date_from));
+            list.innerHTML = sorted.map(p => `<div class="opacity-70">${e(periodLabel(p))}</div>`).join('');
+            const { data, error } = await Layout.db.from('residents')
+                .select('vaishnava_id, guest_name, check_in, check_out, rooms!inner(building_id)')
+                .eq('rooms.building_id', buildingId)
+                .neq('status', 'cancelled')
+                .lte('check_in', sorted[0].date_to);
+            if (error || editingBuildingId !== buildingId) { if (error) console.error('Error loading history:', error); return; }
+            list.innerHTML = sorted.map(p => {
+                const people = new Set((data || []).filter(r => r.check_in <= p.date_to && (r.check_out || '9999') >= p.date_from)
+                    .map(r => r.vaishnava_id || r.guest_name || Math.random()));
+                return `<div class="flex justify-between gap-2 opacity-70"><span>${e(periodLabel(p))}</span><span class="whitespace-nowrap">${people.size} ${e(tf('rental_guests', 'гостей'))}</span></div>`;
+            }).join('');
         }
 
         function openBuildingModal(buildingId = null) {
@@ -345,6 +449,10 @@
 
             form.reset();
             populateBuildingTypeSelect();
+            Layout.$('#rentalPeriods').innerHTML = '';
+            pastPeriods = [];
+            Layout.$('#rentalHistory').classList.add('hidden');
+            Layout.$('#rentalHistory').open = false;
 
             if (buildingId) {
                 const building = buildings.find(b => b.id === buildingId);
@@ -360,12 +468,17 @@
                     form.description_ru.value = building.description_ru || '';
                     form.is_active.checked = building.is_active !== false;
                     form.is_temporary.checked = building.is_temporary || false;
-                    form.available_from.value = building.available_from || '';
-                    form.available_until.value = building.available_until || '';
 
-                    // Set "Always Available" checkbox if temporary but no dates
-                    const alwaysAvailable = building.is_temporary && !building.available_from && !building.available_until;
-                    Layout.$('#alwaysAvailableCheckbox').checked = alwaysAvailable;
+                    // Действующие и будущие периоды — в форму, закончившиеся — в историю
+                    const periods = building.building_rental_periods || [];
+                    periods.filter(p => p.date_to >= today())
+                        .sort((a, b) => a.date_from.localeCompare(b.date_from))
+                        .forEach(p => addRentalRow(p.retreat_id ? 'retreat' : 'dates', p));
+                    pastPeriods = periods.filter(p => p.date_to < today());
+                    renderRentalHistory(building.id);
+
+                    // «Доступно всегда» — временное здание без периодов
+                    Layout.$('#alwaysAvailableCheckbox').checked = building.is_temporary && !periods.length;
 
                     deleteSection.classList.remove('hidden');
                 }
@@ -374,6 +487,7 @@
                 deleteSection.classList.add('hidden');
                 Layout.$('#alwaysAvailableCheckbox').checked = false;
             }
+            if (!Layout.$('#rentalPeriods').children.length) addRentalRow('dates');
 
             toggleTemporaryDates();
             Layout.setupAutoTranslate('#buildingForm', ['name']);
@@ -400,19 +514,41 @@
                 address: form.address.value.trim() || null,
                 description_ru: form.description_ru.value.trim() || null,
                 is_active: form.is_active.checked,
-                is_temporary: isTemporary,
-                // If "Always Available" is checked, set dates to NULL
-                available_from: (isTemporary && !alwaysAvailable) ? form.available_from.value : null,
-                available_until: (isTemporary && !alwaysAvailable) ? form.available_until.value : null
+                is_temporary: isTemporary
+                // available_from/available_until — охват периодов, ставит триггер (мигр. 723)
             };
 
+            // Периоды аренды: нужны у временного здания, если оно не «доступно всегда»
+            const periods = isTemporary && !alwaysAvailable ? collectRentalRows() : [];
+            if (typeof periods === 'string') { Layout.showNotification(periods, 'error'); return; }
+            if (isTemporary && !alwaysAvailable && !periods.length && !pastPeriods.length) {
+                Layout.showNotification(tf('rental_need_period', 'Добавьте хотя бы один период аренды или отметьте «Доступно всегда»'), 'error');
+                return;
+            }
+
             try {
+                let buildingId = editingBuildingId;
                 if (editingBuildingId) {
                     const { error } = await Layout.db.from('buildings').update(data).eq('id', editingBuildingId);
                     if (error) throw error;
                 } else {
-                    const { error } = await Layout.db.from('buildings').insert(data);
+                    const { data: created, error } = await Layout.db.from('buildings').insert(data).select('id');
                     if (error) throw error;
+                    buildingId = created[0].id;
+                }
+
+                if (isTemporary) {
+                    // Действующие периоды заменяем тем, что в форме; закончившиеся (история)
+                    // не трогаем. «Доступно всегда» — периодов нет совсем
+                    let del = Layout.db.from('building_rental_periods').delete().eq('building_id', buildingId);
+                    if (!alwaysAvailable) del = del.gte('date_to', today());
+                    const { error: delErr } = await del;
+                    if (delErr) throw delErr;
+                    if (periods.length) {
+                        const { error: insErr } = await Layout.db.from('building_rental_periods')
+                            .insert(periods.map(p => ({ ...p, building_id: buildingId })));
+                        if (insErr) throw insErr;
+                    }
                 }
 
                 Cache.invalidate('buildings'); Cache.invalidate('buildings_with_rooms'); Cache.invalidate('buildings_names');
@@ -462,16 +598,23 @@
             Layout.showLoader();
 
             // Загружаем базовые данные
-            [buildingTypes, buildings, roomCounts] = await Promise.all([
+            [buildingTypes, buildings, roomCounts, retreats] = await Promise.all([
                 loadBuildingTypes(),
                 loadBuildings(),
-                loadRoomCounts()
+                loadRoomCounts(),
+                loadRetreats()
             ]);
 
             // Forms
             Layout.$('#buildingForm').addEventListener('submit', saveBuilding);
             Layout.$('#isTemporaryCheckbox').addEventListener('change', toggleTemporaryDates);
             Layout.$('#alwaysAvailableCheckbox').addEventListener('change', toggleAlwaysAvailable);
+            Layout.$('#buildingModal').addEventListener('click', ev => {
+                const add = ev.target.closest('[data-rental-add]');
+                if (add) addRentalRow(add.dataset.rentalAdd);
+                const del = ev.target.closest('[data-rental-del]');
+                if (del) del.closest('.rental-row').remove();
+            });
 
             updateUI();
             Layout.hideLoader();
