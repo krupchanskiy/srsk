@@ -284,6 +284,8 @@ const WorshipLoad = (() => {
             <div class="строкаЗагрузки человек py-2.5">
                 <div class="кто min-w-0">
                     <a href="people.html?id=${ч.id}" class="link link-hover font-semibold">${e(ч.имя)}</a>
+                    ${состав === 'все' && ч.kind === 'volunteer'
+                        ? '<span class="badge badge-sm badge-outline ml-1 align-middle">волонтёр</span>' : ''}
                     <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-sm opacity-80">
                         ${ч.метка ? `<span class="метка ${ч.метка}" title="${e(ч.ожидание && ч.метка !== 'отъезд'
                             ? `при ${ч.днейНаМесте} дн. на месте норма ≈ ${поВремени ? часы(ч.ожидание) : Math.round(ч.ожидание) + ' сл.'}`

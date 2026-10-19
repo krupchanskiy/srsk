@@ -274,6 +274,8 @@ const WorshipArticle = (() => {
         }
         if (можноУтверждать() && статья.status === 'archived') {
             редкие.push('<li><button id="unarchive">Вернуть из архива</button></li>');
+            // удалить — только из архива: действующий одним нажатием не пропадёт
+            редкие.push('<li><button id="deleteForever" class="text-error">Удалить навсегда</button></li>');
         }
 
         if (редкие.length) {
@@ -390,7 +392,7 @@ const WorshipArticle = (() => {
     document.addEventListener('click', ev => {
         if (!уАлтаря) return;
         const шаг = ev.target.closest('#body ol > li');
-        if (!шаг || ev.target.closest('a, .термин')) return;   // термин — пояснение, а не отметка
+        if (!шаг || ev.target.closest('a')) return;
         const i = Number(шаг.dataset.шаг);
         if (сделанные().has(i)) сделанные().delete(i); else сделанные().add(i);
         запомнитьСделанные();
@@ -439,8 +441,6 @@ const WorshipArticle = (() => {
         const тело = $('#body');
         тело.innerHTML = '';
         тело.appendChild(WorshipDoc.нарисовать(показана?.doc, снимки));
-        // термины подчёркнуты: по касанию — пояснение для новичка
-        window.WorshipGlossary?.разметить(тело);
 
         const главы = WorshipDoc.заголовки(показана?.doc);
         $('#toc').hidden = главы.length < 2;
@@ -810,6 +810,16 @@ const WorshipArticle = (() => {
                 if (error) return Layout.handleError(error, 'Возврат из архива');
                 Layout.showNotification('Стандарт снова действует', 'success');
                 return перечитать();
+            }
+            if (b.id === 'deleteForever') {
+                if (!await спросить(`Удалить «${статья.title}» навсегда?`,
+                    'Уйдут все редакции, замечания и место в подборках. Вернуть будет нельзя. '
+                    + 'Если стандарт может ещё пригодиться — оставьте его в архиве.')) return;
+                const { error } = await Layout.db.rpc('worship_standard_delete', { p_article: статья.id });
+                if (error) return Layout.handleError(error, 'Удаление');
+                Layout.showNotification('Стандарт удалён', 'success');
+                location.href = 'standards.html';
+                return;
             }
         });
     }

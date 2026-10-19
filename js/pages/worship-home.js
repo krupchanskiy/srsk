@@ -584,7 +584,6 @@ const WorshipHome = (() => {
 
     async function init() {
         помнитьГруппы();
-        $('#словарик')?.addEventListener('click', () => window.WorshipGlossary?.окно());
         // ночной режим: как в телефоне → ночь → день (color-init.js)
         const ночь = $('#ночь');
         if (ночь && window.srskNight) {

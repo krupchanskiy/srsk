@@ -61,9 +61,6 @@
                 </svg>
             </button>
         </form>
-        <!-- новичку: что значат мангала-арати, бхога, шрингара -->
-        <p class="text-sm opacity-70 -mt-4 mb-5">Непонятное слово?
-            <button type="button" class="link" id="словарик">Словарик алтарной</button></p>
 
         <!-- телеграм: без привязки к боту личные напоминания уходят в пустоту.
              Карточка видна только участнику отдела, пока он не подключится -->
@@ -94,8 +91,9 @@
             <div class="flex flex-col gap-2 px-4 pb-4" id="queueList"></div>
         </details>
 
-        <!-- пустые клетки на завтра: их закрывают сегодня, а не в четыре утра -->
-        <section id="emptyCard" hidden class="mb-5 rounded-xl border border-base-300 bg-base-100 p-4">
+        <!-- пустые клетки на завтра: их закрывают сегодня, а не в четыре утра.
+             Жёлтая, чтобы старший заметил сразу, а не среди прочих карточек -->
+        <section id="emptyCard" hidden class="mb-5 rounded-xl border border-warning bg-warning/25 p-4">
             <h2 class="text-lg font-bold mb-1">Пустые клетки на завтра · <span id="emptyCount">0</span></h2>
             <p class="text-sm opacity-70 mb-2">Службы, на которые не поставлен ведущий пуджари.
                 <a class="link" href="schedule.html">Открыть расписание</a></p>
@@ -252,8 +250,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/worship-glossary.js?v=1"></script>
-    <script src="../js/pages/worship-home.js?v=32"></script>
+    <script src="../js/pages/worship-home.js?v=33"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_home' });
