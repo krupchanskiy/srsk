@@ -190,7 +190,9 @@ const WorshipHome = (() => {
      */
     async function деньСегодня(дата, завтрашний) {
         const сегодня = дата || DateUtils.todayAshramISO();
-        const [с, о, н] = await Promise.all([
+        // люди и отметки отъезда — в том же круге, что и расписание:
+        // вторым кругом они добавляли к главной ещё одну поездку до базы
+        const [с, о, н, весь, отм] = await Promise.all([
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, article_id')
                 .eq('is_active', true).order('time_of_day'),
@@ -198,6 +200,9 @@ const WorshipHome = (() => {
                 .select('id, service_id, title, time_of_day, reason').eq('duty_date', сегодня),
             Layout.db.from('worship_duties')
                 .select('id, service_id, override_id, person_id, role').eq('duty_date', сегодня),
+            Layout.db.rpc('worship_people_list'),
+            Layout.db.from('worship_absences')
+                .select('person_id, date_from, date_to').lte('date_from', сегодня),
         ]);
         if (с.error || о.error || н.error) return;      // расписание не повод ронять главную
         const службы = с.data || [], отклонения = о.data || [], назначения = н.data || [];
@@ -208,12 +213,7 @@ const WorshipHome = (() => {
         let придёт = () => true;
         const persons = [...new Set(назначения.map(д => д.person_id))];
         if (persons.length) {
-            // люди сразу с именами — одним кругом, без похода в vaishnavas
-            const [{ data: весьОтдел }, { data: отметки }] = await Promise.all([
-                Layout.db.rpc('worship_people_list'),
-                Layout.db.from('worship_absences')
-                    .select('person_id, date_from, date_to').in('person_id', persons).lte('date_from', сегодня),
-            ]);
+            const весьОтдел = весь.data, отметки = отм.data;
             const нужные = new Set(persons);
             const люди = (весьОтдел || []).filter(ч => нужные.has(ч.id));
             имена = Object.fromEntries(люди.map(ч => [ч.id, ч.name]));

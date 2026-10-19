@@ -15,6 +15,10 @@
 
     window._authInProgress = true;
 
+    // карточка и права с прошлой страницы: ключ и срок жизни
+    const КЛЮЧ_ДОСТУПА = 'srsk_access_v1';
+    const ДОСТУП_ЖИВЁТ = 10 * 60 * 1000;
+
     try {
         // Используем централизованный Supabase клиент из config.js
         const db = window.supabaseClient;
@@ -33,26 +37,93 @@
             return;
         }
 
-        // Карточка, права и доступ к основному приложению зависят только от
-        // id пользователя — запрашиваем разом. Раньше это были три запроса
-        // друг за другом, и каждая страница ждала три круга до базы, прежде
-        // чем нарисовать меню. Список всех прав нужен только суперпользователю,
-        // но он крошечный, и ждать ради него четвёртый круг дороже.
+        // Свежая проверка уходит сразу. Если есть карточка и права, запомненные
+        // на прошлой странице (не старше 10 минут), страница рисуется по ним,
+        // не дожидаясь ответа: на мобильной сети этот круг до базы стоил
+        // от 0,15 до 1 с на КАЖДОЙ странице. Ответ сверяется с запомненным —
+        // если права изменились, страница перезагружается, если доступ
+        // отозван — уводим, как и раньше. Данные всё равно охраняет RLS.
+        const свежее = загрузитьДоступ(db, session.user.id);
+        const запомненное = прочитатьЗапомненное(session.user.id);
+
+        if (запомненное && await применить(запомненное, session, db) === 'ok') {
+            завершить(db);
+            свежее.then(async д => {
+                // сбой сети — не повод выкидывать человека: остаёмся на запомненном
+                if (д.ошибкаСети) return;
+                if (подпись(д) === подпись(запомненное)) return запомнить(session.user.id, д);
+                забыть();
+                // что-то изменилось: пусть решает полная проверка — она уведёт,
+                // если доступа больше нет, а если есть — перерисуем с новыми правами
+                if (await применить(д, session, db) === 'ok') {
+                    запомнить(session.user.id, д);
+                    window.location.reload();
+                }
+            });
+            return;
+        }
+
+        const д = await свежее;
+        if (await применить(д, session, db) !== 'ok') return;
+        if (!д.ошибкаСети) запомнить(session.user.id, д);
+        завершить(db);
+
+    } catch (err) {
+        console.error('Auth check exception:', err);
+        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = '/login.html?redirect=' + returnUrl;
+    }
+
+    // ==================== ЗАПОМНЕННЫЙ ДОСТУП ====================
+    function прочитатьЗапомненное(uid) {
+        try {
+            const з = JSON.parse(localStorage.getItem(КЛЮЧ_ДОСТУПА) || 'null');
+            if (з && з.uid === uid && Date.now() - з.at < ДОСТУП_ЖИВЁТ) return з.д;
+        } catch (e) { /* хранилище недоступно — проверим как обычно */ }
+        return null;
+    }
+    function запомнить(uid, д) {
+        try { localStorage.setItem(КЛЮЧ_ДОСТУПА, JSON.stringify({ uid, at: Date.now(), д })); } catch (e) { /* ignore */ }
+    }
+    function забыть() {
+        try { localStorage.removeItem(КЛЮЧ_ДОСТУПА); } catch (e) { /* ignore */ }
+    }
+    function подпись(д) {
+        return JSON.stringify([д.vaishnava, д.userPerms, д.hasMainAccess, д.allPerms]);
+    }
+
+    // Карточка, права и доступ к основному приложению зависят только от
+    // id пользователя — запрашиваем разом, одним кругом до базы.
+    // Список всех прав нужен только суперпользователю, но он крошечный.
+    async function загрузитьДоступ(db, uid) {
         const [
             { data: vaishnava, error: vError },
             { data: userPerms, error: permsError },
             { data: hasMainAccess, error: mainAccessError },
-            { data: allPerms },
+            { data: allPerms, error: allError },
         ] = await Promise.all([
             db.from('vaishnavas')
                 .select('id, spiritual_name, first_name, last_name, photo_url, user_type, approval_status, is_superuser, is_active')
-                .eq('user_id', session.user.id)
+                .eq('user_id', uid)
                 .eq('is_deleted', false)
                 .maybeSingle(),
-            db.rpc('get_user_permissions', { p_user_id: session.user.id }),
+            db.rpc('get_user_permissions', { p_user_id: uid }),
             db.rpc('has_main_backoffice_access'),
             db.from('permissions').select('code'),
         ]);
+        return {
+            vaishnava, userPerms, hasMainAccess, allPerms,
+            vError, permsError, mainAccessError,
+            ошибкаСети: !!(vError || permsError || mainAccessError || allError),
+        };
+    }
+
+    /**
+     * Проверки доступа и window.currentUser — по карточке и правам.
+     * 'ok' — можно рисовать страницу; иначе уже идёт уход на вход или в портал.
+     */
+    async function применить(д, session, db) {
+        const { vaishnava, userPerms, hasMainAccess, allPerms, vError, permsError, mainAccessError } = д;
 
         if (vError || !vaishnava) {
             console.error('Failed to load vaishnava:', vError);
@@ -60,13 +131,13 @@
             await db.auth.signOut();
             const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
             window.location.href = '/login.html?redirect=' + returnUrl;
-            return;
+            return 'уход';
         }
 
         // Проверка статуса одобрения
         if (vaishnava.approval_status === 'pending') {
             window.location.href = '/pending-approval.html';
-            return;
+            return 'уход';
         }
 
         if (vaishnava.approval_status === 'rejected' || vaishnava.approval_status === 'blocked' || !vaishnava.is_active) {
@@ -74,7 +145,7 @@
             // Используем alert т.к. Layout может быть не загружен, и мы уходим на /login.html
             alert('Ваш аккаунт заблокирован или отклонён. Свяжитесь с администратором.');
             window.location.href = '/login.html';
-            return;
+            return 'уход';
         }
 
         // Загрузить права пользователя одним запросом через SQL функцию
@@ -117,7 +188,7 @@
         if (!vaishnava.is_superuser) {
             if (mainAccessError || !hasMainAccess) {
                 window.location.replace('/guest-portal/');
-                return;
+                return 'уход';
             }
         }
 
@@ -136,13 +207,19 @@
             } else {
                 // Любая страница основного приложения — редирект в гостевой портал
                 window.location.href = '/guest-portal/';
-                return;
+                return 'уход';
             }
         }
 
         debug('✅ User authenticated');
         debug('📋 Permissions loaded:', permissions.length);
         debug('👤 User type:', vaishnava.user_type);
+        return 'ok';
+    }
+
+    /** Всё, что делается после успешной проверки: классы, права на элементах, событие. */
+    function завершить(db) {
+        const vaishnava = window.currentUser;
 
         // Добавить класс роли на body для CSS-контроля
         document.body.classList.add(`user-type-${vaishnava.user_type}`);
@@ -206,11 +283,6 @@
 
         // Отправить событие о готовности авторизации
         window.dispatchEvent(new CustomEvent('authReady', { detail: window.currentUser }));
-
-    } catch (err) {
-        console.error('Auth check exception:', err);
-        const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-        window.location.href = '/login.html?redirect=' + returnUrl;
     }
 
     // ==================== ОБЩИЙ ПАРОЛЬ ====================

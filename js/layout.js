@@ -1761,6 +1761,8 @@ async function logout() {
             showNotification(t('layout_logout_error'), 'error');
             return;
         }
+        // запомненные карточка и права (auth-check.js) — не для следующего входа
+        try { localStorage.removeItem('srsk_access_v1'); } catch (e) { /* ignore */ }
         // Редирект на страницу логина
         window.location.href = '/login.html';
     } catch (err) {
