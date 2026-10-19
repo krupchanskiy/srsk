@@ -337,7 +337,7 @@ function renderRevenue() {
     // по статьям: сколько операций и сколько в каждой валюте; сторно и отменённое не считаем
     const cats = new Map();
     live.forEach(r => (cats.get(r.category_id) || cats.set(r.category_id, { name: r.category_name, rows: [] }).get(r.category_id)).rows.push(r));
-    const base = list => list.reduce((x, r) => x + Number(r.amount_base), 0);
+    const base = list => list.reduce((x, r) => x + Math.sign(Number(r.signed_amount)) * Math.abs(Number(r.amount_base)), 0);
     const cards = [...cats.entries()].sort((a, b) => base(b[1].rows) - base(a[1].rows)).map(([id, g]) => `
         <button type="button" class="text-left bg-base-100 rounded-xl shadow-sm p-4 hover:shadow-md ${cat === id ? 'ring-2 ring-primary' : ''}" data-dacc-rev-cat="${e(id)}">
             <div class="text-xs uppercase tracking-wide opacity-60">${e(g.name)} · ${g.rows.length}</div>
@@ -441,6 +441,8 @@ function bucketList(from, to) {
 // департаментов по его объектам (изготовление мурти Мастерской — в аналитике Магазина, мигр. 715).
 // Все валюты вместе, в рупиях по курсу дня операции (amount_base); сторно не учитывается.
 let allOwn = [];       // проводки всех собственных счетов департамента (без временной кассы)
+// рупии со знаком операции: в ленте amount_base всегда положительный, знак — у signed_amount
+const baseSigned = r => Math.sign(Number(r.signed_amount)) * Math.abs(Number(r.amount_base));
 let costExtra = [];    // траты других департаментов по объектам этого (fin_department_cost_extra)
 
 function analyticsData() {
@@ -462,19 +464,20 @@ function analyticsData() {
             const i = idx.get(bucketOf(r.occurred_on));
             if (i === undefined) continue;
             const gr = keyOf(r);
-            const g = groups.get(gr.key) || groups.set(gr.key, { ...gr, cells: buckets.map(() => 0), sum: 0, cur: new Map() }).get(gr.key);
+            const g = groups.get(gr.key) || groups.set(gr.key, { ...gr, cells: buckets.map(() => 0), sum: 0, cur: new Map(), rows: [] }).get(gr.key);
+            g.rows.push(r);
             const v = value(r);
             g.cells[i] += v; g.sum += v; totals[i] += v;
             g.cur.set(r.currency_code, (g.cur.get(r.currency_code) || 0) + Math.abs(Number(r.signed_amount)));
         }
         return { groups: [...groups.values()].sort((a, b) => b.sum - a.sum), totals, sum: totals.reduce((a, b) => a + b, 0) };
     };
-    const revenue = side(rev, r => ({ key: `r:${r.category_id}`, label: r.category_name, pick: { rev: r.category_id } }), r => Number(r.amount_base));
+    const revenue = side(rev, r => ({ key: `r:${r.category_id}`, label: r.category_name, pick: { rev: r.category_id } }), r => baseSigned(r));
     const costs = side([...own.map(r => ({ ...r, src: null })), ...extra.map(r => ({ ...r, src: r.source_department || r.account_name }))],
         r => r.src
             ? { key: `x:${r.category_id}:${r.src}`, label: r.category_name, src: r.src, obj: r.object_name, pick: null }
             : { key: `c:${r.category_id}`, label: r.category_name, pick: { cat: r.category_id } },
-        r => -Number(r.amount_base));
+        r => -baseSigned(r));
     const result = buckets.map((_, i) => revenue.totals[i] - costs.totals[i]);
     // выручка по валютам за период — какие деньги на самом деле пришли
     const revCur = new Map();
@@ -486,6 +489,23 @@ function analyticsData() {
 // Как «Себестоимость» на кухне (ВГ 19.10): сверху всегда главные цифры, ниже разделы —
 // «Сводка» (откуда выручка и на что расходы), «По месяцам» (таблица), «Графики». Не всё сразу.
 let anSection = 'summary';
+const anOpen = new Set();      // раскрытые статьи в «Сводке»
+let anResultOpen = false;      // раскрыт ли «Итог» по месяцам
+
+// операции статьи — дата, где лежали деньги, комментарий, сумма в своей валюте и в рупиях
+function opsListHtml(list) {
+    return `<div class="ml-2 mb-2 border-l-2 border-base-300 pl-3 text-sm">${list.slice().sort((a, b) => b.occurred_on.localeCompare(a.occurred_on)).map(r => {
+        const extra = [CAFE_POINTS[r.cafe_point], r.note].filter(Boolean).join(' · ');
+        const v = Number(r.signed_amount);
+        return `<div class="flex items-baseline gap-2 py-0.5">
+            <span class="opacity-60 w-14 shrink-0">${e(fmtDay(r.occurred_on))}</span>
+            <span class="opacity-60 shrink-0 hidden sm:inline">${e(r.account_name || '')}</span>
+            <span class="truncate flex-1 opacity-80" title="${e([r.comment, extra].filter(Boolean).join(' · '))}">${e(r.comment || extra || '')}</span>
+            <span class="font-mono whitespace-nowrap">${money(Math.abs(v), r.currency_code)}</span>
+            ${r.currency_code !== 'INR' ? `<span class="font-mono whitespace-nowrap text-xs opacity-50">≈ ${money(Math.abs(Number(r.amount_base)), 'INR')}</span>` : ''}
+        </div>`;
+    }).join('')}</div>`;
+}
 
 function renderAnalytics() {
     const box = $('daccAnalytics');
@@ -506,8 +526,10 @@ function renderAnalytics() {
         kpi(tr('dacc_an_revenue', 'Выручка'), inr(d.revenue.sum), 'text-blue-600', revCurLine),
         kpi(tr('dacc_an_costs', 'Расходы'), inr(d.costs.sum), 'text-red-600',
             d.revenue.sum ? `${Math.round(d.costs.sum / d.revenue.sum * 100)}% ${e(tr('dacc_an_margin', 'от выручки'))}` : ''),
-        kpi(tr('dacc_an_result', 'Итог'), sgn(res), res >= 0 ? 'text-green-600' : 'text-red-600',
-            d.revenue.sum ? `${Math.round(res / d.revenue.sum * 100)}% ${e(tr('dacc_an_margin', 'от выручки'))}` : ''),
+        `<div class="bg-base-100 rounded-xl shadow-sm p-4 ${n > 1 ? 'cursor-pointer hover:shadow-md' : ''}" ${n > 1 ? 'data-dacc-an-result' : ''}>
+            <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('dacc_an_result', 'Итог'))}${n > 1 ? ` <span class="opacity-60">${anResultOpen ? '▾' : '▸'}</span>` : ''}</div>
+            <div class="text-2xl font-bold mt-1 ${res >= 0 ? 'text-green-600' : 'text-red-600'}">${sgn(res)}</div>
+            <div class="text-xs opacity-60 mt-0.5">${inr(d.revenue.sum)} − ${inr(d.costs.sum)}${d.revenue.sum ? ` · ${Math.round(res / d.revenue.sum * 100)}% ${e(tr('dacc_an_margin', 'от выручки'))}` : ''}</div></div>`,
         n > 1 ? kpi(`${tr('dacc_an_per_bucket', 'в среднем за')} ${stepWord}`, sgn(res / n), res >= 0 ? 'text-green-600' : 'text-red-600',
             `${inr(d.revenue.sum / n)} − ${inr(d.costs.sum / n)}`) : ''
     ].join('');
@@ -518,15 +540,16 @@ function renderAnalytics() {
         // откуда выручка и на что расходы — по статьям, с долями
         const lines = (groups, total, color) => groups.map(g => {
             const share = total ? g.sum / total : 0;
-            const pick = g.pick ? JSON.stringify({ ...g.pick, range: [d.from, d.to] }) : '';
-            return `<div class="px-2 py-1.5 rounded-lg ${pick ? 'cursor-pointer hover:bg-base-200' : ''}" ${pick ? `data-dacc-pick='${e(pick)}'` : ''}>
+            const open = anOpen.has(g.key);
+            return `<div class="px-2 py-1.5 rounded-lg cursor-pointer hover:bg-base-200 ${open ? 'bg-base-200' : ''}" data-dacc-an-open="${e(g.key)}">
                 <div class="flex items-baseline gap-2 text-sm">
-                    <span class="truncate flex-1">${e(g.label)}${g.src ? ` <span class="badge badge-ghost badge-xs" title="${e(`${tr('dacc_an_from_other', 'траты других департаментов на')} «${g.obj}»`)}">${e(g.src)}</span>` : ''}</span>
+                    <span class="opacity-50 w-3">${open ? '▾' : '▸'}</span>
+                    <span class="truncate flex-1 ${open ? 'font-semibold' : ''}">${e(g.label)} <span class="opacity-50 text-xs">· ${g.rows.length}</span>${g.src ? ` <span class="badge badge-ghost badge-xs" title="${e(`${tr('dacc_an_from_other', 'траты других департаментов на')} «${g.obj}»`)}">${e(g.src)}</span>` : ''}</span>
                     <span class="opacity-50 text-xs">${Math.round(share * 100)}%</span>
                     <span class="font-mono whitespace-nowrap">${inr(g.sum)}</span>
                 </div>
                 <div class="h-1 rounded-full bg-base-200 mt-1"><div class="h-1 rounded-full ${color}" style="width:${Math.max(share * 100, 1).toFixed(1)}%"></div></div>
-            </div>`;
+            </div>${open ? opsListHtml(g.rows) : ''}`;
         }).join('') || `<div class="px-2 py-3 text-sm opacity-60">${e(tr('dacc_sum_empty', 'Нет операций'))}</div>`;
         const card = (title, s, color, textCls) => `<div class="bg-base-100 rounded-xl shadow-sm p-3">
             <div class="flex items-baseline justify-between px-2 mb-1">
@@ -597,8 +620,17 @@ function renderAnalytics() {
                 <div style="height:300px"><canvas id="daccChart2"></canvas></div></div>
         </div>`;
     }
+    // «Итог» по месяцам — только по нажатию, иначе за год это длинный список
+    const resultList = anResultOpen && n > 1 ? `<div class="bg-base-100 rounded-xl shadow-sm p-3 mb-3 text-sm">${d.buckets.map((b, i) => `
+        <div class="flex items-baseline gap-2 py-0.5">
+            <span class="w-20">${e(bucketLabel(b))}</span>
+            <span class="font-mono text-blue-600">${inr(d.revenue.totals[i])}</span><span class="opacity-50">−</span>
+            <span class="font-mono text-red-600">${inr(d.costs.totals[i])}</span><span class="opacity-50">=</span>
+            <span class="font-mono font-semibold ${d.result[i] >= 0 ? 'text-green-600' : 'text-red-600'}">${sgn(d.result[i])}</span>
+        </div>`).join('')}</div>` : '';
     box.innerHTML = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">${kpis}</div>
+        ${resultList}
         <div class="text-xs opacity-60 mb-3">${e(fmtDay(d.from))} — ${e(fmtDay(d.to))} · ${e(tr('dacc_an_base_hint', 'Все суммы — в рупиях по курсу дня операции, все валюты вместе; сторно не учитывается'))}</div>
         <div class="flex flex-wrap items-center gap-3 mb-4">
             <div role="tablist" class="tabs tabs-boxed w-fit">${sections.map(([id, label]) =>
@@ -819,6 +851,14 @@ async function init(options) {
         if (tab && tab.dataset.daccView !== view) setView(tab.dataset.daccView);
     });
     $('daccAnalytics').addEventListener('click', ev => {
+        const op = ev.target.closest('[data-dacc-an-open]');
+        if (op) {
+            const k = op.dataset.daccAnOpen;
+            if (anOpen.has(k)) anOpen.delete(k); else anOpen.add(k);
+            renderAnalytics();
+            return;
+        }
+        if (ev.target.closest('[data-dacc-an-result]')) { anResultOpen = !anResultOpen; renderAnalytics(); return; }
         const sec = ev.target.closest('[data-dacc-an]');
         if (sec) {
             anSection = sec.dataset.daccAn;
