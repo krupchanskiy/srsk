@@ -13,7 +13,6 @@ const WorshipPeople = (() => {
     const $ = s => document.querySelector(s);
     const e = str => Layout.escapeHtml(str ?? '');
     const можноВести = () => !!window.hasPermission?.('worship_approve');
-    const ПОРОГ_ПОИСКА = 10;             // до стольких человек список читается целиком
 
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
 
@@ -83,9 +82,10 @@ const WorshipPeople = (() => {
     /** Строка списка: имя с состоянием слева, нагрузка справа. */
     function строкаЧеловека(ч) {
         const отъезд = отъездВпереди(ч.id);
+        const вРезерве = ч.is_active === false;
         return `
-        <li class="border-b border-base-200 last:border-0">
-            <button class="w-full text-left px-5 py-3 hover:bg-base-200/60 transition-colors
+        <li class="border-b border-base-200 last:border-0 flex items-center">
+            <button class="flex-1 min-w-0 text-left px-5 py-3 hover:bg-base-200/60 transition-colors
                            flex flex-wrap items-baseline gap-x-3 gap-y-1
                            ${ч.is_active ? '' : 'opacity-70'}"
                     data-человек="${ч.id}">
@@ -96,7 +96,6 @@ const WorshipPeople = (() => {
                     ${ч.kind === 'volunteer'
                         ? '<span class="badge badge-sm whitespace-nowrap badge-outline ml-1">волонтёр</span>' : ''}
                     ${ч.мой ? '<span class="badge badge-sm whitespace-nowrap ml-1">это вы</span>' : ''}
-                    ${ч.is_active ? '' : '<span class="badge badge-sm whitespace-nowrap ml-1">не в отделе</span>'}
                     ${вОтъездеСейчас(ч.id)
                         ? '<span class="badge badge-sm whitespace-nowrap badge-warning ml-1">в отъезде</span>'
                         : отъезд
@@ -116,19 +115,25 @@ const WorshipPeople = (() => {
                         en: ['duty ahead', 'duties ahead'], hi: 'सेवा' })}
                 </span>` : ''}
             </button>
+            ${вРезерве && можноВести() ? `
+            <span class="flex gap-1 pr-3 shrink-0">
+                <button class="btn btn-sm btn-outline" data-вернуть="${ч.id}">Вернуть</button>
+                <button class="btn btn-sm btn-ghost text-error" data-убрать="${ч.id}"
+                        title="Убрать из резерва">Убрать</button>
+            </span>` : ''}
         </li>`;
     }
 
     function рисовать() {
         $('#яНеСмогу').hidden = !яЧеловек;
 
-        // поиск нужен не всегда: на семерых он только отнимает строку
-        $('#поискБлок').hidden = люди.length <= ПОРОГ_ПОИСКА;
         const q = $('#поиск').value.trim().toLowerCase();
-        const подходит = ч => !q || (ч.имя || '').toLowerCase().includes(q);
+        const подходит = ч => !q || [ч.имя, ч.worldly].some(и => (и || '').toLowerCase().includes(q));
 
-        const вОтделе = люди.filter(ч => ч.is_active !== false).filter(подходит);
-        const вышли = люди.filter(ч => ч.is_active === false).filter(подходит);
+        // убранные из резерва на странице не видны: строка нужна только истории
+        const видимые = люди.filter(ч => !ч.removed_at);
+        const вОтделе = видимые.filter(ч => ч.is_active !== false).filter(подходит);
+        const вышли = видимые.filter(ч => ч.is_active === false).filter(подходит);
 
         $('#список').innerHTML = вОтделе.map(строкаЧеловека).join('') ||
             `<li class="px-5 py-6 text-sm opacity-70">${
@@ -137,6 +142,9 @@ const WorshipPeople = (() => {
                         ? 'Добавьте людей кнопкой выше.' : 'Состав ведёт старший пуджари.'}`}</li>`;
 
         $('#вышлиБлок').hidden = !вышли.length;
+        if (q && !вОтделе.length && вышли.length) {
+            $('#список').innerHTML = '<li class="px-5 py-6 text-sm opacity-70">В отделе никого с таким именем — нашёлся в резерве ниже</li>';
+        }
         $('#вышли').innerHTML = вышли.map(строкаЧеловека).join('');
 
         window.applyPermissions?.();
@@ -182,7 +190,7 @@ const WorshipPeople = (() => {
 
         $('#кИмя').textContent = открытый.имя;
         $('#кПодпись').textContent = [
-            открытый.is_active ? null : 'выведен из отдела',
+            открытый.is_active ? null : 'в резерве',
             открытый.active_from ? `с ${DateUtils.formatShort(DateUtils.parseDate(открытый.active_from))}` : null,
             открытый.active_to ? `по ${DateUtils.formatShort(DateUtils.parseDate(открытый.active_to))}` : null,
             открытый.безВхода ? 'входа в систему нет — о переменах скажите голосом' : null,
@@ -199,6 +207,11 @@ const WorshipPeople = (() => {
         рисоватьОтметки();
         await рисоватьЗаметки();
         window.applyPermissions?.();
+        // в отделе — «В резерв»; в резерве — «Вернуть» и «Убрать из резерва»
+        const вРезерве = открытый.is_active === false;
+        if (вРезерве) $('#кИсключить').hidden = true;
+        $('#кВернуть').hidden = !(вРезерве && можноВести());
+        $('#кУбрать').hidden = !(вРезерве && можноВести());
         // свои отметки человек ставит сам, чужие — старший
         $('#кДобавитьОтметку').hidden = !(можноВести() || открытый.мой);
         $('#карточка').showModal();
@@ -388,6 +401,37 @@ const WorshipPeople = (() => {
         return true;
     }
 
+    /** Из резерва — обратно в отдел. Истёкший срок участия снимаем, иначе
+     *  вернувшийся сразу горит «срок истёк» в окне «поставить». */
+    async function вернуть(id) {
+        const ч = люди.find(x => x.id === id);
+        if (!ч) return;
+        const правка = { is_active: true, updated_at: new Date().toISOString(),
+                         updated_by: window.currentUser?.id || null };
+        if (ч.active_to && ч.active_to < DateUtils.todayAshramISO()) правка.active_to = null;
+        const { data, error } = await Layout.db.from('worship_people').update(правка).eq('id', id).select('id');
+        if (error) return Layout.handleError(error, 'Человек');
+        if (!data?.length) return Layout.showNotification('Не сохранилось: состав ведёт старший', 'error');
+        $('#карточка').open && $('#карточка').close();
+        await перечитать();
+        Layout.showNotification(`${ч.имя} снова в отделе`, 'success');
+    }
+
+    /** Убрать из резерва совсем: со страницы пропадает, прошлые службы остаются. */
+    async function убрать(id) {
+        const ч = люди.find(x => x.id === id);
+        if (!ч) return;
+        if (!await спросить(`Убрать из резерва: ${ч.имя}?`,
+            'Человек пропадёт со страницы людей. Прошлые службы и записи останутся в истории, '
+            + 'назначения впереди снимем. Понадобится снова — добавьте его кнопкой «Добавить человека».')) return;
+        const { data, error } = await Layout.db.rpc('worship_person_remove', { p_person: id });
+        if (error) return Layout.handleError(error, 'Человек');
+        $('#карточка').open && $('#карточка').close();
+        await перечитать();
+        const снято = data?.['снято_назначений'] || 0;
+        Layout.showNotification(`${ч.имя}: убран из резерва${снято ? `, снято назначений: ${снято}` : ''}`, 'success');
+    }
+
     async function исключить() {
         const { data, error } = await Layout.db.rpc('worship_person_impact', { p_person: открытый.id });
         if (error) return Layout.handleError(error, 'Человек');
@@ -408,9 +452,9 @@ const WorshipPeople = (() => {
             '',
             впереди
                 ? 'Клетки не очистятся сами — они станут видимо пустыми, и их придётся закрыть кем-то другим.'
-                : 'Записи человека останутся на месте: мы выводим его из состава, а не удаляем.',
+                : 'Записи человека останутся на месте. Вернуть из резерва можно в любой момент.',
         ];
-        if (!await спросить(`Вывести из отдела: ${открытый.имя}?`, строки.join('\n'))) return;
+        if (!await спросить(`В резерв: ${открытый.имя}?`, строки.join('\n'))) return;
 
         const { data: строка, error: ош } = await Layout.db.from('worship_people')
             .update({ is_active: false, updated_at: new Date().toISOString(),
@@ -452,8 +496,8 @@ const WorshipPeople = (() => {
 
         // выведенный из отдела — не «уже в отделе»: его можно вернуть,
         // а раньше кнопки не было, и вернуть человека было нельзя вовсе
-        const уже = new Set(люди.filter(ч => ч.is_active !== false).map(ч => ч.vaishnava_id));
-        const выбыли = new Set(люди.filter(ч => ч.is_active === false).map(ч => ч.vaishnava_id));
+        const уже = new Set(люди.filter(ч => ч.is_active !== false && !ч.removed_at).map(ч => ч.vaishnava_id));
+        const выбыли = new Set(люди.filter(ч => ч.is_active === false && !ч.removed_at).map(ч => ч.vaishnava_id));
         $('#дСписок').innerHTML = (data || []).map(в => {
             // духовные имена повторяются — рядом всегда мирское, иначе
             // двух «Радха дас» в списке не отличить друг от друга
@@ -505,6 +549,7 @@ const WorshipPeople = (() => {
         const запрос = был
             ? Layout.db.from('worship_people').update({
                 is_active: true, kind: новыйВид, active_from: с, active_to: срок,
+                removed_at: null, removed_by: null,
                 updated_at: new Date().toISOString(),
                 updated_by: window.currentUser?.id || null }).eq('id', был.id)
             : Layout.db.from('worship_people').insert({
@@ -588,6 +633,10 @@ const WorshipPeople = (() => {
             if (b.id === 'кДобавитьОтметку') return открытьОтметку(открытый.id);
             if (b.id === 'оtСохранить') return сохранитьОтметку();
             if (b.id === 'кИсключить') return исключить();
+            if (b.id === 'кВернуть') return разом(b, () => вернуть(открытый.id));
+            if (b.id === 'кУбрать') return разом(b, () => убрать(открытый.id));
+            if (b.dataset.вернуть) return разом(b, () => вернуть(b.dataset.вернуть));
+            if (b.dataset.убрать) return разом(b, () => убрать(b.dataset.убрать));
             const вид = ev.target.closest('[data-вид-человека]');
             if (вид && открытый) return записатьВид(вид.getAttribute('data-вид-человека'));
 

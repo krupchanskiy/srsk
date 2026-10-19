@@ -53,23 +53,24 @@
 
         </div>
 
-        <!-- поиск появляется, когда список перестаёт читаться целиком -->
-        <label class="input input-bordered input-sm flex items-center gap-2 mb-3" id="поискБлок" hidden>
+        <!-- поиск всегда под рукой: людей ищут по духовному и мирскому имени -->
+        <label class="input input-bordered input-sm flex items-center gap-2 mb-3" id="поискБлок">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" class="opacity-50" aria-hidden="true">
                 <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
             </svg>
-            <input id="поиск" type="search" class="grow" placeholder="Имя">
+            <input id="поиск" type="search" class="grow" placeholder="Найти по имени">
         </label>
 
         <div class="card bg-base-100 shadow">
             <ul class="list-none m-0 p-0" id="список"></ul>
         </div>
 
-        <!-- вышедшие из отдела лежат отдельно: они не участвуют в расписании,
-             но их карточки нужны, чтобы видеть прошлые службы -->
+        <!-- резерв: кто сейчас не рядом. Не участвуют в расписании, но их
+             можно вернуть в отдел, а ненужных — убрать из резерва совсем -->
         <section id="вышлиБлок" hidden class="mt-5">
-            <h2 class="надзаголовок mb-1.5">Вышли из отдела</h2>
+            <h2 class="надзаголовок mb-1.5">Резерв</h2>
+            <p class="text-sm opacity-70 mb-2">Сейчас не рядом. Вернуть в отдел можно в любой момент.</p>
             <div class="card bg-base-100 shadow">
                 <ul class="list-none m-0 p-0" id="вышли"></ul>
             </div>
@@ -146,7 +147,9 @@
 
             <div class="modal-action">
                 <button class="btn btn-sm btn-ghost text-error" id="кИсключить"
-                        data-permission="worship_approve">Вывести из отдела</button>
+                        data-permission="worship_approve">В резерв</button>
+                <button class="btn btn-sm btn-ghost text-error" id="кУбрать" hidden>Убрать из резерва</button>
+                <button class="btn btn-sm btn-outline" id="кВернуть" hidden>Вернуть в отдел</button>
                 <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
             </div>
         </div>
@@ -251,7 +254,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-people.js?v=25"></script>
+    <script src="../js/pages/worship-people.js?v=26"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
