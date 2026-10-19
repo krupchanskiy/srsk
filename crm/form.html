@@ -151,6 +151,8 @@ const I18N = {
         error_load: 'Не удалось загрузить список ретритов',
         error_submit: 'Произошла ошибка при отправке заявки. Попробуйте ещё раз.',
         error_duplicate: 'Вы уже подали заявку на этот ретрит. Если у вас есть вопросы, свяжитесь с нами.',
+        error_phone: 'Проверьте телефон: только цифры, пробелы, скобки, дефис и «+».',
+        error_email: 'Проверьте адрес почты — похоже, в нём опечатка.',
         unavailable_title: 'Регистрация недоступна',
         unavailable_text: 'Возможно, ретрит уже прошёл или регистрация на него ещё не открыта.',
         unavailable_hint: 'Напишите нам — подскажем ближайшие даты',
@@ -171,6 +173,8 @@ const I18N = {
         error_load: 'Failed to load retreat list',
         error_submit: 'An error occurred while submitting. Please try again.',
         error_duplicate: 'You have already applied for this retreat. Please contact us if you have questions.',
+        error_phone: 'Please check the phone number: digits, spaces, brackets, dash and “+” only.',
+        error_email: 'Please check the email address — it looks mistyped.',
         unavailable_title: 'Registration unavailable',
         unavailable_text: 'This retreat may have already taken place, or registration is not open yet.',
         unavailable_hint: 'Write to us — we will suggest the closest dates',
@@ -334,8 +338,10 @@ async function submitForm(e) {
         if (rpcError) throw rpcError;
 
         if (!result?.ok) {
-            if (result?.error === 'duplicate') {
-                showError(T.error_duplicate);
+            // ошибку в телефоне или почте человек может исправить сам
+            const понятно = { duplicate: T.error_duplicate, invalid_phone: T.error_phone, invalid_email: T.error_email };
+            if (понятно[result?.error]) {
+                showError(понятно[result.error]);
                 btn.disabled = false;
                 btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> ${T.submit}`;
                 return;
