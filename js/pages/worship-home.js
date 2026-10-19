@@ -208,20 +208,15 @@ const WorshipHome = (() => {
         let придёт = () => true;
         const persons = [...new Set(назначения.map(д => д.person_id))];
         if (persons.length) {
-            const [{ data: люди }, { data: отметки }] = await Promise.all([
-                Layout.db.from('worship_people')
-                    .select('id, vaishnava_id, is_active, active_from, active_to').in('id', persons),
+            // люди сразу с именами — одним кругом, без похода в vaishnavas
+            const [{ data: весьОтдел }, { data: отметки }] = await Promise.all([
+                Layout.db.rpc('worship_people_list'),
                 Layout.db.from('worship_absences')
                     .select('person_id, date_from, date_to').in('person_id', persons).lte('date_from', сегодня),
             ]);
-            const карточки = (люди || []).map(ч => ч.vaishnava_id);
-            const { data: в } = карточки.length
-                ? await Layout.db.from('vaishnavas')
-                    .select('id, spiritual_name, first_name, last_name').in('id', карточки)
-                : { data: [] };
-            const по = Object.fromEntries((в || []).map(x => [x.id,
-                x.spiritual_name || `${x.first_name || ''} ${x.last_name || ''}`.trim() || 'без имени']));
-            имена = Object.fromEntries((люди || []).map(ч => [ч.id, по[ч.vaishnava_id]]));
+            const нужные = new Set(persons);
+            const люди = (весьОтдел || []).filter(ч => нужные.has(ч.id));
+            имена = Object.fromEntries(люди.map(ч => [ч.id, ч.name]));
             // те же правила, что в шахматке: заболевший, выбывший или волонтёр
             // с истёкшим сроком службу не закрывает — и здесь не должен
             // выглядеть тем, кто к ней встанет

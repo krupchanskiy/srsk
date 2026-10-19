@@ -24,9 +24,10 @@ const WorshipPeople = (() => {
     async function загрузить() {
         const сегодня = DateUtils.todayAshramISO();
 
-        const [л, с, н, о] = await Promise.all([
-            Layout.db.from('worship_people')
-                .select('id, vaishnava_id, active_from, active_to, is_active, kind'),
+        // всё одним кругом: люди приходят сразу с именами, допуски — рядом.
+        // Было три круга подряд, и на мобильной сети это секунды
+        const [л, с, н, о, доп] = await Promise.all([
+            Layout.db.rpc('worship_people_list'),
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, article_id, is_active')
                 .order('sort_order').order('time_of_day'),
@@ -35,8 +36,9 @@ const WorshipPeople = (() => {
                 .gte('duty_date', сегодня).order('duty_date').limit(500),
             Layout.db.from('worship_absences')
                 .select('id, person_id, date_from, date_to, reason').order('date_from'),
+            Layout.db.from('worship_person_services').select('person_id, service_id'),
         ]);
-        const ошибка = л.error || с.error || н.error || о.error;
+        const ошибка = л.error || с.error || н.error || о.error || доп.error;
         if (ошибка) { Layout.handleError(ошибка, 'Люди отдела'); return false; }
 
         службы = с.data || [];
@@ -44,32 +46,19 @@ const WorshipPeople = (() => {
         отметки = о.data || [];
         люди = л.data || [];
 
-        const ids = люди.map(ч => ч.vaishnava_id);
-        if (ids.length) {
-            const { data } = await Layout.db.from('vaishnavas')
-                .select('id, spiritual_name, first_name, last_name, user_id, phone, telegram_chat_id')
-                .in('id', ids);
-            const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
-            люди = люди.map(ч => {
-                const в = карточки[ч.vaishnava_id] || {};
-                return {
-                    ...ч,
-                    имя: в.spiritual_name ||
-                        `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени',
-                    телефон: в.phone || null,
-                    безВхода: !в.user_id,
-                    безБота: !!в.user_id && !в.telegram_chat_id,
-                    мой: в.user_id && в.user_id === window.currentUser?.id,
-                };
-            }).sort((a, b) => Number(b.is_active) - Number(a.is_active)
-                              || a.имя.localeCompare(b.имя, 'ru'));
-            яЧеловек = люди.find(ч => ч.мой) || null;
-        }
+        люди = люди.map(ч => ({
+            ...ч,
+            имя: ч.name,
+            телефон: ч.phone || null,
+            безВхода: !ч.user_id,
+            безБота: !!ч.user_id && !ч.has_telegram,
+            мой: !!ч.user_id && ч.user_id === window.currentUser?.id,
+        })).sort((a, b) => Number(b.is_active) - Number(a.is_active)
+                          || a.имя.localeCompare(b.имя, 'ru'));
+        яЧеловек = люди.find(ч => ч.мой) || null;
 
-        const { data: допуски } = await Layout.db.from('worship_person_services')
-            .select('person_id, service_id');
         люди.forEach(ч => {
-            ч.допуск = new Set((допуски || [])
+            ч.допуск = new Set((доп.data || [])
                 .filter(д => д.person_id === ч.id).map(д => д.service_id));
         });
         return true;

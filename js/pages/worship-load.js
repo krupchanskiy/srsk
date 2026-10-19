@@ -9,6 +9,9 @@
  * Считается по назначениям за выбранный период. Человек, который
  * в отъезде или выведен из отдела, клетку не закрывает — здесь он
  * тоже не считается тем, кто её нёс.
+ *
+ * Если у служб проставлена длительность, нагрузка меряется часами:
+ * две бхоги по десять минут — не то же, что двухчасовое одевание.
  */
 const WorshipLoad = (() => {
     const $ = s => document.querySelector(s);
@@ -20,7 +23,14 @@ const WorshipLoad = (() => {
     // и именно их важно раздавать по кругу, а не одному человеку
     const РАННЯЯ_ДО = '06:30';
 
-    let люди = [], службы = [], назначения = [], отметки = [], отклонения = [];
+    // всё грузится один раз на диапазон, покрывающий все три периода:
+    // переключение «неделя / месяц / впереди» идёт без сети. Раньше каждый
+    // щелчок заново тянул шесть таблиц в два круга, и на мобильной сети
+    // кнопка «думала» по нескольку секунд
+    let люди = [], службы = [], всеНазначения = [], отметки = [], всеОтклонения = [];
+    // срез под выбранный период — по нему считает всё остальное
+    let назначения = [], отклонения = [];
+    let поId = new Map(), службаПоId = new Map(), отклонениеПоId = new Map();
     let период = (() => {
         try { return localStorage.getItem('worship_load_period') || 'неделя'; }
         catch { return 'неделя'; }
@@ -33,9 +43,11 @@ const WorshipLoad = (() => {
     })();
 
     // ---------- период ----------
-    function границы() {
+    const границы = () => границыПериода(период);
+
+    function границыПериода(какой) {
         const сегодня = DateUtils.nowAshram();
-        if (период === 'неделя') {
+        if (какой === 'неделя') {
             const пн = new Date(сегодня);
             const сдвиг = (пн.getDay() + 6) % 7;        // неделя начинается с понедельника
             пн.setDate(пн.getDate() - сдвиг);
@@ -43,7 +55,7 @@ const WorshipLoad = (() => {
             вс.setDate(вс.getDate() + 6);
             return { от: DateUtils.toISO(пн), до: DateUtils.toISO(вс), имя: 'за эту неделю' };
         }
-        if (период === 'месяц') {
+        if (какой === 'месяц') {
             const первое = new Date(сегодня.getFullYear(), сегодня.getMonth(), 1);
             const последнее = new Date(сегодня.getFullYear(), сегодня.getMonth() + 1, 0);
             return { от: DateUtils.toISO(первое), до: DateUtils.toISO(последнее), имя: 'за этот месяц' };
@@ -55,58 +67,59 @@ const WorshipLoad = (() => {
     }
 
     // ---------- загрузка ----------
-    // переключение периода быстрыми щелчками: ответ по прежнему периоду
-    // не должен лечь поверх свежего
-    let поколение = 0;
+    /** Диапазон, в который попадает любой из трёх периодов. */
+    function диапазон() {
+        const все = ['неделя', 'месяц', 'вперёд'].map(границыПериода);
+        return {
+            от: все.map(г => г.от).sort()[0],
+            до: все.map(г => г.до).sort().at(-1),
+        };
+    }
 
     async function загрузить() {
-        const моё = ++поколение;
-        const { от, до } = границы();
+        const { от, до } = диапазон();
 
+        // один круг: имена приходят вместе с людьми, а не вторым запросом
         const [л, с, н, о, откл] = await Promise.all([
-            Layout.db.from('worship_people').select('id, vaishnava_id, is_active, active_from, active_to, kind'),
+            Layout.db.rpc('worship_people_list'),
             Layout.db.from('worship_services')
-                .select('id, name_ru, name_en, name_hi, time_of_day, is_active')
+                .select('id, name_ru, name_en, name_hi, time_of_day, duration_minutes, is_active')
                 .order('time_of_day'),
             Layout.db.from('worship_duties')
                 .select('id, duty_date, service_id, override_id, person_id, role')
-                .gte('duty_date', от).lte('duty_date', до).limit(2000),
-            Layout.db.from('worship_absences').select('person_id, date_from, date_to'),
+                .gte('duty_date', от).lte('duty_date', до).limit(5000),
+            Layout.db.from('worship_absences').select('person_id, date_from, date_to')
+                .lte('date_from', до),
             Layout.db.from('worship_day_overrides')
-                .select('id, duty_date, service_id, title, time_of_day')
+                .select('id, duty_date, service_id, title, time_of_day, duration_minutes')
                 .gte('duty_date', от).lte('duty_date', до),
         ]);
-        if (моё !== поколение) return false;
         const ошибка = л.error || с.error || н.error || о.error || откл.error;
         if (ошибка) { Layout.handleError(ошибка, 'Загрузка отдела'); return false; }
 
-        let новые = л.data || [];
-        const ids = новые.map(ч => ч.vaishnava_id).filter(Boolean);
-        if (ids.length) {
-            const { data } = await Layout.db.from('vaishnavas')
-                .select('id, spiritual_name, first_name, last_name').in('id', ids);
-            if (моё !== поколение) return false;
-            const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
-            новые = новые.map(ч => {
-                const в = карточки[ч.vaishnava_id] || {};
-                return { ...ч, имя: в.spiritual_name
-                    || `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени' };
-            });
-        }
-
+        люди = (л.data || []).map(ч => ({ ...ч, имя: ч.name }));
         службы = с.data || [];
-        назначения = н.data || [];
+        всеНазначения = н.data || [];
         отметки = о.data || [];
-        отклонения = откл.data || [];
-        люди = новые;
+        всеОтклонения = откл.data || [];
+        поId = new Map(люди.map(ч => [ч.id, ч]));
+        службаПоId = new Map(службы.map(x => [x.id, x]));
+        отклонениеПоId = new Map(всеОтклонения.map(x => [x.id, x]));
         return true;
+    }
+
+    /** Срез загруженного под выбранный период — без похода в базу. */
+    function срезать() {
+        const { от, до } = границы();
+        назначения = всеНазначения.filter(н => н.duty_date >= от && н.duty_date <= до);
+        отклонения = всеОтклонения.filter(о => о.duty_date >= от && о.duty_date <= до);
     }
 
     // ---------- счёт ----------
     const вОтъезде = (id, день) => отметки.some(а => а.person_id === id
         && а.date_from <= день && (!а.date_to || а.date_to >= день));
 
-    const человек = id => люди.find(ч => ч.id === id);
+    const человек = id => поId.get(id);
 
     /**
      * Назначение, которое и правда закрывает службу — по тем же правилам,
@@ -120,14 +133,26 @@ const WorshipLoad = (() => {
         if (ч.active_to && ч.active_to < н.duty_date) return false;
         if (ч.active_from && ч.active_from > н.duty_date) return false;
         if (н.service_id) {
-            if (службы.find(с => с.id === н.service_id)?.is_active === false) return false;
+            if (службаПоId.get(н.service_id)?.is_active === false) return false;
             if (отменена(н.service_id, н.duty_date)) return false;
         }
         return true;
     };
 
-    const времяСлужбы = н => службы.find(с => с.id === н.service_id)?.time_of_day
-        || отклонения.find(о => о.id === н.override_id)?.time_of_day || '';
+    const времяСлужбы = н => службаПоId.get(н.service_id)?.time_of_day
+        || отклонениеПоId.get(н.override_id)?.time_of_day || '';
+
+    /** Сколько минут заняло назначение; null — у службы длительность не задана. */
+    const минутСлужбы = н => (н.service_id
+        ? службаПоId.get(н.service_id)?.duration_minutes
+        : отклонениеПоId.get(н.override_id)?.duration_minutes) ?? null;
+
+    /** «2 ч 30 мин», «45 мин», «6 ч». */
+    const часы = мин => {
+        const м = Math.round(мин), ч = Math.floor(м / 60), ост = м % 60;
+        if (!ч) return `${ост} мин`;
+        return ост ? `${ч} ч ${ост} мин` : `${ч} ч`;
+    };
 
     /** Все дни периода — по ним считаем и дыры, и серии без перерыва. */
     function дниПериода() {
@@ -180,12 +205,14 @@ const WorshipLoad = (() => {
             return {
                 ...ч,
                 служб: свои.length,
+                минут: свои.reduce((сум, н) => сум + (минутСлужбы(н) || 0), 0),
                 ранних: свои.filter(н => (времяСлужбы(н) || '99').slice(0, 5) < РАННЯЯ_ДО).length,
                 помощником: свои.filter(н => н.role && н.role !== 'pujari').length,
                 дней: дни.length,
                 подряд: самаяДлиннаяСерия(дни),
             };
-        }).sort((a, b) => b.служб - a.служб || a.имя.localeCompare(b.имя, 'ru'));
+        }).sort((a, b) => b.минут - a.минут || b.служб - a.служб
+                          || a.имя.localeCompare(b.имя, 'ru'));
     }
 
     /** Сколько дней подряд человек служил без единого свободного дня. */
@@ -235,15 +262,22 @@ const WorshipLoad = (() => {
 
     // ---------- отрисовка ----------
     function рисовать() {
+        срезать();
         const { имя: названиеПериода } = границы();
         const { надо, закрыто } = счётКлеток();
         const строки = поЛюдям();
         const несущие = строки.filter(ч => ч.служб > 0);
+        // часами меряем, как только у служб периода есть длительность;
+        // до тех пор — штуками, иначе у всех стояло бы «0 мин»
+        const поВремени = несущие.some(ч => ч.минут > 0);
+        const мера = ч => поВремени ? ч.минут : ч.служб;
         // среднее — по тем, кого показываем: иначе при выборе «волонтёры»
         // оно считалось бы от всех закрытых клеток отдела
         const ихСлужб = несущие.reduce((с, ч) => с + ч.служб, 0);
         const среднее = несущие.length ? ихСлужб / несущие.length : 0;
-        const максимум = строки[0]?.служб || 0;
+        const среднееМинут = несущие.length
+            ? несущие.reduce((с, ч) => с + ч.минут, 0) / несущие.length : 0;
+        const максимум = Math.max(0, ...строки.map(мера));
 
         document.querySelectorAll('[data-период]').forEach(б =>
             б.classList.toggle('btn-active', б.dataset.период === период));
@@ -259,8 +293,11 @@ const WorshipLoad = (() => {
                 `из ${люди.filter(ч => вОтделеВПериод(ч) && вСоставе(ч)).length}${
                     состав === 'все' ? ' в отделе'
                         : состав === 'team' ? ' в команде' : ' среди волонтёров'}`],
-            ['В среднем на человека', несущие.length ? дробь(среднее) : '—',
-                несущие.length ? словоСлужб(среднее) : ''],
+            поВремени
+                ? ['В среднем на человека', несущие.length ? часы(среднееМинут) : '—',
+                    несущие.length ? `${дробь(среднее)} ${словоСлужб(среднее)}` : '']
+                : ['В среднем на человека', несущие.length ? дробь(среднее) : '—',
+                    несущие.length ? словоСлужб(среднее) : ''],
         ].map(([подпись, число, хвост]) => `
             <div class="rounded-xl shadow-sm px-3 py-3 sm:px-4" style="background: oklch(var(--b1));">
                 <div class="надзаголовок" style="letter-spacing: .04em;">${e(подпись)}</div>
@@ -275,16 +312,18 @@ const WorshipLoad = (() => {
                      число переносилось и висело посреди строки отдельно от имени -->
                 <div class="flex items-baseline gap-3">
                     <a href="people.html?id=${ч.id}" class="link link-hover font-semibold flex-1 min-w-0">${e(ч.имя)}</a>
-                    <span class="font-bold tabular-nums text-right">${ч.служб}</span>
+                    <span class="font-bold tabular-nums text-right whitespace-nowrap">${
+                        поВремени ? часы(ч.минут) : ч.служб}</span>
                 </div>
                 <div class="text-sm opacity-70 tabular-nums">${
+                    поВремени ? `${ч.служб} ${словоСлужб(ч.служб)} · ` : ''}${
                     ч.ранних ? `из них ранних ${ч.ранних} · ` : ''}${
                     ч.помощником ? `помощником ${ч.помощником} · ` : ''}${
                     ч.подряд > 2 ? `${дней(ч.подряд)} подряд · ` : ''}${дней(ч.дней)} со службой</div>
                 <!-- полоса на всю ширину: сравнивают соседей глазами, а не числа -->
                 <div class="h-2 rounded-full mt-1.5" style="background: oklch(var(--b2));">
                     <div class="h-2 rounded-full" style="width: ${
-                        максимум ? Math.round(ч.служб / максимум * 100) : 0}%;
+                        максимум ? Math.round(мера(ч) / максимум * 100) : 0}%;
                         background: var(--current-color);"></div>
                 </div>
             </li>`).join('') || '<li class="py-4 text-sm opacity-70">За этот период никого не ставили</li>';
@@ -308,7 +347,7 @@ const WorshipLoad = (() => {
                     с.дыр ? `${с.дыр} без человека` : 'закрыта вся'}</span>
             </li>`).join('') || '<li class="py-3 text-sm opacity-70">Служб пока нет</li>';
 
-        рисоватьНаходки(строки, несущие, среднее);
+        рисоватьНаходки(строки, несущие, поВремени ? среднееМинут : среднее, поВремени);
     }
 
     /**
@@ -323,13 +362,29 @@ const WorshipLoad = (() => {
               .replace(/^\d+\s*/, '')
         : 'службы';
 
-    function рисоватьНаходки(строки, несущие, среднее) {
+    function рисоватьНаходки(строки, несущие, среднее, поВремени) {
         const находки = [];
 
-        const перегруженные = несущие.filter(ч => среднее >= 1 && ч.служб >= среднее * 1.8);
+        const мера = ч => поВремени ? ч.минут : ч.служб;
+        const перегруженные = несущие.filter(ч => среднее >= 1 && мера(ч) >= среднее * 1.8);
         if (перегруженные.length) {
             находки.push(`Больше других несут: <b>${перегруженные.map(ч => e(ч.имя)).join(', ')}</b> — `
-                + `при среднем ${дробь(среднее)} ${словоСлужб(среднее)} на человека.`);
+                + `при среднем ${поВремени ? часы(среднее) : `${дробь(среднее)} ${словоСлужб(среднее)}`} на человека.`);
+        }
+
+        // часы честны, только если длительность есть у всех служб периода
+        if (поВремени) {
+            const безДлительности = [...new Set(назначения
+                .filter(н => настоящее(н) && минутСлужбы(н) === null)
+                .map(н => н.service_id
+                    ? Layout.getName(службаПоId.get(н.service_id) || {})
+                    : отклонениеПоId.get(н.override_id)?.title)
+                .filter(Boolean))];
+            if (безДлительности.length) {
+                находки.push(`У служб без указанной длительности часы не посчитаны: `
+                    + `<b>${безДлительности.map(e).join(', ')}</b>. `
+                    + `Задать её можно в <a class="link" href="schedule.html">расписании</a>, кнопка «Службы».`);
+            }
         }
 
         const безПерерыва = несущие.filter(ч => ч.подряд >= 5);
@@ -359,12 +414,12 @@ const WorshipLoad = (() => {
     }
 
     async function init() {
-        document.addEventListener('click', async ev => {
+        document.addEventListener('click', ev => {
             const кнопка = ev.target.closest('[data-период]');
             if (кнопка) {
                 период = кнопка.dataset.период;
                 try { localStorage.setItem('worship_load_period', период); } catch { /* приватный режим */ }
-                if (await загрузить()) рисовать();
+                рисовать();        // всё уже загружено на все три периода
                 return;
             }
             const состав2 = ev.target.closest('[data-состав]');

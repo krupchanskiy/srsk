@@ -71,16 +71,17 @@ const WorshipSchedule = (() => {
                 .select('id, duty_date, service_id, override_id, person_id, role')
                 .gte('duty_date', от).lte('duty_date', до),
             Layout.db.from('worship_day_overrides')
-                .select('id, duty_date, service_id, title, time_of_day, reason')
+                .select('id, duty_date, service_id, title, time_of_day, duration_minutes, reason')
                 .gte('duty_date', от).lte('duty_date', до),
             Layout.db.from('worship_absences')
                 .select('id, person_id, date_from, date_to, reason')
                 .lte('date_from', до),
             всё ? Layout.db.from('worship_services')
-                .select('id, name_ru, name_en, name_hi, time_of_day, sort_order, article_id, is_active')
+                .select('id, name_ru, name_en, name_hi, time_of_day, duration_minutes, sort_order, article_id, is_active')
                 .order('sort_order').order('time_of_day') : null,
-            всё ? Layout.db.from('worship_people')
-                .select('id, vaishnava_id, active_from, active_to, is_active, kind') : null,
+            // люди сразу с именами: отдельный поход в vaishnavas стоил лишнего
+            // круга по сети, а пуджари без прав на карточки видел «без имени»
+            всё ? Layout.db.rpc('worship_people_list') : null,
             // допуски нужны для пометок в выборе человека и в клетке
             всё ? Layout.db.from('worship_person_services').select('person_id, service_id') : null,
             // стандарты нужны, чтобы у службы можно было задать «как делается»
@@ -92,28 +93,13 @@ const WorshipSchedule = (() => {
         if (ошибка) { Layout.handleError(ошибка, 'Расписание'); return false; }
 
         if (всё) {
-            let новые = л.data || [];
-            let я = null;
-            const ids = новые.map(ч => ч.vaishnava_id);
-            if (ids.length) {
-                const { data, error } = await Layout.db.from('vaishnavas')
-                    .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
-                    .in('id', ids);
-                if (моё !== поколение) return false;
-                if (error) { Layout.handleError(error, 'Расписание'); return false; }
-                const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
-                новые = новые.map(ч => {
-                    const в = карточки[ч.vaishnava_id] || {};
-                    return {
-                        ...ч,
-                        имя: в.spiritual_name ||
-                            `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени',
-                        безВхода: !в.user_id,
-                        безБота: !!в.user_id && !в.telegram_chat_id,
-                    };
-                }).sort((a, b) => a.имя.localeCompare(b.имя, 'ru'));
-                я = новые.find(ч => карточки[ч.vaishnava_id]?.user_id === window.currentUser?.id) || null;
-            }
+            const новые = (л.data || []).map(ч => ({
+                ...ч,
+                имя: ч.name,
+                безВхода: !ч.user_id,
+                безБота: !!ч.user_id && !ч.has_telegram,
+            })).sort((a, b) => a.имя.localeCompare(b.имя, 'ru'));
+            const я = новые.find(ч => ч.user_id && ч.user_id === window.currentUser?.id) || null;
             новые.forEach(ч => {
                 ч.допуск = new Set((доп.data || [])
                     .filter(д => д.person_id === ч.id).map(д => д.service_id));
@@ -707,7 +693,14 @@ const WorshipSchedule = (() => {
                 <input class="input input-bordered input-sm flex-1 min-w-40" value="${e(с.name_ru)}"
                        data-служба-имя="${с.id}" maxlength="100">
                 <input type="time" class="input input-bordered input-sm w-28" value="${e(с.time_of_day.slice(0, 5))}"
-                       data-служба-время="${с.id}">
+                       data-служба-время="${с.id}" aria-label="Время начала">
+                <!-- сколько служба занимает: по этому «Загрузка» считает часы -->
+                <label class="input input-bordered input-sm w-24 flex items-center gap-1">
+                    <input type="number" min="5" max="720" step="5" class="w-full min-w-0 tabular-nums"
+                           value="${с.duration_minutes ?? ''}" placeholder="—"
+                           data-служба-длительность="${с.id}" aria-label="Длительность, минут">
+                    <span class="opacity-60 text-xs">мин</span>
+                </label>
                 <select class="select select-bordered select-sm w-44" data-служба-стандарт="${с.id}">
                     <option value="">стандарта нет</option>
                     ${стандарты.map(а => `<option value="${а.id}"${
@@ -742,6 +735,7 @@ const WorshipSchedule = (() => {
         $('#оДата').value = вид === 'день' ? выбранныйДень : дни()[0];
         $('#оНазвание').value = '';
         $('#оВремя').value = '';
+        $('#оДлительность').value = '';
         $('#оПричина').value = '';
         $('#оСлужба').innerHTML = службы.filter(с => с.is_active)
             .map(с => `<option value="${с.id}">${e(Layout.getName(с))} (${e(с.time_of_day.slice(0, 5))})</option>`).join('');
@@ -763,8 +757,11 @@ const WorshipSchedule = (() => {
             if (!$('#оНазвание').value.trim() || !$('#оВремя').value) {
                 return Layout.showNotification('У разовой службы нужны название и время', 'warning');
             }
+            const минут = минутИзПоля($('#оДлительность'));
+            if (минут === false) return;
             строка.title = $('#оНазвание').value.trim();
             строка.time_of_day = $('#оВремя').value;
+            строка.duration_minutes = минут;
         } else {
             if (!$('#оСлужба').value) return Layout.showNotification('Выберите службу', 'warning');
             строка.service_id = $('#оСлужба').value;
@@ -922,13 +919,18 @@ const WorshipSchedule = (() => {
             const имя = ev.target.closest('[data-служба-имя]');
             const время = ev.target.closest('[data-служба-время]');
             const стандарт = ev.target.closest('[data-служба-стандарт]');
-            if (!имя && !время && !стандарт) return;
-            const поле = имя || время || стандарт;
+            const длительность = ev.target.closest('[data-служба-длительность]');
+            if (!имя && !время && !стандарт && !длительность) return;
+            const поле = имя || время || стандарт || длительность;
             const id = поле.getAttribute(имя ? 'data-служба-имя'
-                : время ? 'data-служба-время' : 'data-служба-стандарт');
+                : время ? 'data-служба-время'
+                : стандарт ? 'data-служба-стандарт' : 'data-служба-длительность');
+            const минут = длительность ? минутИзПоля(поле) : null;
+            if (минут === false) return;
             const правка = имя ? { name_ru: поле.value.trim() }
                 : время ? { time_of_day: поле.value }
-                : { article_id: поле.value || null };
+                : стандарт ? { article_id: поле.value || null }
+                : { duration_minutes: минут };
             if (имя && !правка.name_ru) return Layout.showNotification('Без названия службу не найти', 'warning');
             const ок = await записать(Layout.db.from('worship_services')
                 .update({ ...правка, updated_at: new Date().toISOString(),
@@ -943,20 +945,38 @@ const WorshipSchedule = (() => {
             $(s2).addEventListener('change', пересчитатьПовтор));
     }
 
+    /**
+     * Минуты из поля длительности: пусто — «не указано» (null),
+     * вне 5…720 — false и подсказка (база такое всё равно не примет).
+     */
+    function минутИзПоля(поле) {
+        if (поле.value === '') return null;
+        const м = Math.round(Number(поле.value));
+        if (!Number.isFinite(м) || м < 5 || м > 720) {
+            Layout.showNotification('Длительность — от 5 минут до 12 часов', 'warning');
+            return false;
+        }
+        return м;
+    }
+
     async function добавитьСлужбу() {
         const имя = $('#сНазвание').value.trim();
         const время = $('#сВремя').value;
         if (!имя || !время) return Layout.showNotification('Нужны название и время', 'warning');
+        const минут = минутИзПоля($('#сДлительность'));
+        if (минут === false) return;
 
         const { error } = await Layout.db.from('worship_services').insert({
             name_ru: имя,
             time_of_day: время,
+            duration_minutes: минут,
             sort_order: Math.max(0, ...службы.map(с => с.sort_order ?? 0)) + 1,
             created_by: window.currentUser?.id || null,
         });
         if (error) return Layout.handleError(error, 'Служба');
         $('#сНазвание').value = '';
         $('#сВремя').value = '';
+        $('#сДлительность').value = '';
         await перечитать();
         рисоватьСлужбы();
     }
