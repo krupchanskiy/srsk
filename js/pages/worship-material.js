@@ -17,6 +17,21 @@ const WorshipMaterial = (() => {
 
     const ПРЕДЕЛ_ФАЙЛА = 200 * 1024 * 1024;
 
+    // Тип по расширению — когда браузер его не называет (бывает на телефонах
+    // и у старых .doc): без этого файл уходил в хранилище подписанным как pdf
+    const ТИП_ПО_РАСШИРЕНИЮ = {
+        pdf: 'application/pdf', doc: 'application/msword',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        rtf: 'application/rtf', odt: 'application/vnd.oasis.opendocument.text',
+        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic',
+        mp3: 'audio/mpeg', m4a: 'audio/x-m4a', aac: 'audio/aac', ogg: 'audio/ogg', wav: 'audio/wav', heif: 'image/heif',
+        mp4: 'video/mp4', mov: 'video/quicktime',
+    };
+    const типФайла = ф => ф.type
+        || ТИП_ПО_РАСШИРЕНИЮ[(ф.name.split('.').pop() || '').toLowerCase()] || '';
+    // браузер их не показывает — такие файлы скачиваются под своим именем
+    const ДОКУМЕНТЫ = /msword|wordprocessingml|rtf|opendocument/;
+
     let id = new URLSearchParams(location.search).get('id');
     let статья = null, версия = null, разделы = [], вложения = [];
     let грязно = false, сохраняется = false;
@@ -317,20 +332,20 @@ const WorshipMaterial = (() => {
             const путь = `${window.currentUser?.id}/${crypto.randomUUID()}-${
                 файл.name.replace(/[^\w.-]+/g, '_')}`;
             const { error } = await Layout.db.storage.from('worship')
-                .upload(путь, файл, { contentType: файл.type || 'application/pdf' });
+                .upload(путь, файл, { contentType: типФайла(файл) || 'application/octet-stream' });
             if (error) {
                 // хранилище принимает конкретный список типов, и его отказ
                 // выглядит как «mime type … is not supported» — непонятно
                 if (/mime type/i.test(error.message || '')) {
                     throw new Error('такой тип файла библиотека не принимает: ' +
-                        'снимки, pdf, аудио и видео — да, остальное нет');
+                        'снимки, pdf, документы Word (doc, docx, rtf, odt), аудио и видео — да, остальное нет');
                 }
                 throw new Error(error.message);
             }
 
             const { error: ош } = await Layout.db.from('worship_attachments').insert({
                 article_id: id, kind: 'file', storage_path: путь, name: файл.name,
-                mime: файл.type || null, size_bytes: файл.size,
+                mime: типФайла(файл) || null, size_bytes: файл.size,
                 sort_order: вложения.length, created_by: window.currentUser?.id || null,
             });
             if (ош) throw new Error(ош.message);
@@ -383,7 +398,8 @@ const WorshipMaterial = (() => {
 
         // бакет приватный: отдаём ссылку ограниченного срока
         const { data, error } = await Layout.db.storage.from('worship')
-            .createSignedUrl(в.storage_path, 300);
+            .createSignedUrl(в.storage_path, 300,
+                ДОКУМЕНТЫ.test(в.mime || '') ? { download: в.name } : undefined);
         if (error) return Layout.handleError(error, 'Открытие файла');
         window.open(data.signedUrl, '_blank', 'noopener');
     }
