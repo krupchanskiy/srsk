@@ -79,14 +79,17 @@ function ensureDialog() {
                         <input id="gbContactTelegram" class="input input-bordered input-sm w-full" />
                     </label>
                     <div class="grid grid-cols-3 gap-3 sm:col-span-2">
-                        <label class="form-control">
-                            <span class="label-text font-medium mb-1">${e(tf('check_in', 'Заезд'))}</span>
+                        <!-- Примерное время заезда/выезда всей брони (мигр. 670, ВГ 20.10) -->
+                        <div class="form-control">
+                            <label for="gbIn" class="label-text font-medium mb-1">${e(tf('check_in', 'Заезд'))}</label>
                             <input id="gbIn" type="date" class="input input-bordered input-sm w-full" />
-                        </label>
-                        <label class="form-control">
-                            <span class="label-text font-medium mb-1">${e(tf('check_out', 'Выезд'))}</span>
+                            <div id="gbArrTime" data-arrival-time="in"></div>
+                        </div>
+                        <div class="form-control">
+                            <label for="gbOut" class="label-text font-medium mb-1">${e(tf('check_out', 'Выезд'))}</label>
                             <input id="gbOut" type="date" class="input input-bordered input-sm w-full" />
-                        </label>
+                            <div id="gbDepTime" data-arrival-time="out"></div>
+                        </div>
                         <label class="form-control" data-group-only>
                             <span class="label-text font-medium mb-1">${e(tf('timeline_group_people', 'Людей'))}</span>
                             <input id="gbPeople" type="number" min="1" max="500" class="input input-bordered input-sm w-full" />
@@ -244,7 +247,7 @@ async function loadBooking(bookingId) {
     const [{ data: bk, error: e1 }, { data: seats, error: e2 }] = await Promise.all([
         Layout.db.from('bookings').select('*').eq('id', bookingId).single(),
         Layout.db.from('residents')
-            .select('id, room_id, vaishnava_id, guest_name, arrived_at, check_in, check_out, status, created_at, category_id, retreat_id, breakfast, lunch, has_meals, department_id')
+            .select('id, room_id, vaishnava_id, guest_name, arrived_at, check_in, check_out, status, created_at, category_id, retreat_id, breakfast, lunch, has_meals, department_id, arrival_time, departure_time, keep_arrival_meal')
             .eq('booking_id', bookingId).neq('status', 'cancelled')
     ]);
     if (e1 || e2) throw e1 || e2;
@@ -258,6 +261,27 @@ async function loadBooking(bookingId) {
         if (!isRemovable(s)) S.minSeats[k] = (S.minSeats[k] || 0) + 1;
     }
     S.picks = { ...S.origPicks };
+    // Время брони — самое частое у мест с общими датами (свои даты и время людей не в счёт)
+    const common = (list, f) => {
+        const n = new Map();
+        for (const s of list) n.set(s[f] || null, (n.get(s[f] || null) || 0) + 1);
+        return [...n].sort((a, c) => c[1] - a[1])[0]?.[0] || null;
+    };
+    const atIn = S.seats.filter(s => s.check_in === bk.check_in);
+    const arr = common(atIn, 'arrival_time');
+    S.times = {
+        arr, keep: atIn.some(s => s.arrival_time === arr && s.keep_arrival_meal),
+        dep: common(S.seats.filter(s => s.check_out === bk.check_out), 'departure_time')
+    };
+}
+
+// Время из окна → поля места; у людей со своими датами общее время не ставим
+function timeFields(checkIn, checkOut, from, to) {
+    const a = ArrivalTime.get($('gbArrTime')), d = ArrivalTime.get($('gbDepTime'));
+    return {
+        ...(checkIn === from ? { arrival_time: a.time, keep_arrival_meal: a.keep } : {}),
+        ...(checkOut === to ? { departure_time: d.time } : {})
+    };
 }
 
 const isRemovable = s => s.status === 'confirmed' && !s.vaishnava_id && !s.guest_name && !s.arrived_at;
@@ -908,7 +932,7 @@ async function open(opts = {}) {
     // Из сделки CRM — как прежний мастер, без проверки прав шахматки (запись проверяет база)
     if (!canEdit() && !opts.crmDealId) return;
     ensureDialog();
-    S = { picks: {}, origPicks: {}, minSeats: {}, occ: new Map(), booking: null, seats: [],
+    S = { picks: {}, origPicks: {}, minSeats: {}, occ: new Map(), booking: null, seats: [], times: {},
         onSaved: opts.onSaved, datesTouched: false,
         mode: opts.mode === 'person' ? 'person' : 'group',
         crmDealId: opts.crmDealId || null,
@@ -971,6 +995,8 @@ async function open(opts = {}) {
         if (person && opts.checkIn) S.datesTouched = true;
         fillRetreats(opts.retreatId || '');
     }
+    ArrivalTime.set($('gbArrTime'), { time: S.times.arr, keep: S.times.keep });
+    ArrivalTime.set($('gbDepTime'), { time: S.times.dep });
     $('gbSelf').value = S.picks[SELF] || 0;
     $('gbSelf').min = S.minSeats[SELF] || 0;
     retreatWarn();
@@ -1122,6 +1148,7 @@ async function saveNew(head, from, to, retreat) {
     for (const [k, n] of Object.entries(S.picks)) for (let i = 0; i < n; i++) {
         const p = queue[k]?.shift();
         rows.push({ ...seatRow(base, k), ...(p ? personFields(p) : {}),
+            ...timeFields(p?.in || from, p?.out || to, from, to),
             ...(wholeRoom() && k !== SELF ? { whole_room: true } : {}) });
     }
     const { error: e2 } = await Layout.db.from('residents').insert(rows);
@@ -1190,6 +1217,21 @@ async function saveEdit(head, from, to, retreatId) {
         if (r.error) return fail(r.error);
     }
 
+    // 3а) время — у мест с общими датами и прежним временем брони (своё время людей не трогаем)
+    const t = timeFields(from, to, from, to);
+    const old = S.times || {};
+    const byOld = (q, f, v) => v ? q.eq(f, v) : q.is(f, null);
+    if (t.arrival_time !== (old.arr ? old.arr.slice(0, 5) : null) || t.keep_arrival_meal !== !!old.keep) {
+        r = await byOld(Layout.db.from('residents').update({ arrival_time: t.arrival_time, keep_arrival_meal: t.keep_arrival_meal })
+            .eq('booking_id', b.id).eq('check_in', from).is('arrived_at', null).neq('status', 'cancelled'), 'arrival_time', old.arr);
+        if (r.error) return fail(r.error);
+    }
+    if (t.departure_time !== (old.dep ? old.dep.slice(0, 5) : null)) {
+        r = await byOld(Layout.db.from('residents').update({ departure_time: t.departure_time })
+            .eq('booking_id', b.id).eq('check_out', to).neq('status', 'cancelled'), 'departure_time', old.dep);
+        if (r.error) return fail(r.error);
+    }
+
     // 3б) люди из списка — сначала на безымянные места брони в своём номере
     const queue = listQueue();
     for (const [k, list] of Object.entries(queue)) {
@@ -1218,7 +1260,8 @@ async function saveEdit(head, from, to, retreatId) {
         const rows = [];
         for (const [k, n] of toAdd) for (let i = 0; i < n; i++) {
             const p = queue[k]?.shift();
-            rows.push({ ...seatRow(base, k), ...(p ? personFields(p) : {}) });
+            rows.push({ ...seatRow(base, k), ...(p ? personFields(p) : {}),
+                ...timeFields(p?.in || from, p?.out || to, from, to) });
         }
         r = await Layout.db.from('residents').insert(rows);
         if (r.error) return fail(r.error);
