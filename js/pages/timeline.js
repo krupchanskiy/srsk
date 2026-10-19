@@ -675,6 +675,19 @@ async function loadTimelineData() {
                     }
                 });
 
+                // «Номер целиком» (724): остальные кровати номера на эти даты — штрихованная
+                // полоса без клика, чтобы никого не подселили (база всё равно не даст)
+                beds.flatMap(b => b.guests).filter(g => !g.isCleaning && g.rawData?.whole_room).forEach(g => {
+                    const gS = g.startDay * 2 + g.startHalf, gE = g.endDay * 2 + g.endHalf;
+                    beds.forEach(bed => {
+                        const busy = bed.guests.some(x => !x.isCleaning
+                            && !(gE < x.startDay * 2 + x.startHalf || gS > x.endDay * 2 + x.endHalf));
+                        if (!busy) bed.guests.push({ id: `whole-${g.id}-${bed.bedIndex}`, isWholeShadow: true,
+                            name: g.name, startDay: g.startDay, startHalf: g.startHalf, endDay: g.endDay, endHalf: g.endHalf,
+                            color: g.color, rawData: {} });
+                    });
+                });
+
                 // Добавляем ручные уборки
                 const roomCleanings = cleaningsByRoom[room.id] || [];
                 roomCleanings.forEach(c => {
@@ -2613,6 +2626,15 @@ function openResidentModal(guestData, buildingName, roomName) {
             <span class="font-medium">${formatDisplayDate(res.check_out)}${res.late_checkout ? ` (${t('timeline_late')})` : ''}${res.departure_time ? ` · ${e(ArrivalTime.label(res, 'out'))}` : ''}</span>
         </div>`;
     }
+    // Номер целиком (724) — одноместное расселение: остальные места номера закрыты
+    if (res.room_id && (res.whole_room || canEditTimeline())) {
+        infoHtml += `<div class="flex justify-between items-center gap-2 py-1 border-b">
+            <span class="text-gray-500">${e(tf('timeline_whole_room', 'Номер целиком (без подселения)'))}:</span>
+            ${canEditTimeline()
+                ? `<input type="checkbox" class="toggle toggle-sm toggle-primary" ${res.whole_room ? 'checked' : ''} onchange="setResidentWholeRoom(this)">`
+                : `<span class="font-medium">✓</span>`}
+        </div>`;
+    }
     // Плейсхолдер для времени отъезда
     infoHtml += `<div id="residentDepartureTime" class="hidden flex justify-between py-1 border-b">
         <span class="text-gray-500">${t('timeline_departure_time')}:</span>
@@ -2924,6 +2946,28 @@ async function setResidentDepartment(sel) {
 }
 
 // Сменить ретрит брони прямо из окна проживания
+// «Номер целиком» ставится всем людям этой брони в номере — семья живёт вместе,
+// а оплата делит все места номера на них (мигр. 726). Подселение потом не даст база (724)
+async function setResidentWholeRoom(box) {
+    if (!currentResident || !canEditTimeline()) return;
+    const res = currentResident.rawData;
+    const value = box.checked;
+    box.disabled = true;
+    let q = Layout.db.from('residents').update({ whole_room: value }).eq('room_id', res.room_id);
+    q = res.booking_id ? q.eq('booking_id', res.booking_id) : q.eq('id', currentResident.id);
+    const { error } = await q;
+    box.disabled = false;
+    if (error) {
+        box.checked = !value;
+        Layout.handleError(error, tf('timeline_whole_room', 'Номер целиком (без подселения)'));
+        return;
+    }
+    res.whole_room = value;
+    Layout.showNotification(tf('saved', 'Сохранено'), 'success');
+    await loadTimelineData();
+    renderTable();
+}
+
 async function setResidentRetreat(sel) {
     if (!currentResident || !canEditTimeline()) return;
     const res = currentResident.rawData;
@@ -3477,7 +3521,7 @@ async function showMoveScreen() {
         }, 3600000),
         Layout.db
             .from('residents')
-            .select('room_id, check_in, check_out')
+            .select('room_id, check_in, check_out, booking_id, whole_room')
             .in('status', ['confirmed', 'booked'])
             .neq('id', currentResident.id) // исключаем текущего резидента
             .lte('check_in', checkOut)
@@ -3517,6 +3561,9 @@ async function showMoveScreen() {
             if (cur > peak) peak = cur;
         }
         roomOccupancy[roomId] = peak;
+        // Номер снят целиком чужой бронью (724) — в эти даты занят полностью
+        if (resList.some(r => r.whole_room && (!res.booking_id || r.booking_id !== res.booking_id)))
+            roomOccupancy[roomId] = 999;
     }
 
     const currentRoomId = res.room_id;
@@ -3538,8 +3585,9 @@ async function showMoveScreen() {
 
         rooms.forEach(room => {
             const isCurrent = room.id === currentRoomId;
-            const occupied = roomOccupancy[room.id] || 0;
             const capacity = room.capacity || 1;
+            // 999 — номер снят целиком другой бронью: показываем как полный
+            const occupied = roomOccupancy[room.id] === 999 ? capacity : (roomOccupancy[room.id] || 0);
             const isFull = occupied >= capacity;
 
             let btnClass, label, disabled;
@@ -4257,6 +4305,12 @@ function renderTable() {
 
                     html += `<td class="half-day clickable ${dayStart} ${weekend} ${today} ${ekadashi}"${isOutsideRental ? ' style="background: #e5e7eb;"' : ''} data-action="open-action-modal" data-day-index="${dayIndex}" data-room-id="${room.id}" data-building-name="${bName}" data-room-name="${rName}" data-bed-name="${bedName}" data-half-index="${halfIndex}">`;
 
+                    // Место закрыто «номером целиком» соседа — штриховка с подписью, клик не открывает бронь
+                    if (guest?.isWholeShadow) {
+                        const width = Math.max(1, guest.endDay * 2 + guest.endHalf - (guest.startDay * 2 + guest.startHalf) + 1) * CELL_WIDTH - 2;
+                        const wholeLabel = tf('timeline_whole_room_short', 'номер целиком');
+                        html += `<div class="guest-bar whole-room-shadow" data-action="noop" title="${e(guest.name)} · ${e(wholeLabel)}" style="width: ${width}px; background: repeating-linear-gradient(45deg, #e5e7eb 0 6px, #f3f4f6 6px 12px); border-color: ${guest.color || '#9ca3af'}; color: #374151; cursor: default;">${e(wholeLabel)}</div>`;
+                    } else
                     // Если здесь начинается гость — добавляем плашку
                     // (уборки теперь рендерятся на строке номера, не на строке места)
                     if (guest && !guest.isCleaning) {
@@ -4288,6 +4342,7 @@ function renderTable() {
                         // «Имя · Кухня» и значок примечания с текстом в подсказке
                         const barLabel = e(guest.name)
                             + (guest.dept ? `<span class="opacity-80"> · ${e(guest.dept)}</span>` : '')
+                            + (guest.rawData?.whole_room ? `<span class="opacity-80"> · ${e(tf('timeline_whole_room_short', 'номер целиком'))}</span>` : '')
                             + (guest.note ? NOTE_ICON : '');
                         const noteTitle = guest.note ? ` title="${e(guest.note)}"` : '';
                         const awayHtml = awayHatchHtml(guest.rawData, startCol, spanCells);

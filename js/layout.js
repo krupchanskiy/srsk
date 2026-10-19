@@ -664,7 +664,7 @@ async function loadTranslations(retried = false) {
 
     // Проверка на наличие новых переводов (для автоинвалидации устаревшего кэша)
     // Добавляйте сюда ключи новых обязательных переводов
-    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe', 'nav_prices', 'prices_title', 'nav_cost', 'cost_title', 'rental_add_retreat'];
+    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe', 'nav_prices', 'prices_title', 'nav_cost', 'cost_title', 'rental_add_retreat', 'timeline_whole_room'];
     const hasAllKeys = requiredKeys.every(key => data.some(row => row.key === key));
 
     if (!hasAllKeys && !retried) {

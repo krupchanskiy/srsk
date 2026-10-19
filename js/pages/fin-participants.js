@@ -579,7 +579,7 @@ async function loadCardCrmInfo() {
     if (el) el.innerHTML = `${вынос}
         <div class="bg-base-200/40 rounded-lg px-2.5 py-1.5">
             <div class="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide opacity-50 mb-0.5">
-                <span>${t('fin_crm_terms_info')} · <span class="normal-case">${DateUtils.formatShort(DateUtils.parseDate(d.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(d.check_out))}, ${d.nights_total} ноч.${места.length > 1 ? '' : d.building ? ` · ${e(d.building)}${d.room ? ' №' + e(String(d.room)) : ''}` : ''}${откудаДаты ? ` · ${откудаДаты}` : ''}</span></span>
+                <span>${t('fin_crm_terms_info')} · <span class="normal-case">${DateUtils.formatShort(DateUtils.parseDate(d.check_in))} — ${DateUtils.formatShort(DateUtils.parseDate(d.check_out))}, ${d.nights_total} ноч.${места.length > 1 ? '' : d.building ? ` · ${e(d.building)}${d.room ? ' №' + e(String(d.room)) : ''}` : ''}${d.whole_room ? ` · <b>${e(t('timeline_whole_room_short') === 'timeline_whole_room_short' ? 'номер целиком' : t('timeline_whole_room_short'))}</b>` : ''}${откудаДаты ? ` · ${откудаДаты}` : ''}</span></span>
             </div>
             ${списокМест}
             ${блок('org_fee', blockLabel('org_fee'))}

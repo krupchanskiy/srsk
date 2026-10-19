@@ -356,8 +356,10 @@ async function initForm(v) {
         extraBed: false,
         extraBedPrice: Number(tariff.extra_bed_price) || 0,
         // по умолчанию — койко-место: цена номера ÷ койки, к одиночкам можно подселить (ВГ, 01.10);
-        // семья заняла номер целиком — ÷ число жильцов, подсказка рядом с делителем
-        people: Math.max(Number(тип?.capacity) || Number(v.capacity) || 1, 1),
+        // семья заняла номер целиком — ÷ число жильцов, подсказка рядом с делителем.
+        // В шахматке «номер целиком» (724) — сразу ÷ жильцов своей брони: один платит весь номер
+        people: v.whole_room ? Math.max(Number(v.booking_roommates) || 1, 1)
+            : Math.max(Number(тип?.capacity) || Number(v.capacity) || 1, 1),
         bPrice: Number(tariff.breakfast_price),
         lPrice: Number(tariff.lunch_price),
         meals: [],
@@ -519,6 +521,7 @@ function renderForms() {
             ${(() => {
                 const койки = Math.max(Number(f.roomType?.capacity) || Number(v.capacity) || 1, 1);
                 const жильцов = Math.max(Number(v.roommates) || 1, 1);
+                if (v.whole_room) return `<div class="text-xs -mt-2 mb-2"><b>Номер целиком (без подселения)</b> — цена номера ÷ ${Math.max(Number(v.booking_roommates) || 1, 1)} (жильцы этой брони)</div>`;
                 if (f.extraBed || койки === жильцов) return '';
                 return f.people === койки
                     ? `<div class="text-xs -mt-2 mb-2 opacity-70">÷ ${койки} — койко-место. Семья заняла номер целиком? <button type="button" class="link link-primary" data-gc-people="${rid}" data-n="${жильцов}">÷ ${жильцов} жильцов</button></div>`

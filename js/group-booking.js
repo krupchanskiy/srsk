@@ -97,6 +97,12 @@ function ensureDialog() {
                         <div class="label-text font-medium mb-1">${e(tf('timeline_person_people', 'Кто едет'))}</div>
                         <div id="gbPersons" class="space-y-1"></div>
                         <button type="button" class="btn btn-ghost btn-xs mt-1" data-gb="person-add">+ ${e(tf('timeline_add_person', 'ещё человек'))}</button>
+                        <!-- Одноместное расселение (724): остальные места номера закрыты для подселения -->
+                        <label class="flex flex-wrap items-center gap-2 mt-2 text-sm cursor-pointer">
+                            <input type="checkbox" id="gbWholeRoom" class="checkbox checkbox-sm">
+                            <span class="font-medium">${e(tf('timeline_whole_room', 'Номер целиком (без подселения)'))}</span>
+                            <span class="text-xs opacity-60">${e(tf('timeline_whole_room_hint', 'Остальные места номера на эти даты будут закрыты'))}</span>
+                        </label>
                     </div>
                     <div id="gbMeals" class="sm:col-span-2 flex flex-wrap items-center gap-4 text-sm">
                         <span class="font-medium">${e(tf('timeline_prasad', 'Прасад'))}:</span>
@@ -194,6 +200,7 @@ function ensureDialog() {
     $('gbIn').addEventListener('change', onDatesChanged);
     $('gbOut').addEventListener('change', onDatesChanged);
     $('gbPeople').addEventListener('input', renderCounter);
+    $('gbWholeRoom').addEventListener('change', afterPersonsChanged);
     $('gbSelf').addEventListener('input', () => {
         const min = minFor(SELF);
         S.picks[SELF] = Math.max(min, parseInt($('gbSelf').value) || 0);
@@ -261,7 +268,7 @@ async function loadOccupancy() {
     S.occ = new Map();
     if (!from || !to || to <= from) return;
     const { data, error } = await Layout.db.from('residents')
-        .select('id, room_id, check_in, check_out, booking_id')
+        .select('id, room_id, check_in, check_out, booking_id, whole_room')
         .in('status', ['confirmed', 'booked'])
         .not('room_id', 'is', null)
         .lte('check_in', to)
@@ -277,8 +284,11 @@ async function loadOccupancy() {
     }
     for (const [roomId, list] of byRoom) {
         let peak = 0;
+        // «Номер целиком» (724) занимает все места номера
+        const cap = S.rooms.find(r => r.id === roomId)?.capacity || 1;
         for (const n of nights) {
-            const c = list.filter(o => o.check_in <= n && (!o.check_out || o.check_out > n)).length;
+            const night = list.filter(o => o.check_in <= n && (!o.check_out || o.check_out > n));
+            const c = night.some(o => o.whole_room) ? Math.max(cap, night.length) : night.length;
             if (c > peak) peak = c;
         }
         const adjacent = list.some(o => o.check_out === from || o.check_in === to);
@@ -392,9 +402,12 @@ function toggleRoom(roomId) {
     const st = roomState(room);
     if (S.mode === 'person') {
         const need = personNeed();
-        S.picks = (S.picks[roomId] || st.free < need) ? {} : { [roomId]: need };
-        if (!S.picks[roomId] && st.free < need && st.free > 0)
+        const was = !!S.picks[roomId];
+        S.picks = (was || !personFits(room)) ? {} : { [roomId]: need };
+        if (!was && !S.picks[roomId] && st.free < need && st.free > 0)
             Layout.showNotification(`№${room.number}: ${tf('timeline_person_room_small', 'свободных мест меньше, чем людей')} (${st.free} / ${need})`, 'warning');
+        else if (!was && !S.picks[roomId] && wholeRoom() && st.peak > 0 && st.free >= need)
+            Layout.showNotification(`№${room.number}: ${tf('timeline_room_not_empty', 'в номере уже кто-то есть')}`, 'warning');
         renderRooms();
         return;
     }
@@ -427,7 +440,7 @@ function renderRooms() {
                 : tf('timeline_room_free', 'свободен');
             const opts = [];
             for (let n = min; n <= max; n++) opts.push(`<option value="${n}" ${n === p ? 'selected' : ''}>${n || '—'}</option>`);
-            const disabled = S.mode === 'person' ? st.free < personNeed() && !p : max === 0;
+            const disabled = S.mode === 'person' ? !personFits(room) && !p : max === 0;
             return `<div class="gb-room gb-${disabled ? 'busy' : st.kind}${p ? ' gb-picked' : ''}" data-room-card="${room.id}">
                 <div class="flex justify-between gap-1"><span class="gb-num">№${e(room.number)}</span><span class="text-xs opacity-60"${st.extraBed ? ` title="${e(tf('timeline_room_two_plus', '2 + доп. кровать'))}"` : ''}>${st.extraBed ? `${st.cap - 1}+1` : st.cap}</span></div>
                 <div class="gb-sub">${e(sub)}${min ? ` · ${e(tf('timeline_room_named', 'с именами'))}: ${min}` : ''}</div>
@@ -465,7 +478,7 @@ function renderCounter() {
         const room = roomId && S.rooms.find(r => r.id === roomId);
         const b = room && S.buildings.find(x => x.id === room.building_id);
         $('gbCounter').innerHTML = `${e(tf('timeline_group_people', 'Людей'))}: <b>${personNeed()}</b> · `
-            + (room ? `${e(Layout.getName(b))} <b>№${e(room.number)}</b>`
+            + (room ? `${e(Layout.getName(b))} <b>№${e(room.number)}</b>${wholeRoom() ? ` · ${e(tf('timeline_whole_room_short', 'номер целиком'))}` : ''}`
                 : `<span class="text-warning font-medium">${e(tf('timeline_person_pick_room', 'выберите номер'))}</span>`);
         return;
     }
@@ -850,6 +863,9 @@ function renderListSummary() {
 // Тот же выбор номеров, но один номер на всех: человек из сделки CRM (или из справочника)
 // и его спутники поимённо. Номер, где свободных мест меньше, чем людей, выбрать нельзя.
 const personNeed = () => Math.max(1, (S.persons || []).filter(p => p.vid || p.name.trim()).length);
+const wholeRoom = () => S.mode === 'person' && $('gbWholeRoom').checked;
+// Номер подходит: хватает свободных мест; «номер целиком» — в нём никого нет
+const personFits = room => { const st = roomState(room); return st.free >= personNeed() && (!wholeRoom() || st.peak === 0); };
 
 function renderPersons() {
     $('gbPersons').innerHTML = S.persons.map((p, i) => `<div class="flex items-center gap-2 relative" data-person-row="${i}">
@@ -881,7 +897,7 @@ function afterPersonsChanged() {
     if (roomId) {
         const need = personNeed();
         const room = S.rooms.find(r => r.id === roomId);
-        if (roomState(room).free < need) S.picks = {};
+        if (!personFits(room)) S.picks = {};
         else S.picks = { [roomId]: need };
     }
     renderRooms();
@@ -907,6 +923,7 @@ async function open(opts = {}) {
         delete $(id).dataset.auto;
     }
     $('gbBreakfast').checked = $('gbLunch').checked = true;
+    $('gbWholeRoom').checked = !!opts.wholeRoom;
     $('gbPaste').value = '';
     S.assign = []; S.manual = []; S.listPeople = []; S.rows = null; S.mapSig = null;
     showList(false);
@@ -1104,7 +1121,8 @@ async function saveNew(head, from, to, retreat) {
     const queue = listQueue();
     for (const [k, n] of Object.entries(S.picks)) for (let i = 0; i < n; i++) {
         const p = queue[k]?.shift();
-        rows.push({ ...seatRow(base, k), ...(p ? personFields(p) : {}) });
+        rows.push({ ...seatRow(base, k), ...(p ? personFields(p) : {}),
+            ...(wholeRoom() && k !== SELF ? { whole_room: true } : {}) });
     }
     const { error: e2 } = await Layout.db.from('residents').insert(rows);
     if (e2) {
