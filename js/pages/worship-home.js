@@ -295,9 +295,11 @@ const WorshipHome = (() => {
                                 ? e(имена[д.person_id] || 'кто-то')
                                 : `<s>${e(имена[д.person_id] || 'кто-то')}</s>`).join(', ')}</span>`
                         : ''}
-                    ${!прошла && !с2.кто.some(придёт)
-                        ? `<span class="block text-sm text-error">${с2.кто.length
-                            ? 'поставленный не придёт — нужна замена' : 'никто не поставлен'}</span>`
+                    ${!прошла && !с2.кто.some(д => д.role === 'pujari' && придёт(д))
+                        ? `<span class="block text-sm text-error">${
+                            // помощник пришёл, а вести службу некому — это тоже дыра
+                            с2.кто.some(придёт) ? 'нет ведущего — только помощник'
+                            : с2.кто.length ? 'поставленный не придёт — нужна замена' : 'никто не поставлен'}</span>`
                         : ''}
                 </span>
             </li>`;
@@ -319,12 +321,18 @@ const WorshipHome = (() => {
             .eq('person_id', я).gte('duty_date', сегодня).order('duty_date').limit(5);
         if (!свои?.length) return;
 
-        const [{ data: службы2 }, { data: откл }] = await Promise.all([
+        const [{ data: службы2 }, { data: откл }, { data: отметки }] = await Promise.all([
             Layout.db.from('worship_services').select('id, name_ru, name_en, name_hi, time_of_day, article_id, is_active'),
             Layout.db.from('worship_day_overrides')
                 .select('id, duty_date, service_id, title, time_of_day')
                 .in('duty_date', [...new Set(свои.map(н => н.duty_date))]),
+            // своя «меня не будет»: после неё служба должна читаться как
+            // ждущая замены, а не как обычная
+            Layout.db.from('worship_absences').select('date_from, date_to')
+                .eq('person_id', я).or(`date_to.is.null,date_to.gte.${сегодня}`),
         ]);
+        const меняНеБудет = день => (отметки || []).some(а =>
+            а.date_from <= день && (!а.date_to || а.date_to >= день));
 
         const отключена = н => н.service_id
             && (службы2 || []).find(x => x.id === н.service_id)?.is_active === false;
@@ -347,6 +355,8 @@ const WorshipHome = (() => {
                     : `<span class="${снята ? 'line-through' : ''}">${e(имя)}</span>`}
                 ${снята ? `<span class="badge badge-sm badge-warning ml-1">${отключена(н)
                     ? 'снята с расписания' : 'не проводится'}</span>` : ''}
+                ${!снята && меняНеБудет(н.duty_date)
+                    ? '<a href="schedule.html" class="badge badge-sm badge-warning ml-1">вас не будет — нужна замена</a>' : ''}
             </li>`;
         }).join('');
     }
@@ -359,7 +369,7 @@ const WorshipHome = (() => {
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day').eq('is_active', true).order('time_of_day'),
             Layout.db.from('worship_day_overrides').select('id, service_id, title, time_of_day').eq('duty_date', завтра),
-            Layout.db.from('worship_duties').select('service_id, override_id, person_id').eq('duty_date', завтра),
+            Layout.db.from('worship_duties').select('service_id, override_id, person_id, role').eq('duty_date', завтра),
             Layout.db.from('worship_people').select('id, is_active, active_from, active_to'),
             Layout.db.from('worship_absences').select('person_id, date_from, date_to').lte('date_from', завтра),
         ]);
@@ -375,7 +385,8 @@ const WorshipHome = (() => {
                 && (!ч.active_to || ч.active_to >= завтра)
                 && (!ч.active_from || ч.active_from <= завтра);
         };
-        const придёт = д => вСоставе(д.person_id) && !вОтъезде(д.person_id);
+        // службу держит ведущий пуджари: один помощник клетку не закрывает
+        const придёт = д => д.role === 'pujari' && вСоставе(д.person_id) && !вОтъезде(д.person_id);
 
         const отменена = id => (о.data || []).some(x => x.service_id === id);
         const занята = id => (н.data || []).some(x => x.service_id === id && придёт(x));

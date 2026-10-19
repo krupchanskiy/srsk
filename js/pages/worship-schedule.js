@@ -32,6 +32,7 @@ const WorshipSchedule = (() => {
 
     let службы = [], люди = [], назначения = [], отклонения = [], отметки = [], стандарты = [];
     let мои = [], моиОтклонения = [];   // свои службы вперёд, независимо от открытой недели
+    let моиОтметки = [];                // свои «меня не будет» — от сегодня вперёд
     let яЧеловек = null;              // моя запись в отделе, если я в нём есть
     let клетка = null;                // что сейчас назначаем
 
@@ -127,13 +128,24 @@ const WorshipSchedule = (() => {
     async function загрузитьМои() {
         мои = [];
         моиОтклонения = [];
+        моиОтметки = [];
         if (!яЧеловек) return;
         const сегодня = DateUtils.todayAshramISO();
-        const { data } = await Layout.db.from('worship_duties')
-            .select('id, duty_date, service_id, override_id, role')
-            .eq('person_id', яЧеловек.id).gte('duty_date', сегодня)
-            .order('duty_date').limit(20);
+        // своя отметка «меня не будет» нужна и тут: после неё человек должен
+        // видеть, что его службы в эти дни ждут замены, и мочь её снять
+        const [{ data }, { data: отм }] = await Promise.all([
+            Layout.db.from('worship_duties')
+                .select('id, duty_date, service_id, override_id, role')
+                .eq('person_id', яЧеловек.id).gte('duty_date', сегодня)
+                .order('duty_date').limit(20),
+            Layout.db.from('worship_absences')
+                .select('id, date_from, date_to, reason')
+                .eq('person_id', яЧеловек.id)
+                .or(`date_to.is.null,date_to.gte.${сегодня}`)
+                .order('date_from'),
+        ]);
         мои = data || [];
+        моиОтметки = отм || [];
 
         // отменённые в эти дни службы из своего списка надо убрать:
         // иначе человек встанет к службе, которой нет
@@ -169,6 +181,13 @@ const WorshipSchedule = (() => {
             && (!ч.active_from || ч.active_from <= день)
             && !вОтъезде(ч.id, день);
     };
+
+    // Службу держит ведущий пуджари. Помощник и киртан без него службу
+    // не проведут: клетка с одним помощником раньше была зелёной «закрыто»
+    const ведёт = (н, день) => н.role === 'pujari' && кто_придёт(н, день);
+    // в клетке кто-то придёт, но ведущего среди них нет
+    const безВедущего = (свои, день) => свои.some(н => кто_придёт(н, день))
+        && !свои.some(н => ведёт(н, день));
 
     const вКлетке = (день, serviceId, overrideId) => назначения.filter(н =>
         н.duty_date === день &&
@@ -236,8 +255,21 @@ const WorshipSchedule = (() => {
         $('#день').hidden = вид !== 'день';
     }
 
+    /** «20–22 окт», «30 окт – 2 ноя», «с 20 окт» — срок своей отметки, без года. */
+    const МЕС = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const срокОтметки = а => {
+        const от = DateUtils.parseDate(а.date_from);
+        if (!а.date_to) return `с ${от.getDate()} ${МЕС[от.getMonth()]}`;
+        const до = DateUtils.parseDate(а.date_to);
+        if (а.date_to === а.date_from) return `${от.getDate()} ${МЕС[от.getMonth()]}`;
+        return от.getMonth() === до.getMonth()
+            ? `${от.getDate()}–${до.getDate()} ${МЕС[до.getMonth()]}`
+            : `${от.getDate()} ${МЕС[от.getMonth()]} – ${до.getDate()} ${МЕС[до.getMonth()]}`;
+    };
+    const меняНеБудет = день => моиОтметки.some(а => а.date_from <= день && (!а.date_to || а.date_to >= день));
+
     function рисоватьМои() {
-        if (!яЧеловек || !мои.length) { $('#мои').hidden = true; return; }
+        if (!яЧеловек || (!мои.length && !моиОтметки.length)) { $('#мои').hidden = true; return; }
 
         // снятая с расписания служба — тоже «не проводится»: назначения на неё
         // остаются в базе, но приходить к ней не нужно
@@ -247,8 +279,16 @@ const WorshipSchedule = (() => {
         const живые = мои.filter(н => !отменён(н)).slice(0, 5);
         const снятые = мои.filter(отменён);
 
-        $('#мои').hidden = !живые.length && !снятые.length;
-        $('#моиСписок').innerHTML = живые.map(н => строкаМоей(н)).join('') +
+        $('#мои').hidden = !живые.length && !снятые.length && !моиОтметки.length;
+        // своя отметка — первой строкой и с «отменить»: раньше после «Отмечено»
+        // её не было видно нигде, и снять ошибочную было негде
+        $('#моиСписок').innerHTML = моиОтметки.map(а => `
+            <li class="py-1 flex flex-wrap items-baseline gap-2">
+                <span class="badge badge-warning">Вас не будет</span>
+                <span class="font-semibold">${e(срокОтметки(а))}</span>
+                ${а.reason ? `<span class="opacity-70">${e(а.reason)}</span>` : ''}
+                <button class="btn btn-ghost btn-xs" data-снятьМою="${а.id}">отменить</button>
+            </li>`).join('') + живые.map(н => строкаМоей(н)).join('') +
             // о службе, которую отменили уже после назначения, человек должен
             // узнать здесь, а не придя в храм
             снятые.slice(0, 3).map(н => `
@@ -279,6 +319,8 @@ const WorshipSchedule = (() => {
                 ? `<a class="link" href="article.html?id=${с.article_id}">${e(имяСлужбы(н))}</a>`
                 : `<span>${e(имяСлужбы(н))}</span>`}
             ${н.role !== 'pujari' ? `<span class="badge badge-sm">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
+            ${меняНеБудет(н.duty_date)
+                ? '<span class="badge badge-sm badge-warning">вас не будет — нужна замена</span>' : ''}
         </li>`;
     }
 
@@ -362,7 +404,7 @@ const WorshipSchedule = (() => {
         const моя = яЧеловек && свои.some(н => н.person_id === яЧеловек.id);
         // клетку закрывает только тот, кто придёт: стоящий в отъезде оставляет
         // её открытой, и выглядеть она должна так же, как пустая
-        const закрыта = свои.some(н => кто_придёт(н, день));
+        const закрыта = свои.some(н => ведёт(н, день));
 
         if (!свои.length) {
             // в прошедшем дне дыра — не дело, а история: подсвечивать нечего
@@ -391,7 +433,7 @@ const WorshipSchedule = (() => {
         // Команду и волонтёров видно по густоте зелёного: клетку, которую
         // держит только приехавший на время, старший перепроверяет первой —
         // срок участия кончится раньше, чем расписание.
-        const командой = свои.some(н => кто_придёт(н, день)
+        const командой = свои.some(н => ведёт(н, день)
             && (человек(н.person_id)?.kind || 'team') === 'team');
         const краска = закрыта ? (командой ? 'закрыта командой' : 'закрыта волонтёром') : 'дыра';
 
@@ -415,6 +457,8 @@ const WorshipSchedule = (() => {
                                    data-снять="${н.id}" title="Снять" aria-label="Снять">✕</button>` : ''}
                 </div>`;
             }).join('')}
+            ${безВедущего(свои, день) && день >= DateUtils.todayAshramISO()
+                ? '<span class="block text-xs font-semibold text-error">нет ведущего</span>' : ''}
             ${можноВести()
                 ? `<button class="btn btn-ghost btn-xs no-print ещёВКлетку" data-клетка="${день}"
                            data-служба="${служба?.id || ''}" data-разовая="${разовая?.id || ''}"
@@ -442,9 +486,9 @@ const WorshipSchedule = (() => {
                 const надо = активные.filter(с => !отменена(с.id, д)).length
                     + разовыеДня(д).length;
                 const есть = активные.filter(с => !отменена(с.id, д)
-                        && вКлетке(д, с.id).some(н => кто_придёт(н, д))).length
+                        && вКлетке(д, с.id).some(н => ведёт(н, д))).length
                     + разовыеДня(д).filter(о =>
-                        вКлетке(д, null, о.id).some(н => кто_придёт(н, д))).length;
+                        вКлетке(д, null, о.id).some(н => ведёт(н, д))).length;
                 const всё = надо && есть === надо;
                 // худший день должен находиться взглядом, а не вычитанием
                 return `<td class="${д === сегодня ? 'сегодня' : ''} tabular-nums font-semibold ${
@@ -511,8 +555,8 @@ const WorshipSchedule = (() => {
             // некому служить — жёлтым, иначе на телефоне состояние пришлось бы
             // вычитывать из слов «никто не поставлен»
             const прошло = д < DateUtils.todayAshramISO();
-            const закрыта = свои.some(н => кто_придёт(н, д));
-            const командой = свои.some(н => кто_придёт(н, д)
+            const закрыта = свои.some(н => ведёт(н, д));
+            const командой = свои.some(н => ведёт(н, д)
                 && (человек(н.person_id)?.kind || 'team') === 'team');
             const краска = отмена || прошло ? ''
                 : закрыта ? (командой ? ' закрыта командой' : ' закрыта волонтёром') : ' дыра';
@@ -544,7 +588,10 @@ const WorshipSchedule = (() => {
                             ${можноВести()
                                 ? `<button class="btn btn-ghost btn-sm px-2" data-снять="${н.id}" aria-label="Снять">✕</button>` : ''}`;
                         }).join('')
-                        : `<span class="text-sm ${отмена || д < DateUtils.todayAshramISO()
+                        : ''}
+                    ${безВедущего(свои, д) && !прошло
+                        ? '<span class="text-sm font-semibold text-error">нет ведущего</span>' : ''}
+                    ${свои.length ? '' : `<span class="text-sm ${отмена || д < DateUtils.todayAshramISO()
                                 ? 'opacity-40' : 'opacity-60'}">${
                             отмена ? '' : (д < DateUtils.todayAshramISO()
                                 ? 'никого не ставили' : 'никто не поставлен')}</span>`}
@@ -808,6 +855,17 @@ const WorshipSchedule = (() => {
     // ---------- слушатели ----------
     function слушать() {
         document.addEventListener('click', async ev => {
+            const снятьМою = ev.target.closest('[data-снятьМою]');
+            if (снятьМою) {
+                return разом(снятьМою, async () => {
+                    const { error } = await Layout.db.rpc('worship_absence_clear',
+                        { p_absence: снятьМою.getAttribute('data-снятьМою') });
+                    if (error) return Layout.handleError(error, 'Недоступность');
+                    await перечитать();
+                    Layout.showNotification('Отметка снята — вы снова в расписании', 'success');
+                });
+            }
+
             const кл = ev.target.closest('[data-клетка]');
             if (кл) return открытьНазначение(кл.dataset.клетка, кл.dataset.служба, кл.dataset.разовая);
 
