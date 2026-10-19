@@ -345,7 +345,8 @@ async function loadTimelineData() {
     // другая, живая сделка по тому же ретриту, это не отмена.
     cancelledDealsSet = new Set();
     if (residentRetreatIds.length) {
-        const { data: dealRows } = await Layout.db.from('crm_deals')
+        // выжимка сделок: полный CRM открыт только CRM и финансам (миграция 269)
+        const { data: dealRows } = await Layout.db.from('crm_v_deals_brief')
             .select('vaishnava_id, retreat_id, status')
             .in('retreat_id', residentRetreatIds)
             .not('vaishnava_id', 'is', null);
@@ -361,7 +362,7 @@ async function loadTimelineData() {
     // на баре, детали по клику в карточке (ТЗ 2.3)
     specialNeedsMap = new Map();
     if (residentRetreatIds.length) {
-        const { data: нужды } = await Layout.db.from('crm_deals')
+        const { data: нужды } = await Layout.db.from('crm_v_deals_brief')
             .select('vaishnava_id, retreat_id, special_needs')
             .in('retreat_id', residentRetreatIds).neq('status', 'cancelled')
             .not('special_needs', 'is', null);
@@ -2964,7 +2965,7 @@ async function showNoShowScreen() {
         withRetreat ? Layout.db.from('residents').select('id', { count: 'exact', head: true })
             .eq('vaishnava_id', res.vaishnava_id).eq('retreat_id', res.retreat_id)
             .neq('id', res.id).neq('status', 'cancelled') : { count: 0 },
-        withRetreat ? Layout.db.from('crm_deals').select('status, total_paid')
+        withRetreat ? Layout.db.from('crm_v_deals_brief').select('status, total_paid')
             .eq('vaishnava_id', res.vaishnava_id).eq('retreat_id', res.retreat_id)
             .not('status', 'in', '(cancelled,completed)') : { data: [] }
     ]);
@@ -4514,8 +4515,8 @@ const REG_STATUS_CATEGORY = {
 async function loadCrmSelfAccommodated() {
     const ids = periodRetreats.map(r => r.id);
     if (!ids.length) return [];
-    const { data: deals, error } = await Layout.db.from('crm_deals')
-        .select('vaishnava_id, retreat_id, vaishnavas!crm_deals_vaishnava_id_fkey(id, first_name, last_name, spiritual_name)')
+    const { data: deals, error } = await Layout.db.from('crm_v_deals_brief')
+        .select('vaishnava_id, retreat_id')
         .eq('checklist_accommodation', 'self')
         .neq('status', 'cancelled')
         .in('retreat_id', ids);
@@ -4524,6 +4525,11 @@ async function loadCrmSelfAccommodated() {
     if (error || !deals?.length) return [];
 
     const vIds = [...new Set(deals.map(d => d.vaishnava_id).filter(Boolean))];
+    // имена гостей — отдельным запросом: выжимка сделок связей не отдаёт
+    const { data: гости } = await Layout.db.from('vaishnavas')
+        .select('id, first_name, last_name, spiritual_name').in('id', vIds);
+    const гостьПоId = Object.fromEntries((гости || []).map(v => [v.id, v]));
+    deals.forEach(d => { d.vaishnavas = гостьПоId[d.vaishnava_id] || null; });
     const { data: regs } = await Layout.db.from('retreat_registrations')
         .select('vaishnava_id, retreat_id, status, meal_type, arrival_datetime, departure_datetime')
         .in('retreat_id', ids)
