@@ -280,7 +280,7 @@ const WorshipLoad = (() => {
         };
 
         $('#загрузка').innerHTML = шапка + (строки.map(ч => `
-            <div class="строкаЗагрузки py-2.5 border-b border-base-200 last:border-0">
+            <div class="строкаЗагрузки человек py-2.5">
                 <div class="кто min-w-0">
                     <a href="people.html?id=${ч.id}" class="link link-hover font-semibold">${e(ч.имя)}</a>
                     <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-sm opacity-80">

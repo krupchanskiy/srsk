@@ -428,8 +428,10 @@ const WorshipPeople = (() => {
         const уже = new Set(люди.filter(ч => ч.is_active !== false).map(ч => ч.vaishnava_id));
         const выбыли = new Set(люди.filter(ч => ч.is_active === false).map(ч => ч.vaishnava_id));
         $('#дСписок').innerHTML = (data || []).map(в => {
-            const имя2 = в.spiritual_name ||
-                `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени';
+            // духовные имена повторяются — рядом всегда мирское, иначе
+            // двух «Радха дас» в списке не отличить друг от друга
+            const мирское = `${в.first_name || ''} ${в.last_name || ''}`.trim();
+            const имя2 = в.spiritual_name || мирское || 'без имени';
             return `
             <li class="border-b border-base-200 last:border-0 py-2 flex items-center gap-3">
                 <span class="flex-1 min-w-0">
@@ -438,6 +440,8 @@ const WorshipPeople = (() => {
                         ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">нет входа</span>'
                         : !в.telegram_chat_id
                             ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">бот не подключён</span>' : ''}
+                    ${в.spiritual_name && мирское
+                        ? `<span class="block text-sm opacity-70">${e(мирское)}</span>` : ''}
                 </span>
                 ${уже.has(в.id)
                     ? '<span class="text-sm opacity-60">уже в отделе</span>'

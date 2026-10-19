@@ -54,6 +54,10 @@
         .метка.недогружен, .метка.неСтавили { background: #fbefc9; color: #7a4f00; }
         .метка.норма { background: oklch(var(--b2)); color: oklch(var(--bc) / .7); }
         .метка.отъезд { background: oklch(var(--b2)); color: oklch(var(--bc) / .6); }
+        /* зебра: глазу не сбиться со строки, когда ведёт по дням к итогу */
+        #загрузка .строкаЗагрузки.человек { border-radius: .6rem; padding-inline: .6rem; margin-inline: -.6rem; }
+        #загрузка .строкаЗагрузки.человек:nth-of-type(odd) { background: oklch(var(--b2) / .55); }
+        #загрузка .строкаЗагрузки.человек:nth-of-type(odd) .деньЯч:not(.занят):not(.нет) { background: oklch(var(--b3) / .7); }
         #загрузка[aria-busy="true"] { opacity: .5; transition: opacity .15s; }
     </style>
 </head>
@@ -130,7 +134,7 @@
     <script src="../js/layout.js?v=119"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=15"></script>
-    <script src="../js/pages/worship-load.js?v=10"></script>
+    <script src="../js/pages/worship-load.js?v=11"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
