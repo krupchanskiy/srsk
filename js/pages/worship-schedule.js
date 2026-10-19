@@ -683,23 +683,38 @@ const WorshipSchedule = (() => {
         $('#нПодсказка').textContent = 'Пометки подсказывают, но не запрещают — кроме отъезда: ' +
             'пока человек отмечен, поставить его нельзя, сначала снимите отметку.';
         $('#нПоиск').value = '';
-        $('#нРоль').value = 'pujari';
-        рисоватьЛюдейДляКлетки();
+        $('#нКто').value = 'all';
+        выбратьРоль('pujari');
         $('#назначение').showModal();
     }
 
     const coalesceId = н => н.service_id || н.override_id;
 
+    /** Роль, в которой ставим человека в клетку: ведущий, помощник, киртания. */
+    let рольКлетки = 'pujari';
+    function выбратьРоль(роль) {
+        рольКлетки = роль;
+        $('#нРоль').querySelectorAll('[data-роль]').forEach(к => {
+            const выбрана = к.dataset.роль === роль;
+            к.setAttribute('aria-checked', выбрана);
+            к.style.background = выбрана ? 'var(--current-color)' : '';
+            к.style.color = выбрана ? '#fff' : '';
+        });
+        рисоватьЛюдейДляКлетки();
+    }
+
     function рисоватьЛюдейДляКлетки() {
         const q = $('#нПоиск').value.trim().toLowerCase();
         const { день, serviceId } = клетка;
-        const роль = $('#нРоль').value;
+        const роль = рольКлетки;
+        const кто = $('#нКто').value;
         // «уже стоит» — в этой же роли: пуджари и киртания в одной клетке разные люди
         const уже = new Set(вКлетке(день, serviceId, клетка.overrideId)
             .filter(н => н.role === роль).map(н => н.person_id));
 
         const строки = люди
-            .filter(ч => ч.is_active && (!q || ч.имя.toLowerCase().includes(q)))
+            .filter(ч => ч.is_active && (!q || ч.имя.toLowerCase().includes(q))
+                && (кто === 'all' || (ч.kind || 'team') === кто))
             .map(ч => {
                 const пометки = [];
                 if (вОтъезде(ч.id, день)) пометки.push(['в отъезде', 'badge-error']);
@@ -722,7 +737,7 @@ const WorshipSchedule = (() => {
                 if (ч.active_to && ч.active_to < день) пометки.push(['срок участия истёк', 'badge-warning']);
                 if (ч.active_from && ч.active_from > день) пометки.push(['ещё не в отделе', 'badge-warning']);
                 if (ч.безВхода) пометки.push(['нет входа — скажите голосом', 'badge-ghost']);
-                else if (ч.безБота) пометки.push(['бот не подключён', 'badge-ghost']);
+                else if (ч.безБота) пометки.push(['без Телеграма', 'badge-ghost']);
                 // вес — чтобы подходящие были сверху: раньше единственный допущенный
                 // и свободный стоял пятым по алфавиту, и на телефоне его искали прокруткой
                 const вес = пометки.reduce((м, [т, к]) => Math.max(м,
@@ -736,6 +751,8 @@ const WorshipSchedule = (() => {
             <li class="border-b border-base-200 last:border-0 py-2 flex items-center gap-3">
                 <span class="flex-1 min-w-0">
                     <span class="font-semibold">${e(ч.имя)}</span>
+                    ${кто === 'all' && ч.kind === 'volunteer'
+                        ? '<span class="badge badge-sm badge-outline ml-1">волонтёр</span>' : ''}
                     ${пометки.map(([т, к]) => `<span class="badge badge-sm ${к} ml-1">${e(т)}</span>`).join('')}
                 </span>
                 ${стоит
@@ -750,7 +767,7 @@ const WorshipSchedule = (() => {
             p_person: personId,
             p_service: клетка.serviceId,
             p_override: клетка.overrideId,
-            p_role: $('#нРоль').value,
+            p_role: рольКлетки,
         });
         if (error) return Layout.handleError(error, 'Назначение');
 
@@ -1084,7 +1101,11 @@ const WorshipSchedule = (() => {
         });
 
         $('#нПоиск').addEventListener('input', Layout.debounce(рисоватьЛюдейДляКлетки, 200));
-        $('#нРоль').addEventListener('change', рисоватьЛюдейДляКлетки);
+        $('#нРоль').addEventListener('click', ev => {
+            const к = ev.target.closest('[data-роль]');
+            if (к) выбратьРоль(к.dataset.роль);
+        });
+        $('#нКто').addEventListener('change', рисоватьЛюдейДляКлетки);
         ['#повторОткуда', '#повторСколько'].forEach(s2 =>
             $(s2).addEventListener('change', пересчитатьПовтор));
     }

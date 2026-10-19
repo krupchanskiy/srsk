@@ -284,11 +284,21 @@
         <div class="modal-box max-w-xl">
             <h3 class="font-bold text-lg mb-1" id="нЗаголовок"></h3>
             <p class="text-sm opacity-60 mb-3" id="нПодсказка"></p>
+            <!-- роль — кнопками с подписью: выпадашку «пуджари» принимали
+                 за фильтр людей, а она решала, кем человек встанет в клетку -->
+            <div class="flex flex-wrap items-center gap-2 mb-3">
+                <span class="text-sm opacity-70">Ставим как:</span>
+                <div class="join" id="нРоль" role="radiogroup" aria-label="Роль в службе">
+                    <button type="button" class="btn btn-sm join-item" data-роль="pujari" role="radio">ведущий</button>
+                    <button type="button" class="btn btn-sm join-item" data-роль="helper" role="radio">помощник</button>
+                    <button type="button" class="btn btn-sm join-item" data-роль="kirtan" role="radio">киртания</button>
+                </div>
+            </div>
             <div class="flex flex-wrap gap-2 mb-3">
-                <select id="нРоль" class="select select-bordered select-sm w-40">
-                    <option value="pujari">пуджари</option>
-                    <option value="kirtan">киртания</option>
-                    <option value="helper">помощник</option>
+                <select id="нКто" class="select select-bordered select-sm w-40" aria-label="Кого показывать">
+                    <option value="all">все</option>
+                    <option value="team">пуджари</option>
+                    <option value="volunteer">волонтёры</option>
                 </select>
                 <input id="нПоиск" type="search" class="input input-bordered input-sm flex-1 min-w-40"
                        placeholder="Найти по имени…">
@@ -465,7 +475,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-schedule.js?v=43"></script>
+    <script src="../js/pages/worship-schedule.js?v=44"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
