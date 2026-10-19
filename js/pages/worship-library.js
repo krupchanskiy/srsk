@@ -150,8 +150,7 @@ const WorshipLibrary = (() => {
         const разделHTML = (имя, свои, раздел) => `
             <section class="разделСписка mb-3 rounded-xl shadow-sm overflow-hidden"
                      style="background: oklch(var(--b1));">
-                <div class="flex flex-wrap items-center gap-3 px-5 py-3"
-                     style="background: color-mix(in srgb, var(--current-color) 9%, transparent);">
+                <div class="шапкаРаздела flex flex-wrap items-center gap-3 px-5 py-3">
                     <h2 class="text-base font-bold uppercase tracking-wide ${
                         раздел ? '' : 'opacity-70'}">${e(имя)}</h2>
                     <span class="text-sm opacity-70">${свои.length}</span>
@@ -161,8 +160,7 @@ const WorshipLibrary = (() => {
                         ? `<a href="material.html?section=${раздел.id}"
                               class="btn btn-ghost btn-xs ручкиСтроки">+ материал</a>` : ''}
                 </div>
-                <ul class="list-none m-0 p-0 border-t"
-                    style="border-color: color-mix(in srgb, var(--current-color) 18%, transparent);">
+                <ul class="подШапкойРаздела list-none m-0 p-0">
                     ${свои.map(строка).join('') ||
                       '<li class="px-5 py-4 text-sm opacity-70">Пока пусто</li>'}
                 </ul>
