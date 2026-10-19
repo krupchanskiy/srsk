@@ -87,6 +87,8 @@ const WorshipKit = (() => {
     // ↑ ↓ ✎ ✕ у пунктов — только в режиме «Упорядочить»: подборку читают
     // чаще, чем пересобирают, и ручки у каждой строки задевали пальцем
     let упорядочиваем = false;
+    // что человек уже открывал (недавние) — «где я в подборке»
+    let открывал = new Set();
 
     function рисоватьШапку() {
         $('#название').textContent = подборка.title;
@@ -153,8 +155,10 @@ const WorshipKit = (() => {
                              justify-center text-sm font-semibold">${номер}</span>
                 <div class="flex-1 min-w-0">
                     <div class="flex flex-wrap items-baseline gap-2">
-                        <a class="link link-hover font-semibold" href="${куда}.html?id=${а.id}">${e(а.title)}</a>
+                        <a class="link link-hover font-semibold" href="${куда}.html?id=${а.id}${
+                            куда === 'article' ? `&из=${id}` : ''}">${e(а.title)}</a>
                         <span class="text-sm opacity-70">${а.kind === 'material' ? 'материал' : 'стандарт'}</span>
+                        ${открывал.has(а.id) ? '<span class="text-sm text-success font-semibold">открыто</span>' : ''}
                         ${а.status === 'archived'
                             ? '<span class="badge badge-sm badge-warning">больше не действует</span>' : ''}
                     </div>
@@ -557,6 +561,10 @@ const WorshipKit = (() => {
         рисоватьПункты();
         рисоватьВыдачи();
         window.applyPermissions?.();
+        const { data: недавние } = await Layout.db.from('worship_bookmarks')
+            .select('article_id').eq('kind', 'recent');
+        открывал = new Set((недавние || []).map(з => з.article_id));
+        if (открывал.size) рисоватьПункты();
     }
 
     return { init };

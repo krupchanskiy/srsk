@@ -476,6 +476,30 @@ const WorshipHome = (() => {
         }
     }
 
+    /** Подборки, выданные мне (мигр. 278), и сколько в них уже открыто. */
+    async function мнеВыдали() {
+        const [{ data: мои }, { data: открытые }] = await Promise.all([
+            Layout.db.rpc('worship_my_kits'),
+            Layout.db.from('worship_bookmarks').select('article_id').eq('kind', 'recent'),
+        ]);
+        if (!мои?.length) return;
+        // «открыто» — по недавно открытому: отметки «прочитано» у нас нет,
+        // а открыл ли человек пункт, отвечает на вопрос «где я в подборке»
+        const был = new Set((открытые || []).map(з => з.article_id));
+        $('#выданоКарта').hidden = false;
+        $('#выдано').innerHTML = мои.map(п => {
+            const всего = п.articles.length, открыто = п.articles.filter(а => был.has(а)).length;
+            return `
+            <li class="border-b border-base-200 last:border-0 py-2 flex items-baseline gap-3">
+                <a class="link link-hover font-semibold flex-1 min-w-0" href="kit.html?id=${п.kit_id}">${e(п.title)}</a>
+                <span class="text-sm tabular-nums whitespace-nowrap ${всего && открыто === всего ? 'text-success font-semibold' : 'opacity-70'}">${
+                    !всего ? (п.albums ? 'снимки' : '')
+                    : открыто === всего ? 'всё открыто'
+                    : `открыто ${открыто} из ${всего}`}</span>
+            </li>`;
+        }).join('');
+    }
+
     async function личное() {
         const { data, error } = await Layout.db.from('worship_bookmarks')
             .select('kind, article_id, created_at').order('created_at', { ascending: false });
@@ -525,6 +549,7 @@ const WorshipHome = (() => {
 
     async function init() {
         помнитьГруппы();
+        $('#словарик')?.addEventListener('click', () => window.WorshipGlossary?.окно());
         // ночной режим: как в телефоне → ночь → день (color-init.js)
         const ночь = $('#ночь');
         if (ночь && window.srskNight) {
@@ -561,7 +586,7 @@ const WorshipHome = (() => {
             рисоватьРазделы();
         })();
         await Promise.all([основа, лента(), черновики(), очередь(), личное(), подборки(),
-                           моиСлужбы(), деньСегодня(), пустыеЗавтра(), замечания()]);
+                           моиСлужбы(), деньСегодня(), пустыеЗавтра(), замечания(), мнеВыдали()]);
     }
 
     return { init };

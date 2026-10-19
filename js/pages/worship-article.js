@@ -387,17 +387,57 @@ const WorshipArticle = (() => {
     document.addEventListener('click', ev => {
         if (!уАлтаря) return;
         const шаг = ev.target.closest('#body ol > li');
-        if (!шаг || ev.target.closest('a')) return;
+        if (!шаг || ev.target.closest('a, .термин')) return;   // термин — пояснение, а не отметка
         const i = Number(шаг.dataset.шаг);
         if (сделанные().has(i)) сделанные().delete(i); else сделанные().add(i);
         запомнитьСделанные();
         разметитьШаги();
     });
 
+    /**
+     * Открыт из подборки (?из=…): под текстом — следующий пункт. Новичок
+     * проходит подборку по порядку, а возвращаться за ним в список было неудобно.
+     */
+    async function дальшеВПодборке() {
+        const подборка = new URLSearchParams(location.search).get('из');
+        if (!подборка) return;
+        const { data: пункты } = await Layout.db.from('worship_kit_items')
+            .select('article_id, album_id, note, sort_order').eq('kit_id', подборка).order('sort_order');
+        const список = (пункты || []).filter(п => п.article_id || п.album_id);
+        const i = список.findIndex(п => п.article_id === id);
+        if (i === -1) return;
+        const след = список[i + 1];
+        let ссылка = `<a class="link" href="kit.html?id=${подборка}">к подборке</a>`;
+        if (след?.article_id) {
+            const { data: а } = await Layout.db.from('worship_articles')
+                .select('title, kind').eq('id', след.article_id).maybeSingle();
+            if (а) ссылка = `<a class="btn btn-sm" style="background: var(--current-color); color:#fff;"
+                href="${а.kind === 'material' ? 'material' : 'article'}.html?id=${след.article_id}${
+                    а.kind === 'material' ? '' : `&из=${подборка}`}">Дальше: ${e(а.title)} →</a>
+                <a class="link text-sm" href="kit.html?id=${подборка}">к подборке</a>`;
+        } else if (след?.album_id) {
+            const { data: н } = await Layout.db.from('worship_albums')
+                .select('title').eq('id', след.album_id).maybeSingle();
+            if (н) ссылка = `<a class="btn btn-sm" style="background: var(--current-color); color:#fff;"
+                href="album.html?id=${след.album_id}">Дальше: ${e(н.title)} →</a>
+                <a class="link text-sm" href="kit.html?id=${подборка}">к подборке</a>`;
+        }
+        $('#дальше').hidden = false;
+        $('#дальше').innerHTML = `
+            <div class="flex flex-wrap items-center gap-3 rounded-xl bg-base-100 shadow-sm px-4 py-3">
+                <span class="text-sm opacity-70">Пункт ${i + 1} из ${список.length} подборки${
+                    след ? '' : ' — последний'}</span>
+                <span class="flex-1"></span>
+                ${ссылка}
+            </div>`;
+    }
+
     function рисоватьТекст() {
         const тело = $('#body');
         тело.innerHTML = '';
         тело.appendChild(WorshipDoc.нарисовать(показана?.doc, снимки));
+        // термины подчёркнуты: по касанию — пояснение для новичка
+        window.WorshipGlossary?.разметить(тело);
 
         const главы = WorshipDoc.заголовки(показана?.doc);
         $('#toc').hidden = главы.length < 2;
@@ -549,6 +589,7 @@ const WorshipArticle = (() => {
         рисоватьИсторию();
         window.applyPermissions?.();
         рисоватьТеги();
+        дальшеВПодборке();
         восстановитьПрокрутку();
     }
 

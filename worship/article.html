@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=28">
+    <link rel="stylesheet" href="../css/common.css?v=29">
     <style>
         /* Печать: лист уходит на стену алтарной, поэтому на бумаге остаётся
            только текст стандарта и строка, по какой версии служат. */
@@ -131,6 +131,9 @@
                 <article class="card bg-base-100 shadow">
                     <div class="card-body p-6 desktop:p-8 text-[17px] leading-relaxed" id="body"></div>
                 </article>
+
+                <!-- открыт из подборки: следующий пункт — сразу под текстом -->
+                <div id="дальше" hidden class="mt-4 no-print"></div>
 
                 <!-- теги строкой: по ним переходят редко, заголовок и рамка им не нужны -->
                 <div class="flex flex-wrap items-center gap-2 mt-5 text-sm" id="теги"></div>
@@ -274,7 +277,8 @@
     <script src="../js/worship-links.js?v=1"></script>
     <script src="../js/worship-doc.js?v=7"></script>
     <script src="../js/worship-tags.js?v=8"></script>
-    <script src="../js/pages/worship-article.js?v=34"></script>
+    <script src="../js/worship-glossary.js?v=1"></script>
+    <script src="../js/pages/worship-article.js?v=36"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });
