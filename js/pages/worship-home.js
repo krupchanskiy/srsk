@@ -268,7 +268,8 @@ const WorshipHome = (() => {
             <li class="flex items-baseline gap-3 border-b border-base-200 last:border-0 py-2 ${
                 прошла ? 'opacity-50' : ''} ${с2 === следующая ? 'font-semibold' : ''}">
                 <span class="w-12 shrink-0 tabular-nums ${
-                    с2 === следующая ? '' : 'opacity-70'}">${e((с2.время || '').slice(0, 5))}</span>
+                    // у прошедшей строка уже приглушена — второй слой делал время нечитаемым
+                    с2 === следующая || прошла ? '' : 'opacity-70'}">${e((с2.время || '').slice(0, 5))}</span>
                 <span class="flex-1 min-w-0">
                     ${с2.article_id
                         ? `<a class="link link-hover" href="article.html?id=${с2.article_id}">${e(с2.имя)}</a>`
@@ -278,7 +279,7 @@ const WorshipHome = (() => {
                         ? '<span class="badge badge-sm ml-1" style="background: var(--current-color); color:#fff; border:0;">следующая</span>'
                         : ''}
                     ${с2.кто.length
-                        ? `<span class="block text-sm opacity-70">${
+                        ? `<span class="block text-sm ${прошла ? "" : "opacity-70"}">${
                             с2.кто.map(д => придёт(д)
                                 ? e(имена[д.person_id] || 'кто-то')
                                 : `<s>${e(имена[д.person_id] || 'кто-то')}</s>`).join(', ')}</span>`
