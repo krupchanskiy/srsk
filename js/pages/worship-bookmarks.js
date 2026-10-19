@@ -22,7 +22,7 @@ const WorshipBookmarks = (() => {
         const { data, error } = await Layout.db.from('worship_bookmarks')
             .select('id, kind, article_id, created_at')
             .order('created_at', { ascending: false });
-        if (error) { Layout.handleError(error, 'Закладки'); return false; }
+        if (error) { Layout.handleError(error, 'Избранное'); return false; }
 
         закладки = (data || []).filter(з => з.kind === 'bookmark' && з.article_id);
         недавние = (data || []).filter(з => з.kind === 'recent' && з.article_id)
@@ -57,7 +57,7 @@ const WorshipBookmarks = (() => {
             </a>
             ${сУбиранием
                 ? `<button class="btn btn-ghost btn-xs ручкиСтроки shrink-0 цельПальцаКрупно" data-убрать="${з.article_id}"
-                           title="Убрать из закладок" aria-label="Убрать из закладок">✕</button>` : ''}
+                           title="Убрать из избранного" aria-label="Убрать из избранного">✕</button>` : ''}
         </li>`;
     }
 
@@ -66,7 +66,7 @@ const WorshipBookmarks = (() => {
 
         $('#список').innerHTML = живые.map(з => строка(з, true)).join('') || `
             <li class="px-5 py-8 text-center">
-                <div class="font-semibold mb-1">Закладок пока нет</div>
+                <div class="font-semibold mb-1">В избранном пока пусто</div>
                 <div class="text-sm opacity-70 max-w-md mx-auto">Открывая стандарт или материал,
                     нажмите звёздочку в шапке — он появится здесь. Список личный:
                     у каждого в отделе свой.</div>
@@ -82,14 +82,14 @@ const WorshipBookmarks = (() => {
         if (!я) return;
         const { error } = await Layout.db.from('worship_bookmarks').delete()
             .eq('kind', 'bookmark').eq('article_id', articleId).eq('user_id', я);
-        if (error) return Layout.handleError(error, 'Закладка');
+        if (error) return Layout.handleError(error, 'Избранное');
         // ✕ легко задеть пальцем: строка остаётся на месте с «Вернуть»,
         // пока страницу не перерисуют
         const строкаСписка = document.querySelector(`[data-убрать="${articleId}"]`)?.closest('li');
         закладки = закладки.filter(з => з.article_id !== articleId);
         if (!строкаСписка) return рисовать();
         строкаСписка.innerHTML = `
-            <span class="flex-1 min-w-0 px-5 py-3 opacity-70">«${e(статьи[articleId]?.title)}» убрано из закладок</span>
+            <span class="flex-1 min-w-0 px-5 py-3 opacity-70">«${e(статьи[articleId]?.title)}» убрано из избранного</span>
             <button class="btn btn-ghost btn-sm shrink-0 цельПальцаКрупно" data-вернуть="${articleId}">Вернуть</button>`;
     }
 
@@ -99,7 +99,7 @@ const WorshipBookmarks = (() => {
         кнопка.disabled = true;
         const { error } = await Layout.db.from('worship_bookmarks')
             .insert({ user_id: я, kind: 'bookmark', article_id: articleId });
-        if (error) { кнопка.disabled = false; return Layout.handleError(error, 'Закладка'); }
+        if (error) { кнопка.disabled = false; return Layout.handleError(error, 'Избранное'); }
         закладки.unshift({ kind: 'bookmark', article_id: articleId });
         рисовать();
     }

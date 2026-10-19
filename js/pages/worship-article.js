@@ -233,8 +233,8 @@ const WorshipArticle = (() => {
         // шрифта кнопки и выглядело вдвое мельче соседей
         кнопки.push(`<button class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200 цельПальцаКрупно"
             id="bookmark" title="${
-            вЗакладках ? 'Убрать из закладок' : 'В закладки'}" aria-label="${
-            вЗакладках ? 'Убрать из закладок' : 'В закладки'}"
+            вЗакладках ? 'Убрать из избранного' : 'В избранное'}" aria-label="${
+            вЗакладках ? 'Убрать из избранного' : 'В избранное'}"
             aria-pressed="${вЗакладках}">
             <svg width="19" height="19" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"
                  stroke-linejoin="round" aria-hidden="true"
@@ -670,13 +670,13 @@ const WorshipArticle = (() => {
                 .insert({ user_id: я, kind: 'bookmark', article_id: id });
         const { error } = await запрос;
         закладкаВРаботе = false;
-        if (error) return Layout.handleError(error, 'Закладка');
+        if (error) return Layout.handleError(error, 'Избранное');
         вЗакладках = !вЗакладках;
         рисоватьДействия();
         // без этого непонятно, куда делась закладка: список живёт на главной модуля
         Layout.showNotification(вЗакладках
-            ? 'В закладках — список на главной модуля'
-            : 'Убрано из закладок', 'success');
+            ? 'В избранном — список на главной модуля'
+            : 'Убрано из избранного', 'success');
     }
 
     async function перечитать() {

@@ -632,7 +632,14 @@ const WorshipSchedule = (() => {
                            <span class="badge badge-sm badge-warning">не проводится</span>`}
                     ${о.reason ? `<span class="block text-sm opacity-60">${e(о.reason)}</span>` : ''}
                 </span>
-                <button class="btn btn-ghost btn-xs text-error" data-убратьОтклонение="${о.id}">✕</button>
+                <button class="btn btn-ghost btn-xs" data-правитьОтклонение="${о.id}"
+                        title="Изменить" aria-label="Изменить">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M16.86 4.49l2.65 2.65M4 20l4.24-.88L19.5 7.86a1.87 1.87 0 0 0-2.65-2.65L5.59 16.47 4 20z"/></svg>
+                </button>
+                <button class="btn btn-ghost btn-xs text-error" data-убратьОтклонение="${о.id}"
+                        title="Убрать" aria-label="Убрать">✕</button>
             </li>`).join('') ||
             '<li class="py-2 text-sm opacity-60">На этой неделе отклонений нет</li>';
     }
@@ -797,24 +804,67 @@ const WorshipSchedule = (() => {
 
 
     // ---------- отклонения ----------
-    function открытьОтклонение(какое) {
+    /**
+     * Окно разовой службы или отмены. С «было» — правка: у разовой меняются
+     * название, время, длительность, причина и день (люди переезжают вместе
+     * с ней — так делает база), у отмены — только причина.
+     */
+    function открытьОтклонение(какое, было = null) {
         $('#оЗаголовок').textContent = какое === 'разовая'
-            ? 'Разовая служба' : 'Служба в этот день не проводится';
+            ? (было ? 'Разовая служба — правка' : 'Разовая служба')
+            : (было ? 'Отмена — правка причины' : 'Служба в этот день не проводится');
         $('#оРазовая').hidden = какое !== 'разовая';
         $('#оСлужбаБлок').hidden = какое === 'разовая';
-        $('#оДата').value = вид === 'день' ? выбранныйДень : дни()[0];
-        $('#оНазвание').value = '';
-        $('#оВремя').value = '';
-        $('#оДлительность').value = '';
-        $('#оПричина').value = '';
-        $('#оСлужба').innerHTML = службы.filter(с => с.is_active)
+        $('#оДата').value = было?.duty_date || (вид === 'день' ? выбранныйДень : дни()[0]);
+        $('#оДата').disabled = !!было && какое !== 'разовая';
+        $('#оНазвание').value = было?.title || '';
+        $('#оВремя').value = (было?.time_of_day || '').slice(0, 5);
+        $('#оДлительность').value = было?.duration_minutes || '';
+        $('#оПричина').value = было?.reason || '';
+        $('#оСлужба').innerHTML = службы.filter(с => с.is_active || с.id === было?.service_id)
             .map(с => `<option value="${с.id}">${e(Layout.getName(с))} (${e(с.time_of_day.slice(0, 5))})</option>`).join('');
+        if (было?.service_id) $('#оСлужба').value = было.service_id;
+        $('#оСлужба').disabled = !!было;
+        const стоят = было ? назначения.filter(н => н.override_id === было.id).length : 0;
+        $('#оПодсказка').hidden = !стоят;
+        $('#оПодсказка').textContent = стоят
+            ? `На службе ${Layout.pluralize(стоят, { ru: ['человек', 'человека', 'человек'],
+                en: ['person', 'people'], hi: 'व्यक्ति' })}: при смене дня они переедут вместе с ней, `
+              + 'а об изменении времени или дня им придёт сообщение в Телеграм.'
+            : '';
         $('#отклонениеМодал').dataset.какое = какое;
+        $('#отклонениеМодал').dataset.id = было?.id || '';
         $('#отклонениеМодал').showModal();
+    }
+
+    async function сохранитьПравкуОтклонения(id, какое) {
+        const дата = $('#оДата').value;
+        const правка = { reason: $('#оПричина').value.trim() || null };
+        if (какое === 'разовая') {
+            if (!дата) return Layout.showNotification('Укажите день', 'warning');
+            if (!$('#оНазвание').value.trim() || !$('#оВремя').value) {
+                return Layout.showNotification('У разовой службы нужны название и время', 'warning');
+            }
+            const минут = минутИзПоля($('#оДлительность'));
+            if (минут === false) return;
+            Object.assign(правка, { duty_date: дата, title: $('#оНазвание').value.trim(),
+                                    time_of_day: $('#оВремя').value, duration_minutes: минут });
+        }
+        const { error } = await Layout.db.from('worship_day_overrides').update(правка).eq('id', id);
+        if (error) return Layout.handleError(error, 'Отклонение дня');
+        $('#отклонениеМодал').close();
+        Layout.showNotification('Сохранено', 'success');
+        if (какое === 'разовая') {
+            началоНедели = началоОт(DateUtils.parseDate(дата));
+            выбранныйДень = дата;
+        }
+        await перечитать();
     }
 
     async function сохранитьОтклонение() {
         const какое = $('#отклонениеМодал').dataset.какое;
+        const правим = $('#отклонениеМодал').dataset.id;
+        if (правим) return сохранитьПравкуОтклонения(правим, какое);
         const дата = $('#оДата').value;
         if (!дата) return Layout.showNotification('Укажите день', 'warning');
 
@@ -907,6 +957,13 @@ const WorshipSchedule = (() => {
                 const { error } = await Layout.db.rpc('worship_duty_clear', { p_duty: снять.dataset.снять });
                 if (error) return Layout.handleError(error, 'Назначение');
                 return перечитать();
+            }
+
+            const правО = ev.target.closest('[data-правитьОтклонение]');
+            if (правО) {
+                const о = отклонения.find(x => x.id === правО.getAttribute('data-правитьОтклонение'));
+                if (о) открытьОтклонение(о.title ? 'разовая' : 'отмена', о);
+                return;
             }
 
             const убрО = ev.target.closest('[data-убратьОтклонение]');

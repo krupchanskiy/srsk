@@ -342,6 +342,7 @@
                 <span class="label-text mb-1">День</span>
                 <input id="оДата" type="date" class="input input-bordered input-sm w-48">
             </label>
+            <p class="text-sm opacity-70 -mt-1 mb-3" id="оПодсказка" hidden></p>
             <div id="оРазовая">
                 <label class="form-control mb-3">
                     <span class="label-text mb-1">Название службы</span>
@@ -464,7 +465,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-schedule.js?v=42"></script>
+    <script src="../js/pages/worship-schedule.js?v=43"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
