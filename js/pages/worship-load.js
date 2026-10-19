@@ -124,8 +124,11 @@ const WorshipLoad = (() => {
         && (!ч.active_to || ч.active_to >= день)
         && !вОтъезде(ч.id, день);
 
+    // отмена — особый день без времени; со временем это сдвиг, служба идёт
     const отменена = (serviceId, день) => отклонения.some(о =>
-        о.service_id === serviceId && !о.title && о.duty_date === день);
+        о.service_id === serviceId && !о.title && !о.time_of_day && о.duty_date === день);
+    const сдвинута = (serviceId, день) => отклонения.find(о =>
+        о.service_id === serviceId && !о.title && о.time_of_day && о.duty_date === день);
 
     /** Назначение, которое и правда закрывает службу — как в шахматке. */
     const настоящее = н => {
@@ -142,7 +145,8 @@ const WorshipLoad = (() => {
     function службаНазначения(н) {
         if (н.service_id) {
             const с = службаПоId.get(н.service_id) || {};
-            return { имя: Layout.getName(с), время: с.time_of_day || '', минут: с.duration_minutes ?? null };
+            return { имя: Layout.getName(с), минут: с.duration_minutes ?? null,
+                     время: сдвинута(н.service_id, н.duty_date)?.time_of_day || с.time_of_day || '' };
         }
         const о = отклонениеПоId.get(н.override_id) || {};
         return { имя: о.title || 'разовая служба', время: о.time_of_day || '', минут: о.duration_minutes ?? null };

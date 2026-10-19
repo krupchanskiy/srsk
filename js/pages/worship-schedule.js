@@ -38,6 +38,7 @@ const WorshipSchedule = (() => {
     let вид = window.matchMedia('(max-width: 900px)').matches ? 'день' : 'неделя';
 
     let службы = [], люди = [], назначения = [], отклонения = [], отметки = [], стандарты = [];
+    let границыГрупп = {};    // group_id сдвига → { от, до, дней }
     let мои = [], моиОтклонения = [];   // свои службы вперёд, независимо от открытой недели
     let моиОтметки = [];                // свои «меня не будет» — от сегодня вперёд
     let яЧеловек = null;              // моя запись в отделе, если я в нём есть
@@ -79,7 +80,7 @@ const WorshipSchedule = (() => {
                 .select('id, duty_date, service_id, override_id, person_id, role')
                 .gte('duty_date', от).lte('duty_date', до),
             Layout.db.from('worship_day_overrides')
-                .select('id, duty_date, service_id, title, time_of_day, duration_minutes, reason')
+                .select('id, duty_date, service_id, title, time_of_day, duration_minutes, reason, group_id')
                 .gte('duty_date', от).lte('duty_date', до),
             Layout.db.from('worship_absences')
                 .select('id, person_id, date_from, date_to, reason')
@@ -122,6 +123,21 @@ const WorshipSchedule = (() => {
 
         назначения = н.data || [];
         отклонения = о.data || [];
+        // сдвиг на ретрит может выходить за неделю: в списке он — одна строка
+        // «20–25 окт», и её границы берём по всей группе
+        const группы = [...new Set(отклонения.map(x => x.group_id).filter(Boolean))];
+        границыГрупп = {};
+        if (группы.length) {
+            const { data: дни_ } = await Layout.db.from('worship_day_overrides')
+                .select('duty_date, group_id').in('group_id', группы);
+            if (моё !== поколение) return false;
+            (дни_ || []).forEach(x => {
+                const г = границыГрупп[x.group_id] ||= { от: x.duty_date, до: x.duty_date, дней: 0 };
+                if (x.duty_date < г.от) г.от = x.duty_date;
+                if (x.duty_date > г.до) г.до = x.duty_date;
+                г.дней++;
+            });
+        }
         // бессрочная отметка не имеет даты окончания — её не отфильтровать запросом
         отметки = (от2.data || []).filter(а => !а.date_to || а.date_to >= от);
         return true;
@@ -170,8 +186,27 @@ const WorshipSchedule = (() => {
     const вОтъезде = (personId, день) => отметки.some(а => а.person_id === personId
         && а.date_from <= день && (!а.date_to || а.date_to >= день));
 
-    const отменена = (serviceId, день) => отклонения.some(о =>
+    // особый день по службе: отмена (времени нет) или сдвиг (новое время)
+    const особый = (serviceId, день) => отклонения.find(о =>
         о.service_id === serviceId && о.duty_date === день);
+    const отменена = (serviceId, день) => { const о = особый(serviceId, день); return !!о && !о.time_of_day; };
+    const сдвиг = (serviceId, день) => { const о = особый(serviceId, день); return о?.time_of_day ? о : null; };
+    const времяСлужбы = (с, день) => сдвиг(с.id, день)?.time_of_day || с.time_of_day;
+
+    /** Во сколько эта служба у человека в этот день — с учётом сдвига. */
+    const времяНазначения = н => {
+        const все = [...отклонения, ...моиОтклонения];
+        if (н.override_id) return все.find(о => о.id === н.override_id)?.time_of_day;
+        return все.find(о => о.service_id === н.service_id && о.duty_date === н.duty_date && о.time_of_day)?.time_of_day
+            || службы.find(с => с.id === н.service_id)?.time_of_day;
+    };
+
+    /** Пометка в клетке: «06:30 вместо 04:30» — та же служба, другое время. */
+    const пометкаСдвига = (служба, день) => {
+        const сдв = служба && сдвиг(служба.id, день);
+        return сдв ? `<span class="сдвигВремени" title="${e(сдв.reason || 'время изменено на этот день')}">${
+            e(сдв.time_of_day.slice(0, 5))} <span class="font-normal">вместо ${e(служба.time_of_day.slice(0, 5))}</span></span>` : '';
+    };
 
     const разовыеДня = день => отклонения.filter(о => о.title && о.duty_date === день);
 
@@ -282,7 +317,7 @@ const WorshipSchedule = (() => {
         // остаются в базе, но приходить к ней не нужно
         const отключена = н => н.service_id && службы.find(с => с.id === н.service_id)?.is_active === false;
         const отменён = н => отключена(н) || (н.service_id && моиОтклонения.some(о =>
-            о.service_id === н.service_id && о.duty_date === н.duty_date));
+            о.service_id === н.service_id && о.duty_date === н.duty_date && !о.time_of_day));
         const живые = мои.filter(н => !отменён(н)).slice(0, 5);
         const снятые = мои.filter(отменён);
 
@@ -316,12 +351,13 @@ const WorshipSchedule = (() => {
 
     function строкаМоей(н) {
         const с = службы.find(x => x.id === н.service_id);
-        const о = [...отклонения, ...моиОтклонения].find(x => x.id === н.override_id);
-        const время = (с?.time_of_day || о?.time_of_day || '').slice(0, 5);
+        const время = (времяНазначения(н) || '').slice(0, 5);
+        const сдв = н.service_id && времяНазначения(н) !== с?.time_of_day;
         return `
         <li class="py-1 flex flex-wrap items-baseline gap-2">
             <span class="font-semibold">${e(деньПоЧеловечески(н.duty_date))}</span>
-            <span class="opacity-70">${e(время)}</span>
+            <span class="${сдв ? 'font-semibold' : 'opacity-70'}">${e(время)}</span>
+            ${сдв ? `<span class="text-xs opacity-70">(обычно ${e(с.time_of_day.slice(0, 5))})</span>` : ''}
             ${с?.article_id
                 ? `<a class="link" href="article.html?id=${с.article_id}">${e(имяСлужбы(н))}</a>`
                 : `<span>${e(имяСлужбы(н))}</span>`}
@@ -420,16 +456,16 @@ const WorshipSchedule = (() => {
                 return `<td class="клетка прошлаяПустая${сегодня}
                             ${можноВести() ? 'cursor-pointer' : ''}"
                             ${можноВести() ? `data-клетка="${день}" data-служба="${служба?.id || ''}"
-                            data-разовая="${разовая?.id || ''}"` : ''}>
+                            data-разовая="${разовая?.id || ''}"` : ''}>${пометкаСдвига(служба, день)}
                     <span class="text-xs opacity-60">—</span></td>`;
             }
             if (!можноВести()) {
-                return `<td class="клетка дыра${сегодня}">
+                return `<td class="клетка дыра${сегодня}">${пометкаСдвига(служба, день)}
                     <span class="дыраКнопка">не назначено</span></td>`;
             }
             return `<td class="клетка дыра${сегодня} cursor-pointer"
                         data-клетка="${день}" data-служба="${служба?.id || ''}"
-                        data-разовая="${разовая?.id || ''}">
+                        data-разовая="${разовая?.id || ''}">${пометкаСдвига(служба, день)}
                 <span class="дыраКнопка">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                          stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
@@ -445,7 +481,7 @@ const WorshipSchedule = (() => {
         const краска = закрыта ? (командой ? 'закрыта командой' : 'закрыта волонтёром') : 'дыра';
 
         // кто-то стоит, но прийти не может — это такая же дыра, только с именем
-        return `<td class="клетка ${краска}${моя ? ' своя' : ''}${сегодня}">
+        return `<td class="клетка ${краска}${моя ? ' своя' : ''}${сегодня}">${пометкаСдвига(служба, день)}
             ${свои.map(н => {
                 const ч = человек(н.person_id);
                 const пометки = состоянияКлетки(н, ч, день, служба);
@@ -537,12 +573,9 @@ const WorshipSchedule = (() => {
 
         // «занят в это же время» — именно по времени, а не по дню: при четырёх
         // службах «в этот день» загорится у всех и перестанет что-либо значить
-        const время = служба?.time_of_day
-            || отклонения.find(о => о.id === н.override_id)?.time_of_day;
+        const время = времяНазначения(н);
         const рядом = назначения.find(д => д.duty_date === день && д.person_id === н.person_id
-            && д.id !== н.id
-            && (службы.find(с2 => с2.id === д.service_id)?.time_of_day
-                || отклонения.find(о => о.id === д.override_id)?.time_of_day) === время);
+            && д.id !== н.id && времяНазначения(д) === время);
         if (рядом) {
             const где = службы.find(с2 => с2.id === рядом.service_id);
             список.push([`в это же время на «${где ? Layout.getName(где) : 'другой службе'}»`, 'badge-error']);
@@ -556,7 +589,7 @@ const WorshipSchedule = (() => {
     function рисоватьДень() {
         const д = выбранныйДень;
         const обычные = службы.filter(с => с.is_active).map(с => ({
-            служба: с, разовая: null, время: с.time_of_day, имя: Layout.getName(с),
+            служба: с, разовая: null, время: времяСлужбы(с, д), имя: Layout.getName(с),
         }));
         const разовые = разовыеДня(д).map(о => ({
             служба: null, разовая: о, время: о.time_of_day, имя: о.title,
@@ -584,6 +617,8 @@ const WorshipSchedule = (() => {
                         : `<span class="font-semibold">${e(имя)}</span>`}
                     ${разовая ? '<span class="badge badge-sm">разовая</span>' : ''}
                     ${отмена ? '<span class="badge badge-sm badge-warning">не проводится</span>' : ''}
+                    ${служба && сдвиг(служба.id, д)
+                        ? `<span class="badge badge-sm badge-warning">время изменено, обычно ${e(служба.time_of_day.slice(0, 5))}</span>` : ''}
                 </div>
                 <div class="mt-1 flex flex-wrap items-center gap-2">
                     ${свои.length
@@ -620,15 +655,38 @@ const WorshipSchedule = (() => {
         }).join('') || '<li class="py-3 text-sm opacity-60">На этот день служб нет</li>';
     }
 
+    /** «20–25 окт» для сдвига на ретрит, «21 окт» — для одного дня. */
+    function срокСдвига(о) {
+        const г = о.group_id && границыГрупп[о.group_id];
+        const от = г?.от || о.duty_date, до = г?.до || о.duty_date;
+        const к = iso => DateUtils.formatShort(DateUtils.parseDate(iso));
+        return от === до ? к(от) : `${к(от)} — ${к(до)}`;
+    }
+
     function рисоватьОтклонения() {
-        const свои = отклонения.slice().sort((a, b) => a.duty_date.localeCompare(b.duty_date));
-        $('#отклоненияСписок').innerHTML = свои.map(о => `
+        // дни одного сдвига — одна строка: ретрит на пять дней не должен
+        // занимать пять одинаковых строк
+        const видели = new Set();
+        const свои = отклонения.slice().sort((a, b) => a.duty_date.localeCompare(b.duty_date))
+            .filter(о => {
+                if (!о.group_id || !о.time_of_day || о.title) return true;
+                if (видели.has(о.group_id)) return false;
+                видели.add(о.group_id);
+                return true;
+            });
+        $('#отклоненияСписок').innerHTML = свои.map(о => {
+            const с = службы.find(x => x.id === о.service_id);
+            const сдв = о.service_id && о.time_of_day;
+            return `
             <li class="flex flex-wrap items-center gap-2 border-b border-base-200 last:border-0 py-2">
-                <span class="font-semibold">${DateUtils.formatShort(DateUtils.parseDate(о.duty_date))}</span>
+                <span class="font-semibold">${сдв ? e(срокСдвига(о)) : DateUtils.formatShort(DateUtils.parseDate(о.duty_date))}</span>
                 <span class="flex-1 min-w-0">
                     ${о.title
                         ? `${e(о.title)} <span class="badge badge-sm">разовая, ${e((о.time_of_day || '').slice(0, 5))}</span>`
-                        : `${e(Layout.getName(службы.find(с => с.id === о.service_id) || {}) || 'служба')}
+                        : сдв
+                        ? `${e(Layout.getName(с || {}) || 'служба')}
+                           <span class="badge badge-sm badge-warning tabular-nums">${e((с?.time_of_day || '').slice(0, 5))} → ${e(о.time_of_day.slice(0, 5))}</span>`
+                        : `${e(Layout.getName(с || {}) || 'служба')}
                            <span class="badge badge-sm badge-warning">не проводится</span>`}
                     ${о.reason ? `<span class="block text-sm opacity-60">${e(о.reason)}</span>` : ''}
                 </span>
@@ -640,7 +698,8 @@ const WorshipSchedule = (() => {
                 </button>
                 <button class="btn btn-ghost btn-xs text-error" data-убратьОтклонение="${о.id}"
                         title="Убрать" aria-label="Убрать">✕</button>
-            </li>`).join('') ||
+            </li>`;
+        }).join('') ||
             '<li class="py-2 text-sm opacity-60">На этой неделе отклонений нет</li>';
     }
 
@@ -684,6 +743,8 @@ const WorshipSchedule = (() => {
             'пока человек отмечен, поставить его нельзя, сначала снимите отметку.';
         $('#нПоиск').value = '';
         $('#нКто').value = 'all';
+        // время сдвигают у обычной службы; у разовой его правят карандашом в списке
+        $('#нСдвинуть').hidden = !serviceId;
         выбратьРоль('pujari');
         $('#назначение').showModal();
     }
@@ -722,11 +783,10 @@ const WorshipSchedule = (() => {
                 if (serviceId && ч.допуск.size && !ч.допуск.has(serviceId)) пометки.push(['нет допуска', 'badge-warning']);
                 // «уже на Арати Туласи в это время» точнее, чем «занят в этот день»:
                 // при четырёх службах второе загорится у всех
-                const времяКлетки = службы.find(с2 => с2.id === serviceId)?.time_of_day
-                    || отклонения.find(о => о.id === клетка.overrideId)?.time_of_day;
+                const времяКлетки = времяНазначения({ duty_date: день, service_id: serviceId,
+                                                     override_id: клетка.overrideId });
                 const рядом = назначения.find(н => н.duty_date === день && н.person_id === ч.id
-                    && (службы.find(с2 => с2.id === н.service_id)?.time_of_day
-                        || отклонения.find(о => о.id === н.override_id)?.time_of_day) === времяКлетки
+                    && времяНазначения(н) === времяКлетки
                     && coalesceId(н) !== (serviceId || клетка.overrideId));
                 if (рядом) {
                     const где = службы.find(с2 => с2.id === рядом.service_id);
@@ -826,21 +886,31 @@ const WorshipSchedule = (() => {
      * название, время, длительность, причина и день (люди переезжают вместе
      * с ней — так делает база), у отмены — только причина.
      */
-    function открытьОтклонение(какое, было = null) {
+    function открытьОтклонение(какое, было = null, заготовка = {}) {
         $('#оЗаголовок').textContent = какое === 'разовая'
             ? (было ? 'Разовая служба — правка' : 'Разовая служба')
+            : какое === 'сдвиг'
+            ? (было ? 'Сдвиг времени — правка' : 'Сдвинуть время службы')
             : (было ? 'Отмена — правка причины' : 'Служба в этот день не проводится');
         $('#оРазовая').hidden = какое !== 'разовая';
         $('#оСлужбаБлок').hidden = какое === 'разовая';
-        $('#оДата').value = было?.duty_date || (вид === 'день' ? выбранныйДень : дни()[0]);
-        $('#оДата').disabled = !!было && какое !== 'разовая';
+        $('#оСдвиг').hidden = какое !== 'сдвиг';
+        $('#оСлужбаПодпись').textContent = какое === 'сдвиг' ? 'Какую службу сдвигаем' : 'Какую службу не проводим';
+        $('#оДатаПодпись').textContent = какое === 'сдвиг' ? 'С какого дня' : 'День';
+        const г = было?.group_id && границыГрупп[было.group_id];
+        $('#оДатаПо').value = какое === 'сдвиг' && г && г.до !== г.от ? г.до : '';
+        $('#оНовоеВремя').value = какое === 'сдвиг' ? (было?.time_of_day || '').slice(0, 5) : '';
+        $('#отклонениеМодал').dataset.группа = какое === 'сдвиг' ? (было?.group_id || '') : '';
+        $('#оДата').value = (г && г.от) || было?.duty_date || заготовка.день
+            || (вид === 'день' ? выбранныйДень : дни()[0]);
+        $('#оДата').disabled = !!было && какое === 'отмена';
         $('#оНазвание').value = было?.title || '';
         $('#оВремя').value = (было?.time_of_day || '').slice(0, 5);
         $('#оДлительность').value = было?.duration_minutes || '';
         $('#оПричина').value = было?.reason || '';
         $('#оСлужба').innerHTML = службы.filter(с => с.is_active || с.id === было?.service_id)
             .map(с => `<option value="${с.id}">${e(Layout.getName(с))} (${e(с.time_of_day.slice(0, 5))})</option>`).join('');
-        if (было?.service_id) $('#оСлужба').value = было.service_id;
+        if (было?.service_id || заготовка.служба) $('#оСлужба').value = было?.service_id || заготовка.служба;
         $('#оСлужба').disabled = !!было;
         const стоят = было ? назначения.filter(н => н.override_id === было.id).length : 0;
         $('#оПодсказка').hidden = !стоят;
@@ -878,8 +948,33 @@ const WorshipSchedule = (() => {
         await перечитать();
     }
 
+    /** Сдвиг времени: день или диапазон; правка группы приходит с её номером. */
+    async function сохранитьСдвиг() {
+        const служба = $('#оСлужба').value, от = $('#оДата').value;
+        const до = $('#оДатаПо').value || от, время = $('#оНовоеВремя').value;
+        if (!служба) return Layout.showNotification('Выберите службу', 'warning');
+        if (!от || !время) return Layout.showNotification('Укажите день и новое время', 'warning');
+        if (до < от) return Layout.showNotification('«По какой день» раньше первого дня', 'warning');
+        const { data, error } = await Layout.db.rpc('worship_service_retime', {
+            p_service: служба, p_from: от, p_to: до, p_time: время,
+            p_reason: $('#оПричина').value.trim() || null,
+            p_group: $('#отклонениеМодал').dataset.группа || null,
+        });
+        if (error) return Layout.handleError(error, 'Сдвиг времени');
+        $('#отклонениеМодал').close();
+        const мимо = data?.['отменены'] || [];
+        Layout.showNotification(`Время изменено: ${Layout.pluralize(data?.['дней'] || 0,
+            { ru: ['день', 'дня', 'дней'], en: ['day', 'days'], hi: 'दिन' })}` + (мимо.length
+            ? `. В отменённые дни (${мимо.map(д => DateUtils.formatShort(DateUtils.parseDate(д))).join(', ')}) не трогали`
+            : ''), 'success');
+        началоНедели = началоОт(DateUtils.parseDate(от));
+        выбранныйДень = от;
+        await перечитать();
+    }
+
     async function сохранитьОтклонение() {
         const какое = $('#отклонениеМодал').dataset.какое;
+        if (какое === 'сдвиг') return сохранитьСдвиг();
         const правим = $('#отклонениеМодал').dataset.id;
         if (правим) return сохранитьПравкуОтклонения(правим, какое);
         const дата = $('#оДата').value;
@@ -924,7 +1019,7 @@ const WorshipSchedule = (() => {
         const { error } = await Layout.db.from('worship_day_overrides').insert(строка);
         if (error) {
             if (error.code === '23505') {
-                return Layout.showNotification('Эта служба в этот день уже отмечена', 'warning');
+                return Layout.showNotification('Эта служба в этот день уже отменена или сдвинута — поправьте ту строку', 'warning');
             }
             return Layout.handleError(error, 'Отклонение дня');
         }
@@ -979,16 +1074,22 @@ const WorshipSchedule = (() => {
             const правО = ev.target.closest('[data-правитьОтклонение]');
             if (правО) {
                 const о = отклонения.find(x => x.id === правО.getAttribute('data-правитьОтклонение'));
-                if (о) открытьОтклонение(о.title ? 'разовая' : 'отмена', о);
+                if (о) открытьОтклонение(о.title ? 'разовая' : о.time_of_day ? 'сдвиг' : 'отмена', о);
                 return;
             }
 
             const убрО = ev.target.closest('[data-убратьОтклонение]');
             if (убрО) {
-                if (!await спросить('Убрать отклонение дня?',
-                    'Служба вернётся в обычный распорядок, а разовая исчезнет вместе с назначениями.')) return;
-                const { error } = await Layout.db.from('worship_day_overrides')
-                    .delete().eq('id', убрО.getAttribute('data-убратьОтклонение'));
+                const о = отклонения.find(x => x.id === убрО.getAttribute('data-убратьОтклонение'));
+                // сдвиг на ретрит убирается целиком: все его дни вернутся к обычному времени
+                const группой = о?.group_id && о.time_of_day && !о.title;
+                const дней = группой ? (границыГрупп[о.group_id]?.дней || 1) : 1;
+                if (!await спросить(группой ? 'Вернуть обычное время?' : 'Убрать отклонение дня?',
+                    группой
+                        ? `Служба снова пойдёт в своё время${дней > 1 ? ` во все ${дней} дн.` : ''}. Людям на ней придёт сообщение.`
+                        : 'Служба вернётся в обычный распорядок, а разовая исчезнет вместе с назначениями.')) return;
+                const запрос = Layout.db.from('worship_day_overrides').delete();
+                const { error } = await (группой ? запрос.eq('group_id', о.group_id) : запрос.eq('id', о?.id));
                 if (error) return Layout.handleError(error, 'Отклонение дня');
                 return перечитать();
             }
@@ -1063,6 +1164,12 @@ const WorshipSchedule = (() => {
             if (b.id === 'сДобавить') return разом(b, добавитьСлужбу);
             if (b.id === 'разовая') return открытьОтклонение('разовая');
             if (b.id === 'отменить') return открытьОтклонение('отмена');
+            if (b.id === 'сдвинуть') return открытьОтклонение('сдвиг');
+            if (b.id === 'нСдвинуть') {
+                $('#назначение').close();
+                return открытьОтклонение('сдвиг', сдвиг(клетка.serviceId, клетка.день),
+                                         { служба: клетка.serviceId, день: клетка.день });
+            }
             if (b.id === 'оСохранить') return разом(b, сохранитьОтклонение);
             if (b.id === 'копияНедели') return открытьПовтор();
             if (b.id === 'повторПустить') return копияНедели();

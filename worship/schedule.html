@@ -80,6 +80,13 @@
            Состояние несёт заливка самой клетки — рамки вокруг имён добавляли
            вторую сетку поверх табличной и съедали место под длинные имена. */
         .клетка { vertical-align: top; min-width: 128px; padding: .3rem .45rem !important; }
+        /* сдвиг времени на день: та же служба, люди на месте, другое время.
+           Первой строкой клетки — его видят раньше имён */
+        .сдвигВремени { display: inline-block; font-size: .75rem; font-weight: 700; line-height: 1.2;
+                        padding: .1rem .4rem; margin-bottom: .25rem; border-radius: .35rem;
+                        background: color-mix(in oklab, oklch(var(--wa)) 35%, transparent);
+                        font-variant-numeric: tabular-nums; }
+        @media print { .сдвигВремени { background: none !important; border: 1px solid #000; } }
 
         /* закрыто — спокойный зелёный, дыра — тёплый жёлтый.
            Команда гуще, волонтёр бледнее: клетку, которую держит только
@@ -286,11 +293,13 @@
                     <h2 class="card-title text-lg" data-i18n="worship_overrides_title">Праздники и отмены</h2>
                     <span class="flex-1"></span>
                     <button class="btn btn-sm btn-outline" id="разовая">+ Служба на один день</button>
+                    <button class="btn btn-sm btn-outline" id="сдвинуть">Сдвинуть время</button>
                     <button class="btn btn-sm btn-outline" id="отменить">Отменить на день</button>
                 </div>
                 <p class="text-sm opacity-70 mb-3" data-i18n="worship_overrides_hint">Праздник или
-                    экадаши — это не второе расписание, а точечная правка одного дня: добавить
-                    службу либо отметить, что она в этот день не проводится.</p>
+                    экадаши — это не второе расписание, а точечная правка: добавить службу на день,
+                    сдвинуть время службы на день или на несколько (ретрит) либо отметить, что она
+                    не проводится.</p>
                 <ul class="list-none m-0 p-0" id="отклоненияСписок"></ul>
             </div>
         </div>
@@ -321,6 +330,8 @@
                        placeholder="Найти по имени…">
             </div>
             <ul class="list-none m-0 p-0 max-h-80 overflow-y-auto" id="нСписок"></ul>
+            <button type="button" class="link text-sm opacity-80 mt-3" id="нСдвинуть" hidden>
+                Сдвинуть время этой службы в этот день</button>
             <div class="modal-action">
                 <form method="dialog"><button class="btn btn-sm">Закрыть</button></form>
             </div>
@@ -366,7 +377,7 @@
         <div class="modal-box max-w-lg">
             <h3 class="font-bold text-lg mb-3" id="оЗаголовок"></h3>
             <label class="form-control mb-3">
-                <span class="label-text mb-1">День</span>
+                <span class="label-text mb-1" id="оДатаПодпись">День</span>
                 <input id="оДата" type="date" class="input input-bordered input-sm w-48">
             </label>
             <p class="text-sm opacity-70 -mt-1 mb-3" id="оПодсказка" hidden></p>
@@ -387,9 +398,25 @@
                 </label>
             </div>
             <label class="form-control mb-3" id="оСлужбаБлок" hidden>
-                <span class="label-text mb-1">Какую службу не проводим</span>
+                <span class="label-text mb-1" id="оСлужбаПодпись">Какую службу не проводим</span>
                 <select id="оСлужба" class="select select-bordered"></select>
             </label>
+            <!-- сдвиг: та же служба, те же люди, другое время — на день или на ретрит -->
+            <div id="оСдвиг" hidden>
+                <div class="flex flex-wrap gap-3 mb-3">
+                    <label class="form-control">
+                        <span class="label-text mb-1">Новое время</span>
+                        <input id="оНовоеВремя" type="time" class="input input-bordered w-36">
+                    </label>
+                    <label class="form-control">
+                        <span class="label-text mb-1">По какой день</span>
+                        <input id="оДатаПо" type="date" class="input input-bordered input-sm w-48 mt-1">
+                        <span class="label-text-alt opacity-70 mt-1">пусто — только один день</span>
+                    </label>
+                </div>
+                <p class="text-sm opacity-70 mb-3">Поставленные люди остаются на службе, им придёт
+                    сообщение о новом времени.</p>
+            </div>
             <label class="form-control">
                 <span class="label-text mb-1">Причина</span>
                 <input id="оПричина" type="text" class="input input-bordered" maxlength="200"
@@ -492,7 +519,7 @@
     <script src="../js/layout.js?v=122"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-schedule.js?v=45"></script>
+    <script src="../js/pages/worship-schedule.js?v=46"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

@@ -257,10 +257,14 @@ const WorshipHome = (() => {
             };
         }
 
-        const отменена = id => отклонения.some(о2 => о2.service_id === id);
+        // у службы в этот день: отмена (времени нет) или сдвиг (другое время)
+        const отменена = id => отклонения.some(о2 => о2.service_id === id && !о2.time_of_day);
+        const сдвиг = id => отклонения.find(о2 => о2.service_id === id && о2.time_of_day);
         const строки = [
             ...службы.filter(с2 => !отменена(с2.id)).map(с2 => ({
-                время: с2.time_of_day, имя: Layout.getName(с2), article_id: с2.article_id,
+                время: сдвиг(с2.id)?.time_of_day || с2.time_of_day,
+                обычно: сдвиг(с2.id) ? с2.time_of_day : null,
+                имя: Layout.getName(с2), article_id: с2.article_id,
                 кто: назначения.filter(д => д.service_id === с2.id), разовая: false })),
             ...отклонения.filter(о2 => о2.title).map(о2 => ({
                 время: о2.time_of_day, имя: о2.title, article_id: null,
@@ -296,6 +300,7 @@ const WorshipHome = (() => {
                         ? `<a class="link link-hover" href="article.html?id=${с2.article_id}">${e(с2.имя)}</a>`
                         : e(с2.имя)}
                     ${с2.разовая ? '<span class="badge badge-sm ml-1">разовая</span>' : ''}
+                    ${с2.обычно ? `<span class="badge badge-sm badge-warning ml-1">время изменено, обычно ${e(с2.обычно.slice(0, 5))}</span>` : ''}
                     ${с2 === следующая
                         ? '<span class="badge badge-sm ml-1" style="background: var(--current-color); color:#fff; border:0;">следующая</span>'
                         : ''}
@@ -361,14 +366,16 @@ const WorshipHome = (() => {
         const отключена = н => н.service_id
             && (службы2 || []).find(x => x.id === н.service_id)?.is_active === false;
         const отменена = н => отключена(н) || (н.service_id && (откл || []).some(о =>
-            о.service_id === н.service_id && о.duty_date === н.duty_date));
+            о.service_id === н.service_id && о.duty_date === н.duty_date && !о.time_of_day));
+        const сдвигНа = н => н.service_id && (откл || []).find(о =>
+            о.service_id === н.service_id && о.duty_date === н.duty_date && о.time_of_day);
 
         $('#mineCard').hidden = false;
         $('#mine').innerHTML = свои.map(н => {
             const с = (службы2 || []).find(x => x.id === н.service_id);
             const о = (откл || []).find(x => x.id === н.override_id);
             const имя = с ? Layout.getName(с) : (о?.title || 'служба');
-            const время = (с?.time_of_day || о?.time_of_day || '').slice(0, 5);
+            const время = (сдвигНа(н)?.time_of_day || с?.time_of_day || о?.time_of_day || '').slice(0, 5);
             const снята = отменена(н);
             return `
             <li class="border-b border-base-200 last:border-0 py-2 ${снята ? 'opacity-60' : ''}">
@@ -414,7 +421,9 @@ const WorshipHome = (() => {
         // службу держит ведущий пуджари: один помощник клетку не закрывает
         const придёт = д => д.role === 'pujari' && вСоставе(д.person_id) && !вОтъезде(д.person_id);
 
-        const отменена = id => (о.data || []).some(x => x.service_id === id);
+        const отменена = id => (о.data || []).some(x => x.service_id === id && !x.time_of_day);
+        const времяЗавтра = x => (о.data || []).find(y => y.service_id === x.id && y.time_of_day)?.time_of_day
+            || x.time_of_day;
         const занята = id => (н.data || []).some(x => x.service_id === id && придёт(x));
         // разовая служба на завтра — такая же клетка: её тоже надо закрыть
         const разовыеПустые = (о.data || []).filter(x => x.title
@@ -422,7 +431,7 @@ const WorshipHome = (() => {
             .map(x => ({ время: x.time_of_day, имя: x.title, разовая: true }));
         const пустые = [
             ...(с.data || []).filter(x => !отменена(x.id) && !занята(x.id))
-                .map(x => ({ время: x.time_of_day, имя: Layout.getName(x), разовая: false })),
+                .map(x => ({ время: времяЗавтра(x), имя: Layout.getName(x), разовая: false })),
             ...разовыеПустые,
         ].sort((a, b) => (a.время || '').localeCompare(b.время || ''));
         if (!пустые.length) return;
