@@ -5,7 +5,7 @@
          к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
     <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <script src="../js/color-init.js?v=6"></script>
+    <script src="../js/color-init.js?v=7"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n-title="crm_deal_page_title">Сделка — CRM — ШРСК</title>
@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=25">
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -43,12 +43,12 @@
                 <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <div class="group flex items-center gap-2 min-w-0">
                         <h1 class="text-xl sm:text-2xl font-bold text-white truncate" id="guestName">—</h1>
-                        <button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0 text-white/60 hover:text-white" onclick="startEditName()">
+                        <button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0 text-white/60 hover:text-white" aria-label="Изменить имя" onclick="startEditName()">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
                         </button>
                         <span id="repeatGuestBadge" class="badge badge-sm badge-warning hidden shrink-0" data-i18n="crm_repeat_guest">повторный</span>
                     </div>
-                    <select id="statusSelect" class="select select-sm font-bold text-sm min-w-[140px] shrink-0" onchange="changeStatus(this.value)">
+                    <select aria-label="Стадия сделки" id="statusSelect" class="select select-sm font-bold text-sm min-w-[140px] shrink-0" onchange="changeStatus(this.value)">
                     </select>
                 </div>
                 <!-- Нижняя строка: контакты + режим/менеджер -->
@@ -58,12 +58,12 @@
                         <div class="flex gap-1 shrink-0" id="quickContactButtons"></div>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 shrink-0">
-                        <select id="workModeSelect" class="select select-xs text-xs min-w-[90px]" onchange="changeWorkMode(this.value)" data-i18n-title="crm_work_mode_hint" title="Температура — насколько активно работаем с гостем">
+                        <select aria-label="Темп работы с гостем" id="workModeSelect" class="select select-xs text-xs min-w-[90px]" onchange="changeWorkMode(this.value)" data-i18n-title="crm_work_mode_hint" title="Температура — насколько активно работаем с гостем">
                             <option value="active" data-i18n="crm_mode_hot">🔥 Горячий</option>
                             <option value="long_term" data-i18n="crm_mode_warm">🌡 Тёплый</option>
                             <option value="paused" data-i18n="crm_mode_cold">❄️ Холодный</option>
                         </select>
-                        <select id="managerSelect" class="select select-xs text-xs min-w-[110px]" onchange="changeManager(this.value)">
+                        <select aria-label="Менеджер сделки" id="managerSelect" class="select select-xs text-xs min-w-[110px]" onchange="changeManager(this.value)">
                         </select>
                     </div>
                 </div>
@@ -171,13 +171,13 @@
                     <div class="grid grid-cols-2 gap-x-3 gap-y-0.5" id="checklistGrid">
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_accommodation">Проживание</span></label>
-                            <select class="select select-xs w-full" onchange="handleAccommodationChange(this.value)" id="cl_accommodation">
+                            <select aria-label="Проживание" class="select select-xs w-full" onchange="handleAccommodationChange(this.value)" id="cl_accommodation">
                                 <option value="unknown">—</option>
                             </select>
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_meals">Питание</span></label>
-                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_meals', this.value)" id="cl_meals">
+                            <select aria-label="Питание" class="select select-xs w-full" onchange="updateChecklist('checklist_meals', this.value)" id="cl_meals">
                                 <option value="unknown">—</option>
                                 <option value="in_ashram" data-i18n="crm_cl_in_ashram">В ШРСК</option>
                                 <option value="self" data-i18n="crm_cl_self">Сам</option>
@@ -185,7 +185,7 @@
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_visa">Виза</span></label>
-                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
+                            <select aria-label="Виза" class="select select-xs w-full" onchange="updateChecklist('checklist_visa', this.value)" id="cl_visa">
                                 <option value="unknown">—</option>
                                 <option value="needs_help" data-i18n="crm_cl_needs_help">Помощь</option>
                                 <option value="not_needed" data-i18n="crm_cl_not_needed">Не нужна</option>
@@ -193,7 +193,7 @@
                         </div>
                         <div class="form-control">
                             <label class="label"><span class="label-text opacity-50" data-i18n="crm_cl_tickets">Билеты</span></label>
-                            <select class="select select-xs w-full" onchange="updateChecklist('checklist_tickets', this.value)" id="cl_tickets">
+                            <select aria-label="Билеты" class="select select-xs w-full" onchange="updateChecklist('checklist_tickets', this.value)" id="cl_tickets">
                                 <option value="unknown">—</option>
                                 <option value="bought" data-i18n="crm_cl_bought">Куплены</option>
                                 <option value="not_bought" data-i18n="crm_cl_not_bought">Не куплены</option>
@@ -211,7 +211,7 @@
                                 <input type="text" class="input input-bordered input-xs" id="arrivalFlight" data-i18n-placeholder="crm_cl_flight" placeholder="Рейс" onchange="saveFlightField('arrival_flight', this.value)">
                                 <input type="text" class="input input-bordered input-xs" id="arrivalAirport" data-i18n-placeholder="crm_cl_airport" placeholder="Аэропорт" onchange="saveFlightField('arrival_airport', this.value)">
                             </div>
-                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" onchange="saveArrivalDatetime(this.value)">
+                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="arrivalDatetime" aria-label="Приезд: дата и время" onchange="saveArrivalDatetime(this.value)">
                             <div class="flex flex-wrap gap-x-4 gap-y-0 mt-1">
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="arrivalNeedsTransfer" onchange="updateChecklist('checklist_transfer_arrival', this.checked ? 'needed' : 'not_needed')">
@@ -224,7 +224,7 @@
                             </div>
                             <!-- Статус дат заезда (ТЗ 1.4): виден только при обнаруженном расхождении -->
                             <div id="arrivalDatesRow" class="hidden mt-1">
-                                <select class="select select-xs select-bordered w-full border-red-300" id="arrivalDatesStatus"
+                                <select aria-label="Даты приезда" class="select select-xs select-bordered w-full border-red-300" id="arrivalDatesStatus"
                                         onchange="saveDatesStatus('arrival', this.value)">
                                     <option value="unconfirmed" data-i18n="crm_dates_unconfirmed">Не уточнено</option>
                                     <option value="matches" data-i18n="crm_dates_matches">Совпадает с рейсом</option>
@@ -241,7 +241,7 @@
                                 <input type="text" class="input input-bordered input-xs" id="departureFlight" data-i18n-placeholder="crm_cl_flight" placeholder="Рейс" onchange="saveFlightField('departure_flight', this.value)">
                                 <input type="text" class="input input-bordered input-xs" id="departureAirport" data-i18n-placeholder="crm_cl_airport" placeholder="Аэропорт" onchange="saveFlightField('departure_airport', this.value)">
                             </div>
-                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" onchange="saveDepartureDatetime(this.value)">
+                            <input type="datetime-local" class="input input-bordered input-xs w-full mt-1" id="departureDatetime" aria-label="Отъезд: дата и время" onchange="saveDepartureDatetime(this.value)">
                             <div class="flex flex-wrap gap-x-4 gap-y-0 mt-1">
                                 <label class="flex items-center gap-1.5 cursor-pointer">
                                     <input type="checkbox" class="checkbox checkbox-xs checkbox-primary" id="departureNeedsTransfer" onchange="updateChecklist('checklist_transfer_departure', this.checked ? 'needed' : 'not_needed')">
@@ -253,7 +253,7 @@
                                 </label>
                             </div>
                             <div id="departureDatesRow" class="hidden mt-1">
-                                <select class="select select-xs select-bordered w-full border-red-300" id="departureDatesStatus"
+                                <select aria-label="Даты отъезда" class="select select-xs select-bordered w-full border-red-300" id="departureDatesStatus"
                                         onchange="saveDatesStatus('departure', this.value)">
                                     <option value="unconfirmed" data-i18n="crm_dates_unconfirmed">Не уточнено</option>
                                     <option value="matches" data-i18n="crm_dates_matches">Совпадает с рейсом</option>
@@ -341,7 +341,7 @@
                 <div class="card-body p-4">
                     <h3 class="font-bold mb-3" data-i18n="crm_tags">Теги</h3>
                     <div id="dealTags" class="flex flex-wrap gap-2 mb-3"></div>
-                    <select id="addTagSelect" class="select select-bordered select-sm w-full" onchange="addTag(this.value)">
+                    <select aria-label="Добавить тег" id="addTagSelect" class="select select-bordered select-sm w-full" onchange="addTag(this.value)">
                         <option value="" data-i18n="crm_add_tag">+ Добавить тег...</option>
                     </select>
                 </div>
@@ -380,7 +380,7 @@
 
             <div class="form-control mb-3">
                 <label class="label"><span class="label-text" data-i18n="crm_service">Услуга</span></label>
-                <select id="serviceSelect" class="select select-bordered" onchange="onServiceSelect()">
+                <select aria-label="Услуга" id="serviceSelect" class="select select-bordered" onchange="onServiceSelect()">
                     <option value="" data-i18n="crm_select_service">Выберите услугу...</option>
                     <option value="custom" data-i18n="crm_custom_service">— Другое (ввести вручную) —</option>
                 </select>
@@ -431,7 +431,7 @@
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_currency">Валюта</span></label>
-                    <select id="paymentCurrency" class="select select-bordered">
+                    <select aria-label="Валюта оплаты" id="paymentCurrency" class="select select-bordered">
                     </select>
                 </div>
             </div>
@@ -439,7 +439,7 @@
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_payment_type">Тип</span></label>
-                    <select id="paymentType" class="select select-bordered">
+                    <select aria-label="Тип оплаты" id="paymentType" class="select select-bordered">
                         <option value="org_fee" data-i18n="crm_ptype_org_fee">Оргвзнос</option>
                         <option value="accommodation" data-i18n="crm_cat_accommodation">Проживание</option>
                         <option value="meals" data-i18n="crm_cat_meals">Питание</option>
@@ -449,7 +449,7 @@
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_payment_system">Платёжная система</span></label>
-                    <select id="paymentSystem" class="select select-bordered" required></select>
+                    <select aria-label="Система оплаты" id="paymentSystem" class="select select-bordered" required></select>
                 </div>
             </div>
 
@@ -509,7 +509,7 @@
             <div class="grid grid-cols-2 gap-3 mb-3">
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_comm_type">Тип</span></label>
-                    <select id="commType" class="select select-bordered">
+                    <select aria-label="Вид связи" id="commType" class="select select-bordered">
                         <option value="call" data-i18n="crm_comm_call">Звонок</option>
                         <option value="whatsapp">WhatsApp</option>
                         <option value="telegram" data-i18n="crm_source_telegram">Телеграм</option>
@@ -519,7 +519,7 @@
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_direction">Направление</span></label>
-                    <select id="commDirection" class="select select-bordered">
+                    <select aria-label="Направление" id="commDirection" class="select select-bordered">
                         <option value="outbound" data-i18n="crm_dir_outbound">Исходящий</option>
                         <option value="inbound" data-i18n="crm_dir_inbound">Входящий</option>
                         <option value="internal" data-i18n="crm_dir_internal">Внутренний</option>
@@ -563,7 +563,7 @@
                 </div>
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_priority">Приоритет</span></label>
-                    <select id="taskPriority" class="select select-bordered">
+                    <select aria-label="Приоритет задачи" id="taskPriority" class="select select-bordered">
                         <option value="low" data-i18n="crm_priority_low">Низкий</option>
                         <option value="normal" selected data-i18n="crm_priority_normal">Обычный</option>
                         <option value="high" data-i18n="crm_priority_high">Высокий</option>
@@ -633,7 +633,7 @@
         <div class="grid grid-cols-2 gap-3 mb-4">
             <div class="form-control">
                 <label class="label py-1"><span class="label-text text-xs" data-i18n="crm_member_relation">Связь</span></label>
-                <select id="memberRelation" class="select select-bordered select-sm">
+                <select aria-label="Кем приходится" id="memberRelation" class="select select-bordered select-sm">
                     <option value="wife" data-i18n="crm_rel_wife">Жена</option>
                     <option value="husband" data-i18n="crm_rel_husband">Муж</option>
                     <option value="child" data-i18n="crm_rel_child">Ребёнок</option>
@@ -657,15 +657,15 @@
 </dialog>
 
 <script src="../js/config.js?v=5"></script>
-<script src="../js/auth-check.js?v=13"></script>
+<script src="../js/auth-check.js?v=14"></script>
 <script src="../js/cache.js?v=2"></script>
-<script src="../js/utils.js?v=17"></script>
-<script src="../js/layout.js?v=112"></script>
-<script src="../js/date-utils.js?v=4"></script>
-<script src="../js/crm-utils.js?v=6"></script>
+<script src="../js/utils.js?v=20"></script>
+<script src="../js/layout.js?v=118"></script>
+<script src="../js/date-utils.js?v=5"></script>
+<script src="../js/crm-utils.js?v=7"></script>
 <script src="../js/crm-cancel-reason.js?v=1"></script>
 <script src="../js/date-guard.js?v=1"></script>
-<script src="../js/prepayment-ops.js?v=3"></script>
+<script src="../js/prepayment-ops.js?v=4"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -991,7 +991,7 @@ function renderTags() {
     container.innerHTML = activeTags.length === 0
         ? `<span class="text-base-content/30 text-sm">${t('crm_no_tags')}</span>`
         : activeTags.map(tag => `
-            <span class="badge gap-1" style="background-color: ${tag.color}; color: white;">
+            <span class="badge gap-1" style="${Utils.badgeStyle(tag.color)}">
                 ${e(Layout.getName(tag))}
                 <button onclick="removeTag('${tag.id}')" class="hover:opacity-70">×</button>
             </span>
@@ -1094,9 +1094,9 @@ function renderInfoTab() {
         const displayVal = value || '—';
         const isEmpty = !value || value === '—';
         const val = href && !isEmpty
-            ? `<a href="${href}" class="link link-hover text-primary text-sm">${e(displayVal)}</a>`
+            ? `<a href="${e(href)}" class="link link-hover text-primary text-sm">${e(displayVal)}</a>`
             : `<span class="font-medium text-sm ${isEmpty ? 'text-base-content/30 italic' : ''}">${e(displayVal)}</span>`;
-        const editBtn = field ? `<button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0" onclick="startEditContact('${field}', '${e(value || '')}')">
+        const editBtn = field ? `<button class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 p-0 h-5 w-5 min-h-0" aria-label="Изменить: ${e(label)}" onclick="startEditContact('${field}')">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
         </button>` : '';
         return `<div class="group flex items-center gap-2 py-1.5 border-b border-base-200/50 last:border-0" id="contact-row-${field || label}">
@@ -1115,7 +1115,7 @@ function renderInfoTab() {
         return `<div class="flex items-center gap-2 py-1.5 border-b border-base-200/50">
             <span class="text-base-content/30">${genderIcon}</span>
             <span class="text-xs text-base-content/40 w-16 shrink-0">${t('crm_gender')}</span>
-            <select onchange="saveGender(this.value)" class="select select-xs select-ghost h-6 min-h-0 px-1 font-medium" style="color: ${color || 'inherit'}">
+            <select aria-label="Пол" onchange="saveGender(this.value)" class="select select-xs select-ghost h-6 min-h-0 px-1 font-medium" style="color: ${color || 'inherit'}">
                 <option value="" ${!g ? 'selected' : ''}>${t('crm_gender_not_set')}</option>
                 <option value="male" ${g === 'male' ? 'selected' : ''} style="color:#3b82f6">${t('crm_gender_male')}</option>
                 <option value="female" ${g === 'female' ? 'selected' : ''} style="color:#ec4899">${t('crm_gender_female')}</option>
@@ -1125,9 +1125,12 @@ function renderInfoTab() {
 
     const location = [guest.city, guest.country].filter(Boolean).join(', ');
     const retreatDates = retreat ? `${CrmUtils.formatDate(retreat.start_date)} — ${CrmUtils.formatDate(retreat.end_date)}` : '—';
-    const source = t('crm_source_' + deal.source) || deal.source || '—';
-    const accommodation = deal.accommodation_preference ? (t('crm_accommodation_' + deal.accommodation_preference) || deal.accommodation_preference) : '—';
-    const meals = deal.meals_preference ? (t('crm_meals_' + deal.meals_preference) || deal.meals_preference) : '—';
+    // source приходит из публичной формы (utm_source) как есть, а t() без
+    // перевода возвращает сам ключ — значит, в разметку шла строка анонима.
+    // Экранируем всё, что собрано из полей сделки.
+    const source = e(t('crm_source_' + deal.source) || deal.source || '—');
+    const accommodation = e(deal.accommodation_preference ? (t('crm_accommodation_' + deal.accommodation_preference) || deal.accommodation_preference) : '—');
+    const meals = e(deal.meals_preference ? (t('crm_meals_' + deal.meals_preference) || deal.meals_preference) : '—');
 
     return `
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1150,7 +1153,7 @@ function renderInfoTab() {
                     ${contactRow(locationIcon, t('crm_location'), location || null, null, null)}
                     <div class="flex items-center gap-2 py-1.5 text-sm border-t border-base-200/60">
                         <span class="text-xs opacity-50 w-24 shrink-0">${t('crm_birth_date')}</span>
-                        <input type="date" class="input input-ghost input-xs" id="guestBirthDate"
+                        <input type="date" class="input input-ghost input-xs" id="guestBirthDate" aria-label="Дата рождения"
                                value="${e(guest.birth_date || '')}" onchange="saveBirthDate(this.value)">
                         <span class="text-xs opacity-50" id="guestAgeHint">${ageHintText()}</span>
                         <span id="guestChildState">${childStateHtml()}</span>
@@ -1165,7 +1168,7 @@ function renderInfoTab() {
                 </h3>
                 <div class="bg-base-200/30 rounded-lg px-3 py-2 space-y-2">
                     <div class="flex items-center justify-between">
-                        <span class="badge badge-sm font-semibold whitespace-nowrap" style="background-color: ${retreat?.color || '#6366f1'}; color: white; border: none;">
+                        <span class="badge badge-sm font-semibold whitespace-nowrap" style="background-color: ${Utils.isValidColor(retreat?.color) ? retreat.color : '#6366f1'}; color: white; border: none;">
                             ${e(Layout.getName(retreat))}
                         </span>
                         <span class="text-sm">${retreatDates}</span>
@@ -1529,7 +1532,7 @@ function renderDealTerms() {
         <div class="mb-3" data-term-block="${block}">
             <div class="flex flex-wrap items-center gap-2">
                 <span class="text-sm font-medium w-28 shrink-0">${t('crm_terms_' + block)}</span>
-                <select class="select select-bordered select-xs term-type">
+                <select class="select select-bordered select-xs term-type" aria-label="Условие">
                     <option value="full" ${тип === 'full' ? 'selected' : ''}>${t('crm_terms_full')}</option>
                     ${TERM_TYPES[block].map(ty =>
                         `<option value="${ty}" ${тип === ty ? 'selected' : ''}>${termTypeLabel(block, ty)}</option>`).join('')}
@@ -1779,7 +1782,7 @@ function renderParticipantBalance() {
         <div class="flex items-center justify-between gap-2 text-sm">
             <span class="text-base-content/60">${e(b.currency)}</span>
             <span class="font-mono font-bold text-amber-700">${e(CrmUtils.formatMoney(b.amount, b.currency))}</span>
-            <button class="btn btn-xs btn-outline btn-primary" onclick="openPlaceBalanceForCurrency('${e(b.currency)}')">
+            <button class="btn btn-xs btn-outline btn-primary" onclick="openPlaceBalanceForCurrency(${e(JSON.stringify(b.currency))})">
                 ${e(t('crm_place_balance'))}
             </button>
         </div>
@@ -1832,7 +1835,7 @@ function renderTasksTab() {
                                 <div class="font-medium">${e(task.title)}</div>
                                 ${task.due_date ? `<div class="text-xs ${isOverdue ? 'text-error' : 'text-base-content/50'}">${CrmUtils.formatDate(task.due_date)}</div>` : ''}
                             </div>
-                            <span class="badge badge-sm" style="background-color: ${CrmUtils.PRIORITY_COLORS[task.priority]}; color: white;">
+                            <span class="badge badge-sm" style="${Utils.badgeStyle(CrmUtils.PRIORITY_COLORS[task.priority])}">
                                 ${t('crm_priority_' + task.priority) || task.priority}
                             </span>
                         </div>
@@ -2325,11 +2328,25 @@ function formatHistoryAction(ev, systemById) {
     return e(ev.action);
 }
 
+let платёжИдёт = false;
+
 async function savePayment(event) {
     event.preventDefault();
+    // двойной щелчок по «Сохранить» заводил два платежа (и два уведомления
+    // в Telegram о неподтверждённой оплате): модалка закрывалась только
+    // после ответа базы
+    if (платёжИдёт) return;
     const currency = document.getElementById('paymentCurrency').value;
     const rate = parseFloat(document.getElementById('paymentCurrency').selectedOptions[0]?.dataset.rate) || 1;
-    const amount = parseFloat(document.getElementById('paymentAmount').value);
+    const amount = parseFloat(String(document.getElementById('paymentAmount').value).replace(',', '.'));
+    if (!(amount > 0)) {
+        Layout.showNotification('Укажите сумму больше нуля', 'warning');
+        return;
+    }
+    платёжИдёт = true;
+    const кнопка = event.submitter || event.target.querySelector?.('[type=submit]');
+    if (кнопка) кнопка.disabled = true;
+    try {
 
     const paymentDate = document.getElementById('paymentDate').value;
     const data = {
@@ -2337,7 +2354,8 @@ async function savePayment(event) {
         amount: amount,
         currency: currency,
         rate_to_inr: rate,
-        amount_inr: amount * rate,
+        // без хвостов плавающей точки: 4 платежа в базе уже хранят 1234.5600000001
+        amount_inr: Math.round(amount * rate * 100) / 100,
         payment_type: document.getElementById('paymentType').value,
         payment_system_id: document.getElementById('paymentSystem')?.value || null,
         notes: document.getElementById('paymentNotes').value.trim() || null,
@@ -2355,6 +2373,10 @@ async function savePayment(event) {
     updateTabCounts();
     renderTab();
     await refreshDeal();
+    } finally {
+        платёжИдёт = false;
+        if (кнопка) кнопка.disabled = false;
+    }
 }
 
 async function deletePayment(id) {
@@ -2740,7 +2762,7 @@ function openTemplatesModal() {
             <div class="bg-base-200 p-3 rounded-lg">
                 <div class="flex justify-between items-start mb-2">
                     <span class="font-medium">${e(Layout.getName(tpl))}</span>
-                    <button class="btn btn-ghost btn-xs gap-1" onclick="copyTemplateText(\`${text.replace(/`/g, '\\`')}\`)">${CrmUtils.UI_ICONS.copy} Копировать</button>
+                    <button class="btn btn-ghost btn-xs gap-1" onclick="copyTemplateText(${e(JSON.stringify(text))})">${CrmUtils.UI_ICONS.copy} Копировать</button>
                 </div>
                 <div class="text-sm whitespace-pre-wrap text-base-content/70">${e(text)}</div>
             </div>
@@ -2768,20 +2790,32 @@ async function saveGuestFields(fields) {
 }
 
 // ==================== INLINE EDIT CONTACTS ====================
-function startEditContact(field, currentValue) {
+function startEditContact(field) {
     const container = document.getElementById('contact-val-' + field);
     if (!container) return;
+    // значение берём из данных гостя, а не из onclick: строка из публичной
+    // формы внутри onclick="…('…')" исполнялась как код
+    const currentValue = guest?.[field] || '';
     const input = document.createElement('input');
     input.type = field === 'email' ? 'email' : 'text';
     input.value = currentValue;
     input.className = 'input input-xs input-bordered w-full max-w-[200px]';
     input.placeholder = field === 'phone' ? '+7...' : field === 'email' ? 'email@...' : '@username';
 
+    // одно поле — одно сохранение: Enter и следом blur от перерисовки писали
+    // дважды, а Escape («отмена») сохранял через тот же blur
+    let закрыто = false;
+    const завершить = async сохранить => {
+        if (закрыто) return;
+        закрыто = true;
+        if (сохранить && input.value !== currentValue) await saveContact(field, input.value);
+        else loadTabData('info');
+    };
     input.addEventListener('keydown', async (ev) => {
-        if (ev.key === 'Enter') { ev.preventDefault(); await saveContact(field, input.value); }
-        if (ev.key === 'Escape') { loadTabData('info'); }
+        if (ev.key === 'Enter') { ev.preventDefault(); await завершить(true); }
+        if (ev.key === 'Escape') { ev.preventDefault(); await завершить(false); }
     });
-    input.addEventListener('blur', async () => { await saveContact(field, input.value); });
+    input.addEventListener('blur', () => завершить(true));
 
     container.innerHTML = '';
     container.appendChild(input);
@@ -2915,8 +2949,12 @@ async function loadManagerNotes() {
 
     container.innerHTML = notes.map(n => {
         const author = n.profiles?.spiritual_name || n.profiles?.first_name || t('crm_manager');
-        const date = DateUtils.formatDate(n.created_at.slice(0, 10));
-        const time = n.created_at.slice(11, 16);
+        // created_at — настоящая метка времени: показываем в поясе устройства.
+        // Раньше вызывалась несуществующая DateUtils.formatDate — карточка
+        // с заметкой менеджера падала, а срез строки давал время по UTC
+        const когда = new Date(n.created_at);
+        const date = DateUtils.formatShort(когда);
+        const time = DateUtils.formatTime(когда);
         return `<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
             <div class="flex justify-between items-center mb-1">
                 <span class="text-xs text-blue-400">${Layout.escapeHtml(author)} · ${date} ${time}</span>
@@ -3048,25 +3086,30 @@ async function loadPlacement() {
     bookingData = null;
 
     // 1. Ищем resident по vaishnava_id
+    // Ошибку чтения нельзя принимать за «размещения нет»: ниже по такому
+    // ответу удаляется бронь. При сбое сети открытие карточки сносило
+    // настоящую бронь гостя.
     if (guest) {
-        const { data } = await Layout.db
+        const { data, error } = await Layout.db
             .from('residents')
             .select('id, check_in, check_out, status, room_id, booking_id, rooms(number, floor, buildings(name_ru, name_en, name_hi))')
             .eq('vaishnava_id', guest.id)
             .eq('retreat_id', retreat.id)
             .limit(1)
             .maybeSingle();
+        if (error) { console.warn('размещение:', error.message); return; }
         placementData = data;
     }
 
     // 2. Если не нашли, ищем по deal.booking_id (бронь из CRM)
     if (!placementData && deal.booking_id) {
-        const { data } = await Layout.db
+        const { data, error } = await Layout.db
             .from('residents')
             .select('id, check_in, check_out, status, room_id, booking_id, rooms(number, floor, buildings(name_ru, name_en, name_hi))')
             .eq('booking_id', deal.booking_id)
             .limit(1)
             .maybeSingle();
+        if (error) { console.warn('размещение:', error.message); return; }
         placementData = data;
 
         if (placementData) {
@@ -3078,11 +3121,14 @@ async function loadPlacement() {
                 .maybeSingle();
             bookingData = bData;
         } else {
-            // Resident удалён (например через шахматку) — чистим висячую бронь
-            await Layout.db.from('bookings').delete().eq('id', deal.booking_id);
-            await Layout.db.from('crm_deals')
+            // Resident удалён (например через шахматку) — чистим висячую бронь.
+            // Ссылку в сделке снимаем, только если бронь и правда удалилась
+            const { error: ошБрони } = await Layout.db.from('bookings').delete().eq('id', deal.booking_id);
+            if (ошБрони) { console.warn('висячая бронь осталась:', ошБрони.message); return; }
+            const { error: ошСделки } = await Layout.db.from('crm_deals')
                 .update({ booking_id: null, room_id: null })
                 .eq('id', dealId);
+            if (ошСделки) { console.warn('сделка:', ошСделки.message); return; }
             deal.booking_id = null;
             deal.room_id    = null;
         }
@@ -3314,6 +3360,10 @@ const BUILDING_STAFF_IDS   = [
 
 // Слушаем сообщение от iframe после успешного бронирования
 window.addEventListener('message', async (event) => {
+    // только от своего окна бронирования: иначе любая вкладка, у которой
+    // есть ссылка на эту, подсовывала сделкам группы чужой booking_id
+    if (event.origin !== location.origin) return;
+    if (event.source !== document.getElementById('roomBookingIframe')?.contentWindow) return;
     if (event.data?.type !== 'crm_booking_saved') return;
     document.getElementById('roomBookingIframeModal').close();
     document.getElementById('roomBookingIframe').src = '';
@@ -3441,7 +3491,7 @@ function searchGuruSuggestions(query) {
         // Показать все при фокусе
         if (spiritualTeachersList.length > 0) {
             suggestionsEl.innerHTML = spiritualTeachersList.map(t =>
-                `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru('${Layout.escapeHtml(t)}')">${Layout.escapeHtml(t)}</div>`
+                `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru(${Layout.escapeHtml(JSON.stringify(t))})">${Layout.escapeHtml(t)}</div>`
             ).join('');
             suggestionsEl.classList.remove('hidden');
         }
@@ -3455,7 +3505,7 @@ function searchGuruSuggestions(query) {
         return;
     }
     suggestionsEl.innerHTML = matches.map(t =>
-        `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru('${Layout.escapeHtml(t)}')">${Layout.escapeHtml(t)}</div>`
+        `<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer" onclick="selectGuru(${Layout.escapeHtml(JSON.stringify(t))})">${Layout.escapeHtml(t)}</div>`
     ).join('');
     suggestionsEl.classList.remove('hidden');
 }

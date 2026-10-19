@@ -93,6 +93,30 @@ function safeColor(color, fallback = '#6b7280') {
 }
 
 /**
+ * Цвет букв поверх цветной плашки: белый, если он читается (контраст ≥ 4.5),
+ * иначе почти чёрный. Белый на зелёном #10b981 — 2.5:1, на синем #3b82f6 —
+ * 3.7:1: подписи статусов и ретритов на таких плашках не читались.
+ */
+function textOn(bg) {
+    const цвет = safeColor(bg);
+    const канал = i => {
+        const c = parseInt(цвет.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+        return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    };
+    const L = 0.2126 * канал(0) + 0.7152 * канал(1) + 0.0722 * канал(2);
+    // берём тот цвет букв, у которого контраст выше (почти чёрный #111827 — L≈0.0089)
+    const сБелым = 1.05 / (L + 0.05);
+    const сТёмным = (L + 0.05) / (0.0089 + 0.05);
+    return сБелым >= сТёмным ? '#ffffff' : '#111827';
+}
+
+/** style для цветной плашки: проверенный фон и читаемые буквы. */
+function badgeStyle(bg, fallback = '#6b7280') {
+    const цвет = safeColor(bg, fallback);
+    return `background-color: ${цвет}; color: ${textOn(цвет)};`;
+}
+
+/**
  * Проверка и автоперенос departure/arrival в правильный ретрит.
  * Если departure_datetime позже окончания ретрита и у человека есть регистрация
  * на более поздний ретрит — переносит departure_datetime и трансфер вылета туда.
@@ -380,7 +404,8 @@ window.спроситьСтроку = спроситьСтроку;
  */
 function деньПоЧеловечески(датаISO) {
     const д = DateUtils.parseDate(датаISO);
-    const сегодня = new Date(); сегодня.setHours(0, 0, 0, 0);
+    // «сегодня» — по часам ашрама, а не устройства (см. DateUtils.nowAshram)
+    const сегодня = window.DateUtils?.nowAshram?.() || new Date(); сегодня.setHours(0, 0, 0, 0);
     const разница = Math.round((д - сегодня) / 86400000);
     if (разница === 0) return 'сегодня';
     if (разница === 1) return 'завтра';
@@ -397,6 +422,6 @@ window.деньПоЧеловечески = деньПоЧеловечески;
 
 // Глобальный debug-логгер доступен без префикса — используется часто, как console.log.
 window.debug = debug;
-window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName, pickResident };
+window.Utils = { pluralize, debounce, debug, escapeHtml, isValidColor, safeColor, textOn, badgeStyle, checkAndMoveDatesAcrossRetreats, fetchAll, getVaishnavName, getVaishnavFullName, pickResident };
 
 })();

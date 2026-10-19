@@ -13,6 +13,7 @@ const WorshipPeople = (() => {
     const $ = s => document.querySelector(s);
     const e = str => Layout.escapeHtml(str ?? '');
     const можноВести = () => !!window.hasPermission?.('worship_approve');
+    const ПОРОГ_ПОИСКА = 10;             // до стольких человек список читается целиком
 
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
 
@@ -21,11 +22,11 @@ const WorshipPeople = (() => {
 
     // ---------- загрузка ----------
     async function загрузить() {
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
 
         const [л, с, н, о] = await Promise.all([
             Layout.db.from('worship_people')
-                .select('id, vaishnava_id, active_from, active_to, is_active'),
+                .select('id, vaishnava_id, active_from, active_to, is_active, kind'),
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, article_id, is_active')
                 .order('sort_order').order('time_of_day'),
@@ -75,14 +76,14 @@ const WorshipPeople = (() => {
     }
 
     const вОтъездеСейчас = id => {
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         return отметки.some(а => а.person_id === id
             && а.date_from <= сегодня && (!а.date_to || а.date_to >= сегодня));
     };
 
     /** Ближайший отъезд впереди: расписывают неделю, а не сегодняшний день. */
     const отъездВпереди = id => {
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         return отметки.filter(а => а.person_id === id && а.date_from > сегодня)
             .sort((a, b) => a.date_from.localeCompare(b.date_from))[0];
     };
@@ -90,40 +91,64 @@ const WorshipPeople = (() => {
     const служб = id => назначения.filter(н => н.person_id === id).length;
 
     // ---------- список ----------
+    /** Строка списка: имя с состоянием слева, нагрузка справа. */
+    function строкаЧеловека(ч) {
+        const отъезд = отъездВпереди(ч.id);
+        return `
+        <li class="border-b border-base-200 last:border-0">
+            <button class="w-full text-left px-5 py-3 hover:bg-base-200/60 transition-colors
+                           flex flex-wrap items-baseline gap-x-3 gap-y-1
+                           ${ч.is_active ? '' : 'opacity-70'}"
+                    data-человек="${ч.id}">
+                <!-- основа 12rem: на телефоне счётчик служб уходит под имя,
+                     а не сжимает его до наложения букв -->
+                <span class="flex-1 basis-48 min-w-0">
+                    <span class="font-semibold">${e(ч.имя)}</span>
+                    ${ч.kind === 'volunteer'
+                        ? '<span class="badge badge-sm whitespace-nowrap badge-outline ml-1">волонтёр</span>' : ''}
+                    ${ч.мой ? '<span class="badge badge-sm whitespace-nowrap ml-1">это вы</span>' : ''}
+                    ${ч.is_active ? '' : '<span class="badge badge-sm whitespace-nowrap ml-1">не в отделе</span>'}
+                    ${вОтъездеСейчас(ч.id)
+                        ? '<span class="badge badge-sm whitespace-nowrap badge-warning ml-1">в отъезде</span>'
+                        : отъезд
+                            ? `<span class="badge badge-sm whitespace-nowrap ml-1">уезжает ${
+                                DateUtils.formatShort(DateUtils.parseDate(отъезд.date_from))}</span>`
+                            : ''}
+                    ${ч.безВхода
+                        ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">нет входа</span>' : ''}
+                    ${ч.active_to
+                        ? `<span class="block text-sm opacity-70">участвует по ${
+                            DateUtils.formatShort(DateUtils.parseDate(ч.active_to))}</span>` : ''}
+                </span>
+                ${служб(ч.id) || ч.is_active !== false ? `
+                <span class="text-sm opacity-70 whitespace-nowrap tabular-nums">
+                    ${Layout.pluralize(служб(ч.id), {
+                        ru: ['служба впереди', 'службы впереди', 'служб впереди'],
+                        en: ['duty ahead', 'duties ahead'], hi: 'सेवा' })}
+                </span>` : ''}
+            </button>
+        </li>`;
+    }
+
     function рисовать() {
         $('#яНеСмогу').hidden = !яЧеловек;
 
-        $('#список').innerHTML = люди.map(ч => `
-            <li class="border-b border-base-200 last:border-0">
-                <button class="w-full text-left px-5 py-3 hover:bg-base-200/60 transition-colors
-                               flex flex-col desktop:flex-row desktop:items-center gap-1 desktop:gap-3
-                               ${ч.is_active ? '' : 'opacity-50'}"
-                        data-человек="${ч.id}">
-                    <span class="flex-1 min-w-0">
-                        <span class="font-semibold">${e(ч.имя)}</span>
-                        ${ч.мой ? '<span class="badge badge-sm ml-1">это вы</span>' : ''}
-                        ${ч.is_active ? '' : '<span class="badge badge-sm ml-1">не в отделе</span>'}
-                        ${вОтъездеСейчас(ч.id)
-                            ? '<span class="badge badge-sm badge-warning ml-1">в отъезде</span>'
-                            : отъездВпереди(ч.id)
-                                ? `<span class="badge badge-sm ml-1">уезжает ${
-                                    DateUtils.formatShort(DateUtils.parseDate(отъездВпереди(ч.id).date_from))}</span>`
-                                : ''}
-                        ${ч.безВхода
-                            ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>' : ''}
-                        ${ч.active_to
-                            ? `<span class="block text-sm opacity-60">участвует по ${
-                                DateUtils.formatShort(DateUtils.parseDate(ч.active_to))}</span>` : ''}
-                    </span>
-                    <span class="text-sm opacity-60 whitespace-nowrap">
-                        ${Layout.pluralize(служб(ч.id), {
-                            ru: ['служба впереди', 'службы впереди', 'служб впереди'],
-                            en: ['duty ahead', 'duties ahead'], hi: 'सेवा' })}
-                    </span>
-                </button>
-            </li>`).join('') ||
-            `<li class="px-5 py-6 text-sm opacity-60">В отделе пока никого. ${
-                можноВести() ? 'Добавьте людей кнопкой выше.' : 'Состав ведёт старший пуджари.'}</li>`;
+        // поиск нужен не всегда: на семерых он только отнимает строку
+        $('#поискБлок').hidden = люди.length <= ПОРОГ_ПОИСКА;
+        const q = $('#поиск').value.trim().toLowerCase();
+        const подходит = ч => !q || (ч.имя || '').toLowerCase().includes(q);
+
+        const вОтделе = люди.filter(ч => ч.is_active !== false).filter(подходит);
+        const вышли = люди.filter(ч => ч.is_active === false).filter(подходит);
+
+        $('#список').innerHTML = вОтделе.map(строкаЧеловека).join('') ||
+            `<li class="px-5 py-6 text-sm opacity-70">${
+                q ? 'Никого с таким именем'
+                  : `В отделе пока никого. ${можноВести()
+                        ? 'Добавьте людей кнопкой выше.' : 'Состав ведёт старший пуджари.'}`}</li>`;
+
+        $('#вышлиБлок').hidden = !вышли.length;
+        $('#вышли').innerHTML = вышли.map(строкаЧеловека).join('');
 
         window.applyPermissions?.();
     }
@@ -135,13 +160,20 @@ const WorshipPeople = (() => {
         const { data, error } = await Layout.db.rpc('worship_approvers_count');
         if (error) return;                       // отсутствие подсказки не ломает экран
         const сколько = data ?? 2;
-        $('#одинСтарший').hidden = сколько > 1;
-        if (сколько <= 1) {
-            $('#одинСтарший').textContent = сколько === 0
-                ? 'Права утверждения нет ни у кого: очередь правок и расписание стоят. Нужен старший пуджари.'
-                : 'В отделе один человек с правом утверждения. Уехал — очередь встала, расписание ' +
-                  'не двигается. Нужен второй.';
-        }
+        if (сколько > 1) { $('#одинСтарший').hidden = true; return; }
+
+        // Сначала содержимое, потом показ: иначе любая осечка посередине
+        // оставляла на экране пустую жёлтую полосу без объяснения
+        $('#одинСтарший').innerHTML = `
+            <span>${сколько === 0
+                ? 'Права утверждения нет ни у кого: очередь правок и расписание стоят. '
+                  + 'Нужен старший пуджари — тот, кто утверждает стандарты и ведёт расписание.'
+                : 'Право утверждать стандарты есть только у одного человека. Уехал — '
+                  + 'очередь правок встала, расписание не двигается. Нужен второй.'}</span>
+            <a href="../settings/user-management.html" class="link whitespace-nowrap"
+               data-permission="manage_users">Кому выдать право</a>`;
+        $('#одинСтарший').hidden = false;
+        window.applyPermissions?.();
     }
 
     // ---------- карточка ----------
@@ -162,6 +194,7 @@ const WorshipPeople = (() => {
         $('#кСрокС').value = открытый.active_from || '';
         $('#кСрокПо').value = открытый.active_to || '';
         $('#кСрокБлок').hidden = !можноВести();
+        рисоватьВид();
         рисоватьСлужбыЧеловека();
         рисоватьДопуски();
         рисоватьОтметки();
@@ -183,7 +216,7 @@ const WorshipPeople = (() => {
                 ${с?.article_id
                     ? `<a class="link" href="article.html?id=${с.article_id}">${e(Layout.getName(с))}</a>`
                     : `<span>${e(с ? Layout.getName(с) : 'разовая служба')}</span>`}
-                ${н.role !== 'pujari' ? `<span class="badge badge-sm">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
+                ${н.role !== 'pujari' ? `<span class="badge badge-sm whitespace-nowrap">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
             </li>`;
         }).join('') || '<li class="text-sm opacity-60">Впереди служб нет</li>';
     }
@@ -213,9 +246,13 @@ const WorshipPeople = (() => {
 
     async function рисоватьЗаметки() {
         if (!можноВести()) return;
+        // карточку могли закрыть и открыть другую, пока шёл запрос:
+        // заметки одного человека не должны лечь в карточку другого
+        const чьи = открытый.id;
         const { data, error } = await Layout.db.from('worship_person_notes')
             .select('id, body, created_at, created_by')
-            .eq('person_id', открытый.id).order('created_at', { ascending: false });
+            .eq('person_id', чьи).order('created_at', { ascending: false });
+        if (открытый?.id !== чьи) return;
         if (error) return Layout.handleError(error, 'Заметки');
 
         const авторы = [...new Set((data || []).map(з => з.created_by).filter(Boolean))];
@@ -225,6 +262,7 @@ const WorshipPeople = (() => {
                 .select('user_id, spiritual_name, first_name, last_name').in('user_id', авторы);
             имена = Object.fromEntries((в || []).map(x => [x.user_id,
                 x.spiritual_name || `${x.first_name || ''} ${x.last_name || ''}`.trim()]));
+            if (открытый?.id !== чьи) return;
         }
 
         $('#кЗаметки').innerHTML = (data || []).map(з => `
@@ -258,7 +296,7 @@ const WorshipPeople = (() => {
 
     function открытьОтметку(personId) {
         $('#отметкаМодал').dataset.кому = personId;
-        $('#оtС').value = DateUtils.toISO(new Date());
+        $('#оtС').value = DateUtils.todayAshramISO();
         $('#оtПо').value = '';
         $('#оtПричина').value = '';
         $('#отметкаМодал').showModal();
@@ -291,6 +329,29 @@ const WorshipPeople = (() => {
      * Срок участия волонтёра: после него человек уходит из выбора сам,
      * а старший получает предупреждение, если всё же ставит его в клетку.
      */
+    /** Команда или волонтёр: переключатель в карточке, запись сразу. */
+    function рисоватьВид() {
+        $('#кВидБлок').hidden = !можноВести();
+        document.querySelectorAll('[data-вид-человека]').forEach(б =>
+            б.classList.toggle('btn-active',
+                б.getAttribute('data-вид-человека') === (открытый.kind || 'team')));
+        $('#кВидПодпись').textContent = (открытый.kind || 'team') === 'volunteer'
+            ? 'Приехал на время. Ставьте с оглядкой на срок участия ниже.'
+            : 'Постоянный состав отдела.';
+    }
+
+    async function записатьВид(вид) {
+        const { data, error } = await Layout.db.from('worship_people')
+            .update({ kind: вид, updated_at: new Date().toISOString(),
+                      updated_by: window.currentUser?.id || null })
+            .eq('id', открытый.id).select('id');
+        if (error) return Layout.handleError(error, 'Кто в отделе');
+        if (!data?.length) return Layout.showNotification('Не сохранилось: состав ведёт старший', 'error');
+        открытый.kind = вид;
+        рисоватьВид();
+        await перечитать();
+    }
+
     async function записатьСрок() {
         const с = $('#кСрокС').value || null;
         const по = $('#кСрокПо').value || null;
@@ -326,7 +387,7 @@ const WorshipPeople = (() => {
                 (data['ближайшая'] ? `, ближайшее ${DateUtils.formatShort(DateUtils.parseDate(data['ближайшая']))}` : '')
                 : 'Назначений впереди нет',
             `Черновиков: ${data?.['черновиков'] || 0}`,
-            `Наборов фотографий: ${data?.['наборов'] || 0}`,
+            `Папок со снимками: ${data?.['наборов'] || 0}`,
             `Заметок о человеке: ${data?.['заметок'] || 0}`,
             '',
             впереди
@@ -347,7 +408,18 @@ const WorshipPeople = (() => {
     }
 
     // ---------- добавление ----------
+    // поиск по мере набора: ответ на «Ра» не должен лечь поверх ответа на «Радха»
+    let поколениеПоиска = 0;
+
+    /** Кнопка занята, пока идёт её дело: второй щелчок не создаёт дубль. */
+    async function разом(кнопка, дело) {
+        if (кнопка.disabled) return;
+        кнопка.disabled = true;
+        try { return await дело(); } finally { кнопка.disabled = false; }
+    }
+
     async function искатьЛюдей() {
+        const моё = ++поколениеПоиска;
         const имя = $('#дПоиск').value.trim();
         if (имя.length < 2) {
             $('#дСписок').innerHTML = '<li class="py-3 text-sm opacity-60">Впишите хотя бы две буквы.</li>';
@@ -359,9 +431,13 @@ const WorshipPeople = (() => {
             .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
             .or(`spiritual_name.ilike.${кав},first_name.ilike.${кав},last_name.ilike.${кав}`)
             .limit(20);
+        if (моё !== поколениеПоиска) return;
         if (error) return Layout.handleError(error, 'Поиск человека');
 
-        const уже = new Set(люди.map(ч => ч.vaishnava_id));
+        // выведенный из отдела — не «уже в отделе»: его можно вернуть,
+        // а раньше кнопки не было, и вернуть человека было нельзя вовсе
+        const уже = new Set(люди.filter(ч => ч.is_active !== false).map(ч => ч.vaishnava_id));
+        const выбыли = new Set(люди.filter(ч => ч.is_active === false).map(ч => ч.vaishnava_id));
         $('#дСписок').innerHTML = (data || []).map(в => {
             const имя2 = в.spiritual_name ||
                 `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени';
@@ -370,26 +446,47 @@ const WorshipPeople = (() => {
                 <span class="flex-1 min-w-0">
                     <span class="font-semibold">${e(имя2)}</span>
                     ${!в.user_id
-                        ? '<span class="badge badge-sm badge-ghost ml-1">нет входа</span>'
+                        ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">нет входа</span>'
                         : !в.telegram_chat_id
-                            ? '<span class="badge badge-sm badge-ghost ml-1">бот не подключён</span>' : ''}
+                            ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">бот не подключён</span>' : ''}
                 </span>
                 ${уже.has(в.id)
                     ? '<span class="text-sm opacity-60">уже в отделе</span>'
-                    : `<button class="btn btn-sm btn-outline" data-взять="${в.id}">Добавить</button>`}
+                    : `<button class="btn btn-sm btn-outline" data-взять="${в.id}">${
+                        выбыли.has(в.id) ? 'Вернуть в отдел' : 'Добавить'}</button>`}
             </li>`;
         }).join('') || '<li class="py-3 text-sm opacity-60">Никого не нашлось</li>';
     }
 
+    /** Кем человека добавляют: выбрано в окне, по умолчанию — команда. */
+    let новыйВид = 'team';
+
+    function рисоватьНовыйВид() {
+        document.querySelectorAll('[data-новый-вид]').forEach(б =>
+            б.classList.toggle('btn-active', б.getAttribute('data-новый-вид') === новыйВид));
+        $('#дСрокБлок').hidden = новыйВид !== 'volunteer';
+    }
+
     async function добавить(vaishnavaId) {
+        const бессрочно = $('#дБессрочно').checked;
+        const срок = новыйВид === 'volunteer' && !бессрочно
+            ? ($('#дСрокПо').value || null) : null;
+        if (новыйВид === 'volunteer' && !срок && !бессрочно) {
+            Layout.showNotification('Поставьте день окончания или отметьте, что срок не известен', 'warning');
+            return $('#дСрокПо').focus();
+        }
+
         // вернуть выведенного — это не новая запись: человек один
         const был = люди.find(ч => ч.vaishnava_id === vaishnavaId);
         const запрос = был
             ? Layout.db.from('worship_people').update({
-                is_active: true, updated_at: new Date().toISOString(),
+                is_active: true, kind: новыйВид, active_to: срок,
+                updated_at: new Date().toISOString(),
                 updated_by: window.currentUser?.id || null }).eq('id', был.id)
             : Layout.db.from('worship_people').insert({
-                vaishnava_id: vaishnavaId, created_by: window.currentUser?.id || null });
+                vaishnava_id: vaishnavaId, kind: новыйВид, active_to: срок,
+                active_from: DateUtils.todayAshramISO(),
+                created_by: window.currentUser?.id || null });
 
         const { data, error } = await запрос.select('id');
         if (error) return Layout.handleError(error, 'Человек');
@@ -420,7 +517,7 @@ const WorshipPeople = (() => {
             if (ч) return открыть(ч.dataset.человек);
 
             const взять = ev.target.closest('[data-взять]');
-            if (взять) return добавить(взять.dataset.взять);
+            if (взять) return разом(взять, () => добавить(взять.dataset.взять));
 
             const снять = ev.target.closest('[data-снятьОтметку]');
             if (снять) {
@@ -441,8 +538,19 @@ const WorshipPeople = (() => {
 
             const b = ev.target.closest('button');
             if (!b) return;
+            const новый = ev.target.closest('[data-новый-вид]');
+            if (новый) {
+                новыйВид = новый.getAttribute('data-новый-вид');
+                рисоватьНовыйВид();
+                return;
+            }
+
             if (b.id === 'добавить') {
                 $('#дПоиск').value = '';
+                новыйВид = 'team';
+                $('#дСрокПо').value = '';
+                $('#дБессрочно').checked = false;
+                рисоватьНовыйВид();
                 $('#дСписок').innerHTML = '<li class="py-3 text-sm opacity-60">Впишите часть имени.</li>';
                 return $('#добавлениеМодал').showModal();
             }
@@ -450,12 +558,15 @@ const WorshipPeople = (() => {
             if (b.id === 'кДобавитьОтметку') return открытьОтметку(открытый.id);
             if (b.id === 'оtСохранить') return сохранитьОтметку();
             if (b.id === 'кИсключить') return исключить();
+            const вид = ev.target.closest('[data-вид-человека]');
+            if (вид && открытый) return записатьВид(вид.getAttribute('data-вид-человека'));
+
             if (b.id === 'кСрокСохранить') {
                 const ок = await записатьСрок();
                 if (ок) Layout.showNotification('Срок участия сохранён', 'success');
                 return;
             }
-            if (b.id === 'кЗаметкаДобавить') {
+            if (b.id === 'кЗаметкаДобавить') return разом(b, async () => {
                 const текст = $('#кЗаметкаТекст').value.trim();
                 if (!текст) return;
                 const { error } = await Layout.db.from('worship_person_notes').insert({
@@ -465,7 +576,7 @@ const WorshipPeople = (() => {
                 if (error) return Layout.handleError(error, 'Заметка');
                 $('#кЗаметкаТекст').value = '';
                 return рисоватьЗаметки();
-            }
+            });
         });
 
         document.addEventListener('change', async ev => {
@@ -476,6 +587,7 @@ const WorshipPeople = (() => {
         });
 
         $('#дПоиск').addEventListener('input', Layout.debounce(искатьЛюдей, 300));
+        $('#поиск').addEventListener('input', Layout.debounce(рисовать, 200));
     }
 
     async function init() {

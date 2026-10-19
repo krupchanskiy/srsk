@@ -21,10 +21,6 @@ const WorshipMaterial = (() => {
     let статья = null, версия = null, разделы = [], вложения = [];
     let грязно = false, сохраняется = false;
 
-    const ПОДСКАЗКИ = { p: 'Текст', h2: 'Заголовок', h3: 'Подзаголовок', note: 'Заметка' };
-    const НАЗВАНИЯ = { p: 'Абзац', h2: 'Заголовок', h3: 'Подзаголовок',
-                       ul: 'Список', ol: 'По шагам', note: 'Заметка' };
-
     // ---------- загрузка ----------
     async function загрузить() {
         const запросы = [
@@ -61,6 +57,7 @@ const WorshipMaterial = (() => {
             : статья.status === 'archived' ? 'Материал · в архиве'
             : 'Материал библиотеки';
         $('#заголовок').value = статья?.title || '';
+        заголовокПоТексту();
         $('#описание').value = статья?.summary || '';
         $('#автор').value = статья?.author_name || '';
         $('#источник').value = статья?.source || '';
@@ -74,6 +71,9 @@ const WorshipMaterial = (() => {
         ['#заголовок', '#описание', '#автор', '#источник', '#раздел'].forEach(s => {
             $(s).disabled = !можноПисать();
         });
+        // читателю текст не правится: поле было редактируемым у всех,
+        // правка читателя никуда не сохранялась и пропадала молча
+        $('#текст').contentEditable = можноПисать() ? 'true' : 'false';
 
         // «Сохранить» теперь одна — липкая внизу страницы: раньше на экране
         // висели две одинаковые кнопки, и было непонятно, чем они отличаются.
@@ -89,7 +89,7 @@ const WorshipMaterial = (() => {
 
         $('#actions').innerHTML = редкие.length ? `
             <div class="dropdown dropdown-end">
-                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
                         <circle cx="12" cy="19" r="1.7"></circle>
@@ -134,8 +134,42 @@ const WorshipMaterial = (() => {
 
     /** Оформление идёт через execCommand: только так правка попадает
         в историю браузера, то есть работает обычный Ctrl+Z. */
+
+    /**
+     * Где стоял курсор в тексте. Любое окно — ссылка, выбор снимка, вопрос —
+     * забирает фокус, и выделение гаснет: дальше execCommand применялся
+     * к началу поля, и вставка уходила в первый абзац вместо выбранного места.
+     */
+    let последнийДиапазон = null;
+
+    function вПоле(узел) {
+        const эл = узел?.nodeType === 1 ? узел : узел?.parentElement;
+        return !!эл && !!$('#текст') && $('#текст').contains(эл);
+    }
+
+    function следитьЗаКурсором() {
+        document.addEventListener('selectionchange', () => {
+            const в = getSelection();
+            if (!в || !в.rangeCount) return;
+            const д = в.getRangeAt(0);
+            if (вПоле(д.commonAncestorContainer)) последнийДиапазон = д.cloneRange();
+        });
+    }
+
+    /** Вернуть курсор туда, где он был до окна. */
+    function вернутьсяВПоле() {
+        const п = $('#текст');
+        if (!п) return;
+        п.focus();
+        const в = getSelection();
+        if (в.rangeCount && вПоле(в.getRangeAt(0).commonAncestorContainer)) return;
+        if (!последнийДиапазон) return;
+        в.removeAllRanges();
+        в.addRange(последнийДиапазон);
+    }
+
     function команда(имя, значение = null) {
-        $('#текст').focus();
+        вернутьсяВПоле();
         document.execCommand(имя, false, значение);
         пометить();
     }
@@ -378,10 +412,37 @@ const WorshipMaterial = (() => {
         // человек приложил скан, а абзац, который он только что написал,
         // пропадал без предупреждения
         if (сохранитьСначала && грязно && id) await сохранить();
-        if (await загрузить()) { рисоватьШапку(); рисоватьВложения(); наполнитьПоле(); window.applyPermissions?.(); }
+        if (!await загрузить()) return;
+        // сохранить не вышло (сеть, описание стёрто) — текст и поля остаются
+        // как есть, обновляем только вложения: иначе база молча затирала бы
+        // то, что человек написал, ровно в момент, когда мы о ней сообщили
+        if (грязно) { рисоватьВложения(); return; }
+        рисоватьШапку(); рисоватьВложения(); наполнитьПоле(); window.applyPermissions?.();
+    }
+
+    /**
+     * Название — многострочное поле, которое ведёт себя как одна строка:
+     * высота по тексту, Enter не переносит, вставленные переносы — пробелы.
+     */
+    function заголовокПоТексту() {
+        const п = $('#заголовок');
+        // пока поле скрыто, высоты у него нет — тогда оставляем как есть
+        if (!п.offsetParent) return;
+        п.style.height = 'auto';
+        п.style.height = п.scrollHeight + 'px';
+    }
+    function настроитьЗаголовок() {
+        const п = $('#заголовок');
+        п.addEventListener('keydown', ev => { if (ev.key === 'Enter') ev.preventDefault(); });
+        п.addEventListener('input', () => {
+            if (/\n/.test(п.value)) п.value = п.value.replace(/\s*\n\s*/g, ' ');
+            заголовокПоТексту();
+        });
+        window.addEventListener('resize', заголовокПоТексту);
     }
 
     function слушать() {
+        настроитьЗаголовок();
         const текст = $('#текст');
         текст.addEventListener('input', пометить);
         текст.addEventListener('keyup', обновитьПанель);
@@ -411,9 +472,16 @@ const WorshipMaterial = (() => {
             if (!выделение.rangeCount || выделение.isCollapsed) {
                 return Layout.showNotification('Выделите слова, которые станут ссылкой', 'info');
             }
+            // окно ввода забирает фокус и гасит выделение: без этого ссылка
+            // вставлялась в начало текста, а не на выделенное слово
+            const диапазон = выделение.getRangeAt(0).cloneRange();
+
             const куда = await спроситьСтроку({ заголовок: 'Адрес ссылки' });
             const чистый = куда && WorshipDoc.адрес(куда);
             if (!чистый) return куда && Layout.showNotification('Такой адрес не годится', 'warning');
+
+            последнийДиапазон = диапазон;
+            вернутьсяВПоле();
             document.execCommand('createLink', false, чистый);
             пометить();
         });
@@ -435,7 +503,7 @@ const WorshipMaterial = (() => {
 
             const b = ev.target.closest('button');
             if (!b) return;
-            if (b.id === 'сохранить' || b.id === 'сохранитьНизу') return сохранить();
+            if (b.id === 'сохранитьНизу') return сохранить();
             if (b.id === 'добавитьФайл') return $('#файл').click();
             if (b.id === 'добавитьСсылку') return добавитьСсылку();
 
@@ -482,6 +550,7 @@ const WorshipMaterial = (() => {
         рисоватьВложения();
         наполнитьПоле();
         слушать();
+        следитьЗаКурсором();
         window.applyPermissions?.();
         if (id) WorshipTags.нарисовать($('#теги'), { article_id: id }, { можноПравить: можноПисать() });
         состояние('');

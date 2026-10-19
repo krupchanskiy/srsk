@@ -5,7 +5,7 @@
          к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
     <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <script src="../js/color-init.js?v=6"></script>
+    <script src="../js/color-init.js?v=7"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n-title="crm_managers_page_title">Менеджеры — CRM — ШРСК</title>
@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=25">
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
@@ -62,7 +62,7 @@
                 <div class="form-control">
                     <label class="label"><span class="label-text" data-i18n="crm_add_to_queue">Добавить в очередь</span></label>
                     <div class="flex gap-2">
-                        <select id="addToQueueSelect" class="select select-bordered flex-1">
+                        <select aria-label="Добавить менеджера в очередь" id="addToQueueSelect" class="select select-bordered flex-1">
                             <option value="" data-i18n="crm_select_manager">Выберите менеджера...</option>
                         </select>
                         <button class="btn btn-primary" onclick="addToQueue()" data-permission="edit_crm_settings" data-i18n="add">
@@ -78,12 +78,12 @@
 <div id="footer-placeholder"></div>
 
 <script src="../js/config.js?v=5"></script>
-<script src="../js/auth-check.js?v=13"></script>
+<script src="../js/auth-check.js?v=14"></script>
 <script src="../js/cache.js?v=2"></script>
-<script src="../js/utils.js?v=17"></script>
-<script src="../js/date-utils.js?v=4"></script>
-<script src="../js/layout.js?v=112"></script>
-<script src="../js/crm-utils.js?v=6"></script>
+<script src="../js/utils.js?v=20"></script>
+<script src="../js/date-utils.js?v=5"></script>
+<script src="../js/layout.js?v=118"></script>
+<script src="../js/crm-utils.js?v=7"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -244,6 +244,7 @@ function renderQueue() {
                 <div class="flex gap-1">
                     <label class="swap" title="${q.is_active ? t('crm_active_status') : t('crm_paused_status')}">
                         <input type="checkbox" ${q.is_active ? 'checked' : ''}
+                               aria-label="${q.is_active ? 'Принимает новые сделки' : 'На паузе'}"
                                onchange="toggleQueueActive('${q.id}', this.checked)"
                                data-permission="edit_crm_settings">
                         <span class="swap-on text-success">${CrmUtils.UI_ICONS.checkCircle}</span>

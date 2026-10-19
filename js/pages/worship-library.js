@@ -12,7 +12,6 @@ const WorshipLibrary = (() => {
     const дата = v => v ? DateUtils.formatShort(new Date(v)) : '';
 
     const можноПисать = () => !!window.hasPermission?.('worship_write');
-    const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
 
     let разделы = [], материалы = [], вложения = {};
     let фильтр = { поиск: new URLSearchParams(location.search).get('q') || '', вид: '', архив: false };
@@ -32,13 +31,15 @@ const WorshipLibrary = (() => {
 
         вложения = {};
         if (материалы.length) {
-            const ids = материалы.map(м2 => м2.id);
             // порциями: PostgREST отдаёт не больше тысячи строк за раз, и у части
-            // материалов иначе пропали бы значки «файл» и «ссылка»
+            // материалов иначе пропали бы значки «файл» и «ссылка».
+            // Без фильтра по списку id: вложения бывают только у материалов,
+            // а лишнее отсекает RLS. Список из трёхсот id в адресе запроса
+            // упирался в предел длины URL, и библиотека переставала грузиться.
             const { data, error } = await Utils.fetchAll((от, до) =>
                 Layout.db.from('worship_attachments')
                     .select('id, article_id, kind, name, url, storage_path, size_bytes, mime')
-                    .in('article_id', ids).order('sort_order').range(от, до));
+                    .order('sort_order').order('id').range(от, до));
             if (error) { Layout.handleError(error, 'Вложения'); return false; }
             (data || []).forEach(в => {
                 вложения[в.article_id] = вложения[в.article_id] || [];
@@ -144,30 +145,35 @@ const WorshipLibrary = (() => {
         }
 
         const безРаздела = видимые.filter(м => !м.section_id);
+        // Заголовок — шапка той же карточки, как на странице стандартов:
+        // отдельной строкой над списком он читался как подпись к соседу сверху
+        const разделHTML = (имя, свои, раздел) => `
+            <section class="разделСписка mb-3 rounded-xl shadow-sm overflow-hidden"
+                     style="background: oklch(var(--b1));">
+                <div class="flex flex-wrap items-center gap-3 px-5 py-3"
+                     style="background: color-mix(in srgb, var(--current-color) 9%, transparent);">
+                    <h2 class="text-base font-bold uppercase tracking-wide ${
+                        раздел ? '' : 'opacity-70'}">${e(имя)}</h2>
+                    <span class="text-sm opacity-70">${свои.length}</span>
+                    ${раздел && !раздел.is_active ? '<span class="badge badge-sm">скрыт</span>' : ''}
+                    <span class="flex-1"></span>
+                    ${раздел && можноПисать()
+                        ? `<a href="material.html?section=${раздел.id}"
+                              class="btn btn-ghost btn-xs ручкиСтроки">+ материал</a>` : ''}
+                </div>
+                <ul class="list-none m-0 p-0 border-t"
+                    style="border-color: color-mix(in srgb, var(--current-color) 18%, transparent);">
+                    ${свои.map(строка).join('') ||
+                      '<li class="px-5 py-4 text-sm opacity-70">Пока пусто</li>'}
+                </ul>
+            </section>`;
+
         тело.innerHTML = разделы.map(р => {
             const свои = видимые.filter(м => м.section_id === р.id);
             if (!свои.length && (фильтр.поиск || фильтр.вид)) return '';
-            return `
-            <section class="разделСписка mb-6">
-                <div class="flex flex-wrap items-baseline gap-3 px-1 mb-1">
-                    <h2 class="text-base font-bold uppercase tracking-wide">${e(Layout.getName(р))}</h2>
-                    <span class="text-sm opacity-70">${свои.length}</span>
-                    ${р.is_active ? '' : '<span class="badge badge-sm">скрыт</span>'}
-                    <span class="flex-1"></span>
-                    ${можноПисать()
-                        ? `<a href="material.html?section=${р.id}" class="btn btn-ghost btn-xs ручкиСтроки">+ материал</a>` : ''}
-                </div>
-                <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">
-                    ${свои.map(строка).join('') ||
-                      '<li class="px-4 py-4 text-sm opacity-70">Пока пусто</li>'}
-                </ul>
-            </section>`;
-        }).join('') + (безРаздела.length ? `
-            <section class="разделСписка mb-6">
-                <div class="px-1 mb-1"><h2 class="text-base font-bold uppercase tracking-wide opacity-70">Без раздела</h2></div>
-                <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">${
-                    безРаздела.map(строка).join('')}</ul>
-            </section>` : '');
+            return разделHTML(Layout.getName(р), свои, р);
+        }).join('') + (безРаздела.length
+            ? разделHTML('Без раздела', безРаздела, null) : '');
 
         if (!видимые.length) {
             тело.innerHTML = фильтр.поиск || фильтр.вид

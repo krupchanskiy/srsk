@@ -17,17 +17,17 @@ const WorshipSchedule = (() => {
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
     const ДНИ = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-    // Расписание ведут вперёд. Если от недели остались день-два, открывать
-    // её бессмысленно: старший в субботу вечером садится планировать
-    // следующую, а попадал на уже прошедшую и первым делом жал «›».
-    let понедельник = (() => {
-        const сегодня = new Date();
-        const свой = ближайшийПонедельник(сегодня);
-        const осталосьДней = 7 - ((сегодня.getDay() + 6) % 7);   // включая сегодня
-        if (осталосьДней <= 2) свой.setDate(свой.getDate() + 7);
-        return свой;
+    // Расписание ведут вперёд, поэтому неделя считается от сегодняшнего дня,
+    // а не от понедельника. На календарной неделе в воскресенье открывались
+    // шесть прошедших дней и один сегодняшний: смотреть там нечего, и первым
+    // движением старший жал «›». Теперь слева всегда сегодня, справа — то,
+    // что предстоит расписать.
+    let началоНедели = (() => {
+        const д = DateUtils.nowAshram();
+        д.setHours(0, 0, 0, 0);
+        return д;
     })();
-    let выбранныйДень = DateUtils.toISO(new Date());
+    let выбранныйДень = DateUtils.todayAshramISO();
     let вид = window.matchMedia('(max-width: 900px)').matches ? 'день' : 'неделя';
 
     let службы = [], люди = [], назначения = [], отклонения = [], отметки = [], стандарты = [];
@@ -36,16 +36,15 @@ const WorshipSchedule = (() => {
     let клетка = null;                // что сейчас назначаем
 
     // ---------- даты ----------
-    function ближайшийПонедельник(дата) {
+    /** Окно из семи дней начинается с того дня, который человек открыл. */
+    function началоОт(дата) {
         const д = new Date(дата);
-        const сдвиг = (д.getDay() + 6) % 7;      // воскресенье — седьмой день, а не первый
-        д.setDate(д.getDate() - сдвиг);
         д.setHours(0, 0, 0, 0);
         return д;
     }
 
     const деньНедели = i => {
-        const д = new Date(понедельник);
+        const д = new Date(началоНедели);
         д.setDate(д.getDate() + i);
         return д;
     };
@@ -53,15 +52,21 @@ const WorshipSchedule = (() => {
     const дни = () => Array.from({ length: 7 }, (_, i) => DateUtils.toISO(деньНедели(i)));
 
     // ---------- загрузка ----------
-    async function загрузить() {
+    // Листание недель часто идёт быстрыми щелчками: ответ по прежней неделе
+    // может прийти позже свежего и нарисовать чужие назначения под новыми
+    // датами. Поколение отсекает такие опоздавшие ответы.
+    let поколение = 0;
+
+    /**
+     * всё = false — только то, что зависит от открытых дней (назначения,
+     * отклонения, отметки). Службы, люди, допуски и стандарты от недели
+     * не зависят, и при листании их незачем тянуть заново.
+     */
+    async function загрузить(всё = true) {
+        const моё = ++поколение;
         const от = дни()[0], до = дни()[6];
 
-        const [с, л, н, о, от2] = await Promise.all([
-            Layout.db.from('worship_services')
-                .select('id, name_ru, name_en, name_hi, time_of_day, sort_order, article_id, is_active')
-                .order('sort_order').order('time_of_day'),
-            Layout.db.from('worship_people')
-                .select('id, vaishnava_id, active_from, active_to, is_active'),
+        const [н, о, от2, с, л, доп, ст] = await Promise.all([
             Layout.db.from('worship_duties')
                 .select('id, duty_date, service_id, override_id, person_id, role')
                 .gte('duty_date', от).lte('duty_date', до),
@@ -71,61 +76,73 @@ const WorshipSchedule = (() => {
             Layout.db.from('worship_absences')
                 .select('id, person_id, date_from, date_to, reason')
                 .lte('date_from', до),
+            всё ? Layout.db.from('worship_services')
+                .select('id, name_ru, name_en, name_hi, time_of_day, sort_order, article_id, is_active')
+                .order('sort_order').order('time_of_day') : null,
+            всё ? Layout.db.from('worship_people')
+                .select('id, vaishnava_id, active_from, active_to, is_active, kind') : null,
+            // допуски нужны для пометок в выборе человека и в клетке
+            всё ? Layout.db.from('worship_person_services').select('person_id, service_id') : null,
+            // стандарты нужны, чтобы у службы можно было задать «как делается»
+            всё ? Layout.db.from('worship_articles')
+                .select('id, title').eq('kind', 'standard').eq('status', 'published').order('title') : null,
         ]);
-        const ошибка = с.error || л.error || н.error || о.error || от2.error;
+        if (моё !== поколение) return false;
+        const ошибка = [н, о, от2, с, л, доп, ст].find(r => r?.error)?.error;
         if (ошибка) { Layout.handleError(ошибка, 'Расписание'); return false; }
 
-        службы = с.data || [];
+        if (всё) {
+            let новые = л.data || [];
+            let я = null;
+            const ids = новые.map(ч => ч.vaishnava_id);
+            if (ids.length) {
+                const { data, error } = await Layout.db.from('vaishnavas')
+                    .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
+                    .in('id', ids);
+                if (моё !== поколение) return false;
+                if (error) { Layout.handleError(error, 'Расписание'); return false; }
+                const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
+                новые = новые.map(ч => {
+                    const в = карточки[ч.vaishnava_id] || {};
+                    return {
+                        ...ч,
+                        имя: в.spiritual_name ||
+                            `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени',
+                        безВхода: !в.user_id,
+                        безБота: !!в.user_id && !в.telegram_chat_id,
+                    };
+                }).sort((a, b) => a.имя.localeCompare(b.имя, 'ru'));
+                я = новые.find(ч => карточки[ч.vaishnava_id]?.user_id === window.currentUser?.id) || null;
+            }
+            новые.forEach(ч => {
+                ч.допуск = new Set((доп.data || [])
+                    .filter(д => д.person_id === ч.id).map(д => д.service_id));
+            });
+            службы = с.data || [];
+            люди = новые;
+            яЧеловек = я;
+            стандарты = ст.data || [];
+            await загрузитьМои();
+            if (моё !== поколение) return false;
+        }
+
         назначения = н.data || [];
         отклонения = о.data || [];
         // бессрочная отметка не имеет даты окончания — её не отфильтровать запросом
         отметки = (от2.data || []).filter(а => !а.date_to || а.date_to >= от);
-
-        люди = л.data || [];
-        const ids = люди.map(ч => ч.vaishnava_id);
-        if (ids.length) {
-            const { data } = await Layout.db.from('vaishnavas')
-                .select('id, spiritual_name, first_name, last_name, user_id, telegram_chat_id')
-                .in('id', ids);
-            const карточки = Object.fromEntries((data || []).map(в => [в.id, в]));
-            люди = люди.map(ч => {
-                const в = карточки[ч.vaishnava_id] || {};
-                return {
-                    ...ч,
-                    имя: в.spiritual_name ||
-                        `${в.first_name || ''} ${в.last_name || ''}`.trim() || 'без имени',
-                    безВхода: !в.user_id,
-                    безБота: !!в.user_id && !в.telegram_chat_id,
-                };
-            }).sort((a, b) => a.имя.localeCompare(b.имя, 'ru'));
-            яЧеловек = люди.find(ч => карточки[ч.vaishnava_id]?.user_id === window.currentUser?.id) || null;
-        }
-
-        // допуски нужны для пометок в выборе человека и в клетке
-        const { data: допуски } = await Layout.db.from('worship_person_services').select('person_id, service_id');
-        люди.forEach(ч => {
-            ч.допуск = new Set((допуски || [])
-                .filter(д => д.person_id === ч.id).map(д => д.service_id));
-        });
-
-        // стандарты нужны, чтобы у службы можно было задать «как делается»
-        const { data: ст } = await Layout.db.from('worship_articles')
-            .select('id, title').eq('kind', 'standard').eq('status', 'published').order('title');
-        стандарты = ст || [];
-
-        await загрузитьМои();
         return true;
     }
 
     /**
      * «Ваши ближайшие службы» — про завтра, а не про открытую неделю:
      * в воскресенье вечером человек смотрит расписание ровно затем, чтобы
-     * увидеть понедельник, и листать за этим он не станет.
+     * увидеть ближайшие дни, и листать за этим он не станет.
      */
     async function загрузитьМои() {
         мои = [];
+        моиОтклонения = [];
         if (!яЧеловек) return;
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         const { data } = await Layout.db.from('worship_duties')
             .select('id, duty_date, service_id, override_id, role')
             .eq('person_id', яЧеловек.id).gte('duty_date', сегодня)
@@ -153,10 +170,18 @@ const WorshipSchedule = (() => {
 
     const разовыеДня = день => отклонения.filter(о => о.title && о.duty_date === день);
 
-    /** Назначение, которое и правда закроет службу: человек в отделе и не в отъезде. */
+    /**
+     * Назначение, которое и правда закроет службу: человек в отделе, его срок
+     * участия этот день покрывает, и он не в отъезде. Клетка с волонтёром,
+     * у которого срок истёк, раньше красилась зелёным, хотя сама же
+     * зачёркивала его с пометкой «срок истёк».
+     */
     const кто_придёт = (н, день) => {
         const ч = человек(н.person_id);
-        return !!ч && ч.is_active !== false && !вОтъезде(ч.id, день);
+        return !!ч && ч.is_active !== false
+            && (!ч.active_to || ч.active_to >= день)
+            && (!ч.active_from || ч.active_from <= день)
+            && !вОтъезде(ч.id, день);
     };
 
     const вКлетке = (день, serviceId, overrideId) => назначения.filter(н =>
@@ -169,19 +194,21 @@ const WorshipSchedule = (() => {
         // пуджари — посмотреть свои службы и, если заболел, отметиться.
         // Остальное — обслуживание, ему место под «ещё».
         const редкие = [];
-        if (можноВести()) редкие.push('<li><button id="вестиСлужбы">Службы и время</button></li>');
         редкие.push('<li><button id="печать">Распечатать неделю</button></li>');
         if (яЧеловек && можноВести()) редкие.push('<li><button id="яНеСмогу">Меня не будет</button></li>');
 
         $('#actions').innerHTML = `
             ${можноВести()
                 ? `<button class="btn btn-sm" id="копияНедели"
-                        style="background: var(--current-color); color:#fff;">Как на прошлой неделе</button>`
+                        style="background: var(--current-color); color:#fff;">Как на прошлой неделе</button>
+                   <!-- состав служб и их время правят не каждый день, но ищут
+                        именно здесь: под «ещё» эту кнопку не находили -->
+                   <button class="btn btn-sm btn-outline" id="вестиСлужбы">Службы и время</button>`
                 : яЧеловек
                     ? '<button class="btn btn-sm btn-outline" id="яНеСмогу">Меня не будет</button>'
                     : ''}
             <div class="dropdown dropdown-end">
-                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
                         <circle cx="12" cy="19" r="1.7"></circle>
@@ -192,40 +219,27 @@ const WorshipSchedule = (() => {
                 </ul>
             </div>`;
 
-        // клетку закрывает только тот, кто придёт: отметившийся об отъезде
-        // и выведенный из отдела её не держат, а прошедшие дни не считаем
-        const сегодняISO = DateUtils.toISO(new Date());
-        const пустых = службы.filter(с => с.is_active).reduce((сумма, с) =>
-            сумма + дни().filter(д => д >= сегодняISO && !отменена(с.id, д)
-                && !вКлетке(д, с.id).some(н => кто_придёт(н, д))).length, 0);
         // неделя, которую не вели, и неделя, которую не закрыли, — разные вещи:
         // пустая шахматка в прошлом не должна читаться как обвинение
-        const прошлая = дни()[6] < DateUtils.toISO(new Date());
-        // Незакрытые клетки — единственное число, ради которого старший сюда
-        // заходит. Раньше оно было мелким серым подзаголовком наравне
-        // с «Прошедшая неделя».
+        const прошлая = дни()[6] < DateUtils.todayAshramISO();
+        // Счётчик незакрытых клеток отсюда убран: это же самое видно по самой
+        // шахматке — жёлтые клетки и строка «закрыто за день» внизу
         const поле = $('#подзаголовок');
+        поле.className = 'text-sm opacity-70 mt-1';
         if (!службы.length) {
-            поле.className = 'text-sm opacity-70 mt-1';
             поле.textContent = можноВести()
                 ? 'Служб пока нет — заведите их кнопкой «Службы»'
                 : 'Служб пока нет: их заводит старший пуджари';
         } else if (прошлая) {
-            поле.className = 'text-sm opacity-70 mt-1';
             поле.textContent = назначения.length ? 'Прошедшая неделя' : 'Эту неделю в системе не вели';
-        } else if (пустых) {
-            поле.className = 'mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 ' +
-                'bg-warning/15 border border-warning/40 font-semibold';
-            поле.textContent = `${Layout.pluralize(пустых, {
-                ru: ['клетка не закрыта', 'клетки не закрыты', 'клеток не закрыто'],
-                en: ['slot open', 'slots open'], hi: 'खाली' })}`;
         } else {
-            поле.className = 'mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 ' +
-                'bg-success/15 border border-success/40 font-semibold';
-            поле.textContent = 'Вся неделя закрыта';
+            поле.textContent = '';
         }
 
         const начало = деньНедели(0), конец = деньНедели(6);
+        // на бумаге нет кнопок и подписей сверху: период печатается в шапке листа
+        const лист = $('#печатьПериод');
+        if (лист) лист.textContent = `${DateUtils.formatShort(начало)} — ${DateUtils.formatShort(конец)}`;
         $('#периодНадпись').textContent = вид === 'день'
             ? DateUtils.formatWithWeekday(DateUtils.parseDate(выбранныйДень))
             : `${DateUtils.formatShort(начало)} — ${DateUtils.formatShort(конец)}`;
@@ -239,8 +253,11 @@ const WorshipSchedule = (() => {
     function рисоватьМои() {
         if (!яЧеловек || !мои.length) { $('#мои').hidden = true; return; }
 
-        const отменён = н => н.service_id && моиОтклонения.some(о =>
-            о.service_id === н.service_id && о.duty_date === н.duty_date);
+        // снятая с расписания служба — тоже «не проводится»: назначения на неё
+        // остаются в базе, но приходить к ней не нужно
+        const отключена = н => н.service_id && службы.find(с => с.id === н.service_id)?.is_active === false;
+        const отменён = н => отключена(н) || (н.service_id && моиОтклонения.some(о =>
+            о.service_id === н.service_id && о.duty_date === н.duty_date));
         const живые = мои.filter(н => !отменён(н)).slice(0, 5);
         const снятые = мои.filter(отменён);
 
@@ -252,7 +269,8 @@ const WorshipSchedule = (() => {
             <li class="py-1 flex flex-wrap items-baseline gap-2 opacity-70">
                 <span class="font-semibold line-through">${e(деньПоЧеловечески(н.duty_date))}</span>
                 <span class="line-through">${e(имяСлужбы(н))}</span>
-                <span class="badge badge-sm badge-warning">в этот день не проводится</span>
+                <span class="badge badge-sm badge-warning">${отключена(н)
+                    ? 'служба снята с расписания' : 'в этот день не проводится'}</span>
             </li>`).join('');
     }
 
@@ -280,11 +298,15 @@ const WorshipSchedule = (() => {
 
     function рисоватьНеделю() {
         const список = дни();
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         $('#шапкаДней').innerHTML = '<th class="w-44">Служба</th>' + список.map((д, i) => `
             <th class="${д === сегодня ? 'сегодня text-[color:var(--current-color)]' : ''}">
-                ${ДНИ[i]}<span class="block text-xs font-normal opacity-60">${
-                    д === сегодня ? 'сегодня' : DateUtils.formatShort(DateUtils.parseDate(д))}</span>
+                ${ДНИ[(DateUtils.parseDate(д).getDay() + 6) % 7]}<span class="block text-xs font-normal">${
+                    д === сегодня
+                        // лист висит неделю: «сегодня» на бумаге через день уже неправда
+                        ? `<span class="no-print">сегодня</span><span class="дляПечати">${
+                            DateUtils.formatShort(DateUtils.parseDate(д))}</span>`
+                        : DateUtils.formatShort(DateUtils.parseDate(д))}</span>
             </th>`).join('');
 
         // строки идут по времени: разовая в 06:30 стоит выше бхоги в 08:00,
@@ -330,7 +352,7 @@ const WorshipSchedule = (() => {
     }
 
     function клеткаHTML(день, служба, разовая) {
-        const сегодня = день === DateUtils.toISO(new Date()) ? ' сегодня' : '';
+        const сегодня = день === DateUtils.todayAshramISO() ? ' сегодня' : '';
 
         if (служба && отменена(служба.id, день)) {
             const о = отклонения.find(x => x.service_id === служба.id && x.duty_date === день);
@@ -358,7 +380,7 @@ const WorshipSchedule = (() => {
 
         if (!свои.length) {
             // в прошедшем дне дыра — не дело, а история: подсвечивать нечего
-            const прошло = день < DateUtils.toISO(new Date());
+            const прошло = день < DateUtils.todayAshramISO();
             if (прошло) {
                 return `<td class="клетка прошлаяПустая${сегодня}
                             ${можноВести() ? 'cursor-pointer' : ''}"
@@ -380,14 +402,21 @@ const WorshipSchedule = (() => {
                     </svg>поставить</span></td>`;
         }
 
+        // Команду и волонтёров видно по густоте зелёного: клетку, которую
+        // держит только приехавший на время, старший перепроверяет первой —
+        // срок участия кончится раньше, чем расписание.
+        const командой = свои.some(н => кто_придёт(н, день)
+            && (человек(н.person_id)?.kind || 'team') === 'team');
+        const краска = закрыта ? (командой ? 'закрыта командой' : 'закрыта волонтёром') : 'дыра';
+
         // кто-то стоит, но прийти не может — это такая же дыра, только с именем
-        return `<td class="клетка${закрыта ? '' : ' дыра'}${моя ? ' своя' : ''}${сегодня}">
+        return `<td class="клетка ${краска}${моя ? ' своя' : ''}${сегодня}">
             ${свои.map(н => {
                 const ч = человек(н.person_id);
                 const пометки = состоянияКлетки(н, ч, день, служба);
                 return `
-                <div class="плашкаИмени mb-1">
-                    <span class="flex-1 min-w-0">
+                <div class="плашкаИмени">
+                    <span class="flex-1 min-w-0 leading-snug">
                         <a class="link link-hover text-sm ${пометки.зачеркнуть ? 'line-through opacity-60' : ''}"
                            href="people.html?id=${н.person_id}">${e(ч?.имя || 'кто-то')}</a>
                         ${н.role !== 'pujari'
@@ -414,7 +443,7 @@ const WorshipSchedule = (() => {
      */
     function рисоватьИтогДней() {
         const список = дни();
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         const активные = службы.filter(с => с.is_active);
         if (!активные.length && !отклонения.some(о => о.title)) {
             $('#итогДней').innerHTML = '';
@@ -422,7 +451,7 @@ const WorshipSchedule = (() => {
         }
 
         $('#итогДней').innerHTML = `<tr>
-            <td class="text-xs opacity-70 font-semibold">Закрыто за день</td>
+            <td class="text-xs font-semibold">Закрыто за день</td>
             ${список.map(д => {
                 const надо = активные.filter(с => !отменена(с.id, д)).length
                     + разовыеДня(д).length;
@@ -459,6 +488,7 @@ const WorshipSchedule = (() => {
         if (вОтъезде(ч.id, день)) { список.push(['в отъезде', 'badge-warning']); зачеркнуть = true; }
         if (ч.is_active === false) { список.push(['не в отделе', 'badge-warning']); зачеркнуть = true; }
         if (ч.active_to && ч.active_to < день) { список.push(['срок истёк', 'badge-warning']); зачеркнуть = true; }
+        if (ч.active_from && ч.active_from > день) { список.push(['ещё не в отделе', 'badge-warning']); зачеркнуть = true; }
 
         // «занят в это же время» — именно по времени, а не по дню: при четырёх
         // службах «в этот день» загорится у всех и перестанет что-либо значить
@@ -491,8 +521,17 @@ const WorshipSchedule = (() => {
         $('#деньСписок').innerHTML = всё.map(({ служба, разовая, время, имя }) => {
             const отмена = служба && отменена(служба.id, д);
             const свои = отмена ? [] : вКлетке(д, служба?.id, разовая?.id);
+            // день читается теми же цветами, что и неделя: закрыто — зелёным,
+            // некому служить — жёлтым, иначе на телефоне состояние пришлось бы
+            // вычитывать из слов «никто не поставлен»
+            const прошло = д < DateUtils.todayAshramISO();
+            const закрыта = свои.some(н => кто_придёт(н, д));
+            const командой = свои.some(н => кто_придёт(н, д)
+                && (человек(н.person_id)?.kind || 'team') === 'team');
+            const краска = отмена || прошло ? ''
+                : закрыта ? (командой ? ' закрыта командой' : ' закрыта волонтёром') : ' дыра';
             return `
-            <li class="border-b border-base-200 last:border-0 py-3">
+            <li class="клеткаДня${краска} border-b border-base-200 last:border-0 py-3 px-3 -mx-3">
                 <div class="flex flex-wrap items-baseline gap-2">
                     <span class="font-semibold">${e((время || '').slice(0, 5))}</span>
                     ${служба?.article_id
@@ -503,18 +542,27 @@ const WorshipSchedule = (() => {
                 </div>
                 <div class="mt-1 flex flex-wrap items-center gap-2">
                     ${свои.length
-                        ? свои.map(н => `
-                            <a class="link link-hover text-sm" href="people.html?id=${н.person_id}">
+                        ? свои.map(н => {
+                            // тот же сигнал, что в неделе: уехавший или выбывший зачёркнут
+                            // и назван причиной — иначе на телефоне клетка жёлтая,
+                            // а имя в ней стоит как ни в чём не бывало
+                            const { список: пометки, зачеркнуть } =
+                                состоянияКлетки(н, человек(н.person_id), д, служба);
+                            return `
+                            <a class="link link-hover text-sm ${зачеркнуть ? 'line-through opacity-70' : ''}"
+                               href="people.html?id=${н.person_id}">
                                 ${e(человек(н.person_id)?.имя || 'кто-то')}</a>
+                            ${пометки.map(([т, к]) => `<span class="badge badge-sm ${к}">${e(т)}</span>`).join('')}
                             ${н.role !== 'pujari'
                                 ? `<span class="badge badge-xs">${e(РОЛИ[н.role] || н.role)}</span>` : ''}
                             ${можноВести()
-                                ? `<button class="btn btn-ghost btn-xs" data-снять="${н.id}">✕</button>` : ''}`).join('')
-                        : `<span class="text-sm ${отмена || д < DateUtils.toISO(new Date())
+                                ? `<button class="btn btn-ghost btn-sm px-2" data-снять="${н.id}" aria-label="Снять">✕</button>` : ''}`;
+                        }).join('')
+                        : `<span class="text-sm ${отмена || д < DateUtils.todayAshramISO()
                                 ? 'opacity-40' : 'opacity-60'}">${
-                            отмена ? '' : (д < DateUtils.toISO(new Date())
+                            отмена ? '' : (д < DateUtils.todayAshramISO()
                                 ? 'никого не ставили' : 'никто не поставлен')}</span>`}
-                    ${можноВести() && !отмена && д >= DateUtils.toISO(new Date())
+                    ${можноВести() && !отмена && д >= DateUtils.todayAshramISO()
                         ? `<button class="btn btn-xs btn-outline" data-клетка="${д}"
                                    data-служба="${служба?.id || ''}"
                                    data-разовая="${разовая?.id || ''}">поставить</button>` : ''}
@@ -552,8 +600,8 @@ const WorshipSchedule = (() => {
         window.applyPermissions?.();
     }
 
-    async function перечитать() {
-        if (await загрузить()) рисовать();
+    async function перечитать(всё = true) {
+        if (await загрузить(всё)) рисовать();
     }
 
     /**
@@ -615,6 +663,7 @@ const WorshipSchedule = (() => {
                     пометки.push(['в этот день уже занят', 'badge-ghost']);
                 }
                 if (ч.active_to && ч.active_to < день) пометки.push(['срок участия истёк', 'badge-warning']);
+                if (ч.active_from && ч.active_from > день) пометки.push(['ещё не в отделе', 'badge-warning']);
                 if (ч.безВхода) пометки.push(['нет входа — скажите голосом', 'badge-ghost']);
                 else if (ч.безБота) пометки.push(['бот не подключён', 'badge-ghost']);
                 return { ч, пометки, стоит: уже.has(ч.id) };
@@ -723,7 +772,12 @@ const WorshipSchedule = (() => {
 
         // предупреждаем до вставки: иначе отмена тихо оставляет людей на службе
         if (какое !== 'разовая') {
-            const стоят = назначения.filter(н => н.duty_date === дата && н.service_id === строка.service_id);
+            // спрашиваем базу, а не открытую неделю: день отмены часто лежит
+            // за её пределами, и тогда предупреждение молчало при занятой клетке
+            const { data: занятые, error: ошСтоят } = await Layout.db.from('worship_duties')
+                .select('id').eq('duty_date', дата).eq('service_id', строка.service_id);
+            if (ошСтоят) return Layout.handleError(ошСтоят, 'Отклонение дня');
+            const стоят = занятые || [];
             if (стоят.length && !await спросить('На эту службу уже кто-то поставлен',
                 `${Layout.pluralize(стоят.length, {
                     ru: ['человек останется', 'человека останутся', 'человек останутся'],
@@ -742,9 +796,16 @@ const WorshipSchedule = (() => {
         }
         $('#отклонениеМодал').close();
         // дата может лежать вне открытой недели — перейдём к ней, иначе правка «пропадёт»
-        понедельник = ближайшийПонедельник(DateUtils.parseDate(дата));
+        началоНедели = началоОт(DateUtils.parseDate(дата));
         выбранныйДень = дата;
         await перечитать();
+    }
+
+    /** Кнопка занята, пока идёт её дело: второй щелчок не создаёт дубль. */
+    async function разом(кнопка, дело) {
+        if (кнопка.disabled) return;
+        кнопка.disabled = true;
+        try { return await дело(); } finally { кнопка.disabled = false; }
     }
 
     // ---------- слушатели ----------
@@ -754,7 +815,7 @@ const WorshipSchedule = (() => {
             if (кл) return открытьНазначение(кл.dataset.клетка, кл.dataset.служба, кл.dataset.разовая);
 
             const пост = ev.target.closest('[data-поставить]');
-            if (пост) return поставить(пост.dataset.поставить);
+            if (пост) return разом(пост, () => поставить(пост.dataset.поставить));
 
             const снять = ev.target.closest('[data-снять]');
             if (снять) {
@@ -815,35 +876,45 @@ const WorshipSchedule = (() => {
                     const д = DateUtils.parseDate(выбранныйДень);
                     д.setDate(д.getDate() + знак);
                     выбранныйДень = DateUtils.toISO(д);
-                    понедельник = ближайшийПонедельник(д);
+                    началоНедели = началоОт(д);
                 } else {
-                    понедельник.setDate(понедельник.getDate() + 7 * знак);
+                    // новый объект, а не setDate на прежнем: загрузка, которая
+                    // ещё идёт, держит ссылку на старое начало недели
+                    const д = new Date(началоНедели);
+                    д.setDate(д.getDate() + 7 * знак);
+                    началоНедели = д;
+                    // выбранный день едет вместе с неделей: иначе вид «день»
+                    // показывал бы дату, назначений которой нет среди загруженных,
+                    // и честно писал «никто не поставлен» при заполненном дне
+                    выбранныйДень = DateUtils.toISO(д);
                 }
-                return перечитать();
+                return перечитать(false);
             }
             if (b.id === 'сегодня') {
-                понедельник = ближайшийПонедельник(new Date());
-                выбранныйДень = DateUtils.toISO(new Date());
-                return перечитать();
+                началоНедели = началоОт(DateUtils.nowAshram());
+                выбранныйДень = DateUtils.todayAshramISO();
+                return перечитать(false);
             }
             if (b.dataset.вид) {
                 вид = b.dataset.вид;
+                if (!дни().includes(выбранныйДень)) выбранныйДень = дни()[0];
                 return рисовать();
             }
             if (b.id === 'печать') return print();
             if (b.id === 'вестиСлужбы') { рисоватьСлужбы(); return $('#службыМодал').showModal(); }
-            if (b.id === 'сДобавить') return добавитьСлужбу();
+            if (b.id === 'сДобавить') return разом(b, добавитьСлужбу);
             if (b.id === 'разовая') return открытьОтклонение('разовая');
             if (b.id === 'отменить') return открытьОтклонение('отмена');
-            if (b.id === 'оСохранить') return сохранитьОтклонение();
-            if (b.id === 'копияНедели') return копияНедели();
+            if (b.id === 'оСохранить') return разом(b, сохранитьОтклонение);
+            if (b.id === 'копияНедели') return открытьПовтор();
+            if (b.id === 'повторПустить') return копияНедели();
             if (b.id === 'яНеСмогу') {
-                $('#оtС').value = DateUtils.toISO(new Date());
+                $('#оtС').value = DateUtils.todayAshramISO();
                 $('#оtПо').value = '';
                 $('#оtПричина').value = '';
                 return $('#отметкаМодал').showModal();
             }
-            if (b.id === 'оtСохранить') return отметитьОтъезд();
+            if (b.id === 'оtСохранить') return разом(b, отметитьОтъезд);
         });
 
         // правка названия и времени службы — по уходу из поля
@@ -868,6 +939,8 @@ const WorshipSchedule = (() => {
 
         $('#нПоиск').addEventListener('input', Layout.debounce(рисоватьЛюдейДляКлетки, 200));
         $('#нРоль').addEventListener('change', рисоватьЛюдейДляКлетки);
+        ['#повторОткуда', '#повторСколько'].forEach(s2 =>
+            $(s2).addEventListener('change', пересчитатьПовтор));
     }
 
     async function добавитьСлужбу() {
@@ -909,29 +982,128 @@ const WorshipSchedule = (() => {
             : 'Отмечено', 'success');
     }
 
-    async function копияНедели() {
-        const прошлая = new Date(понедельник);
-        прошлая.setDate(прошлая.getDate() - 7);
-        if (!await спросить('Повторить прошлую неделю?',
-            'Уже стоящие назначения останутся как есть, недоступные пропустятся.')) return;
+    /**
+     * Повтор недели. Раньше вопрос «Повторить прошлую неделю?» не называл
+     * ни дат, ни числа назначений, а источник был один — предыдущая неделя.
+     * Но прошлая неделя бывает праздничной или полупустой, а расписать
+     * хочется сразу месяц.
+     */
+    const началоНеделиСдвигом = н => {
+        const д = new Date(началоНедели);
+        д.setDate(д.getDate() + 7 * н);
+        return д;
+    };
 
-        const { data, error } = await Layout.db.rpc('worship_week_copy', {
-            p_from: DateUtils.toISO(прошлая),
-            p_to: DateUtils.toISO(понедельник),
-        });
-        if (error) return Layout.handleError(error, 'Копия недели');
+    const периодСловами = от => {
+        const до = new Date(от);
+        до.setDate(до.getDate() + 6);
+        return `${DateUtils.formatShort(от)} — ${DateUtils.formatShort(до)}`;
+    };
 
-        await перечитать();
-        const недоступны = data?.['недоступны'] || [];
-        const перенесено = data?.['перенесено'] ?? 0;
-        const пропущено = data?.['пропущено'] ?? 0;
-        if (!перенесено && !пропущено) {
-            return Layout.showNotification('На прошлой неделе никого не ставили — переносить нечего', 'warning');
+    async function открытьПовтор() {
+        // источники: четыре недели назад от открытой
+        $('#повторОткуда').innerHTML = [1, 2, 3, 4].map(н => {
+            const от = началоНеделиСдвигом(-н);
+            const имя = н === 1 ? 'прошлая неделя' : `${н} недели назад`;
+            return `<option value="${н}">${имя} · ${периодСловами(от)}</option>`;
+        }).join('');
+        $('#повторСколько').value = '1';
+        await пересчитатьПовтор();
+        $('#повторМодал').showModal();
+    }
+
+    /** Сколько назначений лежит в выбранной неделе-источнике и куда они лягут. */
+    async function пересчитатьПовтор() {
+        const назад = Number($('#повторОткуда').value || 1);
+        const сколько = Number($('#повторСколько').value || 1);
+        const от = началоНеделиСдвигом(-назад);
+        const доИсточника = new Date(от);
+        доИсточника.setDate(доИсточника.getDate() + 6);
+        const конецПриёмника = началоНеделиСдвигом(сколько - 1);
+        конецПриёмника.setDate(конецПриёмника.getDate() + 6);
+
+        const узел = $('#повторИтог');
+        узел.textContent = 'Считаю…';
+
+        // повтор в прошлое бессмыслен: клетки, которые уже прошли, никто не закроет
+        const сегодня = DateUtils.todayAshramISO();
+        const вПрошлое = DateUtils.toISO(началоНедели) < сегодня;
+        $('#повторПустить').disabled = вПрошлое;
+        if (вПрошлое) {
+            узел.innerHTML = 'Открыта прошедшая неделя: повторять в прошлое незачем. '
+                + 'Нажмите «Сегодня» и откройте повтор оттуда.';
+            return;
         }
-        Layout.showNotification(
-            `Перенесено: ${перенесено}, пропущено: ${пропущено}` +
-            (недоступны.length ? `. В отъезде: ${недоступны.join(', ')}` : ''),
-            'success');
+
+        // считаем то, что функция и правда возьмёт: назначения отключённых
+        // служб и выбывших людей не переезжают — в обещании их быть не должно
+        const { data, error } = await Layout.db.from('worship_duties')
+            .select('id, service_id, person_id')
+            .gte('duty_date', DateUtils.toISO(от))
+            .lte('duty_date', DateUtils.toISO(доИсточника));
+        if (error) { узел.textContent = 'Не удалось посчитать — повтор всё равно сработает'; return; }
+        const count = (data || []).filter(н => н.service_id
+            && службы.find(с => с.id === н.service_id)?.is_active
+            && человек(н.person_id)?.is_active !== false).length;
+
+        узел.innerHTML = count
+            ? `Возьмём <b>${Layout.pluralize(count, {
+                   ru: ['назначение', 'назначения', 'назначений'],
+                   en: ['duty', 'duties'], hi: 'सेवा' })}</b> за ${периодСловами(от)}<br>
+               и повторим на ${периодСловами(началоНедели)}${сколько > 1
+                   ? ` и дальше, по ${DateUtils.formatShort(конецПриёмника)}` : ''}.`
+            : `За ${периодСловами(от)} никого не ставили — переносить нечего.`;
+    }
+
+    async function копияНедели() {
+        const кнопка = $('#повторПустить');
+        if (кнопка.disabled) return;          // второй щелчок, пока идёт первый
+        const назад = Number($('#повторОткуда').value || 1);
+        const сколько = Number($('#повторСколько').value || 1);
+
+        const итог = { перенесено: 0, уже: 0, занято: 0, отменено: 0 };
+        const недоступны = new Set(), срок = new Set();
+
+        // каждую неделю переносим отдельным вызовом: функция идемпотентна,
+        // уже стоящие назначения второй раз не создаются
+        кнопка.disabled = true;
+        try {
+            for (let i = 0; i < сколько; i++) {
+                const { data, error } = await Layout.db.rpc('worship_week_copy', {
+                    p_from: DateUtils.toISO(началоНеделиСдвигом(-назад)),
+                    p_to: DateUtils.toISO(началоНеделиСдвигом(i)),
+                });
+                if (error) return Layout.handleError(error, 'Повтор недели');
+                итог.перенесено += data?.['перенесено'] ?? 0;
+                итог.уже += data?.['уже_стояли'] ?? 0;
+                итог.занято += data?.['занято'] ?? 0;
+                итог.отменено += data?.['отменено'] ?? 0;
+                (data?.['недоступны'] || []).forEach(имя => недоступны.add(имя));
+                (data?.['срок_вышел'] || []).forEach(имя => срок.add(имя));
+            }
+        } finally {
+            кнопка.disabled = false;
+        }
+
+        $('#повторМодал').close();
+        await перечитать();
+
+        const назн = n => Layout.pluralize(n, {
+            ru: ['назначение', 'назначения', 'назначений'], en: ['duty', 'duties'], hi: 'सेवा' });
+        const всего = итог.перенесено + итог.уже + итог.занято + итог.отменено
+            + недоступны.size + срок.size;
+        if (!всего) {
+            return Layout.showNotification('Переносить нечего: в той неделе никого не ставили', 'warning');
+        }
+        // каждая причина — своими словами: «пропущено: 3» не говорит, что делать дальше
+        const части = [итог.перенесено ? `Поставлено: ${назн(итог.перенесено)}` : 'Новых назначений нет'];
+        if (итог.уже) части.push(`уже стояли: ${итог.уже}`);
+        if (итог.занято) части.push(`клетки, расписанные вручную, не тронуты: ${итог.занято}`);
+        if (итог.отменено) части.push(`служба в тот день отменена: ${итог.отменено}`);
+        if (недоступны.size) части.push(`в отъезде: ${[...недоступны].join(', ')}`);
+        if (срок.size) части.push(`срок участия кончится: ${[...срок].join(', ')}`);
+        Layout.showNotification(части.join('; ') + '.',
+            итог.перенесено ? 'success' : 'info');
     }
 
     async function init() {

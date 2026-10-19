@@ -23,6 +23,30 @@ window.DateUtils = {
         return new Date(String(val).slice(0, 16));
     },
 
+    // Часы ашрама (Индия) — для «сегодня», «завтра», «уже прошло».
+    // Устройство может стоять в другом поясе: старший смотрит расписание
+    // из Москвы, и по его часам «сегодня» наступает на 2,5 часа позже,
+    // чем у алтаря. Возвращает Date, у которого местные поля (день, часы)
+    // совпадают с настенными часами ашрама; для меток времени в базу
+    // (updated_at и т.п.) по-прежнему нужен обычный new Date().
+    ASHRAM_TZ: 'Asia/Kolkata',
+    nowAshram() {
+        try {
+            const части = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+                timeZone: this.ASHRAM_TZ, hourCycle: 'h23',
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+            }).formatToParts(new Date()).map(ч => [ч.type, ч.value]));
+            return new Date(+части.year, +части.month - 1, +части.day,
+                            +части.hour, +части.minute, +части.second);
+        } catch (e) {
+            return new Date();      // нет Intl с поясами — живём по часам устройства
+        }
+    },
+    todayAshramISO() {
+        return this.toISO(this.nowAshram());
+    },
+
     // Названия месяцев по языкам
     monthNames: {
         ru: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',

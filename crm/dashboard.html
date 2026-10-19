@@ -5,7 +5,7 @@
          к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
     <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <script src="../js/color-init.js?v=6"></script>
+    <script src="../js/color-init.js?v=7"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n-title="crm_dashboard_page_title">Дашборд — CRM — ШРСК</title>
@@ -14,7 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=25">
     <style>
         /* Bento карточки */
         .bento-card {
@@ -275,7 +275,7 @@
             <p class="text-base-content/50 text-sm mt-1" data-i18n="crm_dashboard_subtitle">Обзор ключевых показателей</p>
         </div>
 
-        <select id="filterRetreat" class="select select-bordered" onchange="loadDashboard()">
+        <select aria-label="Ретрит" id="filterRetreat" class="select select-bordered" onchange="loadDashboard()">
             <option value="" data-i18n="crm_all_retreats">Все ретриты</option>
         </select>
     </div>
@@ -476,12 +476,12 @@
 <div id="footer-placeholder"></div>
 
 <script src="../js/config.js?v=5"></script>
-<script src="../js/auth-check.js?v=13"></script>
+<script src="../js/auth-check.js?v=14"></script>
 <script src="../js/cache.js?v=2"></script>
-<script src="../js/utils.js?v=17"></script>
-<script src="../js/layout.js?v=112"></script>
-<script src="../js/date-utils.js?v=4"></script>
-<script src="../js/crm-utils.js?v=6"></script>
+<script src="../js/utils.js?v=20"></script>
+<script src="../js/layout.js?v=118"></script>
+<script src="../js/date-utils.js?v=5"></script>
+<script src="../js/crm-utils.js?v=7"></script>
 
 <script>
 const t = key => Layout.t(key);
@@ -782,7 +782,7 @@ function renderManagersLoad() {
         return `
             <div class="p-3 bg-white/40 rounded-xl">
                 <div class="flex items-center gap-3 mb-2">
-                    <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-medium" style="background: #7C3AED;">${m.initials}</div>
+                    <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-medium" style="background: #7C3AED;">${e(m.initials)}</div>
                     <div class="flex-1">
                         <div class="text-sm font-medium text-violet-900">${e(m.name)}</div>
                         <div class="text-xs text-violet-700/60">активных: ${m.active}</div>

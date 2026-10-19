@@ -19,6 +19,7 @@ const WorshipHome = (() => {
     const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
 
     let разделы = [], статьи = [];
+    let основа = Promise.resolve();    // разделы и статьи: ждут их лента и закладки
 
     /** `подпись` — уже готовая разметка: собирают её вызывающие, экранируя текст. */
     /**
@@ -35,6 +36,57 @@ const WorshipHome = (() => {
         </li>`;
     }
 
+
+    /**
+     * Группа боковой сводки: счётчик в заголовке и сворачивание. Длинный
+     * список подборок или разделов вытеснял всё остальное вниз, поэтому
+     * группа, где больше пяти строк, по умолчанию свёрнута — видно, что
+     * там есть и сколько, но экран она не занимает.
+     */
+    const ПОРОГ_СВОРАЧИВАНИЯ = 5;
+    const ПОКАЗЫВАЕМ = 10;          // длиннее сводка перестаёт быть сводкой
+    // v2: в прежнем ключе вперемешку лежали выборы человека и умолчания по порогу
+    const КЛЮЧ_СВОДКИ = 'worship_home_summary_v2';
+
+    /** Последняя строка списка, когда в нём больше, чем помещается. */
+    const хвостСписка = (всего, куда) => всего > ПОКАЗЫВАЕМ
+        ? `<li><a href="${куда}" class="block text-sm py-1 font-semibold
+                  text-[color:var(--current-color)] hover:underline">Посмотреть все · ${всего}</a></li>`
+        : '';
+
+    const сохранённоеСводки = () => {
+        try { return JSON.parse(localStorage.getItem(КЛЮЧ_СВОДКИ) || '{}'); }
+        catch { return {}; }
+    };
+
+    function настроитьГруппу(ид, сколько) {
+        const блок = $('#' + ид);
+        if (!блок) return;
+        блок.hidden = !сколько;
+        if (!сколько) return;
+
+        блок.querySelector('.счётчикСводки').textContent = сколько;
+        const свой = сохранённоеСводки()[ид];
+        блок.open = свой !== undefined ? свой : сколько <= ПОРОГ_СВОРАЧИВАНИЯ;
+    }
+
+    function помнитьГруппы() {
+        // Запоминаем только щелчок человека. toggle срабатывает и от
+        // настроитьГруппу(), когда группа сворачивается по порогу, — такое
+        // умолчание записывалось как выбор, и группа оставалась свёрнутой
+        // навсегда, даже когда в ней становилось два пункта.
+        document.addEventListener('click', ev => {
+            const заголовок = ev.target.closest('summary');
+            const блок = заголовок?.parentElement;
+            if (!блок?.matches('.группаСводки') || !блок.id) return;
+            try {
+                const всё = сохранённоеСводки();
+                всё[блок.id] = !блок.open;      // щелчок ещё не применён
+                localStorage.setItem(КЛЮЧ_СВОДКИ, JSON.stringify(всё));
+            } catch { /* приватный режим — просто не запомним */ }
+        });
+    }
+
     async function лента() {
         const { data, error } = await Layout.db.from('worship_versions')
             .select('id, article_id, title, version_no, change_note, approved_at')
@@ -44,6 +96,7 @@ const WorshipHome = (() => {
 
         // отменённые в ленту не попадают: «утверждён» рядом с «не действует»
         // читается как противоречие, а не как история
+        await основа;
         const действующие = new Set(статьи.filter(с => с.status === 'published').map(с => с.id));
         $('#feed').innerHTML = (data || []).filter(в => действующие.has(в.article_id)).map(в => строка(в.article_id, в.title,
             `${дата(в.approved_at)}${в.version_no > 1 && в.change_note
@@ -113,18 +166,22 @@ const WorshipHome = (() => {
 
     /** Подборки: ответ на вопрос «с чего начать», который иначе без экрана. */
     async function подборки() {
-        const { data } = await Layout.db.from('worship_kits')
-            .select('id, title, description').eq('is_active', true).order('title').limit(5);
+        // берём на одну больше, чем показываем: так видно, что список
+        // не кончился, даже если точный счёт не пришёл
+        const { data, count } = await Layout.db.from('worship_kits')
+            .select('id, title', { count: 'exact' })
+            .eq('is_active', true).order('title').limit(ПОКАЗЫВАЕМ + 1);
         if (!data?.length) return;
+        const всего = count ?? data.length;
 
-        $('#kitsCard').hidden = false;
         // описание подборки в сводке не нужно: сюда заходят по названию,
         // а подробности ждут на самой странице подборки
-        $('#kits').innerHTML = data.map(п => `
+        $('#kits').innerHTML = data.slice(0, ПОКАЗЫВАЕМ).map(п => `
             <li>
                 <a href="kit.html?id=${п.id}" class="block text-sm py-1 leading-snug
                           hover:text-[color:var(--current-color)] transition-colors">${e(п.title)}</a>
-            </li>`).join('');
+            </li>`).join('') + хвостСписка(всего, 'kits.html');
+        настроитьГруппу('kitsCard', всего);
     }
 
     /**
@@ -132,7 +189,7 @@ const WorshipHome = (() => {
      * «покажи оглавление». Следующая по времени выделена.
      */
     async function деньСегодня(дата, завтрашний) {
-        const сегодня = дата || DateUtils.toISO(new Date());
+        const сегодня = дата || DateUtils.todayAshramISO();
         const [с, о, н] = await Promise.all([
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day, article_id')
@@ -148,10 +205,15 @@ const WorshipHome = (() => {
 
         // имена: они нужны только тем, кто видит модуль, гостю этот экран недоступен
         let имена = {};
+        let придёт = () => true;
         const persons = [...new Set(назначения.map(д => д.person_id))];
         if (persons.length) {
-            const { data: люди } = await Layout.db.from('worship_people')
-                .select('id, vaishnava_id').in('id', persons);
+            const [{ data: люди }, { data: отметки }] = await Promise.all([
+                Layout.db.from('worship_people')
+                    .select('id, vaishnava_id, is_active, active_from, active_to').in('id', persons),
+                Layout.db.from('worship_absences')
+                    .select('person_id, date_from, date_to').in('person_id', persons).lte('date_from', сегодня),
+            ]);
             const карточки = (люди || []).map(ч => ч.vaishnava_id);
             const { data: в } = карточки.length
                 ? await Layout.db.from('vaishnavas')
@@ -160,6 +222,18 @@ const WorshipHome = (() => {
             const по = Object.fromEntries((в || []).map(x => [x.id,
                 x.spiritual_name || `${x.first_name || ''} ${x.last_name || ''}`.trim() || 'без имени']));
             имена = Object.fromEntries((люди || []).map(ч => [ч.id, по[ч.vaishnava_id]]));
+            // те же правила, что в шахматке: заболевший, выбывший или волонтёр
+            // с истёкшим сроком службу не закрывает — и здесь не должен
+            // выглядеть тем, кто к ней встанет
+            const карта = Object.fromEntries((люди || []).map(ч => [ч.id, ч]));
+            придёт = д => {
+                const ч = карта[д.person_id];
+                if (!ч || ч.is_active === false) return false;
+                if (ч.active_to && ч.active_to < сегодня) return false;
+                if (ч.active_from && ч.active_from > сегодня) return false;
+                return !(отметки || []).some(а => а.person_id === ч.id
+                    && а.date_from <= сегодня && (!а.date_to || а.date_to >= сегодня));
+            };
         }
 
         const отменена = id => отклонения.some(о2 => о2.service_id === id);
@@ -172,14 +246,14 @@ const WorshipHome = (() => {
                 кто: назначения.filter(д => д.override_id === о2.id), разовая: true })),
         ].sort((a, b) => (a.время || '').localeCompare(b.время || ''));
 
-        const сейчас = завтрашний ? '00:00:00' : new Date().toTimeString().slice(0, 8);
+        const сейчас = завтрашний ? '00:00:00' : DateUtils.nowAshram().toTimeString().slice(0, 8);
         const следующая = строки.find(с2 => (с2.время || '') >= сейчас);
 
         // день кончился — показывать прошедшие службы с «никто не поставлен»
         // значит упрекать задним числом за то, чего уже не исправить.
         // Человеку в этот час нужен завтрашний день
         if (!следующая && !завтрашний) {
-            const завтра = new Date();
+            const завтра = DateUtils.nowAshram();
             завтра.setDate(завтра.getDate() + 1);
             return деньСегодня(DateUtils.toISO(завтра), true);
         }
@@ -205,9 +279,14 @@ const WorshipHome = (() => {
                         : ''}
                     ${с2.кто.length
                         ? `<span class="block text-sm opacity-70">${
-                            с2.кто.map(д => e(имена[д.person_id] || 'кто-то')).join(', ')}</span>`
-                        : прошла ? ''
-                        : '<span class="block text-sm text-error">никто не поставлен</span>'}
+                            с2.кто.map(д => придёт(д)
+                                ? e(имена[д.person_id] || 'кто-то')
+                                : `<s>${e(имена[д.person_id] || 'кто-то')}</s>`).join(', ')}</span>`
+                        : ''}
+                    ${!прошла && !с2.кто.some(придёт)
+                        ? `<span class="block text-sm text-error">${с2.кто.length
+                            ? 'поставленный не придёт — нужна замена' : 'никто не поставлен'}</span>`
+                        : ''}
                 </span>
             </li>`;
         }).join('');
@@ -222,21 +301,23 @@ const WorshipHome = (() => {
         const { data: я } = await Layout.db.rpc('worship_my_person');
         if (!я) return;
 
-        const сегодня = DateUtils.toISO(new Date());
+        const сегодня = DateUtils.todayAshramISO();
         const { data: свои } = await Layout.db.from('worship_duties')
             .select('id, duty_date, service_id, override_id, role')
             .eq('person_id', я).gte('duty_date', сегодня).order('duty_date').limit(5);
         if (!свои?.length) return;
 
         const [{ data: службы2 }, { data: откл }] = await Promise.all([
-            Layout.db.from('worship_services').select('id, name_ru, name_en, name_hi, time_of_day, article_id'),
+            Layout.db.from('worship_services').select('id, name_ru, name_en, name_hi, time_of_day, article_id, is_active'),
             Layout.db.from('worship_day_overrides')
                 .select('id, duty_date, service_id, title, time_of_day')
                 .in('duty_date', [...new Set(свои.map(н => н.duty_date))]),
         ]);
 
-        const отменена = н => н.service_id && (откл || []).some(о =>
-            о.service_id === н.service_id && о.duty_date === н.duty_date);
+        const отключена = н => н.service_id
+            && (службы2 || []).find(x => x.id === н.service_id)?.is_active === false;
+        const отменена = н => отключена(н) || (н.service_id && (откл || []).some(о =>
+            о.service_id === н.service_id && о.duty_date === н.duty_date));
 
         $('#mineCard').hidden = false;
         $('#mine').innerHTML = свои.map(н => {
@@ -252,7 +333,8 @@ const WorshipHome = (() => {
                 ${с?.article_id && !снята
                     ? `<a class="link" href="article.html?id=${с.article_id}">${e(имя)}</a>`
                     : `<span class="${снята ? 'line-through' : ''}">${e(имя)}</span>`}
-                ${снята ? '<span class="badge badge-sm badge-warning ml-1">не проводится</span>' : ''}
+                ${снята ? `<span class="badge badge-sm badge-warning ml-1">${отключена(н)
+                    ? 'снята с расписания' : 'не проводится'}</span>` : ''}
             </li>`;
         }).join('');
     }
@@ -260,13 +342,13 @@ const WorshipHome = (() => {
     /** Старшему — пустые клетки на завтра: их закрывают сегодня, а не утром. */
     async function пустыеЗавтра() {
         if (!можноУтверждать()) return;
-        const завтра = DateUtils.toISO(DateUtils.addDays(new Date(), 1));
+        const завтра = DateUtils.toISO(DateUtils.addDays(DateUtils.nowAshram(), 1));
         const [с, о, н, л, от] = await Promise.all([
             Layout.db.from('worship_services')
                 .select('id, name_ru, name_en, name_hi, time_of_day').eq('is_active', true).order('time_of_day'),
-            Layout.db.from('worship_day_overrides').select('service_id, title').eq('duty_date', завтра),
+            Layout.db.from('worship_day_overrides').select('id, service_id, title, time_of_day').eq('duty_date', завтра),
             Layout.db.from('worship_duties').select('service_id, override_id, person_id').eq('duty_date', завтра),
-            Layout.db.from('worship_people').select('id, is_active'),
+            Layout.db.from('worship_people').select('id, is_active, active_from, active_to'),
             Layout.db.from('worship_absences').select('person_id, date_from, date_to').lte('date_from', завтра),
         ]);
         if (с.error || о.error || н.error) return;
@@ -275,20 +357,33 @@ const WorshipHome = (() => {
         // иначе «пустых: 2» вместо четырёх ровно в то утро, когда это важно
         const вОтъезде = id => (от.data || []).some(а => а.person_id === id
             && а.date_from <= завтра && (!а.date_to || а.date_to >= завтра));
-        const вСоставе = id => (л.data || []).find(ч => ч.id === id)?.is_active !== false;
+        const вСоставе = id => {
+            const ч = (л.data || []).find(x => x.id === id);
+            return !!ч && ч.is_active !== false
+                && (!ч.active_to || ч.active_to >= завтра)
+                && (!ч.active_from || ч.active_from <= завтра);
+        };
         const придёт = д => вСоставе(д.person_id) && !вОтъезде(д.person_id);
 
         const отменена = id => (о.data || []).some(x => x.service_id === id);
         const занята = id => (н.data || []).some(x => x.service_id === id && придёт(x));
-        const пустые = (с.data || []).filter(x => !отменена(x.id) && !занята(x.id));
+        // разовая служба на завтра — такая же клетка: её тоже надо закрыть
+        const разовыеПустые = (о.data || []).filter(x => x.title
+            && !(н.data || []).some(д => д.override_id === x.id && придёт(д)))
+            .map(x => ({ время: x.time_of_day, имя: x.title, разовая: true }));
+        const пустые = [
+            ...(с.data || []).filter(x => !отменена(x.id) && !занята(x.id))
+                .map(x => ({ время: x.time_of_day, имя: Layout.getName(x), разовая: false })),
+            ...разовыеПустые,
+        ].sort((a, b) => (a.время || '').localeCompare(b.время || ''));
         if (!пустые.length) return;
 
         $('#emptyCard').hidden = false;
         $('#emptyCount').textContent = пустые.length;
         $('#empty').innerHTML = пустые.map(x => `
             <li class="py-1 text-sm">
-                <span class="inline-block w-14 opacity-60">${e(x.time_of_day.slice(0, 5))}</span>
-                ${e(Layout.getName(x))}
+                <span class="inline-block w-14 opacity-60">${e((x.время || '').slice(0, 5))}</span>
+                ${e(x.имя)}${x.разовая ? ' <span class="badge badge-sm">разовая</span>' : ''}
             </li>`).join('');
     }
 
@@ -297,27 +392,30 @@ const WorshipHome = (() => {
             .select('kind, article_id, created_at').order('created_at', { ascending: false });
         if (error) return;                       // личный список не повод ломать страницу
 
+        await основа;
         const заголовок = id => статьи.find(с => с.id === id)?.title || 'Статья';
 
         const закладки = (data || []).filter(з => з.kind === 'bookmark' && з.article_id);
-        if (закладки.length) {
-            $('#marksCard').hidden = false;
-            $('#marks').innerHTML = закладки.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
-        }
+        $('#marks').innerHTML = закладки.slice(0, ПОКАЗЫВАЕМ)
+            .map(з => строка(з.article_id, заголовок(з.article_id), '')).join('')
+            + хвостСписка(закладки.length, 'bookmarks.html');
+        настроитьГруппу('marksCard', закладки.length);
 
         const недавние = (data || []).filter(з => з.kind === 'recent' && з.article_id)
-            .filter(з => !закладки.some(з2 => з2.article_id === з.article_id)).slice(0, 5);
-        if (недавние.length) {
-            $('#recentCard').hidden = false;
-            $('#recent').innerHTML = недавние.map(з => строка(з.article_id, заголовок(з.article_id), '')).join('');
-        }
+            .filter(з => !закладки.some(з2 => з2.article_id === з.article_id));
+        $('#recent').innerHTML = недавние.slice(0, ПОКАЗЫВАЕМ)
+            .map(з => строка(з.article_id, заголовок(з.article_id), '')).join('')
+            + хвостСписка(недавние.length, 'bookmarks.html');
+        настроитьГруппу('recentCard', недавние.length);
     }
 
     function рисоватьРазделы() {
         // пустой раздел в боковой сводке — строка, по которой некуда идти
-        $('#sections').innerHTML = разделы.map(р => {
+        const живые = разделы.filter(р =>
+            статьи.some(с => с.section_id === р.id && с.status === 'published'));
+
+        $('#sections').innerHTML = живые.slice(0, ПОКАЗЫВАЕМ).map(р => {
             const сколько = статьи.filter(с => с.section_id === р.id && с.status === 'published').length;
-            if (!сколько) return '';
             return `
             <li>
                 <a href="standards.html" class="flex items-baseline gap-2 text-sm py-1 leading-snug
@@ -326,10 +424,18 @@ const WorshipHome = (() => {
                     <span class="text-xs opacity-70 tabular-nums">${сколько}</span>
                 </a>
             </li>`;
-        }).join('') || '<li class="py-1 text-sm opacity-70">Пока ни одного утверждённого стандарта</li>';
+        }).join('') + хвостСписка(живые.length, 'standards.html')
+            || '<li class="py-1 text-sm opacity-70">Пока ни одного утверждённого стандарта</li>';
+
+        const сколько = живые.length;
+        настроитьГруппу('sectionsCard', сколько);
+        // раздел с кнопкой «Все стандарты» нужен даже пустым: иначе из сводки
+        // некуда перейти к полному списку
+        $('#sectionsCard').hidden = false;
     }
 
     async function init() {
+        помнитьГруппы();
         // поиск идёт сразу по стандартам, библиотеке и наборам фото: человек
         // не знает, в каком хранилище ответ. Слушатель вешаем первым — иначе
         // Enter, нажатый до конца загрузки, перезагрузит страницу
@@ -339,18 +445,22 @@ const WorshipHome = (() => {
             location.href = q ? `search.html?q=${encodeURIComponent(q)}` : 'search.html';
         });
 
-        const [р, с] = await Promise.all([
-            Layout.db.from('worship_sections').select('id, name_ru, name_en, name_hi')
-                .eq('kind', 'standard').eq('is_active', true).order('sort_order'),
-            Layout.db.from('worship_articles').select('id, title, section_id, status').eq('kind', 'standard'),
-        ]);
-        // без этого сбой запроса выглядит как «модуль пуст», а не как ошибка
-        if (р.error || с.error) { Layout.handleError(р.error || с.error, 'Загрузка модуля'); return; }
-        разделы = р.data || [];
-        статьи = с.data || [];
-
-        рисоватьРазделы();
-        await Promise.all([лента(), черновики(), очередь(), личное(), подборки(),
+        // Все блоки главной запрашиваются разом. Раньше они ждали, пока придут
+        // разделы и статьи, — лишний круг до базы перед всем остальным.
+        // Список статей нужен только ленте и закладкам, и они ждут его сами.
+        основа = (async () => {
+            const [р, с] = await Promise.all([
+                Layout.db.from('worship_sections').select('id, name_ru, name_en, name_hi')
+                    .eq('kind', 'standard').eq('is_active', true).order('sort_order'),
+                Layout.db.from('worship_articles').select('id, title, section_id, status').eq('kind', 'standard'),
+            ]);
+            // без этого сбой запроса выглядит как «модуль пуст», а не как ошибка
+            if (р.error || с.error) { Layout.handleError(р.error || с.error, 'Загрузка модуля'); return; }
+            разделы = р.data || [];
+            статьи = с.data || [];
+            рисоватьРазделы();
+        })();
+        await Promise.all([основа, лента(), черновики(), очередь(), личное(), подборки(),
                            моиСлужбы(), деньСегодня(), пустыеЗавтра()]);
     }
 

@@ -170,7 +170,7 @@ async function loadRegistrations() {
 
     // Особые потребности — из сделок CRM этого ретрита (ТЗ 2.3)
     {
-        const { data: deals } = await Layout.db.from('crm_deals')
+        const { data: deals } = await Layout.db.from('crm_v_deals_brief')
             .select('vaishnava_id, special_needs')
             .eq('retreat_id', retreatId).neq('status', 'cancelled')
             .not('special_needs', 'is', null);

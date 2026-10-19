@@ -33,13 +33,26 @@
             return;
         }
 
-        // Загружаем данные вайшнава
-        const { data: vaishnava, error: vError } = await db
-            .from('vaishnavas')
-            .select('id, spiritual_name, first_name, last_name, photo_url, user_type, approval_status, is_superuser, is_active')
-            .eq('user_id', session.user.id)
-            .eq('is_deleted', false)
-            .maybeSingle();
+        // Карточка, права и доступ к основному приложению зависят только от
+        // id пользователя — запрашиваем разом. Раньше это были три запроса
+        // друг за другом, и каждая страница ждала три круга до базы, прежде
+        // чем нарисовать меню. Список всех прав нужен только суперпользователю,
+        // но он крошечный, и ждать ради него четвёртый круг дороже.
+        const [
+            { data: vaishnava, error: vError },
+            { data: userPerms, error: permsError },
+            { data: hasMainAccess, error: mainAccessError },
+            { data: allPerms },
+        ] = await Promise.all([
+            db.from('vaishnavas')
+                .select('id, spiritual_name, first_name, last_name, photo_url, user_type, approval_status, is_superuser, is_active')
+                .eq('user_id', session.user.id)
+                .eq('is_deleted', false)
+                .maybeSingle(),
+            db.rpc('get_user_permissions', { p_user_id: session.user.id }),
+            db.rpc('has_main_backoffice_access'),
+            db.from('permissions').select('code'),
+        ]);
 
         if (vError || !vaishnava) {
             console.error('Failed to load vaishnava:', vError);
@@ -69,18 +82,10 @@
 
         if (vaishnava.is_superuser) {
             // Суперпользователь - все права, КРОМЕ финансов (fin_* — только явно выданные)
-            const [{ data: allPerms }, { data: ownPerms }] = await Promise.all([
-                db.from('permissions').select('code'),
-                db.rpc('get_user_permissions', { p_user_id: session.user.id })
-            ]);
-            const granted = new Set(ownPerms ? ownPerms.map(p => p.permission_code) : []);
+            const granted = new Set(userPerms ? userPerms.map(p => p.permission_code) : []);
             permissions = (allPerms ? allPerms.map(p => p.code) : [])
                 .filter(code => !code.startsWith('fin_') || granted.has(code));
         } else {
-            // Получить права через оптимизированную SQL функцию (1 запрос вместо 3)
-            const { data: userPerms, error: permsError } = await db
-                .rpc('get_user_permissions', { p_user_id: session.user.id });
-
             if (permsError) {
                 console.error('Failed to load permissions:', permsError);
             }
@@ -110,7 +115,6 @@
         // Пользователь только desktop-приложения AB Kitchen не получает доступ
         // к публичному BackOffice даже при наличии кухонных permissions.
         if (!vaishnava.is_superuser) {
-            const { data: hasMainAccess, error: mainAccessError } = await db.rpc('has_main_backoffice_access');
             if (mainAccessError || !hasMainAccess) {
                 window.location.replace('/guest-portal/');
                 return;

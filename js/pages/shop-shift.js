@@ -194,7 +194,7 @@ const ShopShift = (() => {
 
             $('#handoverNote').textContent = t('shop_handover_pending');
             тело.innerHTML = `
-                <div class="overflow-x-auto">
+                <div class="overflow-x-auto" tabindex="0">
                     <table class="table table-sm stack">
                         <thead><tr><th>${t('shop_currency')}</th><th class="text-right">${t('shop_goods_line')}</th>
                             <th class="text-right">${t('shop_own_output')}</th>

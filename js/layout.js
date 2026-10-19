@@ -241,7 +241,8 @@ const modules = {
                 { id: 'worship_schedule', href: 'worship/schedule.html' },
                 { id: 'worship_library', href: 'worship/library.html' },
                 { id: 'worship_gallery', href: 'worship/gallery.html' },
-                { id: 'worship_kits', href: 'worship/kits.html' }
+                { id: 'worship_kits', href: 'worship/kits.html' },
+                { id: 'worship_bookmarks', href: 'worship/bookmarks.html' }
             ]}
         ]
     },
@@ -378,6 +379,7 @@ const pagePermissions = {
     'worship/standards.html': 'worship_view',
     'worship/schedule.html': 'worship_view',
     'worship/people.html': 'worship_view',
+    'worship/load.html': 'worship_view',
     'worship/article.html': 'worship_view',
     'worship/edit.html': 'worship_write',
     'worship/library.html': 'worship_view',
@@ -387,6 +389,7 @@ const pagePermissions = {
     'worship/search.html': 'worship_view',
     'worship/kits.html': 'worship_view',
     'worship/kit.html': 'worship_view',
+    'worship/bookmarks.html': 'worship_view',
 };
 
 // Проверка права страницы: строка или массив (достаточно любого)
@@ -526,7 +529,13 @@ function adjustHref(href) {
 // ==================== HELPERS ====================
 const $ = (sel, ctx = document) => ctx.querySelector(sel);
 const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
-const setColor = color => document.documentElement.style.setProperty('--current-color', color);
+// тёмный оттенок цвета модуля для букв (см. color-init.js)
+const ТЕКСТ_МОДУЛЯ = { '#f49800': '#9a5500', '#8b5cf6': '#6d28d9', '#10b981': '#047857',
+                       '#0d9488': '#0f766e', '#0284c7': '#0369a1' };
+const setColor = color => {
+    document.documentElement.style.setProperty('--current-color', color);
+    document.documentElement.style.setProperty('--current-color-text', ТЕКСТ_МОДУЛЯ[color] || color);
+};
 
 // ==================== DELEGATING WRAPPERS ====================
 // Делегирование к Utils (из utils.js)
@@ -610,7 +619,7 @@ async function loadTranslations(retried = false) {
     // бампается номер в имени ключа ниже — и кэш сбрасывается сам
     const СУТКИ = 24 * 60 * 60 * 1000;
 
-    const data = await Cache.getOrLoad('translations_v78', async () => {
+    const data = await Cache.getOrLoad('translations_v82', async () => {
         // Одним запросом, а не страницами по тысяче: PostgREST больше тысячи
         // строк за раз не отдаёт, и клиент ходил пять раз подряд, каждый раз
         // ожидая предыдущий ответ — это секунды до первой отрисовки
@@ -646,7 +655,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v78');
+        Cache.invalidate('translations_v82');
         return loadTranslations(true);
     }
 
@@ -701,7 +710,8 @@ function getHeaderHTML() {
 
                 <!-- Logo + Location/Module Selector -->
                 <div class="flex items-center gap-3 flex-shrink-0 header-brand">
-                    <a href="${adjustHref(homeHref)}" class="hover:opacity-80 transition-opacity">
+                    <a href="${adjustHref(homeHref)}" class="hover:opacity-80 transition-opacity"
+                       aria-label="На главную">
                         <svg class="h-14 w-auto logo-svg" viewBox="0 0 122.03 312.54" xmlns="http://www.w3.org/2000/svg">
                             <path fill="var(--current-color)" d="M102,15.99h-15.18v81.89c0,6.21.12,11.58-.88,15.98-1.01,4.45-2.6,7.98-4.77,10.58-2.02,2.81-4.85,4.83-8.51,6.05-2.38,1-5.08,1.62-8.1,1.83-1.01.21-2.02.32-3.02.32h-.64c-3.81-.21-7.23-.83-10.25-1.83-3.81-1.22-7.02-3.13-9.62-5.73-2.65-2.81-4.56-6.44-5.73-10.89-1.22-4.4-1.83-9.83-1.83-16.3V15.99h-15.1v89.12c0,13.68,3.81,23.94,11.45,30.77,3.81,3.44,8.56,5.96,14.23,7.55,1.17.42,2.57.74,4.21.96-13.89,5.03-23.35,11.87-28.38,20.51-7.05,10.65-7.26,24.14-.64,40.46l41.34,100.45,39.91-100.45c6.41-16.32,6.2-29.82-.64-40.46-4.82-8.48-13.97-15.21-27.43-20.2,1.59-.43,3.18-.85,4.77-1.27,5.25-1.59,9.67-4.19,13.27-7.79,3.82-3.66,6.65-8.18,8.51-13.59,2.02-5.62,3.02-12.27,3.02-19.95V15.99M87.45,172.46c4.03,7.26,3.84,16.4-.56,27.43l-26.31,68.13-27.75-68.13c-4.61-11.03-4.8-20.17-.55-27.43,4.61-7.47,13.76-13.01,27.43-16.62,13.67,3.61,22.93,9.15,27.75,16.62"/>
                         </svg>
@@ -766,7 +776,8 @@ function getHeaderHTML() {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                         </svg>
                     </button>
-                    <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn">
+                    <button class="btn btn-ghost btn-md btn-square desktop:hidden" id="mobileMenuBtn"
+                            aria-label="Меню">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 menu-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                         </svg>

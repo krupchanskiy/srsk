@@ -40,6 +40,20 @@ const WorshipArticle = (() => {
         статья = с;
         версии = вер || [];
 
+        // По умолчанию открывается ДЕЙСТВУЮЩИЙ текст: у алтаря в 4:20 человек
+        // должен видеть то, по чему служат, а не чужую неутверждённую правку.
+        // Правка открывается осознанно — ссылкой из очереди или из строки
+        // состояния («есть правка на утверждении»), и тогда приходит в адресе.
+        const хотят = new URLSearchParams(location.search).get('v');
+        показана = (хотят && версии.find(в => в.id === хотят))
+                || версии.find(в => в.status === 'published')
+                || версии.find(в => в.status === 'submitted')
+                || версии.find(в => в.status === 'draft')
+                || null;
+        // ссылки на снимки зависят только от текста — просим их сейчас,
+        // параллельно с замечаниями и именами, а не отдельным кругом в конце
+        снимкиВПути = WorshipDoc.ссылкиНаСнимки(Layout.db, показана?.doc);
+
         // всё остальное об этой статье — одним заходом: на телефоне у алтаря
         // каждый лишний обмен с сервером виден глазами.
         // Связь замены берём в обе стороны: ТЗ требует показывать её на обеих
@@ -78,16 +92,6 @@ const WorshipArticle = (() => {
                 ч.spiritual_name || `${ч.first_name || ''} ${ч.last_name || ''}`.trim() || 'кто-то из отдела']));
         }
 
-        // По умолчанию открывается ДЕЙСТВУЮЩИЙ текст: у алтаря в 4:20 человек
-        // должен видеть то, по чему служат, а не чужую неутверждённую правку.
-        // Правка открывается осознанно — ссылкой из очереди или из строки
-        // состояния («есть правка на утверждении»), и тогда приходит в адресе.
-        const хотят = new URLSearchParams(location.search).get('v');
-        показана = (хотят && версии.find(в => в.id === хотят))
-                || версии.find(в => в.status === 'published')
-                || версии.find(в => в.status === 'submitted')
-                || версии.find(в => в.status === 'draft')
-                || null;
         return true;
     }
 
@@ -114,10 +118,16 @@ const WorshipArticle = (() => {
 
         if (показана.status === 'published') {
             const правка = версии.find(в => в.status === 'submitted');
+            // Про черновик здесь не говорилось ничего: на экране стояло
+            // «Действует, версия 1», а кнопка звала «продолжить правку» —
+            // и человек не понимал, почему в редакторе текст длиннее
+            const черновик = !правка && версии.find(в => в.status === 'draft');
             return `<span class="text-success font-semibold">Действует${
                 показана.approved_at ? ' с ' + дата(показана.approved_at) : ''}</span> · версия ${показана.version_no}${
-                правка ? ` · <a class="link" href="article.html?id=${статья.id}&v=${
+                правка ? ` · <a class="link font-semibold" href="article.html?id=${статья.id}&v=${
                     правка.id}">есть правка на утверждении</a>` : ''}${
+                черновик ? ` · <a class="link font-semibold" href="article.html?id=${статья.id}&v=${
+                    черновик.id}">есть незаконченная правка</a>` : ''}${
                 заменяет.length ? ' · заменил ' + заменяет.map(з =>
                     `<a class="link" href="article.html?id=${з.id}">${e(з.title)}</a>`).join(', ') : ''}`;
         }
@@ -128,7 +138,36 @@ const WorshipArticle = (() => {
         if (показана.status === 'superseded') {
             return `<span class="opacity-70 font-semibold">Версия ${показана.version_no}, больше не действует</span>${кДействующей}`;
         }
-        return `<span class="opacity-70 font-semibold">Черновик</span> · видит только отдел${кДействующей}`;
+        return `<span class="text-warning font-semibold">Незаконченная правка</span> · ${
+            д ? `в храме действует версия ${д.version_no}, пока эту не утвердят`
+              : 'в храме пока не действует ничего'}${кДействующей}`;
+    }
+
+    /**
+     * «Пока эту не утвердят» — верно, но не говорит, чего ждать и от кого.
+     * Путь правки короткий: дописать → отправить старшему → он утверждает.
+     * Строка называет ближайший шаг и того, чей он.
+     */
+    function рисоватьПутьКУтверждению() {
+        const узел = $('#какПринять');
+        if (!узел) return;
+        const состояние = показана?.status;
+
+        let текст = '';
+        if (состояние === 'draft') {
+            текст = можноПисать()
+                ? 'Чтобы она стала действующей: допишите и нажмите «Отправить старшему» — '
+                  + 'дальше решение за ним.'
+                : 'Её дописывает автор. Пока он не отправит правку старшему, она никуда не идёт.';
+        } else if (состояние === 'submitted') {
+            текст = можноУтверждать()
+                ? 'Решение за вами: «Утвердить» — и она сразу действует в храме, '
+                  + '«Вернуть автору» — уйдёт на доработку с вашим замечанием.'
+                : 'Правка у старшего пуджари. Утвердит — станет действующей, вернёт — придёт на доработку.';
+        }
+
+        узел.hidden = !текст;
+        узел.textContent = текст;
     }
 
     function рисоватьШапку() {
@@ -137,6 +176,7 @@ const WorshipArticle = (() => {
             : '<a href="standards.html" class="link link-hover opacity-70">Стандарты</a>';
         $('#title').textContent = показана?.title || статья.title;
         $('#state').innerHTML = строкаСостояния();
+        рисоватьПутьКУтверждению();
 
         const угол = $('#printHeader');
         if (угол) {
@@ -153,45 +193,94 @@ const WorshipArticle = (() => {
     }
 
     function рисоватьДействия() {
-        const открытая = версии.find(в => в.status === 'draft' || в.status === 'submitted');
+        const черновик = версии.find(в => в.status === 'draft');
+        const наУтверждении = версии.find(в => в.status === 'submitted');
         // утверждают и возвращают только тот текст, который сейчас на экране
         const наЭкранеПравка = показана?.status === 'submitted';
         const кнопки = [];
 
+        // Правка, отправленная старшему, редактору не отдаётся: он её
+        // не откроет, пока её не отзовут. Кнопка «Продолжить правку» всё
+        // равно звала туда и возвращала обратно с отказом — теперь её нет,
+        // а вместо неё ссылка на сам текст, который ждёт решения.
         if (можноПисать() && статья.status !== 'archived') {
-            кнопки.push(`<a href="edit.html?id=${статья.id}" class="btn btn-sm"
-                style="background: var(--current-color); color:#fff;">${
-                открытая ? 'Продолжить правку' : 'Править'}</a>`);
+            // тот, кто решает судьбу правки, может доправить её сам —
+            // не гоняя автора ради запятой
+            if (наУтверждении && наЭкранеПравка && можноУтверждать()) {
+                кнопки.push(`<a href="edit.html?id=${статья.id}" class="btn btn-sm btn-outline">Поправить</a>`);
+            } else if (наУтверждении && !наЭкранеПравка) {
+                кнопки.push(`<a href="article.html?id=${статья.id}&v=${наУтверждении.id}"
+                    class="btn btn-sm btn-outline">Открыть правку</a>`);
+            } else if (!наУтверждении) {
+                кнопки.push(`<a href="edit.html?id=${статья.id}" class="btn btn-sm"
+                    style="background: var(--current-color); color:#fff;">${
+                    черновик ? 'Продолжить правку' : 'Править'}</a>`);
+            }
         }
         if (можноУтверждать() && наЭкранеПравка) {
             кнопки.push('<button class="btn btn-sm btn-success text-white" id="approve">Утвердить</button>');
             кнопки.push('<button class="btn btn-sm btn-outline" id="return">Вернуть автору</button>');
         }
-        if (можноПисать() && наЭкранеПравка) {
+        // отозвать с утверждения — автор правки или старший (так же решает база)
+        if (можноПисать() && наЭкранеПравка
+            && (показана?.created_by === window.currentUser?.id || можноУтверждать())) {
             кнопки.push('<button class="btn btn-sm btn-ghost" id="withdraw">Отозвать</button>');
         }
-        // библиотека сравнения приезжает со стороны: без неё кнопка только обманет
-        if (предыдущая(показана) && window.Diff) {
-            кнопки.push('<button class="btn btn-sm btn-outline" id="diff">Что изменилось</button>');
+        // звёздочка значком, а не текстовым символом: ★ набиралось размером
+        // шрифта кнопки и выглядело вдвое мельче соседей
+        кнопки.push(`<button class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200"
+            id="bookmark" title="${
+            вЗакладках ? 'Убрать из закладок' : 'В закладки'}" aria-label="${
+            вЗакладках ? 'Убрать из закладок' : 'В закладки'}"
+            aria-pressed="${вЗакладках}">
+            <svg width="19" height="19" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"
+                 stroke-linejoin="round" aria-hidden="true"
+                 fill="${вЗакладках ? 'var(--current-color)' : 'none'}"
+                 style="${вЗакладках ? 'color: var(--current-color);' : ''}">
+                <path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"></path>
+            </svg>
+        </button>`);
+
+        // Сюда приходят читать, как делается служение. Поэтому на виду одно
+        // действие по роли, а разовые решения — печать, сравнение редакций,
+        // вывод из действия — собраны под «ещё»: пятью кнопками в два ряда
+        // экран начинался с приборной доски, а не со стандарта.
+        const редкие = [];
+        // библиотека сравнения подгружается при щелчке (см. библиотекаСравнения)
+        if (предыдущая(показана)) {
+            редкие.push('<li><button id="diff">Что изменилось</button></li>');
         }
-        кнопки.push(`<button class="btn btn-sm btn-ghost" id="bookmark" title="${
-            вЗакладках ? 'Убрать из закладок' : 'В закладки'}">${
-            вЗакладках ? '★' : '☆'}</button>`);
         // печатаем только действующее: лист на стене не должен спорить с храмом,
         // поэтому отменённый стандарт не печатается, даже если его версия когда-то действовала
         if (показана?.status === 'published' && статья.status === 'published') {
-            кнопки.push('<button class="btn btn-sm btn-outline" id="print">Печать</button>');
+            редкие.push('<li><button id="print">Печать</button></li>');
         }
         if (можноУтверждать() && статья.status === 'published') {
-            кнопки.push(открытая?.status === 'submitted'
-                ? `<button class="btn btn-sm btn-ghost" id="archiveBlocked"
+            редкие.push(наУтверждении
+                ? `<li><button id="archiveBlocked"
                            title="Сначала решите по правке: утвердите или верните автору"
-                           >Вывести из действия</button>`
-                : '<button class="btn btn-sm btn-ghost" id="archive">Вывести из действия</button>');
+                           >Вывести из действия</button></li>`
+                : '<li><button id="archive">Вывести из действия</button></li>');
         }
         if (можноУтверждать() && статья.status === 'archived') {
-            кнопки.push('<button class="btn btn-sm btn-outline" id="unarchive">Вернуть из архива</button>');
+            редкие.push('<li><button id="unarchive">Вернуть из архива</button></li>');
         }
+
+        if (редкие.length) {
+            кнопки.push(`
+            <div class="dropdown dropdown-end">
+                <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
+                        <circle cx="12" cy="19" r="1.7"></circle>
+                    </svg>
+                </button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
+                    ${редкие.join('')}
+                </ul>
+            </div>`);
+        }
+
         $('#actions').innerHTML = кнопки.join('');
     }
 
@@ -207,9 +296,22 @@ const WorshipArticle = (() => {
         return i > 0 ? готовые[i - 1] : null;
     }
 
-    function показатьСравнение() {
+    /** jsdiff нужен только тому, кто сравнивает версии: грузим по требованию. */
+    function библиотекаСравнения() {
+        if (window.Diff) return Promise.resolve();
+        return new Promise((готово, сбой) => {
+            const с = document.createElement('script');
+            с.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js';
+            с.onload = готово; с.onerror = сбой;
+            document.head.appendChild(с);
+        });
+    }
+
+    async function показатьСравнение() {
         const было = предыдущая(показана);
         if (!было) return;
+        try { await библиотекаСравнения(); }
+        catch { return Layout.showNotification('Не загрузилось сравнение — проверьте связь', 'error'); }
 
         $('#diffSub').textContent = `${было.version_no ? 'Версия ' + было.version_no : 'Прежний текст'} → ${
             показана.status === 'submitted' ? 'правка на утверждении' : 'версия ' + показана.version_no}`;
@@ -230,8 +332,12 @@ const WorshipArticle = (() => {
         $('#diffModal').showModal();
     }
 
+    let снимкиВПути = null;          // запрос ссылок, начатый ещё в загрузить()
+
     async function дополнитьСнимками() {
-        снимки = await WorshipDoc.ссылкиНаСнимки(Layout.db, показана?.doc);
+        const запрос = снимкиВПути || WorshipDoc.ссылкиНаСнимки(Layout.db, показана?.doc);
+        снимкиВПути = null;
+        снимки = await запрос;
     }
 
     function рисоватьТекст() {
@@ -271,30 +377,48 @@ const WorshipArticle = (() => {
             ? `${открытые.length} открыто` : (замечания.length ? `${замечания.length} разобрано` : 'нет');
 
         const имяАвтора = id => имена[id] || '';
-        $('#remarks').innerHTML = [...открытые, ...закрытые].map(з => {
-            const пометка = з.state === 'accepted'
-                ? '<span class="badge badge-sm badge-success">учтено</span>'
-                : з.state === 'declined'
-                ? '<span class="badge badge-sm">не согласен</span>'
-                : '<span class="badge badge-sm badge-warning">открыто</span>';
-            const закрыть = з.state === 'open' && можноПисать()
-                ? `<div class="flex gap-3 mt-1">
-                       <button class="link text-sm" data-remark-ok="${з.id}">Учтено</button>
-                       <button class="link text-sm" data-remark-no="${з.id}">Не согласен</button>
+
+        /**
+         * Суть замечания — первой строкой и крупно. Раньше сверху стоял
+         * цветной чип с автором и датой, а само замечание шло под ними
+         * обычным текстом: взгляд цеплялся за «кто и когда» вместо «что».
+         */
+        const строка = (з, приглушить) => {
+            const ответ = з.state === 'accepted' ? 'учтено'
+                : з.state === 'declined' ? 'не согласен' : '';
+            const действия = з.state === 'open' && можноПисать()
+                ? `<div class="flex flex-wrap gap-2 mt-2">
+                       <button class="btn btn-xs btn-outline" data-remark-ok="${з.id}">Учтено</button>
+                       <button class="btn btn-xs btn-ghost" data-remark-no="${з.id}">Не согласен</button>
                    </div>` : '';
             return `
-            <li class="border-b border-base-200 last:border-0 py-3">
-                <div class="flex flex-wrap items-baseline gap-2">
-                    ${пометка}
-                    <span class="text-sm opacity-60">${
-                        имяАвтора(з.created_by) ? e(имяАвтора(з.created_by)) + ' · ' : ''}${
-                        дата(з.created_at)}</span>
+            <li class="${приглушить ? 'opacity-70 ' : ''}border-b border-base-200 last:border-0 py-3">
+                <div class="font-medium">${e(з.body)}</div>
+                <div class="text-sm opacity-70 mt-0.5">
+                    ${имяАвтора(з.created_by) ? e(имяАвтора(з.created_by)) + ' · ' : ''}${дата(з.created_at)}
+                    ${ответ ? ` · <span class="${з.state === 'accepted'
+                        ? 'text-success' : ''} font-semibold">${ответ}</span>` : ''}
                 </div>
-                <div class="mt-1">${e(з.body)}</div>
-                ${з.close_reason ? `<div class="text-sm opacity-70 mt-1">Ответ: ${e(з.close_reason)}</div>` : ''}
-                ${закрыть}
+                ${з.close_reason
+                    ? `<div class="text-sm opacity-70 mt-1">«${e(з.close_reason)}»</div>` : ''}
+                ${действия}
             </li>`;
-        }).join('') || '<li class="py-2 text-sm opacity-60">Пока никто ничего не заметил</li>';
+        };
+
+        // разобранные не мешаются с тем, что ещё ждёт решения
+        $('#remarks').innerHTML = открытые.map(з => строка(з, false)).join('')
+            || (замечания.length
+                ? '<li class="py-2 text-sm opacity-70">Всё разобрано</li>'
+                : '<li class="py-2 text-sm opacity-70">Пока никто ничего не заметил</li>');
+
+        const блокЗакрытых = $('#remarksDone');
+        if (блокЗакрытых) {
+            блокЗакрытых.hidden = !закрытые.length;
+            $('#remarksDoneCount').textContent = Layout.pluralize(закрытые.length, {
+                ru: ['разобранное', 'разобранных', 'разобранных'],
+                en: ['resolved', 'resolved'], hi: 'हल' });
+            $('#remarksDoneList').innerHTML = закрытые.map(з => строка(з, true)).join('');
+        }
     }
 
     function рисоватьИсторию() {
@@ -309,23 +433,33 @@ const WorshipArticle = (() => {
                     en: ['version', 'versions'], hi: 'संस्करण' })
                 : '';
         }
-        $('#history').innerHTML = готовые.map(в => `
-            <li class="border-b border-base-200 last:border-0 py-3">
-                <div class="flex flex-wrap items-baseline gap-2">
-                    <span class="font-semibold">Версия ${в.version_no}</span>
-                    ${в.status === 'published' ? '<span class="badge badge-sm badge-success">сейчас</span>' : ''}
-                    <span class="text-sm opacity-60">${дата(в.approved_at)}</span>
-                </div>
-                <div class="text-sm opacity-60">${
-                    имена[в.created_by] ? 'написал ' + e(имена[в.created_by]) : ''}${
-                    имена[в.approved_by] ? ' · утвердил ' + e(имена[в.approved_by]) : ''}</div>
-                ${в.change_note ? `<div class="text-sm mt-1">«${e(в.change_note)}»</div>` : ''}
-                <div class="flex gap-3 mt-1">
-                    <button class="link text-sm" data-show="${в.id}">Открыть</button>
+        $('#history').innerHTML = готовые.map(в => {
+            // «написал Пётр · утвердил Пётр» — две одинаковые фамилии подряд,
+            // хотя это один и тот же человек
+            const автор = имена[в.created_by], утвердил = имена[в.approved_by];
+            const кто = автор && утвердил && автор === утвердил
+                ? `написал и утвердил ${e(автор)}`
+                : [автор ? 'написал ' + e(автор) : '', утвердил ? 'утвердил ' + e(утвердил) : '']
+                    .filter(Boolean).join(' · ');
+            return `
+            <li class="border-b border-base-200 last:border-0 py-3
+                       flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span class="font-semibold whitespace-nowrap">Версия ${в.version_no}</span>
+                ${в.status === 'published'
+                    ? '<span class="badge badge-sm badge-success">сейчас</span>' : ''}
+                <span class="text-sm opacity-70 whitespace-nowrap">${дата(в.approved_at)}</span>
+                <span class="flex-1"></span>
+                <span class="flex gap-2 shrink-0">
+                    <button class="btn btn-xs btn-outline" data-show="${в.id}">Открыть</button>
                     ${в.status !== 'published' && можноПисать() && статья.status !== 'archived'
-                        ? `<button class="link text-sm" data-restore="${в.id}">Вернуть эту версию</button>` : ''}
-                </div>
-            </li>`).join('') || '<li class="py-3 text-sm opacity-60">Утверждённых версий ещё нет</li>';
+                        ? `<button class="btn btn-xs btn-ghost" data-restore="${в.id}">Вернуть</button>` : ''}
+                </span>
+                <!-- кто и что поменял — строкой под шапкой версии: иначе длинное
+                     примечание выталкивало кнопки на третью строку -->
+                <span class="w-full text-sm opacity-70">${кто}${
+                    в.change_note ? ` · «${e(в.change_note)}»` : ''}</span>
+            </li>`;
+        }).join('') || '<li class="py-3 text-sm opacity-70">Утверждённых версий ещё нет</li>';
     }
 
     /** Теги и соседи по ним: словарь общий, поэтому «есть ещё» честное. */
@@ -433,7 +567,10 @@ const WorshipArticle = (() => {
         if (error) return Layout.handleError(error, 'Закладка');
         вЗакладках = !вЗакладках;
         рисоватьДействия();
-        Layout.showNotification(вЗакладках ? 'В закладках' : 'Убрано из закладок', 'success');
+        // без этого непонятно, куда делась закладка: список живёт на главной модуля
+        Layout.showNotification(вЗакладках
+            ? 'В закладках — список на главной модуля'
+            : 'Убрано из закладок', 'success');
     }
 
     async function перечитать() {

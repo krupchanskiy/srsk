@@ -38,14 +38,23 @@ const WorshipTags = (() => {
             ${свои.map(с => `
                 <span class="badge badge-outline gap-1">
                     <a class="link link-hover" href="search.html?tag=${с.tag_id}">${e(имена[с.tag_id])}</a>
-                    ${можноПравить ? `<button class="text-error" data-снять="${с.id}" title="Убрать">✕</button>` : ''}
+                    ${можноПравить ? `<button class="цельПальца opacity-50 hover:opacity-100 hover:text-error transition-opacity"
+                                      data-снять="${с.id}" title="Убрать" aria-label="Убрать тег">✕</button>` : ''}
                 </span>`).join('')}
             ${можноПравить ? `
                 <span class="join">
                     <input list="словарьТегов" class="input input-xs input-bordered w-40 join-item"
                            placeholder="+ тег" data-новыйТег maxlength="60">
-                    <button class="btn btn-xs join-item" data-поставитьТег
-                            title="Добавить тег">+</button>
+                    <!-- кнопка стояла нейтральным серым на сером фоне страницы
+                         и читалась как часть поля, а не как действие -->
+                    <button class="btn btn-xs join-item border-base-300" data-поставитьТег
+                            title="Добавить тег" aria-label="Добавить тег"
+                            style="background: var(--current-color); color: #fff;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="3" stroke-linecap="round" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14"></path>
+                        </svg>
+                    </button>
                 </span>
                 <datalist id="словарьТегов">
                     ${(словарь.data || []).map(т => `<option value="${e(т.name)}">`).join('')}
@@ -127,7 +136,7 @@ const WorshipTags = (() => {
                 ? Layout.db.from('worship_articles').select('id, title, kind').in('id', статьиIds)
                 : Promise.resolve({ data: [] }),
             наборыIds.length
-                ? Layout.db.from('worship_albums').select('id, title, event_date').in('id', наборыIds)
+                ? Layout.db.from('worship_albums').select('id, title').in('id', наборыIds)
                 : Promise.resolve({ data: [] }),
         ]);
         return { статьи: статьи.data || [], наборы: наборы.data || [] };

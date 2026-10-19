@@ -73,7 +73,7 @@ const ShopInventory = (() => {
         $('#invBody').innerHTML = `
             <div class="text-sm opacity-60 mb-3">${
                 t('shop_counted_of').replace('%s', посчитано).replace('%s', строки.length)}</div>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto" tabindex="0">
                 <table class="table table-sm stack" id="invTbl">
                     <thead><tr>
                         <th>${t('shop_item_col')}</th><th class="text-right">${t('shop_in_records')}</th>

@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="../js/color-init.js?v=6"></script>
+    <script src="../js/color-init.js?v=7"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Стандарт — ШРСК</title>
@@ -18,19 +18,24 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=25">
     <style>
         /* Печать: лист уходит на стену алтарной, поэтому на бумаге остаётся
            только текст стандарта и строка, по какой версии служат. */
+        /* Лист со стандартом вешают у алтаря: на бумаге остаются только
+           заголовок, кем и когда утверждён, и сам текст. */
         @media print {
-            #header-placeholder, #footer-placeholder, #actions,
-            #toc, #historyCard, #remarksCard, #returned, .no-print { display: none !important; }
-            main { max-width: none !important; padding: 0 !important; }
-            #printHeader { display: block !important; text-align: right; }
-            .card { box-shadow: none !important; border: 0 !important; }
-            body { background: #fff !important; }
+            @page { size: A4 portrait; margin: 14mm; }
+            /* #state на бумаге не нужен: кем и когда утверждено, уже стоит
+               в строке #printHeader, а ссылки на правки на листе бесполезны */
+            #actions, #toc, #historyCard, #remarksCard, #замечанияБлок, #returned,
+            #openRemark, #теги, #соседи, #crumb, #state { display: none !important; }
+            #printHeader { display: block !important; font-size: 11px; }
+            #title { font-size: 22px !important; margin-bottom: .5rem; }
+            .card-body { padding: 0 !important; }
+            #текст { max-width: none !important; font-size: 13px; line-height: 1.5; }
             h2, h3 { break-after: avoid; }
-            li, figure { break-inside: avoid; }
+            li, figure, p { break-inside: avoid; }
         }
             /* оглавление держится под шапкой, какой бы высоты та ни была */
         .оглавление { position: sticky; top: calc(var(--высота-шапки, 116px) + 1rem); }
@@ -63,6 +68,9 @@
                 <h1 class="text-3xl font-bold tracking-tight" id="title"
                     style="text-wrap: balance;">&nbsp;</h1>
                 <p class="text-sm mt-1" id="state"></p>
+                <!-- что сделать, чтобы правка стала действующей: без этого
+                     человек видел «пока не утвердят» и не знал, чего ждать -->
+                <p class="text-sm mt-1 opacity-70" id="какПринять" hidden></p>
             </div>
             <div class="flex flex-wrap gap-2" id="actions"></div>
         </div>
@@ -99,7 +107,7 @@
                              class="transition-transform group-open:rotate-90 desktop:hidden" aria-hidden="true">
                             <path d="M9 6l6 6-6 6"></path>
                         </svg>
-                        <span data-i18n="worship_steps">Шаги</span>
+                        <span data-i18n="worship_steps">Содержание</span>
                     </summary>
                     <ul class="list-none m-0 p-0 space-y-1" id="tocList"></ul>
                 </details>
@@ -118,9 +126,17 @@
                 <div class="mt-3 text-sm" id="соседи"></div>
 
                 <!-- обслуживание: раскрывается по желанию, а не занимает экран -->
-                <div class="mt-6 border-t border-base-300 pt-4 space-y-2">
+                <div class="mt-6 border-t border-base-300 pt-4 space-y-3">
+                    <!-- «Сообщить о неточности» стоит рядом со свёрткой, а не внутри
+                         её заголовка: заголовок сам кнопка, и вложенная кнопка
+                         для экранного диктора сливается с ним в одну неясную -->
+                    <!-- на телефоне кнопка встаёт под заголовком: справа от него ей не хватало
+                         места, и «Замечания» уезжали на отдельную строку под стрелкой -->
+                    <div class="relative flex flex-col-reverse items-start gap-1 sm:block" id="замечанияБлок">
+                    <button class="btn btn-xs btn-outline sm:absolute right-0 top-0.5 no-print" id="addRemark"
+                            data-i18n="worship_add_remark">Сообщить о неточности</button>
                     <details id="remarksCard" class="group">
-                        <summary class="flex flex-wrap items-center gap-2 cursor-pointer list-none py-1">
+                        <summary class="flex flex-wrap items-center gap-2 cursor-pointer list-none py-1 sm:pr-48">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
                                  class="opacity-50 transition-transform group-open:rotate-90" aria-hidden="true">
@@ -128,17 +144,30 @@
                             </svg>
                             <span class="font-semibold" data-i18n="worship_remarks_title">Замечания</span>
                             <span class="text-sm opacity-60" id="remarksCount"></span>
-                            <span class="flex-1"></span>
-                            <button class="btn btn-xs btn-outline ml-auto" id="addRemark"
-                                    data-i18n="worship_add_remark">Сообщить о неточности</button>
                         </summary>
                         <p class="text-sm opacity-70 mt-1 mb-2" data-i18n="worship_remarks_article_hint">Короткая заметка
                             уйдёт автору и старшему. Это не спор и не ветка обсуждения — поправит тот,
                             кто правит статью.</p>
                         <ul class="list-none m-0 p-0" id="remarks"></ul>
-                    </details>
 
-                    <details id="historyCard" class="group">
+                        <!-- разобранные не мешаются с тем, что ещё ждёт решения -->
+                        <details id="remarksDone" hidden class="group/done mt-2">
+                            <summary class="flex items-center gap-2 cursor-pointer list-none py-1
+                                            text-sm opacity-70">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                                     class="transition-transform group-open/done:rotate-90" aria-hidden="true">
+                                    <path d="M9 6l6 6-6 6"></path>
+                                </svg>
+                                <span id="remarksDoneCount"></span>
+                            </summary>
+                            <ul class="list-none m-0 p-0" id="remarksDoneList"></ul>
+                        </details>
+                    </details>
+                    </div>
+
+                    <!-- разделитель: два свёрнутых блока подряд слипались в один список -->
+                    <details id="historyCard" class="group border-t border-base-200 pt-3">
                         <summary class="flex items-center gap-2 cursor-pointer list-none py-1">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
@@ -215,14 +244,14 @@
 
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=112"></script>
-    <script src="../js/date-utils.js?v=4"></script>
-    <script src="../js/auth-check.js?v=13"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
-    <script src="../js/worship-doc.js?v=5"></script>
-    <script src="../js/worship-tags.js?v=4"></script>
-    <script src="../js/pages/worship-article.js?v=17"></script>
+    <script src="../js/utils.js?v=20"></script>
+    <script src="../js/layout.js?v=118"></script>
+    <script src="../js/date-utils.js?v=5"></script>
+    <script src="../js/auth-check.js?v=14"></script>
+    <script src="../js/worship-links.js?v=1"></script>
+    <script src="../js/worship-doc.js?v=7"></script>
+    <script src="../js/worship-tags.js?v=7"></script>
+    <script src="../js/pages/worship-article.js?v=29"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_standards' });

@@ -16,6 +16,7 @@
  * нормой. В базу — только по кнопке.
  */
 const WorshipEdit = (() => {
+    const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
     const $ = s => document.querySelector(s);
     const e = str => Layout.escapeHtml(str ?? '');
 
@@ -52,7 +53,11 @@ const WorshipEdit = (() => {
             if (!статья) { Layout.showNotification('Статья не найдена', 'warning'); return false; }
 
             версия = ответы[2].data;
-            if (версия?.status === 'submitted') {
+            // Правку, которая ждёт решения, открывает тот, кто это решение
+            // принимает: иначе ради одной запятой её пришлось бы возвращать
+            // автору. Автору без права утверждения вход закрыт — двое в одной
+            // редакции затирали бы друг друга, пока она на утверждении.
+            if (версия?.status === 'submitted' && !можноУтверждать()) {
                 Layout.showNotification('Правка отправлена старшему — сначала отзовите её', 'warning');
                 setTimeout(() => location.href = `article.html?id=${id}`, 1500);
                 return false;
@@ -66,7 +71,13 @@ const WorshipEdit = (() => {
             }
         }
 
-        базоваяОтметка = версия?.status === 'draft' ? версия.updated_at : null;
+        // Пустая отметка значит «черновика не было, я правлю действующий
+        // текст»: база в этом случае считает любой найденный черновик чужим.
+        // Старший, открывший правку на утверждении, правит именно её —
+        // иначе собственное «Утвердить» возвращало ему «черновик завёл
+        // кто-то другой» и показывало его же текст.
+        базоваяОтметка = версия && (версия.status === 'draft' || версия.status === 'submitted')
+            ? версия.updated_at : null;
         Object.assign(ссылки, await WorshipDoc.ссылкиНаСнимки(Layout.db, версия?.doc || { blocks: [] }));
         return true;
     }
@@ -74,6 +85,7 @@ const WorshipEdit = (() => {
     // ---------- отрисовка формы ----------
     function рисоватьШапку() {
         $('#режим').textContent = !id ? 'Новая статья'
+            : версия?.status === 'submitted' ? 'Правка, которая ждёт вашего решения'
             : статья.status === 'published' ? 'Правка действующего стандарта'
             : 'Черновик';
 
@@ -83,8 +95,14 @@ const WorshipEdit = (() => {
         $('#раздел').innerHTML = '<option value="">Без раздела</option>' + разделы.map(р =>
             `<option value="${р.id}" ${выбран === р.id ? 'selected' : ''}>${
                 e(Layout.getName(р))}${р.is_active ? '' : ' (скрыт)'}</option>`).join('');
+        // раздел действующего стандарта пишется в статью мимо утверждения —
+        // его меняет только старший (база тоже откажет)
+        const разделЗакрыт = статья?.status === 'published' && !можноУтверждать();
+        $('#раздел').disabled = разделЗакрыт;
+        $('#раздел').title = разделЗакрыт ? 'Раздел действующего стандарта меняет старший пуджари' : '';
 
         $('#заголовок').value = версия?.title || статья?.title || '';
+        заголовокПоТексту();
         $('#примечание').value = версия?.status === 'draft' ? (версия.change_note || '') : '';
 
         // замечание старшего — перед глазами, а не на соседней странице
@@ -97,7 +115,9 @@ const WorshipEdit = (() => {
         const перваяВерсия = !id || статья.status !== 'published';
         $('#картаИзменений').hidden = перваяВерсия;
 
-        $('#удалить').hidden = !(id && статья.status === 'draft');
+        // удалить черновик новой статьи — его автор или старший (так же решает база)
+        $('#удалить').hidden = !(id && статья.status === 'draft'
+            && (статья.created_by === window.currentUser?.id || можноУтверждать()));
     }
 
     function наполнитьПоле(документ) {
@@ -151,6 +171,7 @@ const WorshipEdit = (() => {
         }
         наполнитьПоле(запись.doc);
         $('#заголовок').value = запись.title || '';
+        заголовокПоТексту();
         $('#раздел').value = запись.section_id || '';     // «без раздела» тоже выбор
         $('#примечание').value = запись.change_note || '';
         пометить();
@@ -251,12 +272,11 @@ const WorshipEdit = (() => {
         $('#конфликт').hidden = false;
         document.querySelector('#конфликт .font-bold').textContent =
             сообщение || 'Пока вы писали, черновик изменил кто-то другой';
-        // имя и начало чужого текста прямо здесь: иначе непонятно, с кем
-        // договариваться и что вообще написано вместо твоего
+        // имя стоит в самом заголовке, здесь остаётся время и начало чужого
+        // текста: иначе непонятно, что написано вместо твоего
         const кусок = (чужая.текст || '').trim().slice(0, 300);
         $('#конфликтТекст').innerHTML = `
-            ${e(чужая.кто || 'Кто-то из отдела')} сохранил ${
-                DateUtils.formatDateTime(new Date(чужая.обновлена))}.
+            Сохранено ${DateUtils.formatDateTime(new Date(чужая.обновлена))}.
             ${кусок ? `<span class="block mt-2 p-2 rounded bg-base-100 text-sm">${
                 e(кусок)}${(чужая.текст || '').length > 300 ? '…' : ''}</span>` : ''}
             <span class="block mt-2">Откройте чужую правку в соседней вкладке и перенесите своё,
@@ -270,8 +290,42 @@ const WorshipEdit = (() => {
      * в историю браузера — то есть чтобы работал Ctrl+Z. Своя история
      * означала бы свою перерисовку, а это ровно то, от чего мы ушли.
      */
+
+    /**
+     * Где стоял курсор в тексте. Любое окно — ссылка, выбор снимка, вопрос —
+     * забирает фокус, и выделение гаснет: дальше execCommand применялся
+     * к началу поля, и вставка уходила в первый абзац вместо выбранного места.
+     */
+    let последнийДиапазон = null;
+
+    function вПоле(узел) {
+        const эл = узел?.nodeType === 1 ? узел : узел?.parentElement;
+        return !!эл && !!поле() && поле().contains(эл);
+    }
+
+    function следитьЗаКурсором() {
+        document.addEventListener('selectionchange', () => {
+            const в = getSelection();
+            if (!в || !в.rangeCount) return;
+            const д = в.getRangeAt(0);
+            if (вПоле(д.commonAncestorContainer)) последнийДиапазон = д.cloneRange();
+        });
+    }
+
+    /** Вернуть курсор туда, где он был до окна. */
+    function вернутьсяВПоле() {
+        const п = поле();
+        if (!п) return;
+        п.focus();
+        const в = getSelection();
+        if (в.rangeCount && вПоле(в.getRangeAt(0).commonAncestorContainer)) return;
+        if (!последнийДиапазон) return;
+        в.removeAllRanges();
+        в.addRange(последнийДиапазон);
+    }
+
     function команда(имя, значение = null) {
-        поле().focus();
+        вернутьсяВПоле();
         document.execCommand(имя, false, значение);
         пометить();
         запомнитьПотом();
@@ -329,18 +383,28 @@ const WorshipEdit = (() => {
         обновитьПанель();
     }
 
+    /**
+     * Окно ввода забирает фокус, и выделение в тексте пропадает: дальше
+     * execCommand применялся к пустому курсору в начале поля, и ссылка
+     * вставлялась не на выделенное слово, а в первый абзац. Поэтому
+     * выделение запоминаем до окна и возвращаем перед командой.
+     */
     async function поставитьСсылку() {
         const выделение = getSelection();
         if (!выделение.rangeCount || выделение.isCollapsed) {
             Layout.showNotification('Выделите слова, которые станут ссылкой', 'info');
             return;
         }
+        const диапазон = выделение.getRangeAt(0).cloneRange();
+
         const куда = await спроситьСтроку({
             заголовок: 'Ссылка',
             подсказка: 'https://… или имя страницы модуля, например article.html?id=…' });
         if (!куда) return;
         const чистый = WorshipDoc.адрес(куда);
         if (!чистый) { Layout.showNotification('Такой адрес не годится', 'warning'); return; }
+
+        последнийДиапазон = диапазон;
         команда('createLink', чистый);
     }
 
@@ -416,11 +480,10 @@ const WorshipEdit = (() => {
             .upload(путь, готовый.тело, { contentType: 'image/jpeg' });
         if (error) { Layout.handleError(error, 'Загрузка фото'); return; }
 
-        const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
-        if (!data?.signedUrl) {
+        ссылки[путь] = await WorshipLinks.одна(Layout.db, путь);
+        if (!ссылки[путь]) {
             Layout.showNotification('Фото загрузилось, но не показывается — обновите страницу', 'warning');
         }
-        ссылки[путь] = data?.signedUrl || '';
         свои.push(путь);
         вставитьФото(путь);
     }
@@ -437,46 +500,49 @@ const WorshipEdit = (() => {
 
     async function открытьГалерею() {
         const { data: наборы, error } = await Layout.db.from('worship_albums')
-            .select('id, title, event_date, is_private, is_archived')
-            .eq('is_archived', false).order('event_date', { ascending: false });
+            .select('id, title, is_private, is_archived')
+            .eq('is_archived', false).order('title');
         if (error) return Layout.handleError(error, 'Галерея');
-        if (!наборы?.length) return Layout.showNotification('Наборов снимков пока нет', 'info');
+        if (!наборы?.length) return Layout.showNotification('Папок со снимками пока нет', 'info');
 
         $('#выборНабора').innerHTML = наборы.map(н =>
-            `<option value="${н.id}">${e(н.title)} · ${
-                DateUtils.formatShort(DateUtils.parseDate(н.event_date))}${
-                н.is_private ? ' — закрытый' : ''}</option>`).join('');
+            `<option value="${н.id}">${e(н.title)}${
+                н.is_private ? ' — закрытая' : ''}</option>`).join('');
 
+        // быстрый перебор папок: ответ по прежней не должен лечь поверх нынешней
+        let поколение = 0;
         const показать = async () => {
             const н = наборы.find(x => x.id === $('#выборНабора').value);
             const окно = $('#снимкиНабора');
             if (!н) return;
+            const моё = ++поколение;
 
             const { data: снимки } = await Layout.db.from('worship_images')
-                .select('id, storage_path, caption').eq('album_id', н.id)
+                .select('id, storage_path, thumb_path, caption').eq('album_id', н.id)
                 .order('sort_order').order('shot_at');
+            if (моё !== поколение) return;
             if (!снимки?.length) {
-                окно.innerHTML = '<div class="col-span-full text-sm opacity-60 py-4">В наборе пока нет снимков</div>';
+                окно.innerHTML = '<div class="col-span-full text-sm opacity-60 py-4">В папке пока нет снимков</div>';
                 return;
             }
 
-            const { data: адреса } = await Layout.db.storage.from('worship')
-                .createSignedUrls(снимки.map(с => с.storage_path), 1800);
-            const карта = Object.fromEntries((адреса || [])
-                .filter(а => а.signedUrl).map(а => [а.path, а.signedUrl]));
+            // в окне выбора — миниатюры; в текст вставляется оригинал
+            const плитка = с => с.thumb_path || с.storage_path;
+            const карта = await WorshipLinks.подписать(Layout.db, снимки.map(плитка));
+            if (моё !== поколение) return;
 
             окно.innerHTML = снимки.map(с => `
                 <button class="relative aspect-square rounded-lg overflow-hidden bg-base-200
                                ${н.is_private ? 'opacity-60 cursor-not-allowed' : 'hover:ring-2'}"
-                        data-взятьСнимок="${с.storage_path}" ${н.is_private ? 'disabled' : ''}
+                        data-взятьСнимок="${e(с.storage_path)}" ${н.is_private ? 'disabled' : ''}
                         title="${e(с.caption || '')}">
-                    ${карта[с.storage_path]
-                        ? `<img src="${карта[с.storage_path]}" alt="${e(с.caption || '')}"
+                    ${карта[плитка(с)]
+                        ? `<img src="${e(карта[плитка(с)])}" alt="${e(с.caption || '')}"
                                 class="w-full h-full object-cover">` : ''}
                 </button>`).join('') + (н.is_private ? `
                 <div class="col-span-full text-sm text-warning mt-2">
-                    Набор закрыт для отдела. Чтобы вставить снимок в стандарт, откройте набор
-                    на его странице — или положите этот кадр в открытый набор.
+                    Папка закрыта для отдела. Чтобы вставить снимок в стандарт, откройте папку
+                    на её странице — или положите этот кадр в открытую папку.
                 </div>` : '');
         };
 
@@ -486,22 +552,43 @@ const WorshipEdit = (() => {
     }
 
     async function взятьИзГалереи(путь) {
-        // проверяем ещё раз на сервере: набор могли закрыть, пока окно открыто
+        // проверяем ещё раз на сервере: папку могли закрыть, пока окно открыто
         const { data: можно, error } = await Layout.db.rpc('worship_image_is_open', { p_path: путь });
         if (error) return Layout.handleError(error, 'Снимок');
         if (!можно) {
             return Layout.showNotification(
-                'Этот набор закрыт: снимок нельзя вставить в стандарт, который читают все', 'warning');
+                'Эта папка закрыта: снимок нельзя вставить в стандарт, который читают все', 'warning');
         }
 
-        const { data } = await Layout.db.storage.from('worship').createSignedUrl(путь, 3600);
-        ссылки[путь] = data?.signedUrl || '';
+        ссылки[путь] = await WorshipLinks.одна(Layout.db, путь);
         $('#галереяМодал').close();
         вставитьФото(путь);
     }
 
     // ---------- события ----------
+    /**
+     * Название — многострочное поле, которое ведёт себя как одна строка:
+     * высота по тексту, Enter не переносит, вставленные переносы — пробелы.
+     */
+    function заголовокПоТексту() {
+        const п = $('#заголовок');
+        // пока поле скрыто, высоты у него нет — тогда оставляем как есть
+        if (!п.offsetParent) return;
+        п.style.height = 'auto';
+        п.style.height = п.scrollHeight + 'px';
+    }
+    function настроитьЗаголовок() {
+        const п = $('#заголовок');
+        п.addEventListener('keydown', ev => { if (ev.key === 'Enter') ev.preventDefault(); });
+        п.addEventListener('input', () => {
+            if (/\n/.test(п.value)) п.value = п.value.replace(/\s*\n\s*/g, ' ');
+            заголовокПоТексту();
+        });
+        window.addEventListener('resize', заголовокПоТексту);
+    }
+
     function слушать() {
+        настроитьЗаголовок();
         const т = поле();
 
         т.addEventListener('input', () => { пометить(); запомнитьПотом(); });
@@ -531,10 +618,23 @@ const WorshipEdit = (() => {
             // только в конце строки: посреди заголовка Enter должен делить его,
             // как в любом редакторе
             if (!блок || !выделение.isCollapsed) return;
-            const всего = (блок.textContent || '').length;
-            if (выделение.anchorOffset < всего) return;
+            // позиция курсора — от начала всего блока, а не от начала текстового
+            // узла: в «Заголовок <b>важно</b>» курсор в конце стоит на 5-м знаке
+            // слова «важно», и проверка решала, что он посреди заголовка.
+            // Тогда срабатывал Enter браузера — и новый абзац выходил жирным.
+            const доКурсора = document.createRange();
+            доКурсора.setStart(блок, 0);
+            доКурсора.setEnd(выделение.anchorNode, выделение.anchorOffset);
+            if (доКурсора.toString().length < (блок.textContent || '').length) return;
 
             ev.preventDefault();
+            // курсор — за последним узлом самого блока, вне <b> и ссылки,
+            // чтобы новый абзац не унёс их с собой
+            const конец = document.createRange();
+            конец.setStart(блок, блок.childNodes.length);
+            конец.collapse(true);
+            выделение.removeAllRanges();
+            выделение.addRange(конец);
             команда('insertHTML', '<p><br></p>');
         });
 
@@ -579,8 +679,8 @@ const WorshipEdit = (() => {
         $('#сохранить').addEventListener('click', сохранитьИПерейти);
         $('#сохранитьНизу').addEventListener('click', сохранитьИПерейти);
 
-        $('#отправить').addEventListener('click', отправить);
-        $('#отправитьНизу').addEventListener('click', отправить);
+        $('#отправить').addEventListener('click', отправитьИлиУтвердить);
+        $('#отправитьНизу').addEventListener('click', отправитьИлиУтвердить);
         $('#отмена').addEventListener('click', отменить);
         $('#удалить').addEventListener('click', удалить);
 
@@ -599,6 +699,31 @@ const WorshipEdit = (() => {
             ev.preventDefault();
             ev.returnValue = '';
         });
+    }
+
+    /** Старший правит присланную редакцию и утверждает её сам, не гоняя автора. */
+    const правимОтправленную = () => версия?.status === 'submitted' && можноУтверждать();
+
+    function подписатьГлавнуюКнопку() {
+        if (!правимОтправленную()) return;
+        ['#отправить', '#отправитьНизу'].forEach(s2 => {
+            const б = $(s2);
+            if (б) б.textContent = 'Утвердить';
+        });
+    }
+
+    async function отправитьИлиУтвердить() {
+        if (!правимОтправленную()) return отправить();
+
+        if (!await спросить('Утвердить правку?',
+            'С этого момента по этому тексту служат в храме. Ваши изменения сохранятся в неё.')) return;
+        const ответ = await сохранить({});
+        if (!ответ) return;
+        const { data, error } = await Layout.db.rpc('worship_approve', { p_article: ответ.article_id });
+        if (error) return Layout.handleError(error, 'Утверждение');
+        грязно = false;
+        Layout.showNotification(data?.повтор ? 'Уже утверждено' : `Утверждено, версия ${data?.номер}`, 'success');
+        location.href = `article.html?id=${ответ.article_id}`;
     }
 
     async function отправить() {
@@ -645,6 +770,7 @@ const WorshipEdit = (() => {
         рисоватьШапку();
         наполнитьПоле();
         слушать();
+        следитьЗаКурсором();
         обновитьПанель();
         // теги ставятся прямо при написании: у новой статьи — после первого
         // сохранения, когда страница перезагрузится уже с номером
@@ -653,6 +779,7 @@ const WorshipEdit = (() => {
             WorshipTags.нарисовать($('#теги'), { article_id: id }, { можноПравить: true });
         }
         отметка('', 'text-sm');
+        подписатьГлавнуюКнопку();
         // после проверки — не чистим: если несохранённое вернули, человек
         // должен видеть «не сохранено», иначе решит, что всё уже в базе
         проверитьНесохранённое();

@@ -5,7 +5,7 @@
          к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
     <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <script src="../js/color-init.js?v=6"></script>
+    <script src="../js/color-init.js?v=7"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title data-i18n-title="crm_kanban_page_title">Канбан — CRM — ШРСК</title>
@@ -15,7 +15,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=25">
     <style>
         .kanban-container {
             display: flex;
@@ -60,6 +60,11 @@
             cursor: pointer;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             transition: box-shadow 0.2s, transform 0.2s;
+        }
+        /* «→» под мышью появляется при наведении, на сенсорном экране видна всегда */
+        @media (hover: hover) {
+            .kanban-card .кнопкаДальше { opacity: 0; transition: opacity .15s; }
+            .kanban-card:hover .кнопкаДальше, .kanban-card .кнопкаДальше:focus-visible { opacity: 1; }
         }
         .kanban-card:hover {
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -109,19 +114,19 @@
             </div>
 
             <!-- Ретрит -->
-            <select id="filterRetreat" class="select select-bordered select-sm" onchange="loadDeals()">
+            <select aria-label="Ретрит" id="filterRetreat" class="select select-bordered select-sm" onchange="loadDeals()">
                 <option value="" data-i18n="crm_all_retreats">Все ретриты</option>
             </select>
 
             <!-- Менеджер -->
-            <select id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
+            <select aria-label="Менеджер" id="filterManager" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="" data-i18n="crm_all_managers">Все менеджеры</option>
                 <option value="my" data-i18n="crm_my">Мои</option>
                 <option value="unassigned" data-i18n="crm_unassigned">Не назначен</option>
             </select>
 
             <!-- Режим -->
-            <select id="filterMode" class="select select-bordered select-sm" onchange="applyFilters()">
+            <select id="filterMode" aria-label="Режим" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="" data-i18n="crm_all_modes">Все режимы</option>
                 <option value="active" data-i18n="crm_mode_active">Активные</option>
                 <option value="long_term" data-i18n="crm_mode_long_term">Долгий дожим</option>
@@ -129,7 +134,7 @@
             </select>
 
             <!-- Маркеры (ТЗ 1.7): показываются только когда требуют внимания -->
-            <select id="filterMarker" class="select select-bordered select-sm" onchange="applyFilters()">
+            <select id="filterMarker" aria-label="Отметка" class="select select-bordered select-sm" onchange="applyFilters()">
                 <option value="">Все маркеры</option>
                 <option value="dates" data-i18n="crm_marker_dates">Даты не уточнены</option>
                 <option value="terms" data-i18n="crm_filter_has_terms">Инд. условия</option>
@@ -161,12 +166,12 @@
 <div id="footer-placeholder"></div>
 
 <script src="../js/config.js?v=5"></script>
-<script src="../js/auth-check.js?v=13"></script>
+<script src="../js/auth-check.js?v=14"></script>
 <script src="../js/cache.js?v=2"></script>
-<script src="../js/utils.js?v=17"></script>
-<script src="../js/layout.js?v=112"></script>
-<script src="../js/date-utils.js?v=4"></script>
-<script src="../js/crm-utils.js?v=6"></script>
+<script src="../js/utils.js?v=20"></script>
+<script src="../js/layout.js?v=118"></script>
+<script src="../js/date-utils.js?v=5"></script>
+<script src="../js/crm-utils.js?v=7"></script>
 <script src="../js/crm-cancel-reason.js?v=1"></script>
 
 <script>
@@ -521,7 +526,7 @@ function renderCard(deal) {
     }
 
     return `
-        <div class="kanban-card ${isOverdue ? 'overdue' : ''} ${tempOpacity}"
+        <div class="kanban-card group ${isOverdue ? 'overdue' : ''} ${tempOpacity}"
              data-id="${deal.id}"
              onclick="openDeal('${deal.id}')">
             <div class="flex items-start justify-between gap-1 mb-1">
@@ -535,7 +540,7 @@ function renderCard(deal) {
             </div>
             <div class="text-xs text-base-content/50 mb-1">${e(guest?.phone || '')}</div>
             <div class="flex items-center justify-between mb-1">
-                <span class="badge badge-xs" style="background-color: ${retreat?.color || '#6b7280'}; color: white;">
+                <span class="badge badge-xs" style="${Utils.badgeStyle(retreat?.color)}">
                     ${e(Layout.getName(retreat)?.substring(0, 15) || '—')}
                 </span>
                 <div class="flex items-center gap-0.5">${dots}</div>
@@ -547,7 +552,7 @@ function renderCard(deal) {
                 </div>
                 <div class="flex items-center gap-1">
                     ${renderCardAmount(deal)}
-                    ${deal.status !== 'completed' && deal.status !== 'cancelled' ? `<button class="btn btn-xs btn-ghost btn-circle opacity-0 group-hover:opacity-100" onclick="event.stopPropagation(); quickAdvance('${deal.id}', '${deal.status}')" title="Следующий статус">→</button>` : ''}
+                    ${deal.status !== 'completed' && deal.status !== 'cancelled' ? `<button class="btn btn-xs btn-ghost btn-circle кнопкаДальше" onclick="event.stopPropagation(); quickAdvance('${deal.id}', '${deal.status}', this)" title="Следующий статус" aria-label="Следующий статус">→</button>` : ''}
                 </div>
             </div>
             ${departedBadge(deal)?.html || ''}
@@ -612,6 +617,10 @@ function initSortable() {
         const sortable = new Sortable(el, {
             group: 'kanban',
             animation: 150,
+            // на телефоне палец сначала прокручивает колонку, а тащит карточку
+            // только после удержания — иначе прокрутка двигала сделку по стадиям
+            delay: 250,
+            delayOnTouchOnly: true,
             ghostClass: 'sortable-ghost',
             chosenClass: 'sortable-chosen',
             dragClass: 'sortable-drag',
@@ -665,11 +674,29 @@ function openDeal(id) {
     window.location.href = `deal.html?id=${id}`;
 }
 
-async function quickAdvance(dealId, currentStatus) {
-    const nextStatus = CrmUtils.getNextStatus(currentStatus);
-    if (!nextStatus) return;
+// Кнопка «→» была всегда прозрачной (у карточки не было класса group),
+// но нажималась: тап в угол карточки на телефоне молча двигал сделку дальше,
+// а двойной — сразу на две стадии. Теперь кнопка видна, спрашивает и не
+// срабатывает второй раз, пока идёт первый.
+const сделкиВПути = new Set();
 
-    const { error } = await Layout.db.from('crm_deals').update({ status: nextStatus }).eq('id', dealId);
+async function quickAdvance(dealId, currentStatus, кнопка) {
+    const nextStatus = CrmUtils.getNextStatus(currentStatus);
+    if (!nextStatus || сделкиВПути.has(dealId)) return;
+    if (!confirm(`${CrmUtils.getStatusLabel(currentStatus)} → ${CrmUtils.getStatusLabel(nextStatus)}?`)) return;
+    сделкиВПути.add(dealId);
+    if (кнопка) кнопка.disabled = true;
+
+    // смена только из того статуса, который видел менеджер: если коллега
+    // уже передвинул сделку, второй щелчок её не перескочит
+    const { data: сменено, error } = await Layout.db.from('crm_deals').update({ status: nextStatus })
+        .eq('id', dealId).eq('status', currentStatus).select('id');
+    сделкиВПути.delete(dealId);
+    if (кнопка) кнопка.disabled = false;
+    if (!error && !сменено?.length) {
+        Layout.showNotification('Сделку уже передвинули — обновляю доску', 'warning');
+        return loadDeals();
+    }
     if (error) {
         // Блокировка стадии из БД (ТЗ 1.6) — показываем её текст как есть
         Layout.showNotification(error.message, 'error');

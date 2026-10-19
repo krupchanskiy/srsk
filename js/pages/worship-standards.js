@@ -11,7 +11,8 @@ const WorshipStandards = (() => {
     const $ = s => document.querySelector(s);
 
     const ПОРОГ_СВОРАЧИВАНИЯ = 20;       // столько статей список держит развёрнутым
-    const КЛЮЧ_РАЗДЕЛОВ = 'worship_sections_collapsed';
+    // v2: в прежнем ключе вперемешку лежали выборы человека и умолчания по порогу
+    const КЛЮЧ_РАЗДЕЛОВ = 'worship_sections_collapsed_v2';
     const КЛЮЧ_СОРТИРОВКИ = 'worship_standards_sort';
 
     // Порядок статей раньше переставляли стрелками вручную. На десятке
@@ -35,6 +36,15 @@ const WorshipStandards = (() => {
     // запрос с главной приходит в адресе: два разных поиска в модуле ни к чему
     let фильтр = { поиск: new URLSearchParams(location.search).get('q') || '', архив: false };
 
+    let версииСтатей = [];
+
+    /**
+     * Всё для страницы — одним кругом до базы: разделы, статьи, их версии,
+     * очередь на утверждение и открытые замечания. Раньше это были четыре
+     * круга подряд (версии ждали список статей ради фильтра по id).
+     * Версии берём только живые — действующую и открытую правку: в старых
+     * редакциях полный текст, и тянуть их ради значков незачем.
+     */
     async function загрузить() {
         const ответы = await Promise.all([
             Layout.db.from('worship_sections')
@@ -43,33 +53,35 @@ const WorshipStandards = (() => {
             Layout.db.from('worship_articles')
                 .select('id, section_id, title, status, sort_order, updated_at, current_version_id')
                 .eq('kind', 'standard').order('sort_order'),
+            // порциями: выдача обрезается на тысяче строк, а версий у статьи
+            // несколько — иначе значки и номера начнут молча врать
+            Utils.fetchAll((от, до) => Layout.db.from('worship_versions')
+                .select('article_id, status, version_no, approved_at, plain_text')
+                .in('status', ['published', 'draft', 'submitted'])
+                .order('id').range(от, до)),
+            // очередь — это версии, а не статьи: правка действующего стандарта ждёт
+            // решения, пока сама статья продолжает действовать
+            можноУтверждать()
+                ? Layout.db.from('worship_versions')
+                    .select('id, article_id, title, change_note, updated_at, created_by')
+                    .eq('status', 'submitted').order('updated_at')
+                : Promise.resolve({ data: [] }),
+            // замечания — вторая стопка работы отдела, и смотрит её любой пуджари,
+            // а не только тот, кто утверждает
+            можноПисать()
+                ? Layout.db.from('worship_remarks')
+                    .select('id, article_id, body, created_at')
+                    .eq('state', 'open').order('created_at')
+                : Promise.resolve({ data: [] }),
         ]);
-        if (ответы.some(о => о.error)) {
-            Layout.handleError(ответы.find(о => о.error).error, 'Загрузка стандартов');
-            return false;
-        }
+        const сбой = ответы.find(о => о.error);
+        if (сбой) { Layout.handleError(сбой.error, 'Загрузка стандартов'); return false; }
+
         разделы = ответы[0].data || [];
         статьи = ответы[1].data || [];
-
-        // очередь — это версии, а не статьи: правка действующего стандарта ждёт
-        // решения, пока сама статья продолжает действовать
-        if (можноУтверждать()) {
-            const { data, error } = await Layout.db.from('worship_versions')
-                .select('id, article_id, title, change_note, updated_at, created_by')
-                .eq('status', 'submitted').order('updated_at');
-            if (error) { Layout.handleError(error, 'Очередь на утверждение'); return false; }
-            очередь = data || [];
-        }
-
-        // замечания — вторая стопка работы отдела, и смотрит её любой пуджари,
-        // а не только тот, кто утверждает
-        if (можноПисать()) {
-            const зам = await Layout.db.from('worship_remarks')
-                .select('id, article_id, body, created_at')
-                .eq('state', 'open').order('created_at');
-            if (зам.error) { Layout.handleError(зам.error, 'Замечания'); return false; }
-            замечания = зам.data || [];
-        }
+        версииСтатей = ответы[2].data || [];
+        очередь = ответы[3].data || [];
+        замечания = ответы[4].data || [];
         return true;
     }
 
@@ -273,27 +285,39 @@ const WorshipStandards = (() => {
     /** Раздел списка: заголовок со счётчиком и сворачиваемое содержимое. */
     function разделHTML(id, имя, свои, сворачивать, раздел) {
         const открыт = ищем() || !(сохранённые()[id] ?? сворачивать) ? ' open' : '';
+        // Заголовок — шапка той же карточки, а не отдельная строка над ней:
+        // когда он висел сам по себе, свёрнутый раздел читался как подпись
+        // к списку соседа сверху.
+        // «+ статья» стоит рядом со свёрткой, а не внутри <summary>: заголовок
+        // свёртки сам кнопка, и ссылка в нём — вложенный интерактивный
+        // элемент, который экранный диктор читает как одну неясную кнопку
         return `
-        <details class="разделСписка mb-6" data-раздел-ключ="${e(id)}"${открыт}>
-            <summary class="flex flex-wrap items-baseline gap-2 px-1 mb-1 cursor-pointer select-none">
+        <div class="обёрткаРаздела relative mb-3">
+        <details class="разделСписка rounded-xl shadow-sm overflow-hidden"
+                 style="background: oklch(var(--b1));"
+                 data-раздел-ключ="${e(id)}"${открыт}>
+            <summary class="flex flex-wrap items-center gap-2 px-5 py-3 cursor-pointer select-none pr-28"
+                     style="background: color-mix(in srgb, var(--current-color) 9%, transparent);">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2.5" stroke-linecap="round" aria-hidden="true"
-                     class="details-chevron transition-transform self-center opacity-60">
+                     class="details-chevron transition-transform opacity-60">
                     <path d="M6 9l6 6 6-6"></path>
                 </svg>
                 <h2 class="text-base font-bold uppercase tracking-wide ${раздел ? '' : 'opacity-70'}">${e(имя)}</h2>
                 <span class="text-sm opacity-70">${свои.length}</span>
                 ${раздел && !раздел.is_active ? '<span class="badge badge-sm">скрыт</span>' : ''}
-                <span class="flex-1"></span>
-                ${раздел && можноПисать()
-                    ? `<a href="edit.html?section=${раздел.id}" class="btn btn-ghost btn-xs ручкиСтроки"
-                          title="Новая статья в этом разделе">+ статья</a>` : ''}
             </summary>
-            <ul class="list-none m-0 p-0 bg-base-100 rounded-xl shadow-sm overflow-hidden">
+            <ul class="list-none m-0 p-0 border-t"
+                style="border-color: color-mix(in srgb, var(--current-color) 18%, transparent);">
                 ${свои.map(строкаСтатьи).join('') ||
                   '<li class="px-5 py-4 text-sm opacity-70">Пока пусто</li>'}
             </ul>
-        </details>`;
+        </details>
+        ${раздел && можноПисать()
+            ? `<a href="edit.html?section=${раздел.id}"
+                  class="btn btn-ghost btn-xs ручкиСтроки absolute right-3 top-2"
+                  title="Новая статья в этом разделе">+ статья</a>` : ''}
+        </div>`;
     }
 
     /**
@@ -348,19 +372,9 @@ const WorshipStandards = (() => {
 
     // ---------- данные для показа ----------
     async function дополнитьВерсиями() {
-        const ids = статьи.map(с => с.id);
-        if (!ids.length) return true;
-
-        // по сотне статей за раз: выдача обрезается на тысяче строк, а версий
-        // у статьи несколько — иначе значки и номера начнут молча врать
-        const строки = [];
-        for (let i = 0; i < ids.length; i += 100) {
-            const { data, error } = await Layout.db.from('worship_versions')
-                .select('article_id, status, version_no, approved_at, plain_text')
-                .in('article_id', ids.slice(i, i + 100));
-            if (error) { Layout.handleError(error, 'Версии статей'); return false; }
-            строки.push(...(data || []));
-        }
+        // версии уже пришли в загрузить(); здесь только раскладываем по статьям
+        // (среди них есть версии материалов библиотеки — они просто не найдут статью)
+        const строки = версииСтатей;
 
         const поСтатье = {};
         (строки).forEach(в => {
@@ -387,12 +401,21 @@ const WorshipStandards = (() => {
     function слушать() {
         if (фильтр.поиск) $('#q').value = фильтр.поиск;
         $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисовать(); });
-        // состояние раздела запоминается: toggle не всплывает, слушаем на погружении
+        // Запоминаем только то, что человек сделал сам — щелчок по заголовку.
+        // toggle срабатывает и когда раздел рисуется уже свёрнутым по порогу:
+        // раньше такое «умолчание» записывалось как выбор человека, и раздел
+        // оставался свёрнутым навсегда, даже когда статей в нём становилось три.
+        document.addEventListener('click', ev => {
+            const заголовок = ev.target.closest('summary');
+            const блок = заголовок?.parentElement;
+            if (!блок?.matches('[data-раздел-ключ]') || ищем()) return;
+            if (ev.target.closest('summary a, summary button')) return;
+            // щелчок ещё не применён: после него раздел будет свёрнут, если сейчас открыт
+            запомнитьРаздел(блок.getAttribute('data-раздел-ключ'), блок.open);
+        });
+        // toggle не всплывает — слушаем на погружении
         document.addEventListener('toggle', ev => {
-            const блок = ev.target.closest?.('[data-раздел-ключ]');
-            if (!блок || ищем()) return;
-            запомнитьРаздел(блок.dataset.разделКлюч ?? блок.getAttribute('data-раздел-ключ'), !блок.open);
-            расставитьСостояния();
+            if (ev.target.closest?.('[data-раздел-ключ]') && !ищем()) расставитьСостояния();
         }, true);
 
         // «+ статья» живёт в заголовке раздела: без этого щелчок по ней

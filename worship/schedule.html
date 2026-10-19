@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="../js/color-init.js?v=6"></script>
+    <script src="../js/color-init.js?v=7"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Расписание — ШРСК</title>
@@ -18,30 +18,61 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=25">
     <style>
         /* Неделю печатают и вешают в пуджарской: альбомный A4, без ручек. */
+        /* Лист вешают в пуджарской: нужна вся неделя на одной странице,
+           крупные имена и видные пустые клетки — остальное с бумаги убрано. */
         @media print {
-            @page { size: A4 landscape; margin: 10mm; }
-            #header-placeholder, #footer-placeholder, #actions, #отклонения,
-            #мои, .no-print { display: none !important; }
-            main { max-width: none !important; padding: 0 !important; }
-            .card { box-shadow: none !important; border: 0 !important; }
-            body { background: #fff !important; }
-            table { font-size: 11px; }
+            @page { size: A4 landscape; margin: 8mm; }
+            #actions, #отклонения, #мои, #легенда, #старшийОтъезд,
+            [role="tablist"], .tabs { display: none !important; }
             #шахматка { display: block !important; }
             #день { display: none !important; }
-        }
-        /* Шахматку читают взглядом по диагонали: «где дыры». Поэтому
-           состояние клетки несёт фон, а не текст внутри неё. */
-        .клетка { vertical-align: top; min-width: 118px; padding: .35rem .4rem !important; }
 
-        /* дыра — единственное, ради чего старший сюда заходит */
-        .клетка.дыра { background: oklch(var(--wa) / .13); }
-        .клетка.дыра:hover { background: oklch(var(--wa) / .22); }
+            table { font-size: 10.5px; width: 100%; table-layout: fixed; }
+            .клетка { min-width: 0; padding: .2rem .25rem !important; }
+            .клетка .badge {
+                font-size: .62rem !important; padding: 0 .2rem !important;
+                background: transparent !important; border: 1px solid #888 !important;
+            }
+            thead th { font-size: 10.5px; padding: .2rem .25rem !important; }
+
+            /* на бумаге цвет теряется: состояние несут рамка и штриховка */
+            .клетка.закрыта, .клетка.закрыта.командой,
+            .клетка.закрыта.волонтёром { background: #fff !important; }
+            .клетка.дыра {
+                background: repeating-linear-gradient(45deg,
+                    #fff 0 3px, #e8e8e8 3px 6px) !important;
+            }
+            /* «+ поставить» — кнопка экрана; на бумаге пустую клетку несёт штриховка */
+            .дыраКнопка { display: none !important; }
+            /* «сегодня» на листе, который висит неделю, ничего не значит */
+            .клетка.сегодня, th.сегодня, #итогДней td.сегодня {
+                border-left: 0 !important; border-right: 0 !important;
+                background-color: transparent;
+            }
+            th.сегодня { color: inherit !important; background: transparent !important; }
+            .клетка.своя { background: #fff !important; }
+            #итогДней td { font-size: 10px; }
+            tr, .клетка { break-inside: avoid; }
+        }
+        /* Шахматку читают взглядом по диагонали: «где закрыто, где дыры».
+           Состояние несёт заливка самой клетки — рамки вокруг имён добавляли
+           вторую сетку поверх табличной и съедали место под длинные имена. */
+        .клетка { vertical-align: top; min-width: 128px; padding: .3rem .45rem !important; }
+
+        /* закрыто — спокойный зелёный, дыра — тёплый жёлтый.
+           Команда гуще, волонтёр бледнее: клетку, которую держит только
+           приехавший на время, видно отдельно. */
+        .клетка.закрыта { background: oklch(var(--su) / .14); }
+        .клетка.закрыта.командой { background: oklch(var(--su) / .2); }
+        .клетка.закрыта.волонтёром { background: oklch(var(--su) / .08); }
+        .клетка.дыра { background: oklch(var(--wa) / .15); }
+        .клетка.дыра:hover { background: oklch(var(--wa) / .24); }
         .дыраКнопка {
             display: flex; align-items: center; justify-content: center; gap: .25rem;
-            width: 100%; min-height: 2.4rem; border-radius: .5rem;
+            width: 100%; min-height: 1.9rem; border-radius: .4rem;
             border: 1.5px dashed oklch(var(--wa) / .55);
             font-size: .78rem; color: oklch(var(--wac, var(--bc)) / .85);
         }
@@ -49,42 +80,65 @@
 
         /* прошедшая пустая клетка — не упрёк, просто ничего не было */
         .клетка.прошлаяПустая { opacity: .45; }
-        /* день, в который этой службы нет вовсе */
-        .клетка.неПрименимо { background: oklch(var(--b2)); }
+        /* день, в который этой службы нет вовсе: пусто и не спорит с соседями */
+        .клетка.неПрименимо { background: transparent; }
         /* отменённая служба: видно, что это решение, а не забывчивость */
         .клетка.отменена {
             background: repeating-linear-gradient(135deg,
                 oklch(var(--b2)) 0 7px, oklch(var(--b3)) 7px 14px);
         }
 
-        /* сегодняшний столбец — вертикальная полоса через всю таблицу */
-        .клетка.сегодня, th.сегодня { background: color-mix(in srgb, var(--current-color) 7%, transparent); }
-        .клетка.сегодня.дыра { background: oklch(var(--wa) / .18); }
+        /* Сегодняшний столбец обведён целиком, а не каждая клетка по
+           отдельности: рамки вокруг клеток складывались в лесенку
+           прямоугольников и спорили с цветом состояния. */
+        th.сегодня, .клетка.сегодня, #итогДней td.сегодня {
+            border-left: 2px solid color-mix(in srgb, var(--current-color) 40%, transparent);
+            border-right: 2px solid color-mix(in srgb, var(--current-color) 40%, transparent);
+        }
+        th.сегодня {
+            border-top: 2px solid color-mix(in srgb, var(--current-color) 40%, transparent);
+            background: color-mix(in srgb, var(--current-color) 8%, transparent);
+            border-top-left-radius: .5rem; border-top-right-radius: .5rem;
+        }
+        #итогДней td.сегодня {
+            border-bottom: 2px solid color-mix(in srgb, var(--current-color) 40%, transparent);
+            border-bottom-left-radius: .5rem; border-bottom-right-radius: .5rem;
+        }
+        th.сегодня > span { color: inherit; }
 
-        /* занятая клетка: имя на плашке, чтобы отличаться от пустоты даже боковым зрением */
-        .плашкаИмени {
-            display: flex; align-items: flex-start; gap: .25rem;
-            background: oklch(var(--b1)); border: 1px solid oklch(var(--b3));
-            border-radius: .5rem; padding: .3rem .4rem;
+        /* общий стиль задаёт значкам 0.9rem и щедрые отступы: в клетке
+           «помощник» и «в отъезде» выходили размером с само имя */
+        .клетка .badge {
+            font-size: .72rem !important;
+            padding: .1rem .35rem !important;
+            height: auto; min-height: 0; line-height: 1.3;
         }
-        .клетка.своя .плашкаИмени {
-            background: color-mix(in srgb, var(--current-color) 14%, oklch(var(--b1)));
-            border-color: color-mix(in srgb, var(--current-color) 45%, transparent);
-        }
+
+        /* тот же язык цвета в дневном списке */
+        .клеткаДня.закрыта { background: oklch(var(--su) / .12); }
+        .клеткаДня.закрыта.командой { background: oklch(var(--su) / .18); }
+        .клеткаДня.закрыта.волонтёром { background: oklch(var(--su) / .07); }
+        .клеткаДня.дыра { background: oklch(var(--wa) / .13); }
+
+        /* имя без рамки: строка текста, а не кнопка */
+        .плашкаИмени { display: flex; align-items: flex-start; gap: .25rem; padding: .1rem 0; }
+        /* своя смена важнее общего «закрыто», поэтому перекрывает зелёный */
+        .клетка.своя { background: color-mix(in srgb, var(--current-color) 13%, transparent); }
+        .клетка.своя .плашкаИмени a { font-weight: 600; }
         /* «снять» и «поставить второго» нужны редко: в занятой клетке они
            появляются при наведении, а не висят в каждой из двадцати одной */
         .ещёВКлетку, .снятьВКлетке { opacity: 0; transition: opacity .15s; }
         .клетка:hover .ещёВКлетку, .клетка:focus-within .ещёВКлетку,
         .клетка:hover .снятьВКлетке, .клетка:focus-within .снятьВКлетке { opacity: .65; }
-        @media (hover: none) { .ещёВКлетку, .снятьВКлетке { opacity: .4; } }
+        @media (hover: none) { .ещёВКлетку, .снятьВКлетке { opacity: .8; } }
 
         /* итоговая строка: по какому дню неделя проседает */
         #итогДней td { border-top: 2px solid oklch(var(--b3)); font-size: .78rem; }
         #итогДней td.итогДыра { background: oklch(var(--wa) / .13); }
 
         @media print {
-            .клетка.дыра { background: #f5f5f5 !important; }
-            .дыраКнопка { border-color: #999 !important; }
+            /* второй блок печати раньше перебивал штриховку пустых клеток
+               сплошным серым — и на бумаге «пусто» и «закрыто» не отличались */
             .клетка.отменена { background: #eee !important; }
         }
     </style>
@@ -95,7 +149,15 @@
 
     <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1400px;">
 
-        <div class="flex flex-wrap items-end gap-3 mb-4">
+        <!-- шапка листа: на экране её нет, на бумаге она вместо шапки сайта -->
+        <div class="дляПечати mb-3" style="border-bottom: 1.5px solid #555; padding-bottom: 4px;">
+            <span style="font-size: 15px; font-weight: 700;">Расписание служб</span>
+            <span style="float: right; font-size: 12px;" id="печатьПериод"></span>
+            <span style="display: block; font-size: 10px; color: #444; margin-top: 2px;">Штриховка — на службу
+                никто не поставлен. Серым с пометкой «в отъезде» — поставленный не придёт.</span>
+        </div>
+
+        <div class="flex flex-wrap items-end gap-3 mb-4 no-print">
             <div class="flex-1 min-w-full desktop:min-w-0">
                 <h1 class="text-3xl font-bold tracking-tight" data-i18n="worship_schedule_title">Расписание</h1>
                 <p class="text-sm opacity-60 mt-1" id="подзаголовок">&nbsp;</p>
@@ -104,10 +166,11 @@
         </div>
 
         <!-- люди отдела — вкладка рядом с шахматкой, а не отдельный раздел меню -->
-        <div role="tablist" class="tabs tabs-bordered mb-4 no-print w-fit">
-            <a role="tab" class="tab tab-active" href="schedule.html"
+        <div role="tablist" class="tabs tabs-bordered mb-4 no-print w-fit max-w-full overflow-x-auto">
+            <a role="tab" class="tab tab-active whitespace-nowrap" href="schedule.html"
                data-i18n="worship_schedule_title">Расписание</a>
-            <a role="tab" class="tab" href="people.html" data-i18n="worship_people_title">Люди отдела</a>
+            <a role="tab" class="tab whitespace-nowrap" href="people.html" data-i18n="worship_people_title">Люди отдела</a>
+            <a role="tab" class="tab whitespace-nowrap" href="load.html" data-i18n="worship_load_title">Загрузка</a>
         </div>
 
         <div id="старшийОтъезд" hidden class="alert alert-warning mb-4 text-sm no-print"></div>
@@ -115,20 +178,24 @@
         <!-- свои службы наверху: человек заходит сюда за своим, а не за обзором -->
         <section id="мои" hidden class="mb-4 rounded-xl p-4"
                  style="background: color-mix(in srgb, var(--current-color) 10%, transparent);">
-            <h2 class="font-bold mb-2" data-i18n="worship_my_duties">Ваши ближайшие службы</h2>
+            <h2 class="надзаголовок mb-2" data-i18n="worship_my_duties">Ваши ближайшие службы</h2>
             <ul class="list-none m-0 p-0" id="моиСписок"></ul>
         </section>
 
-        <!-- переключение недели -->
-        <div class="flex flex-wrap items-center gap-2 mb-3 no-print">
-            <button class="btn btn-sm btn-outline" id="назад">‹</button>
-            <button class="btn btn-sm" id="сегодня" data-i18n="worship_today">Сегодня</button>
-            <button class="btn btn-sm btn-outline" id="вперёд">›</button>
-            <span class="font-semibold ml-2" id="периодНадпись"></span>
-            <span class="flex-1"></span>
-            <div class="join">
-                <button class="btn btn-sm join-item" data-вид="неделя" data-i18n="worship_view_week">Неделя</button>
-                <button class="btn btn-sm join-item" data-вид="день" data-i18n="worship_view_day">День</button>
+        <!-- переключение недели: на телефоне стрелки, период и выбор вида
+             занимали три строки подряд — теперь стрелки обнимают период -->
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3 no-print">
+            <div class="flex items-center gap-1 flex-1 min-w-56">
+                <button class="btn btn-ghost btn-sm min-h-11 min-w-11 px-0 text-xl" id="назад" aria-label="Предыдущая неделя">‹</button>
+                <span class="font-semibold flex-1 text-center whitespace-nowrap" id="периодНадпись"></span>
+                <button class="btn btn-ghost btn-sm min-h-11 min-w-11 px-0 text-xl" id="вперёд" aria-label="Следующая неделя">›</button>
+            </div>
+            <div class="flex items-center gap-2 ml-auto">
+                <button class="btn btn-sm btn-outline" id="сегодня" data-i18n="worship_today">Сегодня</button>
+                <div class="join выбор">
+                    <button class="btn btn-sm join-item" data-вид="неделя" data-i18n="worship_view_week">Неделя</button>
+                    <button class="btn btn-sm join-item" data-вид="день" data-i18n="worship_view_day">День</button>
+                </div>
             </div>
         </div>
 
@@ -152,8 +219,14 @@
                 некому служить
             </span>
             <span class="flex items-center gap-1.5">
-                <span class="inline-block w-3.5 h-3.5 rounded bg-base-100 border border-base-300"></span>
-                закрыто
+                <span class="inline-block w-3.5 h-3.5 rounded"
+                      style="background: oklch(var(--su) / .4);"></span>
+                закрыто командой
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="inline-block w-3.5 h-3.5 rounded"
+                      style="background: oklch(var(--su) / .16);"></span>
+                закрыто волонтёром
             </span>
             <span class="flex items-center gap-1.5">
                 <span class="inline-block w-3.5 h-3.5 rounded"
@@ -169,18 +242,22 @@
             </div>
         </div>
 
-        <!-- отклонения дня: праздник или отмена -->
+        <!-- Правки конкретных дней. Обе кнопки — про один день, а не про состав
+             служб: «Отменить службу» читалось как «убрать её из расписания
+             насовсем», хотя это отметка «в такой-то день не проводится».
+             Сам состав служб правят кнопкой «Службы и время» наверху. -->
         <div class="card bg-base-100 shadow" id="отклонения" data-permission="worship_approve">
             <div class="card-body p-5">
-                <h2 class="card-title text-lg mb-1" data-i18n="worship_overrides_title">Отклонения дня</h2>
-                <p class="text-sm opacity-60 mb-3" data-i18n="worship_overrides_hint">Праздник или
-                    экадаши — это не второе расписание, а точечная правка: разовая служба
-                    либо отметка «сегодня не проводится».</p>
-                <ul class="list-none m-0 p-0 mb-3" id="отклоненияСписок"></ul>
-                <div class="flex flex-wrap gap-2">
-                    <button class="btn btn-sm btn-outline" id="разовая">Разовая служба</button>
-                    <button class="btn btn-sm btn-outline" id="отменить">Отменить службу</button>
+                <div class="flex flex-wrap items-center gap-3 mb-1">
+                    <h2 class="card-title text-lg" data-i18n="worship_overrides_title">Праздники и отмены</h2>
+                    <span class="flex-1"></span>
+                    <button class="btn btn-sm btn-outline" id="разовая">+ Служба на один день</button>
+                    <button class="btn btn-sm btn-outline" id="отменить">Отменить на день</button>
                 </div>
+                <p class="text-sm opacity-70 mb-3" data-i18n="worship_overrides_hint">Праздник или
+                    экадаши — это не второе расписание, а точечная правка одного дня: добавить
+                    службу либо отметить, что она в этот день не проводится.</p>
+                <ul class="list-none m-0 p-0" id="отклоненияСписок"></ul>
             </div>
         </div>
     </main>
@@ -271,6 +348,44 @@
     </dialog>
 
     <!-- «меня не будет»: ставится с телефона, в четыре утра, не будя старшего -->
+    <!-- Повтор недели: откуда берём, куда кладём и на сколько недель вперёд.
+         Раньше вопрос «Повторить прошлую неделю?» не называл ни дат,
+         ни числа назначений, а источник был жёстко один — предыдущая неделя. -->
+    <dialog id="повторМодал" class="modal">
+        <div class="modal-box max-w-lg">
+            <h3 class="font-bold text-lg mb-3">Повторить неделю</h3>
+
+            <label class="form-control mb-3">
+                <div class="label py-1"><span class="label-text">Откуда берём</span></div>
+                <select id="повторОткуда" class="select select-bordered select-sm"></select>
+            </label>
+
+            <label class="form-control mb-3">
+                <div class="label py-1"><span class="label-text">На сколько недель вперёд</span></div>
+                <select id="повторСколько" class="select select-bordered select-sm">
+                    <option value="1">на одну неделю</option>
+                    <option value="2">на две недели</option>
+                    <option value="3">на три недели</option>
+                    <option value="4">на четыре недели</option>
+                </select>
+            </label>
+
+            <div class="rounded-lg bg-base-200 p-3 text-sm" id="повторИтог"></div>
+
+            <p class="text-sm opacity-70 mt-2">Уже расписанные клетки останутся как есть —
+                поверх них никого не добавим. Пропустим тех, кто в отъезде, волонтёров,
+                у которых к тем дням кончится срок, отключённые службы и дни, где служба
+                отменена или стоит праздник. Разовые службы не переносятся.</p>
+
+            <div class="modal-action">
+                <form method="dialog"><button class="btn btn-sm btn-ghost">Отмена</button></form>
+                <button class="btn btn-sm" id="повторПустить"
+                        style="background: var(--current-color); color:#fff;">Повторить</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>закрыть</button></form>
+    </dialog>
+
     <dialog id="отметкаМодал" class="modal">
         <div class="modal-box max-w-md">
             <h3 class="font-bold text-lg mb-1">Меня не будет</h3>
@@ -316,11 +431,11 @@
 
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=112"></script>
-    <script src="../js/date-utils.js?v=4"></script>
-    <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-schedule.js?v=16"></script>
+    <script src="../js/utils.js?v=20"></script>
+    <script src="../js/layout.js?v=118"></script>
+    <script src="../js/date-utils.js?v=5"></script>
+    <script src="../js/auth-check.js?v=14"></script>
+    <script src="../js/pages/worship-schedule.js?v=35"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

@@ -21,11 +21,11 @@ const WorshipAlbum = (() => {
         const [н, с] = await Promise.all([
             Layout.db.from('worship_albums').select('*').eq('id', id).maybeSingle(),
             Utils.fetchAll((от, до) => Layout.db.from('worship_images')
-                .select('id, storage_path, caption, sort_order, shot_at, width, height')
+                .select('id, storage_path, thumb_path, caption, sort_order, shot_at, width, height')
                 .eq('album_id', id).order('sort_order').order('shot_at').range(от, до)),
         ]);
-        if (н.error || с.error) { Layout.handleError(н.error || с.error, 'Загрузка набора'); return false; }
-        if (!н.data) { Layout.showNotification('Набор не найден или закрыт', 'warning'); return false; }
+        if (н.error || с.error) { Layout.handleError(н.error || с.error, 'Загрузка папки'); return false; }
+        if (!н.data) { Layout.showNotification('Папка не найдена или закрыта', 'warning'); return false; }
 
         набор = н.data;
         снимки = с.data || [];
@@ -33,20 +33,68 @@ const WorshipAlbum = (() => {
         return true;
     }
 
+    /** В плитке — миниатюра, если она уже есть; оригинал — только при просмотре. */
+    const плитка = с => с.thumb_path || с.storage_path;
+
     async function обновитьСсылки() {
         ссылки = {};
         if (!снимки.length) return;
-        const { data } = await Layout.db.storage.from('worship')
-            .createSignedUrls(снимки.map(с => с.storage_path), 3600);
-        (data || []).forEach(з => { if (з.signedUrl) ссылки[з.path] = з.signedUrl; });
+        // запомненные ссылки: при каждом действии в папке перечитываются все
+        // снимки, и без этого браузер заново качал их целиком
+        ссылки = await WorshipLinks.подписать(Layout.db, снимки.map(плитка));
+    }
+
+    // ---------- миниатюры ----------
+    const ПРЕДЕЛ_МИНИАТЮРЫ = 480;
+    const путьМиниатюры = путь => путь.replace(/\.jpg$/i, '') + '.thumb.jpg';
+
+    /**
+     * Снимки, загруженные до миниатюр, получают их, когда папку открывает
+     * пуджари: тихо, по одному, в фоне. Не вышло — плитка просто покажет
+     * оригинал, как раньше.
+     */
+    let миниатюрыИдут = false;
+    async function дописатьМиниатюры() {
+        if (миниатюрыИдут || !можноПисать() || typeof Media === 'undefined') return;
+        const без = снимки.filter(с => !с.thumb_path).slice(0, 40);
+        if (!без.length) return;
+        миниатюрыИдут = true;
+        try {
+            const адреса = await WorshipLinks.подписать(Layout.db, без.map(с => с.storage_path));
+            for (const с of без) {
+                try {
+                    if (!адреса[с.storage_path]) continue;
+                    const ответ = await fetch(адреса[с.storage_path]);
+                    if (!ответ.ok) continue;
+                    const кусок = await ответ.blob();
+                    const мини = await Media.подготовить(new File([кусок], 'снимок.jpg', { type: кусок.type || 'image/jpeg' }),
+                        { предел: ПРЕДЕЛ_МИНИАТЮРЫ, качество: 0.78 });
+                    const путь = `${window.currentUser?.id}/${crypto.randomUUID()}.thumb.jpg`;
+                    const { error } = await Layout.db.storage.from('worship')
+                        .upload(путь, мини.тело, { contentType: 'image/jpeg' });
+                    if (error) continue;
+                    const { data, error: ош } = await Layout.db.rpc('worship_image_set_thumb',
+                        { p_image: с.id, p_path: путь });
+                    if (ош || !data?.['записано']) {
+                        // кто-то успел раньше — свой лишний файл убираем
+                        Layout.db.storage.from('worship').remove([путь]).then(() => {});
+                        continue;
+                    }
+                    с.thumb_path = путь;
+                } catch (ош) {
+                    console.debug('миниатюра не вышла:', ош?.message);
+                }
+            }
+        } finally {
+            миниатюрыИдут = false;
+        }
     }
 
     // ---------- отрисовка ----------
     function рисоватьШапку() {
         $('#название').textContent = набор.title;
         $('#подзаголовок').innerHTML = `
-            ${DateUtils.formatShort(DateUtils.parseDate(набор.event_date))}
-            · ${Layout.pluralize(снимки.length, {
+            ${Layout.pluralize(снимки.length, {
                 ru: ['снимок', 'снимка', 'снимков'], en: ['photo', 'photos'], hi: 'चित्र' })}
             ${набор.is_private ? ' · <span class="text-warning font-semibold">только для отдела</span>' : ''}
             ${набор.is_guide ? ' · инструкция к стандарту' : ''}
@@ -77,7 +125,7 @@ const WorshipAlbum = (() => {
                 : ''}
             ${редкие.length ? `
             <div class="dropdown dropdown-end">
-                <button tabindex="0" class="btn btn-sm btn-ghost px-2" aria-label="Ещё действия">
+                <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
                         <circle cx="12" cy="19" r="1.7"></circle>
@@ -93,25 +141,26 @@ const WorshipAlbum = (() => {
         $('#предупреждение').hidden = !набор.is_private;
         if (набор.is_private) {
             $('#предупреждение').innerHTML =
-                'Набор закрыт: его снимки видят только пуджари. Такой снимок нельзя вставить ' +
+                'Папка закрыта: её снимки видят только пуджари. Такой снимок нельзя вставить ' +
                 'в стандарт, который читает весь ашрам, и нельзя выдать в подборке — ' +
-                'сначала откройте набор или положите снимок в открытый.';
+                'сначала откройте папку или положите снимок в открытую.';
         }
     }
 
     function рисоватьСнимки() {
         $('#снимки').innerHTML = снимки.map((с, i) => `
             <figure class="группа relative rounded-xl overflow-hidden bg-base-200">
-                <div class="aspect-[4/5] cursor-zoom-in" data-смотреть="${i}">
-                    ${ссылки[с.storage_path]
-                        ? `<img src="${ссылки[с.storage_path]}" alt="${e(с.caption)}" loading="lazy"
+                <div class="relative aspect-square cursor-zoom-in" data-смотреть="${i}">
+                    ${ссылки[плитка(с)]
+                        ? `<img src="${e(ссылки[плитка(с)])}" alt="${e(с.caption)}" loading="lazy"
                                 class="w-full h-full object-cover">`
                         : '<span class="text-xs opacity-50 p-2 block">снимок не загрузился</span>'}
+                    <!-- внизу снимка, а не вверху: на телефоне ручки видны всегда,
+                         и метка «обложка» ложилась прямо на стрелки -->
+                    ${набор.cover_image_id === с.id
+                        ? `<span class="absolute bottom-2 left-2 badge badge-sm bg-base-100/90 border-0">обложка</span>`
+                        : ''}
                 </div>
-
-                ${набор.cover_image_id === с.id
-                    ? `<span class="absolute top-2 left-2 badge badge-sm bg-base-100/90 border-0">обложка</span>`
-                    : ''}
 
                 <!-- Ручки появляются при наведении: на экран приходят смотреть,
                      как наряжали, а не переставлять кадры. Раньше под каждым
@@ -129,21 +178,25 @@ const WorshipAlbum = (() => {
                             data-убрать="${с.id}" title="Убрать снимок">✕</button>
                 </div>` : ''}
 
-                <figcaption class="px-1 pt-2 pb-1">
+                <!-- Подпись есть не у каждого снимка, и приглашение «подписать»
+                     под каждой плиткой складывалось в колонку одинаковых серых
+                     строк. Поле появляется при наведении, пустая подпись места
+                     не занимает. -->
+                <figcaption class="px-1 pt-2 pb-1 ${с.caption ? '' : 'подписьПустая'}">
                     ${можноПисать() && !набор.is_archived
                         ? `<input class="w-full bg-transparent border-0 border-b border-transparent
                                         hover:border-base-300 focus:border-base-300 focus:outline-none
-                                        text-sm py-0.5 px-0 placeholder:opacity-40"
+                                        text-sm py-0.5 px-0 placeholder:opacity-50"
                                   data-подпись="${с.id}" value="${e(с.caption)}"
-                                  placeholder="Подписать снимок" maxlength="200">`
+                                  placeholder="Подписать" maxlength="200">`
                         : `<span class="text-sm opacity-70">${e(с.caption)}</span>`}
                 </figcaption>
             </figure>`).join('') ||
-            `<div class="desktop:col-span-4 card bg-base-100 shadow"><div class="card-body items-start">
-                <h2 class="card-title text-lg">Снимков пока нет</h2>
+            `<div class="bg-base-100 rounded-xl shadow-sm p-8 text-center" style="grid-column: 1 / -1;">
+                <div class="font-semibold mb-1">Снимков пока нет</div>
                 <p class="text-sm opacity-70">Можно выбрать сразу несколько файлов —
                     они загрузятся по очереди, с подсчётом.</p>
-            </div></div>`;
+            </div>`;
     }
 
     // ---------- загрузка ----------
@@ -163,9 +216,19 @@ const WorshipAlbum = (() => {
                 .upload(путь, готовый.тело, { contentType: 'image/jpeg' });
             if (error) throw new Error(error.message);
 
+            // миниатюра для плитки; не вышла — плитка покажет оригинал
+            let мини = null;
+            try {
+                const м = await Media.подготовить(файл, { предел: ПРЕДЕЛ_МИНИАТЮРЫ, качество: 0.78 });
+                const { error: ошМ } = await Layout.db.storage.from('worship')
+                    .upload(путьМиниатюры(путь), м.тело, { contentType: 'image/jpeg' });
+                if (!ошМ) мини = путьМиниатюры(путь);
+            } catch { /* без миниатюры */ }
+
             const { error: ош } = await Layout.db.from('worship_images').insert({
                 album_id: id,
                 storage_path: путь,
+                thumb_path: мини,
                 caption: null,
                 // первоначальный порядок — по времени съёмки, а не по тому,
                 // в каком порядке человек выбрал файлы
@@ -230,7 +293,30 @@ const WorshipAlbum = (() => {
         setTimeout(() => пометкаСохранения(поле, ''), 2000);
     }
 
+    // Подписи, которые ещё пишутся. Щелчок по «обложке» или «закрыть папку»
+    // сразу после набора подписи перечитывал папку раньше, чем подпись
+    // доходила до базы, — и поле показывало старый текст, будто правка пропала.
+    const подписиВПути = new Set();
+    const таймеры = new Map();
+
+    function записатьПодпись(поле) {
+        clearTimeout(таймеры.get(поле.dataset.подпись));
+        таймеры.delete(поле.dataset.подпись);
+        const путь = сохранитьПодпись(поле).finally(() => подписиВПути.delete(путь));
+        подписиВПути.add(путь);
+        return путь;
+    }
+
+    async function дописатьПодписи() {
+        for (const id of [...таймеры.keys()]) {
+            const поле = document.querySelector(`[data-подпись="${CSS.escape(id)}"]`);
+            if (поле) записатьПодпись(поле);
+        }
+        await Promise.all([...подписиВПути]);
+    }
+
     async function перечитать() {
+        await дописатьПодписи();
         if (await загрузить()) { рисоватьШапку(); рисоватьСнимки(); window.applyPermissions?.(); }
     }
 
@@ -245,28 +331,28 @@ const WorshipAlbum = (() => {
         // У каждого поля свой таймер: один общий debounce гасил предыдущий,
         // и при подписывании двадцати снимков подряд выживали единицы —
         // причём молча, человек был уверен, что всё записалось.
-        const таймеры = new Map();
         document.addEventListener('input', ev => {
             const поле = ev.target.closest('[data-подпись]');
             if (!поле) return;
             const id = поле.dataset.подпись;
             clearTimeout(таймеры.get(id));
             пометкаСохранения(поле, 'пишу…');
-            таймеры.set(id, setTimeout(() => сохранитьПодпись(поле), 600));
+            таймеры.set(id, setTimeout(() => записатьПодпись(поле), 600));
         });
         // уход с поля сохраняет сразу: не ждать таймера, если человек уже дальше
         document.addEventListener('focusout', ev => {
             const поле = ev.target.closest('[data-подпись]');
             if (!поле) return;
-            clearTimeout(таймеры.get(поле.dataset.подпись));
-            сохранитьПодпись(поле);
+            записатьПодпись(поле);
         });
 
         document.addEventListener('click', async ev => {
             const смотреть = ev.target.closest('[data-смотреть]');
             if (смотреть) {
+                // в просмотре — оригиналы: плитки показывают миниатюры
+                const оригиналы = await WorshipLinks.подписать(Layout.db, снимки.map(с => с.storage_path));
                 return Media.открыть(снимки.map(с => ({
-                    адрес: ссылки[с.storage_path], подпись: с.caption || '',
+                    адрес: оригиналы[с.storage_path] || ссылки[плитка(с)], подпись: с.caption || '',
                 })), Number(смотреть.dataset.смотреть));
             }
 
@@ -293,7 +379,9 @@ const WorshipAlbum = (() => {
                     { p_image: убрать.dataset.убрать });
                 if (error) return Layout.handleError(error, 'Удаление снимка');
                 if (data?.путь) {
-                    Layout.db.storage.from('worship').remove([data.путь])
+                    const файлы = [data.путь, data['миниатюра']].filter(Boolean);
+                    WorshipLinks.забыть(файлы);
+                    Layout.db.storage.from('worship').remove(файлы)
                         .then(({ error: ош }) => { if (ош) console.debug('файл остался:', ош.message); });
                 }
                 return перечитать();
@@ -310,19 +398,19 @@ const WorshipAlbum = (() => {
             }
             if (b.id === 'видимость') {
                 const станет = !набор.is_private;
-                if (станет && !await спросить('Закрыть набор для отдела?',
-                    'Его снимки перестанут видеть все, кроме пуджари.')) return;
-                if (!станет && !await спросить('Открыть набор всему ашраму?',
+                if (станет && !await спросить('Закрыть папку для отдела?',
+                    'Её снимки перестанут видеть все, кроме пуджари.')) return;
+                if (!станет && !await спросить('Открыть папку всему ашраму?',
                     'Снимки увидит каждый сотрудник, у кого есть доступ к модулю.')) return;
                 const { error } = await Layout.db.rpc('worship_album_visibility',
                     { p_album: id, p_private: станет });
-                if (error) return Layout.handleError(error, 'Видимость набора');
+                if (error) return Layout.handleError(error, 'Видимость папки');
                 return перечитать();
             }
             if (b.id === 'архив') {
                 const { error } = await Layout.db.rpc('worship_album_update',
                     { p_album: id, p_payload: { is_archived: !набор.is_archived } });
-                if (error) return Layout.handleError(error, 'Архив набора');
+                if (error) return Layout.handleError(error, 'Архив папки');
                 return перечитать();
             }
             if (b.id === 'правка') return править();
@@ -332,7 +420,6 @@ const WorshipAlbum = (() => {
 
     async function править() {
         $('#правкаНазвание').value = набор.title;
-        $('#правкаДата').value = набор.event_date;
         $('#правкаОписание').value = набор.description || '';
         $('#правкаИнструкция').checked = набор.is_guide;
 
@@ -353,23 +440,20 @@ const WorshipAlbum = (() => {
 
     async function сохранитьПравку() {
         const название = $('#правкаНазвание').value.trim();
-        const дата = $('#правкаДата').value;
-        if (!название) { Layout.showNotification('Без названия набор не найти', 'warning'); return; }
-        if (!дата) { Layout.showNotification('Поставьте дату события', 'warning'); return; }
+        if (!название) { Layout.showNotification('Без названия папку не найти', 'warning'); return; }
 
-        // через функцию: политика пускает только завёдшего набор или старшего,
+        // через функцию: политика пускает только завёдшего папку или старшего,
         // а обычный update вернул бы ноль строк без ошибки
         const { error } = await Layout.db.rpc('worship_album_update', {
             p_album: id,
             p_payload: {
                 title: название,
-                event_date: дата,
                 description: $('#правкаОписание').value.trim(),
                 article_id: $('#правкаСтатья').value || '',
                 is_guide: $('#правкаИнструкция').checked,
             },
         });
-        if (error) return Layout.handleError(error, 'Правка набора');
+        if (error) return Layout.handleError(error, 'Правка папки');
         $('#правкаМодал').close();
         await перечитать();
     }
@@ -379,8 +463,8 @@ const WorshipAlbum = (() => {
         if (!await загрузить()) {
             document.querySelector('main').innerHTML = `
                 <div class="card bg-base-100 shadow max-w-xl"><div class="card-body items-start">
-                    <h1 class="card-title text-xl">Набор не найден</h1>
-                    <p class="text-sm opacity-70">Возможно, он закрыт для отдела или убран в архив.</p>
+                    <h1 class="card-title text-xl">Папка не найдена</h1>
+                    <p class="text-sm opacity-70">Возможно, она закрыта для отдела или убрана в архив.</p>
                     <a href="gallery.html" class="btn btn-sm mt-2"
                        style="background: var(--current-color); color:#fff;">К галерее</a>
                 </div></div>`;
@@ -393,6 +477,8 @@ const WorshipAlbum = (() => {
                                { можноПравить: можноПисать() && !набор.is_archived });
         // ссылки на снимки живут час: обновляем, пока страница открыта
         Media.держатьСсылки(async () => { await обновитьСсылки(); рисоватьСнимки(); });
+        // старые снимки без миниатюр — дописываем в фоне, плитки сменятся при следующем заходе
+        if (!набор.is_archived) дописатьМиниатюры();
     }
 
     return { init };

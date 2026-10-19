@@ -443,7 +443,7 @@ const CrmUtils = {
         const svg = this.STATUS_SVG_ICONS[status]?.replace('w-5 h-5', size === 'sm' ? 'w-3 h-3' : 'w-4 h-4') || '';
         const label = this.getStatusLabel(status);
         const badgeSize = size === 'sm' ? 'badge-sm' : '';
-        return `<span class="badge ${badgeSize} gap-1 items-center" style="background-color: ${color}; color: white;">
+        return `<span class="badge ${badgeSize} gap-1 items-center" style="${Utils.badgeStyle(color)}">
             ${svg} ${Layout.escapeHtml(label)}
         </span>`;
     },

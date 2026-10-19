@@ -4,7 +4,7 @@
  * Стандарты в подборке всегда в действующей редакции — человек открывает её
  * через месяц и видит то, что действует сейчас, а не слепок на день выдачи.
  * Отменённый стандарт помечается «больше не действует», но не исчезает:
- * иначе дорожка рвётся, и непонятно, было там что-то или нет.
+ * иначе порядок рвётся, и непонятно, было там что-то или нет.
  *
  * Прогресс не отслеживается сознательно: подборка — это то, что дали почитать,
  * а не курс с отчётностью.
@@ -55,7 +55,7 @@ const WorshipKit = (() => {
         пункты = и.data || [];
         выдачи = (в.data || []).filter(г => !г.revoked_at);
 
-        // подтягиваем названия того, из чего собрана дорожка
+        // подтягиваем названия того, из чего собрана подборка
         const статьи = пункты.map(п2 => п2.article_id).filter(Boolean);
         const наборы = пункты.map(п2 => п2.album_id).filter(Boolean);
         const люди = выдачи.map(г => г.vaishnava_id).filter(Boolean);
@@ -65,7 +65,7 @@ const WorshipKit = (() => {
             статьи.length ? Layout.db.from('worship_articles')
                 .select('id, title, kind, status, summary').in('id', статьи) : Promise.resolve({ data: [] }),
             наборы.length ? Layout.db.from('worship_albums')
-                .select('id, title, event_date, is_private, is_archived').in('id', наборы) : Promise.resolve({ data: [] }),
+                .select('id, title, is_private, is_archived').in('id', наборы) : Promise.resolve({ data: [] }),
             люди.length ? Layout.db.from('vaishnavas')
                 .select('id, spiritual_name, first_name, last_name').in('id', люди) : Promise.resolve({ data: [] }),
             ретриты.length ? Layout.db.from('retreats')
@@ -88,12 +88,41 @@ const WorshipKit = (() => {
         $('#название').textContent = подборка.title;
         $('#описание').textContent = подборка.description || '';
 
-        const кнопки = ['<button class="btn btn-sm btn-outline no-print" id="печать">Печать</button>'];
+        // на виду одно действие, остальное под «ещё»: три равнозначные кнопки
+        // в ряд не говорили, какая из них обычная работа
+        const кнопки = [];
+        const редкие = ['<li><button id="печать">Печать</button></li>'];
         if (можноПисать()) {
-            кнопки.unshift('<button class="btn btn-sm btn-outline no-print" id="правка">Изменить</button>');
-            кнопки.push(`<button class="btn btn-sm btn-ghost no-print" id="включение">${
-                подборка.is_active ? 'Отключить' : 'Включить'}</button>`);
+            // «Добавить» наверху рядом с остальными действиями: блок с четырьмя
+            // кнопками внизу страницы заставлял прокручивать подборку до конца,
+            // чтобы положить в неё ещё один пункт
+            кнопки.push(`
+            <div class="dropdown dropdown-end no-print">
+                <button tabindex="0" class="btn btn-sm" id="добавитьПункт"
+                        style="background: var(--current-color); color:#fff;">+ Добавить</button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
+                    <li><button data-добавить="standard">Стандарт</button></li>
+                    <li><button data-добавить="material">Материал</button></li>
+                    <li><button data-добавить="album">Папку со снимками</button></li>
+                    <li><button data-добавить="note">Свой текст</button></li>
+                </ul>
+            </div>`);
+            кнопки.push('<button class="btn btn-sm btn-outline no-print" id="правка">Изменить</button>');
+            редкие.push(`<li><button id="включение">${
+                подборка.is_active ? 'Отключить' : 'Включить'}</button></li>`);
         }
+        кнопки.push(`
+            <div class="dropdown dropdown-end no-print">
+                <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
+                        <circle cx="12" cy="19" r="1.7"></circle>
+                    </svg>
+                </button>
+                <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-48">
+                    ${редкие.join('')}
+                </ul>
+            </div>`);
         $('#actions').innerHTML = кнопки.join('');
     }
 
@@ -129,7 +158,7 @@ const WorshipKit = (() => {
         }
 
         const н = имена.наборы[п.album_id];
-        if (!н) return недоступен(номер, 'набор фотографий');
+        if (!н) return недоступен(номер, 'папка со снимками');
         return `
         <li class="пунктДорожки flex items-start gap-3 py-3 border-b border-base-200 last:border-0">
             <span class="номерПункта shrink-0 w-7 h-7 rounded-full bg-base-200 flex items-center
@@ -139,10 +168,8 @@ const WorshipKit = (() => {
                     <a class="link link-hover font-semibold" href="album.html?id=${н.id}">${e(н.title)}</a>
                     <span class="text-sm opacity-70">фото</span>
                     ${н.is_private
-                        ? '<span class="badge badge-sm badge-error">закрытый набор — выдать нельзя</span>' : ''}
+                        ? '<span class="badge badge-sm badge-error">закрытая папка — выдать нельзя</span>' : ''}
                 </div>
-                <div class="text-sm opacity-70 mt-0.5">${
-                    DateUtils.formatShort(DateUtils.parseDate(н.event_date))}</div>
             </div>
             ${ручки(п)}
         </li>`;
@@ -150,7 +177,7 @@ const WorshipKit = (() => {
 
     /**
      * Пункт, цель которого недоступна читателю (черновик, закрытый набор),
-     * раньше просто пропадал — дорожка шла «1, 2, 4» и человек гадал,
+     * раньше просто пропадал — список шёл «1, 2, 4» и человек гадал,
      * что он пропустил.
      */
     function недоступен(номер, что) {
@@ -163,7 +190,7 @@ const WorshipKit = (() => {
 
     /**
      * Ручки пункта. Раньше они стояли отдельной строкой под каждым пунктом,
-     * и дорожка 1 → 2 → 3, ради которой подборка и существует, разрывалась
+     * и порядок 1 → 2 → 3, ради которого подборка и существует, разрывался
      * рядами кнопок. Теперь они прижаты вправо и проявляются при наведении:
      * подборку читают чаще, чем пересобирают.
      */
@@ -171,14 +198,14 @@ const WorshipKit = (() => {
         if (!можноПисать()) return '';
         return `
         <div class="ручкиПункта flex items-center gap-0.5 no-print shrink-0">
-            <button class="btn btn-ghost btn-xs px-1" data-двигать="-1" data-id="${п.id}"
-                    title="Выше">↑</button>
-            <button class="btn btn-ghost btn-xs px-1" data-двигать="1" data-id="${п.id}"
-                    title="Ниже">↓</button>
-            ${п.note ? `<button class="btn btn-ghost btn-xs px-1" data-правитьТекст="${п.id}"
-                    title="Поправить текст">✎</button>` : ''}
-            <button class="btn btn-ghost btn-xs px-1 text-error" data-убрать="${п.id}"
-                    title="Убрать из дорожки">✕</button>
+            <button class="btn btn-ghost btn-xs px-1 цельПальца" data-двигать="-1" data-id="${п.id}"
+                    title="Выше" aria-label="Выше">↑</button>
+            <button class="btn btn-ghost btn-xs px-1 цельПальца" data-двигать="1" data-id="${п.id}"
+                    title="Ниже" aria-label="Ниже">↓</button>
+            ${п.note ? `<button class="btn btn-ghost btn-xs px-1 цельПальца" data-правитьТекст="${п.id}"
+                    title="Поправить текст" aria-label="Поправить текст">✎</button>` : ''}
+            <button class="btn btn-ghost btn-xs px-1 hover:text-error цельПальца" data-убрать="${п.id}"
+                    title="Убрать из подборки" aria-label="Убрать из подборки">✕</button>
         </div>`;
     }
 
@@ -188,7 +215,12 @@ const WorshipKit = (() => {
             if (!п.note) номер++;
             return строкаПункта(п, номер);
         }).join('') ||
-            '<li class="py-4 text-sm opacity-60">Дорожка пока пуста. Добавьте первый пункт ниже.</li>';
+            `<li class="py-6 text-center">
+                <div class="text-sm opacity-70">Подборка пока пуста.</div>
+                <div class="text-sm opacity-70">${можноПисать()
+                    ? 'Положите в неё первый пункт кнопкой «Добавить» наверху.'
+                    : 'Её собирает старший пуджари.'}</div>
+            </li>`;
     }
 
     function рисоватьВыдачи() {
@@ -198,7 +230,9 @@ const WorshipKit = (() => {
                     <span class="font-semibold">${
                         г.vaishnava_id ? e(имена.люди[г.vaishnava_id] || 'человек')
                                        : e(имена.ретриты[г.retreat_id] || 'ретрит')}</span>
-                    <span class="badge badge-sm ml-2">${г.vaishnava_id ? 'человек' : 'все волонтёры ретрита'}</span>
+                    <!-- у бейджа высота строки: длинная подпись в нём вылезала за рамку -->
+                    <span class="badge badge-sm ml-2 h-auto py-0.5 whitespace-nowrap">${
+                        г.vaishnava_id ? 'человек' : 'все волонтёры ретрита'}</span>
                     <span class="block text-sm opacity-60">выдана ${
                         DateUtils.formatShort(new Date(г.granted_at))}</span>
                 </span>
@@ -213,7 +247,7 @@ const WorshipKit = (() => {
         const заголовки = {
             standard: ['Какой стандарт добавить?', 'В подборке он всегда будет в действующей редакции.'],
             material: ['Какой материал добавить?', 'Книга, заметка или ссылка из библиотеки.'],
-            album: ['Какой набор фотографий добавить?', 'Закрытый набор добавить нельзя: подборку читают снаружи отдела.'],
+            album: ['Какую папку со снимками добавить?', 'Закрытую папку добавить нельзя: подборку читают снаружи отдела.'],
         };
         $('#выборЗаголовок').textContent = заголовки[вид][0];
         $('#выборПодсказка').textContent = заголовки[вид][1];
@@ -222,12 +256,11 @@ const WorshipKit = (() => {
         let строки = [];
         if (вид === 'album') {
             const { data } = await Layout.db.from('worship_albums')
-                .select('id, title, event_date, is_private, is_archived')
-                .eq('is_archived', false).order('event_date', { ascending: false });
+                .select('id, title, is_private, is_archived')
+                .eq('is_archived', false).order('title');
             строки = (data || []).map(н => ({
-                id: н.id, имя: н.title,
-                подпись: DateUtils.formatShort(DateUtils.parseDate(н.event_date)),
-                нельзя: н.is_private ? 'закрытый набор' : null,
+                id: н.id, имя: н.title, подпись: '',
+                нельзя: н.is_private ? 'закрытая папка' : null,
             }));
         } else {
             const { data } = await Layout.db.from('worship_articles')
@@ -271,7 +304,7 @@ const WorshipKit = (() => {
             // политика не пускает закрытый набор: сообщение понятнее сырого RLS
             if (/row-level security/i.test(error.message || '')) {
                 return Layout.showNotification(
-                    'Закрытый или убранный в архив набор в подборку не кладётся', 'warning');
+                    'Закрытая или убранная в архив папка в подборку не кладётся', 'warning');
             }
             return Layout.handleError(error, 'Пункт подборки');
         }
@@ -402,19 +435,34 @@ const WorshipKit = (() => {
         if (await загрузить()) { рисоватьШапку(); рисоватьПункты(); рисоватьВыдачи(); window.applyPermissions?.(); }
     }
 
+    let занято = false;
+    async function поОчереди(дело) {
+        занято = true;
+        try { return await дело(); } finally { занято = false; }
+    }
+
     function слушать() {
         document.addEventListener('click', async ev => {
+            // пока пишется прошлое действие, следующее ждёт: двойной щелчок
+            // по «Добавить» клал пункт дважды, а быстрые стрелки порядка
+            // переписывали номера наперегонки
+            if (занято && ev.target.closest('[data-взять], [data-двигать]')) return;
+
             const взять = ev.target.closest('[data-взять]');
-            if (взять) return положить(взять.dataset.вид, взять.dataset.взять);
+            if (взять) return поОчереди(() => положить(взять.dataset.вид, взять.dataset.взять));
 
             const добавить = ev.target.closest('[data-добавить]');
             if (добавить) {
+                // выпадашка DaisyUI закрывается потерей фокуса: без этого
+                // меню остаётся висеть поверх открывшегося окна выбора
+                добавить.closest('.dropdown')?.querySelector('[tabindex]')?.blur();
+                добавить.blur();
                 if (добавить.dataset.добавить === 'note') return правитьТекстПункта(null);
                 return выбрать(добавить.dataset.добавить);
             }
 
             const двигать = ev.target.closest('[data-двигать]');
-            if (двигать) {
+            if (двигать) return поОчереди(async () => {
                 const i = пункты.findIndex(п => п.id === двигать.dataset.id);
                 const j = i + Number(двигать.getAttribute('data-двигать'));
                 if (i < 0 || j < 0 || j >= пункты.length) return;
@@ -430,7 +478,7 @@ const WorshipKit = (() => {
                     if (!ок) return;
                 }
                 return перечитать();
-            }
+            });
 
             const правитьТекст = ev.target.closest('[data-правитьТекст]');
             if (правитьТекст) {

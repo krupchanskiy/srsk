@@ -45,6 +45,21 @@ summary { list-style: none; }
    по-прежнему на экране. */
 details:not([open]) > *:not(summary) { display: none !important; }
 
+/* Переключатель вида («Неделя | День», «Эта неделя | Месяц»). У DaisyUI
+   выбранная кнопка серая, рядом с белыми соседями это читается не как
+   выбор, а как грязное пятно. Выбранное красим цветом модуля. */
+main .join .btn-active, dialog .join .btn-active {
+    background: var(--current-color) !important;
+    border-color: var(--current-color) !important;
+    color: #fff !important;
+}
+/* у переключателей вида соседние кнопки белые, а не прозрачные:
+   на сером фоне страницы группа иначе теряет края */
+main .выбор .btn:not(.btn-active), dialog .выбор .btn:not(.btn-active) {
+    background: oklch(var(--b1));
+    border-color: oklch(var(--b3));
+}
+
 /* Тихий надзаголовок для справочных блоков сбоку. Размер заголовка задан
    выше через !important и перебивает классы Tailwind, поэтому боковая
    «Подборки» с одной ссылкой выглядела так же крупно, как главный блок
@@ -72,15 +87,39 @@ main .btn { font-size: 1rem !important; }
    и именно он первым пропадает в полутьме — например, в алтарной в 4:20.
    Поэтому приглушённость ограничена снизу: порядок уровней сохранён,
    но даже самый тихий текст остаётся читаемым. */
-main .opacity-30 { opacity: 0.66 !important; }
-main .opacity-40 { opacity: 0.66 !important; }
-main .opacity-50 { opacity: 0.70 !important; }
-main .opacity-60 { opacity: 0.74 !important; }
-main .opacity-70 { opacity: 0.80 !important; }
+/* Подвал и окна живут вне <main>: правило сначала их не касалось,
+   и ссылки подвала на каждой странице давали 4.03:1, а строка мантры — 2.36. */
+/* Шапка: пункты меню модулей приглушены opacity-60 — 4.03:1 на белом */
+body > header .nav-link.opacity-60 { opacity: 0.76 !important; }
+:is(main, body > footer, dialog) .opacity-30 { opacity: 0.66 !important; }
+:is(main, body > footer, dialog) .opacity-40 { opacity: 0.66 !important; }
+:is(main, body > footer, dialog) .opacity-50 { opacity: 0.70 !important; }
+:is(main, body > footer, dialog) .opacity-60 { opacity: 0.74 !important; }
+:is(main, body > footer, dialog) .opacity-70 { opacity: 0.80 !important; }
+/* То же для полупрозрачного цвета текста (text-base-content/50 и т.п.) —
+   им подписано почти всё в CRM и магазине: на белом 3.3:1, на сером 2.9:1.
+   Пороги чуть выше, чем у opacity: подписи часто стоят на сером фоне. */
+:is(main, dialog) :is(.text-base-content\/20, .text-base-content\/25, .text-base-content\/30,
+                      .text-base-content\/35, .text-base-content\/40) { color: oklch(var(--bc) / 0.72) !important; }
+:is(main, dialog) .text-base-content\/50 { color: oklch(var(--bc) / 0.74) !important; }
+:is(main, dialog) .text-base-content\/60 { color: oklch(var(--bc) / 0.78) !important; }
+:is(main, dialog) .text-base-content\/70 { color: oklch(var(--bc) / 0.82) !important; }
 
 /* Красный DaisyUI (#ff5861) на белом — 3.08:1. Им подписаны «убрать»
    и «отозвать»: действия, которые нельзя не разглядеть. */
-main .text-error { color: #c62828 !important; }
+:is(main, dialog) .text-error { color: #c62828 !important; }
+
+/* Жёлтый DaisyUI (#ffbe00) как цвет текста на белом — 1.66:1, его почти
+   не видно, а им пишут «не закрыто», «незаконченная правка». Фон
+   и значки badge-warning не трогаем: там жёлтый — подложка, не буквы. */
+:is(main, dialog) .text-warning { color: #8a5300 !important; }
+
+/* Зелёный DaisyUI (#00a96e) на сером фоне страницы — 2.71:1. */
+:is(main, dialog) .text-success { color: #166534 !important; }
+
+/* DaisyUI приглушает шапку и итог таблиц до 60% — 4.0:1 на белом,
+   а вложенная прозрачность подписей роняет их ещё ниже. */
+main .table :where(thead, tfoot) { color: oklch(var(--bc) / 0.8); }
 
 /* Интерлиньяж. Размеры шрифта выше переопределены !important, а высота
    строки осталась от Tailwind: text-sm получался 16px в строке 20px
@@ -140,6 +179,10 @@ main input.text-xl, main textarea.text-xl { font-size: 1.25rem !important; }
 main input.text-2xl, main textarea.text-2xl { font-size: 1.5rem !important; }
 main input.text-3xl, main textarea.text-3xl { font-size: 1.875rem !important; }
 main textarea.text-\[17px\] { font-size: 17px !important; }
+@media (min-width: 1200px) {
+    main input.desktop\:text-3xl, main textarea.desktop\:text-3xl { font-size: 1.875rem !important; }
+    main input.desktop\:text-2xl, main textarea.desktop\:text-2xl { font-size: 1.5rem !important; }
+}
 
 main p, main span, main div { font-size: inherit; }
 
@@ -152,7 +195,7 @@ main p, main span, main div { font-size: inherit; }
 }
 .nav-link.active {
     opacity: 1;
-    color: var(--current-color);
+    color: var(--current-color-text, var(--current-color));
 }
 
 .lang-btn.active {
@@ -166,7 +209,7 @@ main p, main span, main div { font-size: inherit; }
 }
 .submenu-link.active {
     background-color: white;
-    color: var(--current-color) !important;
+    color: var(--current-color-text, var(--current-color)) !important;
 }
 
 #submenuBar {
@@ -255,7 +298,7 @@ html.nav-compact #submenuBar {
 }
 
 .text-primary {
-    color: var(--current-color) !important;
+    color: var(--current-color-text, var(--current-color)) !important;
 }
 
 .btn-neutral.active {
@@ -278,6 +321,27 @@ main .tabs-boxed .tab {
     padding: 0.5rem 1.25rem !important;
     height: auto !important;
     min-height: 2.25rem !important;
+}
+/* Мелкие значки-кнопки (✕ у тега, стрелки порядка) под мышь хороши,
+   а пальцу нужно хотя бы 36px: на телефоне вместо ✕ попадали в сам тег */
+@media (pointer: coarse) {
+    .цельПальца {
+        min-width: 2.25rem !important;
+        min-height: 2.25rem !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+/* на телефоне три вкладки по 20px отступа не помещаются в 343px:
+   последняя уезжала за край */
+@media (max-width: 480px) {
+    main .tabs .tab,
+    main .tabs-boxed .tab {
+        font-size: 0.9375rem !important;
+        padding: 0.5rem 0.75rem !important;
+    }
 }
 
 .tab-active,
@@ -521,7 +585,33 @@ body.user-type-guest .edit-action {
     /* закрытые окна DaisyUI спрятаны прозрачностью — без этого правило выше выводит их на бумагу */
     .modal:not([open]):not(.modal-open) { display: none !important; }
     ::placeholder { color: #000 !important; }
+
+    /* Шапка и подвал заменяют собой #header-placeholder и #footer-placeholder,
+       то есть их id до печати не доживает — страницы прятали пустоту, а на
+       бумагу уходили логотип, меню и мантра из подвала. Прячем по тегу. */
+    body > header, body > footer, #header-placeholder, #footer-placeholder { display: none !important; }
+
+    /* бумаге не нужны тени, скруглённые карточки и серая подложка */
+    body { background: #fff !important; }
+    main { max-width: none !important; padding: 0 !important; }
+    .card, .shadow, .shadow-sm, .shadow-md { box-shadow: none !important; }
+    .card { border: 0 !important; }
+
+    /* печатный заголовок листа: на экране не показывается */
+    .дляПечати { display: block !important; }
+    .no-print, .ручкиСтроки, .ручкиПункта, .ещёВКлетку, .снятьВКлетке { display: none !important; }
+
+    /* ссылки на бумаге подчёркиванием не выделяем — это не ссылки больше */
+    a { text-decoration: none !important; }
 }
+
+/* блок, который существует только на бумаге */
+.дляПечати { display: none; }
+
+/* Атрибут hidden слабее классов: у элемента с «flex» или «grid» он не
+   срабатывает, и спрятанный блок остаётся на экране — обычно пустой,
+   потому что наполнить его код ещё не успел. */
+[hidden] { display: none !important; }
 
 
 /* Таблицы в узком экране разворачиваются карточками: заголовок столбца

@@ -2,7 +2,7 @@
 <html lang="ru" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <script src="../js/color-init.js?v=6"></script>
+    <script src="../js/color-init.js?v=7"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Люди отдела — ШРСК</title>
@@ -18,18 +18,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../css/common.css?v=14">
+    <link rel="stylesheet" href="../css/common.css?v=25">
 </head>
 <body class="bg-base-200 min-h-screen flex flex-col">
 
     <div id="header-placeholder"></div>
 
-    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 1060px;">
+    <main class="container mx-auto px-4 py-6 flex-1" style="max-width: 820px;">
 
-        <div role="tablist" class="tabs tabs-bordered mb-4 w-fit">
-            <a role="tab" class="tab" href="schedule.html" data-i18n="worship_schedule_title">Расписание</a>
-            <a role="tab" class="tab tab-active" href="people.html"
+        <div role="tablist" class="tabs tabs-bordered mb-4 w-fit max-w-full overflow-x-auto">
+            <a role="tab" class="tab whitespace-nowrap" href="schedule.html" data-i18n="worship_schedule_title">Расписание</a>
+            <a role="tab" class="tab tab-active whitespace-nowrap" href="people.html"
                data-i18n="worship_people_title">Люди отдела</a>
+            <a role="tab" class="tab whitespace-nowrap" href="load.html" data-i18n="worship_load_title">Загрузка</a>
         </div>
 
         <div class="flex flex-wrap items-end gap-3 mb-4">
@@ -43,15 +44,36 @@
                     style="background: var(--current-color); color:#fff;">Добавить человека</button>
         </div>
 
-        <!-- один носитель права утверждения — это служба без пуджари, когда он уехал -->
-        <div id="одинСтарший" hidden class="alert alert-warning mb-4 text-sm">
-            <span>В отделе один человек с правом утверждения. Уехал — очередь встала, расписание
-                не двигается. Нужен второй.</span>
+        <!-- один носитель права утверждения — это служба без пуджари, когда он уехал.
+             Подсказка без выхода на действие бесполезна: право даётся в правах
+             пользователя, а не здесь, поэтому рядом ссылка туда -->
+        <div id="одинСтарший" hidden
+             class="rounded-xl border border-warning/40 bg-warning/10 p-3 mb-4 text-sm
+                    flex flex-wrap items-center gap-x-3 gap-y-1">
+
         </div>
+
+        <!-- поиск появляется, когда список перестаёт читаться целиком -->
+        <label class="input input-bordered input-sm flex items-center gap-2 mb-3" id="поискБлок" hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" class="opacity-50" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
+            </svg>
+            <input id="поиск" type="search" class="grow" placeholder="Имя">
+        </label>
 
         <div class="card bg-base-100 shadow">
             <ul class="list-none m-0 p-0" id="список"></ul>
         </div>
+
+        <!-- вышедшие из отдела лежат отдельно: они не участвуют в расписании,
+             но их карточки нужны, чтобы видеть прошлые службы -->
+        <section id="вышлиБлок" hidden class="mt-5">
+            <h2 class="надзаголовок mb-1.5">Вышли из отдела</h2>
+            <div class="card bg-base-100 shadow">
+                <ul class="list-none m-0 p-0" id="вышли"></ul>
+            </div>
+        </section>
     </main>
 
     <!-- карточка человека -->
@@ -60,9 +82,21 @@
             <h3 class="font-bold text-xl mb-1" id="кИмя"></h3>
             <p class="text-sm opacity-60 mb-4" id="кПодпись"></p>
 
+            <!-- Команда или волонтёр: с команды спрос другой, а волонтёра,
+                 который приехал на две недели, не ставят семь дней подряд.
+                 Нагрузку этих групп смотрят порознь во вкладке «Загрузка». -->
+            <div class="mb-4" id="кВидБлок" hidden>
+                <h4 class="надзаголовок mb-2">Кто в отделе</h4>
+                <div class="join выбор">
+                    <button class="btn btn-sm join-item" data-вид-человека="team">Команда</button>
+                    <button class="btn btn-sm join-item" data-вид-человека="volunteer">Волонтёр</button>
+                </div>
+                <p class="text-sm opacity-70 mt-1" id="кВидПодпись"></p>
+            </div>
+
             <!-- срок участия: у волонтёра он есть, у постоянного пуджари пуст -->
             <div class="mb-4" id="кСрокБлок" hidden>
-                <h4 class="font-bold text-sm uppercase tracking-widest opacity-60 mb-2">Срок участия</h4>
+                <h4 class="надзаголовок mb-2">Срок участия</h4>
                 <div class="flex flex-wrap items-end gap-3">
                     <label class="form-control">
                         <span class="label-text text-xs mb-1">С какого дня</span>
@@ -80,7 +114,7 @@
             </div>
 
             <div class="mb-4">
-                <h4 class="font-bold text-sm uppercase tracking-widest opacity-60 mb-2">Ближайшие службы</h4>
+                <h4 class="надзаголовок mb-2">Ближайшие службы</h4>
                 <ul class="list-none m-0 p-0" id="кСлужбы"></ul>
             </div>
 
@@ -123,8 +157,32 @@
     <dialog id="добавлениеМодал" class="modal">
         <div class="modal-box max-w-xl">
             <h3 class="font-bold text-lg mb-1">Кого добавляем в отдел?</h3>
-            <p class="text-sm opacity-60 mb-3">Человек берётся из справочника ашрама.
-                У волонтёра поставьте срок участия — после него он уйдёт из выбора сам.</p>
+            <p class="text-sm opacity-70 mb-3">Человек берётся из справочника ашрама.</p>
+
+            <!-- Кто он в отделе, решают сразу: иначе волонтёр попадает
+                 в состав как постоянный и так там и остаётся. -->
+            <div class="mb-3">
+                <h4 class="надзаголовок mb-1.5">Кто он в отделе</h4>
+                <div class="join выбор">
+                    <button class="btn btn-sm join-item btn-active" data-новый-вид="team">Команда</button>
+                    <button class="btn btn-sm join-item" data-новый-вид="volunteer">Волонтёр</button>
+                </div>
+            </div>
+
+            <!-- срок волонтёра: обычно он известен заранее, но бывает и открытым -->
+            <div class="mb-3" id="дСрокБлок" hidden>
+                <h4 class="надзаголовок mb-1.5">До какого дня</h4>
+                <div class="flex flex-wrap items-center gap-2">
+                    <input id="дСрокПо" type="date" class="input input-bordered input-sm">
+                    <label class="label cursor-pointer justify-start gap-2 py-0">
+                        <input type="checkbox" class="checkbox checkbox-sm" id="дБессрочно">
+                        <span class="label-text text-sm">Срок пока не известен</span>
+                    </label>
+                </div>
+                <p class="text-sm opacity-70 mt-1">После этого дня человек уходит из выбора сам,
+                    а уже стоящие клетки помечаются.</p>
+            </div>
+
             <input id="дПоиск" type="search" class="input input-bordered input-sm w-full mb-3"
                    placeholder="Часть имени…">
             <ul class="list-none m-0 p-0 max-h-80 overflow-y-auto" id="дСписок"></ul>
@@ -181,14 +239,14 @@
 
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
-    <script src="../js/utils.js?v=17"></script>
-    <script src="../js/layout.js?v=112"></script>
-    <script src="../js/date-utils.js?v=4"></script>
-    <script src="../js/auth-check.js?v=13"></script>
-    <script src="../js/pages/worship-people.js?v=6"></script>
+    <script src="../js/utils.js?v=20"></script>
+    <script src="../js/layout.js?v=118"></script>
+    <script src="../js/date-utils.js?v=5"></script>
+    <script src="../js/auth-check.js?v=14"></script>
+    <script src="../js/pages/worship-people.js?v=19"></script>
     <script>
         async function init() {
-            await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_people' });
+            await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
             await WorshipPeople.init();
         }
         init();
