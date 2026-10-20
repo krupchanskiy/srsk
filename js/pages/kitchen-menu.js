@@ -324,6 +324,7 @@ async function loadMenuData() {
     if (result === 'skip') return;
     if (result === 'ok') await loadDishRates();
     render();
+    loadTemplateUndo();          // плашка «отменить шаблон» — не задерживает меню
 }
 
 /**
@@ -2129,13 +2130,15 @@ async function openApplyTemplateModal() {
     select.innerHTML = '<option value="">—</option>' +
         templates.map(tmpl => `<option value="${tmpl.id}">${getName(tmpl)} (${pluralizeDays(tmpl.day_count)})</option>`).join('');
 
-    // Set default start date
-    const today = new Date();
-    Layout.$('#applyStartDate').value = formatDate(today);
+    // дату не подставляем: «сегодня» по умолчанию однажды заменило готовое
+    // меню на шесть дней — дату выбирают сами
+    Layout.$('#applyStartDate').value = '';
 
     selectedTemplateId = null;
+    накладка = [];
     Layout.$('#applyPreview').classList.add('hidden');
     Layout.$('#overwriteWarning').classList.add('hidden');
+    Layout.$('#overwriteConfirm').checked = false;
     Layout.$('#applyTemplateBtn2').disabled = true;
 
     applyTemplateModal.showModal();
@@ -2143,14 +2146,27 @@ async function openApplyTemplateModal() {
 
 function onTemplateSelected() {
     selectedTemplateId = Layout.$('#templateSelect').value;
-    Layout.$('#applyTemplateBtn2').disabled = !selectedTemplateId;
+    updateApplyButton();
     updateApplyPreview();
+}
+
+// приёмы пищи с блюдами, которые заменит шаблон (заполняет checkExistingMenuForApply)
+let накладка = [];
+
+/** «Применить» — только когда выбраны шаблон и дата, а замену готового меню подтвердили. */
+function updateApplyButton() {
+    const готово = !!selectedTemplateId && !!Layout.$('#applyStartDate').value
+        && (!накладка.length || Layout.$('#overwriteConfirm').checked);
+    Layout.$('#applyTemplateBtn2').disabled = !готово;
 }
 
 async function updateApplyPreview() {
     const startDateStr = Layout.$('#applyStartDate').value;
     if (!startDateStr || !selectedTemplateId) {
         Layout.$('#applyPreview').classList.add('hidden');
+        Layout.$('#overwriteWarning').classList.add('hidden');
+        накладка = [];
+        updateApplyButton();
         return;
     }
 
@@ -2171,26 +2187,54 @@ async function updateApplyPreview() {
     Layout.$('#applyPreview').classList.remove('hidden');
 
     // Check for existing menu
-    await checkExistingMenuForApply(startDateStr, template.day_count);
+    await checkExistingMenuForApply(startDateStr, template);
 }
 
-async function checkExistingMenuForApply(startDateStr, dayCount) {
+/** Даты и приёмы пищи, которые займёт шаблон, начиная с этого дня. */
+function слотыШаблона(template, startDateStr) {
+    const start = parseLocalDate(startDateStr);
+    return (template.meals || []).map(m => {
+        const д = new Date(start);
+        д.setDate(д.getDate() + m.day_number - 1);
+        return { date: formatDate(д), meal_type: m.meal_type, шаблонный: m };
+    });
+}
+
+/**
+ * Что из уже составленного меню заменит шаблон — по дням и приёмам пищи,
+ * с числом блюд. Заменяются только приёмы, которые есть в шаблоне.
+ */
+async function checkExistingMenuForApply(startDateStr, template) {
     const locationId = getCurrentLocation()?.id;
     if (!locationId) return;
-
-    const startDate = DateUtils.parseDate(startDateStr);
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + dayCount - 1);
+    const слоты = слотыШаблона(template, startDateStr);
+    const даты = слоты.map(с => с.date).sort();
 
     const { data: existingMeals } = await Layout.db
         .from('menu_meals')
-        .select('id')
+        .select('id, date, meal_type, menu_dishes(count), menu_external_items(count)')
         .eq('location_id', locationId)
-        .gte('date', startDateStr)
-        .lte('date', formatDate(endDate))
-        .limit(1);
+        .gte('date', даты[0])
+        .lte('date', даты[даты.length - 1]);
+    if (Layout.$('#applyStartDate').value !== startDateStr) return;   // дату уже сменили
 
-    Layout.$('#overwriteWarning').classList.toggle('hidden', !existingMeals?.length);
+    накладка = (existingMeals || [])
+        .filter(m => слоты.some(с => с.date === m.date && с.meal_type === m.meal_type))
+        .map(m => ({ ...m, блюд: (m.menu_dishes?.[0]?.count || 0) + (m.menu_external_items?.[0]?.count || 0) }))
+        .filter(m => m.блюд > 0)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    const поДням = {};
+    накладка.forEach(m => (поДням[m.date] ||= []).push(m));
+    Layout.$('#overwriteTitle').textContent = tr('template_overwrite_title', 'Это меню будет заменено шаблоном:');
+    Layout.$('#overwriteList').innerHTML = Object.entries(поДням).map(([д, приёмы]) => `
+        <li><b>${Layout.escapeHtml(parseLocalDate(д).toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US',
+                { weekday: 'short', day: 'numeric', month: 'short' }))}</b>: ${
+            приёмы.map(m => `${Layout.escapeHtml(t(m.meal_type))} — ${m.блюд}`).join(', ')}</li>`).join('');
+    Layout.$('#overwriteConfirmText').textContent = tr('template_overwrite_confirm', 'Да, заменить это меню');
+    Layout.$('#overwriteConfirm').checked = false;
+    Layout.$('#overwriteWarning').classList.toggle('hidden', !накладка.length);
+    updateApplyButton();
 }
 
 // Parse date string as local date (not UTC)
@@ -2216,67 +2260,28 @@ async function applySelectedTemplate() {
 
     const isCafe = Layout.currentLocation === 'cafe';
 
+    if (накладка.length && !Layout.$('#overwriteConfirm').checked) return;
+
     applyBtn.disabled = true;
     applyBtn.textContent = '...';
 
     try {
         const startDate = parseLocalDate(startDateStr);
 
-        for (let dayOffset = 0; dayOffset < template.day_count; dayOffset++) {
-            const targetDate = new Date(startDate);
-            targetDate.setDate(targetDate.getDate() + dayOffset);
-            const targetDateStr = formatDate(targetDate);
-            const dayNumber = dayOffset + 1;
-
-            // Get meals for this day from template
-            const dayMeals = (template.meals || []).filter(m => m.day_number === dayNumber);
-
-            for (const templateMeal of dayMeals) {
-                // Get portions from eating counts (guests + team)
-                let portions = templateMeal.portions || 50;
-                if (!isCafe) {
-                    portions = getEatingTotal(targetDateStr, templateMeal.meal_type);
-                }
-
-                // Delete existing meal for this date/type
-                await Layout.db
-                    .from('menu_meals')
-                    .delete()
-                    .eq('location_id', locationId)
-                    .eq('date', targetDateStr)
-                    .eq('meal_type', templateMeal.meal_type);
-
-                // Create new meal (cook_id is null)
-                const { data: newMeal, error: mealError } = await Layout.db
-                    .from('menu_meals')
-                    .insert({
-                        location_id: locationId,
-                        date: targetDateStr,
-                        meal_type: templateMeal.meal_type,
-                        portions: portions,
-                        cook_id: null
-                    })
-                    .select()
-                    .single();
-
-                if (mealError) throw mealError;
-
-                // Add dishes
-                if (templateMeal.dishes?.length > 0) {
-                    const dishesInsert = templateMeal.dishes.map((dish, index) => ({
-                        meal_id: newMeal.id,
-                        recipe_id: dish.recipe_id,
-                        portion_size: dish.portion_size,
-                        portion_unit: dish.portion_unit,
-                        sort_order: index
-                    }));
-
-                    await Layout.db
-                        .from('menu_dishes')
-                        .insert(dishesInsert);
-                }
-            }
+        // порции — по вкушающим, как раньше; у кафе — из шаблона.
+        // Сама замена — одной операцией в базе: всё или ничего, а заменённое
+        // меню сохраняется, и применение можно отменить в течение суток
+        const порции = {};
+        if (!isCafe) {
+            слотыШаблона(template, startDateStr).forEach(с => {
+                const n = getEatingTotal(с.date, с.meal_type);
+                if (n > 0) порции[`${с.date}|${с.meal_type}`] = n;
+            });
         }
+        const { data: итог, error: ошибка } = await Layout.db.rpc('kitchen_apply_template', {
+            p_location: locationId, p_template: template.id, p_start: startDateStr, p_portions: порции,
+        });
+        if (ошибка) throw ошибка;
 
         applyTemplateModal.close();
 
@@ -2285,16 +2290,65 @@ async function applySelectedTemplate() {
         const formatDisplayDate = d => d.toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US', {
             day: 'numeric', month: 'long', year: 'numeric'
         });
-        showSuccess(t('template_applied'), `${formatDisplayDate(startDate)} — ${formatDisplayDate(endDate)}`);
+        showSuccess(t('template_applied'), `${formatDisplayDate(startDate)} — ${formatDisplayDate(endDate)}` + (итог?.['заменено']
+            ? `. ${tr('template_applied_undo', 'Заменено приёмов пищи')}: ${итог['заменено']} — ${tr('template_undo_hint', 'отменить можно в течение суток')}`
+            : ''));
 
         await loadMenuData();
     } catch (error) {
         console.error('Error applying template:', error);
-        Layout.showNotification(t('template_apply_error'), 'error');
+        Layout.showNotification(`${t('template_apply_error')}${error?.message ? ': ' + error.message : ''}`, 'error');
     } finally {
         applyBtn.disabled = false;
         applyBtn.textContent = t('apply_template');
     }
+}
+
+/**
+ * Плашка «Шаблон применён — Отменить»: последнее применение на этой кухне
+ * за сутки, пока его не отменили. Меню вернётся таким, каким было до шаблона.
+ */
+let последнееПрименение = null;
+async function loadTemplateUndo() {
+    const плашка = Layout.$('#templateUndo');
+    const locationId = getCurrentLocation()?.id;
+    if (!плашка || !locationId || !canEditMenu()) { плашка?.classList.add('hidden'); return; }
+    const сутки = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { data } = await Layout.db.from('menu_template_applies')
+        .select('id, template_name, date_from, date_to, replaced, created_at')
+        .eq('location_id', locationId).is('undone_at', null).gte('created_at', сутки)
+        .order('created_at', { ascending: false }).limit(1);
+    последнееПрименение = data?.[0] || null;
+    if (!последнееПрименение) { плашка.classList.add('hidden'); return; }
+
+    const п = последнееПрименение;
+    const день = iso => parseLocalDate(iso).toLocaleDateString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US',
+        { day: 'numeric', month: 'short' });
+    const когда = new Date(п.created_at).toLocaleTimeString(Layout.currentLang === 'ru' ? 'ru-RU' : 'en-US',
+        { hour: '2-digit', minute: '2-digit' });
+    плашка.innerHTML = `
+        <span class="flex-1 min-w-0 text-sm">${Layout.escapeHtml(tr('template_undo_banner', 'Применён шаблон'))}
+            «<b>${Layout.escapeHtml(п.template_name || '')}</b>» — ${день(п.date_from)}–${день(п.date_to)}, ${когда}.
+            ${п.replaced ? `${Layout.escapeHtml(tr('template_applied_undo', 'Заменено приёмов пищи'))}: ${п.replaced}.` : ''}</span>
+        <button type="button" class="btn btn-sm" id="templateUndoBtn">${Layout.escapeHtml(tr('template_undo_btn', 'Отменить применение'))}</button>`;
+    плашка.classList.remove('hidden');
+    Layout.$('#templateUndoBtn').onclick = undoLastTemplate;
+}
+
+async function undoLastTemplate() {
+    const п = последнееПрименение;
+    if (!п) return;
+    if (!confirm(tr('template_undo_confirm',
+        'Вернуть меню, каким оно было до шаблона? Всё, что внесли в эти дни после применения, тоже пропадёт.'))) return;
+    const кнопка = Layout.$('#templateUndoBtn');
+    if (кнопка) кнопка.disabled = true;
+    const { error } = await Layout.db.rpc('kitchen_undo_template', { p_apply: п.id });
+    if (error) {
+        if (кнопка) кнопка.disabled = false;
+        return Layout.handleError(error, tr('template_undo_btn', 'Отменить применение'));
+    }
+    Layout.showNotification(tr('template_undone', 'Меню возвращено, как было до шаблона'), 'success');
+    await loadMenuData();
 }
 
 // ==================== MEAL DETAILS ====================

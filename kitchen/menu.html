@@ -165,6 +165,10 @@
             <span class="opacity-60 ml-2 font-normal text-lg" id="periodRange"></span>
         </h1>
 
+        <!-- сутки после применения шаблона его можно отменить: меню вернётся
+             таким, каким было до него (20.10.2026 шаблон применили не с той даты) -->
+        <div id="templateUndo" class="alert alert-warning mb-4 no-print hidden flex flex-wrap items-center gap-3"></div>
+
         <!-- Navigation Row -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 no-print">
             <div class="flex items-center gap-2">
@@ -422,9 +426,18 @@
                     <div class="font-medium" id="applyDateRange"></div>
                 </div>
 
-                <div id="overwriteWarning" class="alert alert-warning hidden">
+                <!-- что именно заменит шаблон: раньше была одна строка «уже существует»,
+                     её не замечали и стирали готовое меню на неделю -->
+                <div id="overwriteWarning" class="alert alert-warning hidden items-start">
                     <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    <span data-i18n="overwrite_existing">Меню на эти даты уже существует. Перезаписать?</span>
+                    <div class="text-sm min-w-0">
+                        <div class="font-semibold" id="overwriteTitle"></div>
+                        <ul class="list-disc pl-5 mt-1" id="overwriteList"></ul>
+                        <label class="flex items-center gap-2 mt-2 cursor-pointer font-semibold">
+                            <input type="checkbox" id="overwriteConfirm" class="checkbox checkbox-sm" onchange="updateApplyButton()">
+                            <span id="overwriteConfirmText">Да, заменить это меню</span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -531,6 +544,6 @@
     <script src="../js/layout.js?v=124"></script>
     <script src="../js/eating-utils.js?v=14"></script>
     <script src="../js/kitchen-cost.js?v=19"></script>
-    <script src="../js/pages/kitchen-menu.js?v=41"></script>
+    <script src="../js/pages/kitchen-menu.js?v=42"></script>
 </body>
 </html>
