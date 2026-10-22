@@ -159,9 +159,20 @@ async function loadVisitList() {
 function состояние(v) {
     if (v.no_charge_reason && !(Number(v.charged) > 0)) return 'free';
     if (!(Number(v.charged) > 0)) return v.check_in > DateUtils.toISO(new Date()) ? 'upcoming' : 'uncharged';
+    if (недоначислено(v)) return 'uncharged';
     const net = Number(v.balance?.net) || 0;
     return net > 0.005 ? 'debt' : net < -0.005 ? 'advance' : 'paid';
 }
+
+// Начислено за промежуток (737): съеденные дни после «начислено по» ещё не начислены
+function недоначислено(v) {
+    if (!v.charged_to || !v.check_out) return false;
+    const сегодня = DateUtils.toISO(new Date());
+    return v.charged_to < (v.check_out < сегодня ? v.check_out : сегодня);
+}
+
+const меткаКатегории = v => v.category === 'visiting_volunteer'
+    ? ' <span class="badge badge-info badge-outline badge-xs" title="Живёт не у нас, за прасад платит сам">приходящий волонтёр</span>' : '';
 
 function renderVisitList() {
     const body = document.getElementById('gvBody');
@@ -182,7 +193,7 @@ function renderVisitList() {
     const итог = ({ v, st }) => {
         const cur = v.balance?.currency || 'INR';
         const net = Math.abs(Number(v.balance?.net) || 0);
-        if (st === 'uncharged') return `<span class="badge badge-warning badge-sm whitespace-nowrap">⚠ не начислено</span>`;
+        if (st === 'uncharged') return `<span class="badge badge-warning badge-sm whitespace-nowrap">⚠ ${Number(v.charged) > 0 ? `начислено по ${дата(v.charged_to)}` : 'не начислено'}</span>`;
         if (st === 'upcoming') return `<span class="badge badge-ghost badge-sm">предстоит</span>`;
         if (st === 'free') return `<span class="badge badge-ghost badge-sm whitespace-nowrap" title="${e(v.no_charge_reason)}">без оплаты · ${e(v.no_charge_reason)}</span>`;
         if (st === 'debt') return `<span class="badge badge-error badge-outline whitespace-nowrap font-mono">Долг ${FinUtils.fmtMoney(net, cur)}</span>`;
@@ -192,7 +203,7 @@ function renderVisitList() {
     body.innerHTML = list.map(x => {
         const v = x.v;
         return `<tr class="cursor-pointer hover:bg-base-200" data-gv-visit="${v.resident_id}" tabindex="0">
-            <td class="font-medium">${e(v.name)}${v.vaishnava_id ? '' : ' <span class="badge badge-ghost badge-xs" title="В шахматке только имя — карточку привяжем при начислении">без карточки</span>'}</td>
+            <td class="font-medium">${e(v.name)}${меткаКатегории(v)}${v.vaishnava_id ? '' : ' <span class="badge badge-ghost badge-xs" title="В шахматке только имя — карточку привяжем при начислении">без карточки</span>'}</td>
             <td class="whitespace-nowrap">${v.room ? `${e(v.building || '')} №${e(String(v.room))}` : '<span class="opacity-50">без номера</span>'}</td>
             <td class="whitespace-nowrap">${дата(v.check_in)} — ${v.check_out ? дата(v.check_out) : '…'}</td>
             <td class="text-right">${v.check_out ? днейМежду(v.check_in, v.check_out) : '—'}</td>
@@ -213,7 +224,7 @@ async function openVisit(rid, known) {
         v = (список || []).find(x => x.resident_id === rid);
         if (!v) { Layout.showNotification('Это не гость без события — оплата через его ретрит', 'warning'); return; }
     }
-    if (Number(v.charged) > 0 && v.vaishnava_id) { FinParticipants.openCardById(v.vaishnava_id); return; }
+    if (Number(v.charged) > 0 && v.vaishnava_id && !недоначислено(v)) { FinParticipants.openCardById(v.vaishnava_id); return; }
     if (!window.hasPermission?.('fin_admin')) { Layout.showNotification('Начисляет администратор финансов', 'warning'); return; }
     open({ rid: v.resident_id, from: v.check_in, to: v.check_out || v.check_in });
 }
@@ -304,11 +315,11 @@ function renderVisits() {
     body.innerHTML = list.map(v => {
         const ночей = v.check_out ? днейМежду(v.check_in, v.check_out) : '—';
         const начислено = Number(v.charged) > 0
-            ? `<span class="badge badge-ghost badge-sm whitespace-nowrap" title="Уже есть начисления по этому визиту">начислено ${FinUtils.fmtMoney(v.charged, v.charge_currency || 'INR')}</span>`
+            ? `<span class="badge badge-ghost badge-sm whitespace-nowrap" title="Уже есть начисления по этому визиту">начислено ${FinUtils.fmtMoney(v.charged, v.charge_currency || 'INR')}${v.charged_to ? ` по ${дата(v.charged_to)}` : ''}</span>`
             : v.no_charge_reason ? `<span class="badge badge-ghost badge-sm whitespace-nowrap" title="${e(v.no_charge_reason)}">без оплаты</span>` : '';
         return `<tr class="cursor-pointer hover:bg-base-200 ${selected.has(v.resident_id) ? 'bg-primary/5' : ''}" data-gc-visit="${v.resident_id}">
             <td><input type="checkbox" class="checkbox checkbox-sm" ${selected.has(v.resident_id) ? 'checked' : ''} tabindex="-1"></td>
-            <td class="font-medium">${e(v.name)}${v.vaishnava_id ? '' : !v.guest_name && v.booking_name
+            <td class="font-medium">${e(v.name)}${меткаКатегории(v)}${v.vaishnava_id ? '' : !v.guest_name && v.booking_name
                 ? ' <span class="badge badge-info badge-xs" title="Место из брони группы — имя человека впишете при начислении">место брони</span>'
                 : ' <span class="badge badge-warning badge-xs" title="В шахматке только имя — при начислении привяжем к карточке">без карточки</span>'}</td>
             <td class="whitespace-nowrap">${v.room ? `${e(v.building || '')} №${e(String(v.room))}` : '<span class="opacity-50">без номера</span>'}</td>
@@ -362,6 +373,8 @@ async function initForm(v) {
             : Math.max(Number(тип?.capacity) || Number(v.capacity) || 1, 1),
         bPrice: Number(tariff.breakfast_price),
         lPrice: Number(tariff.lunch_price),
+        bPriceCalc: Number(tariff.breakfast_price),
+        lPriceCalc: Number(tariff.lunch_price),
         meals: [],
         extraAmt: 0, extraDesc: '', comment: '',
         // «Без оплаты» (гость ашрама, за счёт ашрама, пожертвование) — визит не висит «не начислено»
@@ -390,6 +403,14 @@ async function initForm(v) {
         f.base = await базаПитания(f.meals);
         f.mealsAll = f.meals.map(m => ({ ...m }));
         f.baseAll = f.base.map(m => ({ ...m }));
+        // Живёт не у нас (приходящий волонтёр, гость вне ашрама) — прасад начисляется
+        // за промежуток (ВГ, 22.10): с дня после «начислено по» до сегодня, визит кончился — до выезда
+        if (!v.room_id && f.meals.length) {
+            const сегодня = DateUtils.toISO(new Date());
+            const с = v.charged_to && v.charged_to >= v.check_in ? DateUtils.toISO(new Date(DateUtils.parseDate(v.charged_to).getTime() + 864e5)) : v.check_in;
+            const по = с <= сегодня && сегодня < v.check_out ? сегодня : v.check_out;
+            периодПитания(f, с > v.check_out ? v.check_in : с, по);
+        }
     }
     if (!v.vaishnava_id) {
         const { data } = await Layout.db.rpc('fin_guest_person_candidates',
@@ -482,7 +503,10 @@ function питаниеДняВыезда(f) {
 const ПОЛЯ = {
     people: { field: 'people', what: 'Делитель номера', fmt: x => `÷ ${x}`, calc: f => f.peopleCalc },
     roomPrice: { field: 'room_price', what: 'Цена номера за сутки', fmt: x => inr(x), calc: f => f.roomPriceCalc },
-    lateFee: { field: 'late_fee', what: 'Доплата за поздний выезд', fmt: x => inr(x), calc: f => расчёт(f).доплатаРасчёт }
+    lateFee: { field: 'late_fee', what: 'Доплата за поздний выезд', fmt: x => inr(x), calc: f => расчёт(f).доплатаРасчёт },
+    // 737: цена приёма пищи — по договорённости (приходящий волонтёр, свои условия у гостя)
+    bPrice: { field: 'breakfast_price', what: 'Цена завтрака', fmt: x => inr(x), calc: f => f.bPriceCalc },
+    lPrice: { field: 'lunch_price', what: 'Цена обеда', fmt: x => inr(x), calc: f => f.lPriceCalc }
 };
 
 function применитьДоговорённости(f) {
@@ -490,6 +514,8 @@ function применитьДоговорённости(f) {
     // цены нет в Тарифах — вписанная вручную не договорённость, её не трогаем
     if (f.ag.room_price) f.roomPrice = Number(f.ag.room_price.value);
     else if (f.roomPriceCalc) f.roomPrice = f.roomPriceCalc;
+    f.bPrice = f.ag.breakfast_price ? Number(f.ag.breakfast_price.value) : f.bPriceCalc;
+    f.lPrice = f.ag.lunch_price ? Number(f.ag.lunch_price.value) : f.lPriceCalc;
 }
 
 const ктоВизит = v => `${v.name}${v.room ? ` · ${v.building || ''} №${v.room}` : ''} · ${дата(v.check_in)} — ${v.check_out ? дата(v.check_out) : '…'}`;
@@ -577,7 +603,7 @@ function renderForms() {
                     total: round2(r.проживание + r.доплата) }))}">${inr(r.проживание)}</b>
                 ${отметка(rid, f, 'roomPrice')} ${отметка(rid, f, 'people')}
                 <div class="w-full">${FinAgreement.chips({ extraBed: f.extraBed, whole: v.whole_room, people: f.people, late: r.поздний,
-                    night: ArrivalTime.isNight(f.arrTime), agreed: Object.keys(f.ag || {}).map(k => ({ people: 'делитель', late_fee: 'доплата', room_price: 'цена номера' })[k] || k) })}</div>
+                    night: ArrivalTime.isNight(f.arrTime), agreed: Object.keys(f.ag || {}).map(k => ({ people: 'делитель', late_fee: 'доплата', room_price: 'цена номера', breakfast_price: 'цена завтрака', lunch_price: 'цена обеда' })[k] || k) })}</div>
             </div>
             ${v.check_out && !f.leaveOut ? `<div class="flex flex-wrap items-center gap-1 text-sm -mt-2 mb-3">
                 Уезжает ${дата(v.check_out)} в ~ <input type="time" step="900" class="input input-bordered input-xs w-24" data-gc-f="${rid}" data-k="depTime" value="${e(f.depTime)}">
@@ -619,6 +645,13 @@ function renderForms() {
                 <button type="button" class="btn btn-ghost btn-xs normal-case font-normal" data-gc-all="${rid}" data-on="1">все</button>
                 <button type="button" class="btn btn-ghost btn-xs normal-case font-normal" data-gc-all="${rid}" data-on="0">ничего</button>
             </div>
+            ${f.period ? `<div class="flex flex-wrap items-center gap-1 text-sm mb-2">
+                Начислить за
+                <input type="date" class="input input-bordered input-xs" data-gc-period="${rid}" data-k="from" value="${f.period.from}" min="${v.check_in}" max="${v.check_out}">
+                —
+                <input type="date" class="input input-bordered input-xs" data-gc-period="${rid}" data-k="to" value="${f.period.to}" min="${v.check_in}" max="${v.check_out}">
+                ${v.charged_to ? `<span class="text-xs opacity-70">уже начислено по ${дата(v.charged_to)}</span>` : ''}
+            </div>` : ''}
             <div class="flex flex-wrap gap-1 mb-1">
                 ${f.meals.map((m, i) => `<div class="border border-base-300 rounded-lg px-2 py-1 text-xs">
                     <div class="font-medium">${дата(m.d)}</div>
@@ -632,6 +665,7 @@ function renderForms() {
                 ${r.завтраков} × <input type="number" min="0" step="10" class="input input-bordered input-xs w-20" data-gc-f="${rid}" data-k="bPrice" value="${f.bPrice}"> завтрак
                 + ${r.обедов} × <input type="number" min="0" step="10" class="input input-bordered input-xs w-20" data-gc-f="${rid}" data-k="lPrice" value="${f.lPrice}"> обед
                 = <b class="font-mono">${inr(r.питание)}</b>
+                ${отметка(rid, f, 'bPrice')} ${отметка(rid, f, 'lPrice')}
             </div>
             <div class="text-[11px] opacity-60 mb-3">Завтрак в день заезда и обед в день выезда уходят в шахматку (ранний заезд / поздний выезд), снятые дни в середине — кухне как пропуск</div>`}
             <div class="text-xs font-semibold uppercase opacity-60 mb-1">Дополнительно</div>
@@ -656,6 +690,15 @@ function выездИзНомера(f, iso) {
     f.nights = Math.max(днейМежду(v.check_in, до), 0);
     const обрезать = list => (list || []).filter(m => m.d <= до).map(m => m.d === до && iso ? { ...m, l: false } : { ...m });
     if (f.mealsAll) { f.meals = обрезать(f.mealsAll); f.base = обрезать(f.baseAll); }
+}
+
+// Начисление за промежуток: в ленте только дни с from по to
+function периодПитания(f, from, to) {
+    if (!from || !to || from > to) return;
+    f.period = { from, to };
+    const в = list => (list || []).filter(m => m.d >= from && m.d <= to).map(m => ({ ...m }));
+    f.meals = в(f.mealsAll);
+    f.base = в(f.baseAll);
 }
 
 function renderTotal() {
@@ -701,7 +744,9 @@ OK — изменить даты всей брони, Отмена — толь�
             `• ${f.v.name}, ${x.what}: ${x.old_in ? `${дата(x.old_in)} — ${дата(x.old_out)}` : 'нет'} → ${дата(x.new_in)} — ${дата(x.new_out)}`) });
     }
     if (выезды.length && !confirm(`Изменятся даты в шахматке:\n${выезды.flatMap(x => x.шаги).join('\n')}\n\nКухня пересчитает питание сама. Продолжить?`)) return;
-    const повтор = [...selected].filter(rid => !forms[rid].freeOn).map(rid => forms[rid].v).filter(v => Number(v.charged) > 0);
+    const повтор = [...selected].filter(rid => !forms[rid].freeOn
+        && !(forms[rid].period && forms[rid].v.charged_to && forms[rid].period.from > forms[rid].v.charged_to))
+        .map(rid => forms[rid].v).filter(v => Number(v.charged) > 0);
     if (повтор.length && !confirm(`Уже есть начисления: ${повтор.map(v => v.name).join(', ')}. Добавить ещё?`)) return;
 
     let первый = null;
@@ -722,10 +767,11 @@ OK — изменить даты всей брони, Отмена — толь�
         // «Уезжает в ~» из окна → место в шахматке (731): кухня считает по нему же
         if (f.depTime !== f.depTimeSaved && !await call('fin_set_departure_time', { resident_id: rid, departure_time: f.depTime || null })) return;
         // края питания → шахматка, чтобы цифра кухни совпала с начислением
+        // (промежуток не с заезда / не до выезда — край не трогаем)
         if (f.meals.length) {
             const ранний = f.meals[0].b, поздний = f.meals[f.meals.length - 1].l;
-            if (ранний !== !!v.early_checkin) payload.early_checkin = ранний;
-            if (поздний !== !!v.late_checkout) payload.late_checkout = поздний;
+            if (f.meals[0].d === v.check_in && ранний !== !!v.early_checkin) payload.early_checkin = ранний;
+            if (f.meals[f.meals.length - 1].d === v.check_out && поздний !== !!v.late_checkout) payload.late_checkout = поздний;
         }
         const prep = await call('fin_guest_prepare_visit', payload);
         if (!prep) return;
@@ -744,7 +790,7 @@ OK — изменить даты всей брони, Отмена — толь�
         const r = расчёт(f);
         const где = v.room ? ` · ${v.building || ''} №${v.room}` : '';
         const хвост = f.comment.trim() ? ` · ${f.comment.trim()}` : '';
-        const base = { retreat_id: retreatId, participant_id: pid, resident_id: rid, occurred_on: v.check_in };
+        const base = { retreat_id: retreatId, participant_id: pid, resident_id: rid, occurred_on: f.period?.from || v.check_in };
         const rows = [];
         if (f.nights > 0 && r.заНочь > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'accommodation',
             description: `${f.extraBed ? 'Доп. кровать' : 'Проживание'} ${дата(v.check_in)}–${v.check_out ? дата(v.check_out) : '…'}${где}${!f.extraBed && f.people > 1 ? ` (номер ${inr(f.roomPrice)} ÷ ${f.people})` : ''}${хвост}`,
@@ -760,6 +806,9 @@ OK — изменить даты всей брони, Отмена — толь�
             description: f.extraDesc.trim() || 'Дополнительно', quantity: 1, unit_price: вВалюту(r.доп) });
         const res = await call('fin_create_charge', { rows });
         if (!res) return;
+        // какие дни визита начислены (737) — следующее начисление начнётся с дня после
+        if (!await call('fin_visit_charge_period_set', { resident_id: rid, charge_ids: rows.map(x => x.id),
+            d_from: f.period?.from || v.check_in, d_to: f.period?.to || f.leaveOut || v.check_out || v.check_in })) return;
         // снятые дни в середине → кухня (края уже ушли флагами раннего заезда / позднего выезда)
         if (f.base && f.meals.length && !await сохранитьПропуски(f.meals, f.base)) return;
         // выезд из номера раньше → шахматка; отмена начисления проживания вернёт даты
@@ -843,6 +892,12 @@ function init() {
         if (el.dataset.gcMeal) {
             const f = forms[el.dataset.gcMeal];
             f.meals[Number(el.dataset.i)][el.dataset.m] = el.checked;
+            renderForms();
+        } else if (el.dataset.gcPeriod) {
+            const f = forms[el.dataset.gcPeriod];
+            const p = { ...f.period, [el.dataset.k]: el.value };
+            if (p.from && p.to && p.from <= p.to) периодПитания(f, p.from, p.to);
+            else Layout.showNotification('Начало промежутка позже конца', 'warning');
             renderForms();
         } else if (el.dataset.gcPerson) {
             const f = forms[el.dataset.gcPerson];

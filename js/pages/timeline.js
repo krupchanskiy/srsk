@@ -79,7 +79,7 @@ const SELF_BLOCKS = [['guests', SELF_GROUP_ID], ['team', SELF_TEAM_ID]];
 // slug обязателен в выборке resident_categories: без него все уходили в блок гостей (ВГ, 01.10)
 function selfKind(res) {
     const cat = res.resident_categories || categories.find(c => c.id === res.category_id);
-    return ['team', 'volunteer', 'retreat_volunteer', 'shrsk_volunteer'].includes(cat?.slug) ? 'team' : 'guests';
+    return ['team', 'volunteer', 'retreat_volunteer', 'shrsk_volunteer', 'visiting_volunteer'].includes(cat?.slug) ? 'team' : 'guests';
 }
 let periodRetreats = [];          // ретриты показанного периода — для «Сам организует» из CRM
 let periodResidents = [];         // все проживания периода — чтобы не дублировать людей из CRM
@@ -1122,7 +1122,8 @@ function showBookingForm() {
 // ===== Департамент и служение в брони (ТЗ 01.10, п. 5; ВГ 02.10) =====
 // Волонтёр и команда: департамент обязателен, человек обязателен — из справочника или
 // вписанное имя, по которому при сохранении создаётся черновая карточка.
-const STAFF_CATEGORY_SLUGS = ['team', 'volunteer'];
+// приходящий волонтёр (737) живёт не у нас и платит за прасад сам, но служит в департаменте
+const STAFF_CATEGORY_SLUGS = ['team', 'volunteer', 'visiting_volunteer'];
 const isStaffCategory = id => STAFF_CATEGORY_SLUGS.includes(categories.find(c => c.id === id)?.slug);
 const departmentName = id => { const d = id && departments.find(x => x.id === id); return d ? Layout.getName(d) : ''; };
 
