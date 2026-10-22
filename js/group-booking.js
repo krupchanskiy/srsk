@@ -525,12 +525,21 @@ function renderCounter() {
 // по номерам из списка (организаторы расселяют сами). Спутники без имени — «Имя +1».
 // Не помещается (людей в номере больше, чем мест, замена посреди срока) — «разберите вручную».
 const ROLES = [
-    ['', '— не брать —'], ['name', 'Имя'], ['room', 'Номер комнаты'], ['in', 'Заезд'], ['out', 'Выезд'],
-    ['days', 'Дни («14 и 15»)'], ['count', 'Сколько человек'], ['phone', 'Телефон']
+    ['', '— не брать —'], ['name', 'Имя'], ['building', 'Здание / гостиница'], ['room', 'Номер комнаты'],
+    ['in', 'Заезд'], ['out', 'Выезд'], ['flight_in', 'Рейс прилёта (приезд +4 ч)'], ['flight_out', 'Рейс вылета (отъезд за 7 ч)'],
+    ['days', 'Дни («14 и 15»)'], ['count', 'Сколько человек'],
+    ['phone', 'Телефон'], ['email', 'Почта'], ['telegram', 'Телеграм']
 ];
+// Рейс → в ашраме: приезд через 4 ч после посадки, отъезд за 7 ч до вылета (дорога до Дели + аэропорт; ВГ 22.10)
+const FLIGHT_IN_H = 4, FLIGHT_OUT_H = -7;
 const ROLE_RE = [
     ['count', /сколько|кол-?во|колич|человек|чел\.?$|people|pax|persons/i],
+    ['flight_in', /прил[её]т|рейс туда|inbound|arrival flight/i],
+    ['flight_out', /выл[её]т|рейс обратно|outbound|return|departure flight/i],
+    ['telegram', /телеграм|telegram|^tg$|^тг$/i],
+    ['email', /mail|почт/i],
     ['phone', /тел|phone|whats|моб/i],
+    ['building', /здани|корпус|гостиниц|отел|hotel|building/i],
     ['in', /заезд|приезд|прибыт|arriv|check.?in/i],
     ['out', /выезд|отъезд|убыт|depart|check.?out/i],
     ['days', /^дни|^даты?$|days|числа/i],
@@ -554,7 +563,7 @@ function showList(on) {
 async function loadPeople() {
     if (S.people) return;
     const { data, error } = await Layout.db.from('vaishnavas')
-        .select('id, spiritual_name, first_name, last_name, phone')
+        .select('id, spiritual_name, first_name, last_name, phone, email, telegram')
         .or('is_deleted.is.null,is_deleted.eq.false').range(0, 4999);
     if (error) { Layout.handleError?.(error, 'Справочник'); S.people = []; return; }
     S.people = (data || []).map(v => ({ ...v,
@@ -646,10 +655,44 @@ function autoMap(header, rows) {
         if (dateCols[0] != null) map[dateCols[0]] = 'in';
         if (dateCols[1] != null) map[dateCols[1]] = 'out';
     }
+    // Столбцы без подписи — по содержимому: почта, телеграм, телефон, здание; номер — после здания
+    const looks = {
+        email: v => EMAIL_RE.test(v),
+        telegram: v => /t\.me\/|^@\S{3,}$/i.test(v),
+        phone: v => /^\+?[\d\s().-]{7,}$/.test(v),
+        building: v => matchBuildings(v).length > 0,
+        room: v => /^\d{1,3}$/.test(v) && !resolveRoom(v, '').notFound
+    };
+    for (const [role, test] of Object.entries(looks)) {
+        if (map.includes(role) || (role === 'room' && !map.includes('building'))) continue;
+        const c = map.findIndex((m, i) => {
+            const vals = rows.map(r => String(r[i] || '').trim()).filter(Boolean);
+            return m === '' && vals.length && vals.filter(test).length > vals.length / 2;
+        });
+        if (c >= 0) map[c] = role;
+    }
     // «№» со значениями 1, 2, 3… подряд — это номер строки, не комната
     const rc = map.indexOf('room');
     if (rc >= 0 && rows.length > 2 && rows.every((r, i) => String(r[rc]).trim() === String(i + 1))) map[rc] = '';
     return map;
+}
+
+const EMAIL_RE = /[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/i;
+// Здание по клетке организатора: «Бхадур 1x», «Коттедж 2»; «ШРСК» — все наши (не арендованные) здания
+const bnorm = s => Translit.ru(String(s || '').toLowerCase()).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '');
+function matchBuildings(text) {
+    const t = bnorm(text);
+    if (!t) return [];
+    const hits = S.buildings.map(b => ({ id: b.id, len: Math.max(...[b.name_ru, b.name_en].map(n => {
+        const k = bnorm(n);
+        return k.length >= 3 && (t.includes(k) || (t.length >= 4 && k.startsWith(t))) ? k.length : 0;
+    })) })).filter(h => h.len);
+    if (hits.length) {
+        const best = Math.max(...hits.map(h => h.len));
+        return hits.filter(h => h.len === best).map(h => h.id);
+    }
+    if (/шрск|srsk|shrsk|ашрам|ashram/i.test(text)) return S.buildings.filter(b => !b.is_temporary).map(b => b.id);
+    return [];
 }
 
 function parseList() {
@@ -668,16 +711,39 @@ function parseList() {
     buildListPeople();
 }
 
-function resolveRoom(text) {
+// Номер ищем в здании из столбца «Здание» (если оно узнано), иначе во всех
+function resolveRoom(text, bText) {
     const raw = String(text || '').trim();
-    if (!raw) return { key: '', text: '' };
-    if (/сам|self|без ном/i.test(raw)) return { key: SELF, text: raw };
+    const bIds = bText ? matchBuildings(bText) : [];
+    if (!raw) return { key: '', text: '', bIds };
+    if (/сам|self|без ном/i.test(raw)) return { key: SELF, text: raw, bIds };
     const n = raw.toLowerCase().replace(/№|#|room|комн\w*|ном\w*/g, '').replace(/\s+/g, '');
-    const same = S.rooms.filter(r => String(r.number).toLowerCase().replace(/\s+/g, '') === n);
+    const same = S.rooms.filter(r => String(r.number).toLowerCase().replace(/\s+/g, '') === n
+        && (!bIds.length || bIds.includes(r.building_id)));
     const order = id => S.buildings.findIndex(b => b.id === id);
     same.sort((a, b) => (S.picks[b.id] ? 1 : 0) - (S.picks[a.id] ? 1 : 0) || order(a.building_id) - order(b.building_id));
-    return { key: same[0]?.id || '', text: raw, notFound: !same.length };
+    return { key: same[0]?.id || '', text: [bText, raw].filter(Boolean).join(' '), notFound: !same.length, bIds };
 }
+
+// Время из клетки «30/10 08:20 SU233» → «08:20» (через двоеточие — «30.10» не время)
+function parseTime(text) {
+    const m = String(text || '').match(/(?:^|\D)(\d{1,2}):(\d{2})(?!\d)/);
+    return m && +m[1] < 24 && +m[2] < 60 ? `${m[1].padStart(2, '0')}:${m[2]}` : '';
+}
+
+// Дата и время рейса со сдвигом в часах; без времени — только дата рейса
+function fromFlight(text, base, hours) {
+    const date = parseDates(text, base)[0];
+    if (!date) return null;
+    const time = parseTime(text);
+    if (!time) return { date, time: '' };
+    const d = DateUtils.parseDate(date);
+    d.setHours(+time.slice(0, 2) + hours, +time.slice(3));
+    return { date: DateUtils.toISO(d), time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` };
+}
+
+// Телеграм к виду @ник: «https://t.me/ivan» → «@ivan»; телефон оставляем как есть
+const tgNorm = v => { const s = String(v || '').trim(); const m = s.match(/t\.me\/([\w+]+)/i); return m ? '@' + m[1] : s; };
 
 // Строки таблицы → люди: имена через запятую / «и» / «&», «+2» и «сколько человек» — спутники
 function buildListPeople() {
@@ -697,21 +763,35 @@ function buildListPeople() {
         const count = parseInt(get(r, 'count')) || 0;
         if (count > names.length + extra) extra = count - names.length;
         if (!names.length && !extra) return;
-        const room = resolveRoom(get(r, 'room'));
+        const room = resolveRoom(get(r, 'room'), get(r, 'building').trim());
+        // Контакты строки — у первого названного (спутникам «+1» не дублируем)
+        const contact = { phone: get(r, 'phone').trim(), email: (get(r, 'email').match(EMAIL_RE) || [''])[0],
+            tg: tgNorm(get(r, 'telegram')) };
         let din = parseDates(get(r, 'in'), base)[0] || '';
         let dout = parseDates(get(r, 'out'), base).slice(-1)[0] || '';
+        let tin = din ? parseTime(get(r, 'in')) : '', tout = dout ? parseTime(get(r, 'out')) : '';
+        // Рейс — когда нет настоящих заезда/выезда: дата и время в ашраме по сдвигу
+        const flightIn = get(r, 'flight_in').trim(), flightOut = get(r, 'flight_out').trim();
+        const fi = !din && flightIn && fromFlight(flightIn, base, FLIGHT_IN_H);
+        if (fi) { din = fi.date; tin = fi.time; }
+        const fo = !dout && flightOut && fromFlight(flightOut, base, FLIGHT_OUT_H);
+        if (fo) { dout = fo.date; tout = fo.time; }
         const days = parseDates(get(r, 'days'), base);
         if (days.length) { din = din || days[0]; dout = dout || addDays(days[days.length - 1], 1); }
+        // «Все вместе» — даты и время группы из окна, свои из списка не берём
+        if (S.together?.in) { din = ''; tin = ''; }
+        if (S.together?.out) { dout = ''; tout = ''; }
+        const own = { inTime: tin, outTime: tout, flightIn, flightOut };
         const lead = names[0] || `${tf('timeline_list_row', 'Строка')} ${ri + 1}`;
-        for (const nm of names) {
+        names.forEach((nm, ni) => {
             const m = matchPerson(nm);
             people.push({ row: ri, name: nm, match: m.kind, cands: m.cands,
                 vid: m.kind === 'exact' ? m.cands[0].id : '', key: room.key, roomText: room.text,
-                notFound: room.notFound, in: din, out: dout });
-        }
+                notFound: room.notFound, bIds: room.bIds, in: din, out: dout, ...own, ...(ni ? {} : contact) });
+        });
         for (let k = 1; k <= extra; k++)
             people.push({ row: ri, name: `${lead} +${k}`, match: 'plus', cands: [], vid: '', key: room.key,
-                roomText: room.text, notFound: room.notFound, in: din, out: dout });
+                roomText: room.text, notFound: room.notFound, bIds: room.bIds, in: din, out: dout, ...own });
     });
     S.listPeople = people;
 }
@@ -742,6 +822,14 @@ function renderList() {
             <select class="select select-bordered select-xs w-full" data-map="${c}">
                 ${ROLES.map(([v, l]) => `<option value="${v}" ${S.map[c] === v ? 'selected' : ''}>${e(l)}</option>`).join('')}
             </select></label>`).join('')}
+        </div>
+        <div class="flex flex-wrap gap-x-6 gap-y-2 mt-3 text-sm">
+            ${[['in', tf('timeline_list_arrival', 'Приезд')], ['out', tf('timeline_list_departure', 'Отъезд')]].map(([s, l]) => `<label class="flex items-center gap-2">
+                <span class="font-medium">${e(l)}:</span>
+                <select class="select select-bordered select-xs" data-together="${s}">
+                    <option value="" ${S.together?.[s] ? '' : 'selected'}>${e(tf('timeline_list_own', 'у каждого своё — из списка'))}</option>
+                    <option value="1" ${S.together?.[s] ? 'selected' : ''}>${e(tf('timeline_list_together', 'все вместе — даты и время группы'))}</option>
+                </select></label>`).join('')}
         </div>`;
     const P = S.listPeople;
     if (!S.map.includes('name') && !S.map.includes('count')) {
@@ -762,12 +850,18 @@ function renderList() {
         <thead><tr><th>${e(tf('timeline_list_name', 'Имя'))}</th><th>${e(tf('timeline_list_in_base', 'В базе'))}</th>
             <th>${e(tf('timeline_list_room_col', 'Номер комнаты'))}</th><th>${e(tf('check_in', 'Заезд'))}</th><th>${e(tf('check_out', 'Выезд'))}</th></tr></thead>
         <tbody>${P.map((p, i) => `<tr class="${i && P[i - 1].row !== p.row ? 'border-t-2' : ''}">
-            <td class="whitespace-nowrap">${e(p.name)}</td>
+            <td class="whitespace-nowrap">${e(p.name)}${[p.phone, p.email, p.tg].some(Boolean)
+                ? `<div class="opacity-60">${[p.phone, p.email, p.tg].filter(Boolean).map(e).join(' · ')}</div>` : ''}</td>
             <td>${matchCell(p, i)}</td>
             <td><select class="select select-bordered select-xs ${p.notFound ? 'select-error' : ''}" data-lf="key" data-i="${i}">${roomOptions(p.key)}</select>
                 ${p.notFound ? `<div class="text-error text-xs">«${e(p.roomText)}» ${e(tf('timeline_list_room_not_found', 'не найден'))}</div>` : ''}</td>
-            <td><input type="date" class="input input-bordered input-xs" data-lf="in" data-i="${i}" value="${p.in}"></td>
-            <td><input type="date" class="input input-bordered input-xs" data-lf="out" data-i="${i}" value="${p.out}"></td>
+            ${['in', 'out'].map(s => {
+                const t = s === 'in' ? 'inTime' : 'outTime', fl = s === 'in' ? p.flightIn : p.flightOut;
+                return S.together?.[s] ? `<td class="opacity-60 whitespace-nowrap">${e(tf('timeline_list_as_group', 'как у группы'))}</td>`
+                    : `<td class="whitespace-nowrap"><input type="date" class="input input-bordered input-xs" data-lf="${s}" data-i="${i}" value="${p[s]}">
+                    <input type="time" step="900" class="input input-bordered input-xs w-20" data-lf="${t}" data-i="${i}" value="${p[t] || ''}">
+                    ${fl ? `<div class="opacity-60 text-[11px]">${e(tf('timeline_list_flight', 'рейс'))}: ${e(fl)}</div>` : ''}</td>`;
+            }).join('')}
         </tr>`).join('')}</tbody></table></div>`;
     const similar = P.filter(p => p.match === 'similar').length;
     $('gbListCounter').innerHTML = `${e(tf('timeline_group_people', 'Людей'))}: <b>${P.length}</b>`
@@ -782,6 +876,12 @@ function onListEdit(ev) {
         if (!p) return;
         p[el.dataset.lf] = el.value;
         if (el.dataset.lf === 'key') { p.notFound = false; el.classList.remove('select-error'); }
+        return;
+    }
+    const tg = ev.target.closest('[data-together]');
+    if (tg) {
+        S.together = { ...S.together, [tg.dataset.together]: !!tg.value };
+        renderListKeepMap();
         return;
     }
     const m = ev.target.closest('[data-map]');
@@ -853,10 +953,10 @@ async function applyList() {
         if (assigned(p.key) < cap(p.key)) S.assign.push(p);
         else manual.push({ name: p.name, why: `№${room?.number ?? ''}: ${tf('timeline_list_room_full', 'людей больше, чем мест (замена посреди срока?) — разберите вручную')}` });
     }
-    // Без номера — на свободные отмеченные места, в порядке зданий
+    // Без номера — на свободные отмеченные места, в порядке зданий (указано здание — только в нём)
     const anyRooms = S.buildings.flatMap(b => S.rooms.filter(r => r.building_id === b.id && (S.picks[r.id] || 0) > 0));
     for (const p of place.filter(p => !p.key)) {
-        const room = anyRooms.find(r => assigned(r.id) < Math.min(cap(r.id), (S.picks[r.id] || 0) - (S.minSeats[r.id] || 0)));
+        const room = anyRooms.find(r => (!p.bIds?.length || p.bIds.includes(r.building_id)) && assigned(r.id) < Math.min(cap(r.id), (S.picks[r.id] || 0) - (S.minSeats[r.id] || 0)));
         if (room) S.assign.push({ ...p, key: room.id });
         else manual.push({ name: p.name, why: tf('timeline_list_no_room', 'нет номера — отметьте номера или укажите номер в списке') });
     }
@@ -949,7 +1049,7 @@ async function open(opts = {}) {
     $('gbBreakfast').checked = $('gbLunch').checked = true;
     $('gbWholeRoom').checked = !!opts.wholeRoom;
     $('gbPaste').value = '';
-    S.assign = []; S.manual = []; S.listPeople = []; S.rows = null; S.mapSig = null;
+    S.assign = []; S.manual = []; S.listPeople = []; S.rows = null; S.mapSig = null; S.together = {};
     showList(false);
     $('gbTitle').textContent = person ? tf('timeline_person_title', 'Бронирование: человек или семья')
         : opts.bookingId ? tf('timeline_group_edit', 'Расселение группы')
@@ -1042,6 +1142,7 @@ async function save() {
     try {
         const ok = S.booking ? await saveEdit(head, from, to, retreatId) : await saveNew(head, from, to, retreat);
         if (!ok) return;
+        await fillCards();
         $('groupBookingModal').close();
         Layout.showNotification(tf('saved', 'Сохранено'), 'success');
         await S.onSaved?.();
@@ -1115,8 +1216,33 @@ function seatRow(base, roomId) {
 }
 
 // Человек из списка на месте: карточка из справочника или имя без карточки, свои даты
+// Контакты из списка: без карточки — на месте (guest_*, мигр. 728); с карточкой — в справочник (fillCards)
 const personFields = p => ({ vaishnava_id: p.vid || null, guest_name: p.vid ? null : p.name,
-    check_in: p.in, check_out: p.out });
+    check_in: p.in, check_out: p.out,
+    ...(!p.vid && p.phone ? { guest_phone: p.phone } : {}),
+    ...(!p.vid && p.email ? { guest_email: p.email } : {}),
+    ...(!p.vid && p.tg ? { guest_telegram: p.tg } : {}),
+    // Своё время из списка сильнее времени брони (идёт после timeFields)
+    ...(p.inTime ? { arrival_time: p.inTime, keep_arrival_meal: false } : {}),
+    ...(p.outTime ? { departure_time: p.outTime } : {}),
+    ...(p.flightIn ? { arrival_flight: p.flightIn } : {}),
+    ...(p.flightOut ? { departure_flight: p.flightOut } : {}) });
+
+// В карточку справочника — только пустые поля, заполненное не перетираем
+async function fillCards() {
+    for (const p of S.assign || []) {
+        const v = p.vid && S.people?.find(x => x.id === p.vid);
+        if (!v) continue;
+        const upd = {};
+        if (p.phone && !v.phone) upd.phone = p.phone;
+        if (p.email && !v.email) upd.email = p.email;
+        if (p.tg && !v.telegram) upd.telegram = p.tg;
+        if (!Object.keys(upd).length) continue;
+        const { error } = await Layout.db.from('vaishnavas').update(upd).eq('id', v.id);
+        if (error) Layout.showNotification(`${personName(v)}: ${error.message}`, 'error');
+        else Object.assign(v, upd);
+    }
+}
 const listQueue = () => {
     const q = {};
     for (const p of S.assign || []) (q[p.key] = q[p.key] || []).push(p);
@@ -1147,8 +1273,8 @@ async function saveNew(head, from, to, retreat) {
     const queue = listQueue();
     for (const [k, n] of Object.entries(S.picks)) for (let i = 0; i < n; i++) {
         const p = queue[k]?.shift();
-        rows.push({ ...seatRow(base, k), ...(p ? personFields(p) : {}),
-            ...timeFields(p?.in || from, p?.out || to, from, to),
+        rows.push({ ...seatRow(base, k), ...timeFields(p?.in || from, p?.out || to, from, to),
+            ...(p ? personFields(p) : {}),
             ...(wholeRoom() && k !== SELF ? { whole_room: true } : {}) });
     }
     const { error: e2 } = await Layout.db.from('residents').insert(rows);
@@ -1260,8 +1386,8 @@ async function saveEdit(head, from, to, retreatId) {
         const rows = [];
         for (const [k, n] of toAdd) for (let i = 0; i < n; i++) {
             const p = queue[k]?.shift();
-            rows.push({ ...seatRow(base, k), ...(p ? personFields(p) : {}),
-                ...timeFields(p?.in || from, p?.out || to, from, to) });
+            rows.push({ ...seatRow(base, k), ...timeFields(p?.in || from, p?.out || to, from, to),
+                ...(p ? personFields(p) : {}) });
         }
         r = await Layout.db.from('residents').insert(rows);
         if (r.error) return fail(r.error);

@@ -2648,6 +2648,15 @@ function openResidentModal(guestData, buildingName, roomName) {
             <span class="font-medium">${e(res.guest_phone)}</span>
         </div>`;
     }
+    // Почта, телеграм и рейсы — из «Вставить список» (мигр. 728, 729)
+    for (const [val, label] of [[res.guest_email, tf('email', 'Почта')], [res.guest_telegram, 'Telegram'],
+        [res.arrival_flight, tf('timeline_arrival_flight', 'Рейс прилёта')], [res.departure_flight, tf('timeline_departure_flight', 'Рейс вылета')]]) {
+        if (!val) continue;
+        infoHtml += `<div class="flex justify-between py-1 border-b">
+            <span class="text-gray-500">${e(label)}:</span>
+            <span class="font-medium">${e(val)}</span>
+        </div>`;
+    }
 
     // Питание
     if (!isBooking) {
