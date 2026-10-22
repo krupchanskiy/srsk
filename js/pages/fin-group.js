@@ -1093,7 +1093,7 @@ function summaryHtml(d) {
             ${d.s.обедов ? `<tr><td>${T.lunches}</td><td ${R}>${d.s.обедов}</td><td ${R}>${d.ценаО != null ? деньги(d.ценаО) : ''}</td><td ${R}>${деньги(round2(сумПриёма('l')))}</td></tr>` : ''}
             <tr class="sub"><td>${T.total}</td><td></td><td></td><td ${R}>${деньги(d.s.питание)}</td></tr></table>
             ${d.пропуски.length ? `<div class="small mute">${d.пропуски.map(x => `${дата(x.d)} — ${пр(x)}`).join('; ')}</div>` : ''}
-            ${d.поДням.length && !(lines.length === 1 && lines[0].eater) ? `<h3>${T.mealsDaily}</h3><table class="t narrow">
+            ${d.поДням.length && !однаЗаписьПитания() ? `<h3>${T.mealsDaily}</h3><table class="t narrow">
                 <thead><tr><th>${T.date}</th><th ${R}>${T.breakfasts}</th><th ${R}>${T.lunches}</th></tr></thead>
                 ${d.поДням.map(x => `<tr><td>${дата(x.d)}</td><td ${R}>${x.b}</td><td ${R}>${x.l}</td></tr>`).join('')}
                 <tr class="sub"><td>${T.total}</td><td ${R}>${d.s.завтраков}</td><td ${R}>${d.s.обедов}</td></tr></table>` : ''}` : ''}
@@ -1112,8 +1112,14 @@ function summaryHtml(d) {
 // до 10 дней — дни колонками в той же таблице, дольше — отдельные таблицы «Питание по дням»
 // по 10 дней, в каждой все гости. Шапки таблиц повторяются на каждом листе (thead)
 const ДНЕЙ_В_СЕТКЕ = 10;
+const елХотьРаз = l => l.meals.some(m => m.b || m.l);
+// В сетке по дням — только люди, которые хоть раз ели: питание «Разовым» — своей таблицей
+// ниже, а пустые строки с прочерками на десятки листов организатору не нужны (ВГ, 22.10)
+const вСетке = l => !l.eater && елХотьРаз(l);
+// «Приёмы пищи по дням» в сводке повторяют таблицу записи, если всё питание — одна запись «Разового»
+const однаЗаписьПитания = () => { const е = lines.filter(елХотьРаз); return е.length === 1 && е[0].eater; };
 function днейСводки() {
-    return [...new Set(lines.flatMap(l => l.meals.map(m => m.d)))].sort();
+    return [...new Set(lines.filter(вСетке).flatMap(l => l.meals.map(m => m.d)))].sort();
 }
 // приёмы одного дня: «З О» / «З» / «О» / «–» (был, не ел) / '' (не было)
 function приёмыДня(l, d) {
@@ -1180,7 +1186,7 @@ function подробно(d) {
         const r = расчёт(l), h = !!l.place?.room_id;
         return `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
             <td ${R}>${h ? `${l.nights} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
-            ${колДни.map(x => `<td class="c">${приёмыДня(l, x)}</td>`).join('')}
+            ${колДни.map(x => `<td class="c">${вСетке(l) ? приёмыДня(l, x) : ''}</td>`).join('')}
             <td ${R}>${r.завтраков ? `${r.завтраков} × ${деньги(l.bPrice)}` : ''}</td><td ${R}>${r.обедов ? `${r.обедов} × ${деньги(l.lPrice)}` : ''}</td>
             <td ${R}>${r.питание ? деньги(r.питание) : ''}</td>${естьДоп ? `<td ${R}>${r.доп ? деньги(r.доп) : ''}</td>` : ''}
             <td ${R}><b>${деньги(r.итого)}</b></td></tr>`;
@@ -1199,12 +1205,12 @@ function подробно(d) {
         html += `<h3>${T.mealsByDay} · ${дата(часть[0])}–${дата(часть[часть.length - 1])}</h3>
             <table class="t rooms">
                 <thead><tr><th>${T.room} / ${T.guest}</th>${часть.map(x => `<th class="c">${дата(x)}</th>`).join('')}</tr></thead>
-                ${d.комнаты.map(g => `<tr class="room"><td colspan="${часть.length + 1}">${e(имяКомнаты(g.l0))} <span class="mute">· ${периодКомнаты(g)}</span></td></tr>`
-                    + g.люди.map(l => `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
+                ${d.комнаты.filter(g => g.люди.some(вСетке)).map(g => `<tr class="room"><td colspan="${часть.length + 1}">${e(имяКомнаты(g.l0))} <span class="mute">· ${периодКомнаты(g)}</span></td></tr>`
+                    + g.люди.filter(вСетке).map(l => `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
                         ${часть.map(x => `<td class="c">${приёмыДня(l, x)}</td>`).join('')}</tr>`).join('')).join('')}
             </table>`;
     }
-    return html + `<div class="small mute">${T.legend}</div>`;
+    return html + (дни.length ? `<div class="small mute">${T.legend}</div>` : '');
 }
 
 // сумма завтраков или обедов по группе
@@ -1258,8 +1264,10 @@ function summaryText(d) {
         if (d.s.завтраков) out.push(`• ${T.breakfasts}: ${d.s.завтраков}${d.ценаЗ != null ? ` × ${деньги(d.ценаЗ)}` : ''} = ${деньги(round2(сумПриёма('b')))}`);
         if (d.s.обедов) out.push(`• ${T.lunches}: ${d.s.обедов}${d.ценаО != null ? ` × ${деньги(d.ценаО)}` : ''} = ${деньги(round2(сумПриёма('l')))}`);
         d.пропуски.forEach(x => out.push(`  ${дата(x.d)}: ${x.b ? `${T.noB} ${T.people(x.b)}` : ''}${x.b && x.l ? ', ' : ''}${x.l ? `${T.noL} ${T.people(x.l)}` : ''}`));
-        out.push('', `${T.mealsDaily}:`);
-        d.поДням.forEach(x => out.push(`• ${дата(x.d)}: ${T.breakfasts.toLowerCase()} ${x.b}, ${T.lunches.toLowerCase()} ${x.l}`));
+        if (!однаЗаписьПитания()) {
+            out.push('', `${T.mealsDaily}:`);
+            d.поДням.forEach(x => out.push(`• ${дата(x.d)}: ${T.breakfasts.toLowerCase()} ${x.b}, ${T.lunches.toLowerCase()} ${x.l}`));
+        }
     }
     if (d.s.доп) out.push(`${T.extra}: ${деньги(d.s.доп)}`);
     out.push('', `${d.сам.length ? T.totalGroup : T.total}: ${деньги(d.всего)}`);
@@ -1287,10 +1295,10 @@ function summaryText(d) {
             if (r.доп) части.push(`${T.extra.toLowerCase()} ${деньги(r.доп)}`);
             const пометка = l.selfPay ? ` (${T.selfMark})` : !l.included ? ` (${причина(l.excludeReason)})` : '';
             out.push(`• ${имяГостя(l)}${пометка}: ${части.join('; ')} — ${T.total.toLowerCase()} ${деньги(r.итого)}`);
-            if (вид === 'full' && l.meals.length) out.push(`  ${l.meals.map(m => `${дата(m.d)} ${приёмыДня(l, m.d)}`).join(', ')}`);
+            if (вид === 'full' && елХотьРаз(l)) out.push(`  ${l.meals.map(m => `${дата(m.d)} ${приёмыДня(l, m.d)}`).join(', ')}`);
         });
     });
-    if (вид === 'full') out.push('', T.legend);
+    if (вид === 'full' && днейСводки().length) out.push('', T.legend);
     return out.join('\n');
 }
 
