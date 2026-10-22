@@ -416,10 +416,35 @@ async function saveRate() {
 // ==================== ТАБЛИЦА ====================
 const цели = () => marked.size ? lines.filter(l => marked.has(l.key)) : lines;
 
-// Номер — одна группа строк, даты у каждого в его строке: заехавшие в разные дни соседи
-// не дробят номер на шапки «мест 1» (ВГ, 22.10; раньше — номер + период, 28.09)
+// Номер — одна группа строк на тех, кто жил в нём одновременно; даты у каждого в его строке.
+// Соседи с разными заездами — одна шапка, а «стык в стык» (одни выехали, другие в тот же день
+// заехали) — разные шапки: это разные люди в разное время (ВГ, 22.10; раньше — номер + период, 28.09)
 // Без номера — по брони: места одной групповой брони вместе, разные брони не сливаются
-const ключКомнаты = l => l.place ? (l.place.room_id || 'b:' + (l.place.booking_id || l.key)) : l.key;
+const номерСтроки = l => l.place.room_id || 'b:' + (l.place.booking_id || l.key);
+let ключи = { lines: null, map: null };
+function ключКомнаты(l) {
+    if (!l.place) return l.key;
+    if (ключи.lines !== lines || ключи.map.size !== lines.length) {
+        // по номеру: заезды по порядку, пока следующий заезжает раньше выезда группы — она та же
+        const map = new Map(), поНомеру = new Map();
+        for (const x of lines) {
+            if (!x.place) { map.set(x, x.key); continue; }
+            const k = номерСтроки(x);
+            if (!поНомеру.has(k)) поНомеру.set(k, []);
+            поНомеру.get(k).push(x);
+        }
+        for (const [k, list] of поНомеру) {
+            let начало = null, конец = null;
+            for (const x of [...list].sort((a, b) => a.place.check_in.localeCompare(b.place.check_in))) {
+                if (начало === null || (конец !== '' && x.place.check_in >= конец)) { начало = x.place.check_in; конец = x.place.check_out || ''; }
+                else if (конец !== '' && (!x.place.check_out || x.place.check_out > конец)) конец = x.place.check_out || '';
+                map.set(x, `${k}|${начало}`);
+            }
+        }
+        ключи = { lines, map };
+    }
+    return ключи.map.get(l) ?? номерСтроки(l);
+}
 // Соседи — тот же номер и живут в нём одновременно (для доп. кровати и делителя)
 const соседи = (x, l) => ключКомнаты(x) === ключКомнаты(l)
     && (!l.place.check_out || x.place.check_in < l.place.check_out) && (!x.place.check_out || l.place.check_in < x.place.check_out);
