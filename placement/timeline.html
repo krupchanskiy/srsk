@@ -877,7 +877,7 @@
                                 <span class="label-text font-medium" data-i18n="check_in">Заезд</span>
                             </label>
                             <input type="date" name="check_in" id="checkinDateIn" class="input input-bordered input-sm w-full" required onchange="suggestRetreat()" />
-                            <div id="checkinArrivalTime" data-arrival-time="in"></div>
+                            <div id="checkinArrivalTime" data-arrival-time="in" data-date-input="checkinDateIn"></div>
                         </div>
                         <div class="form-control">
                             <label class="label py-1">
@@ -1029,7 +1029,7 @@
                                     <span class="label-text font-medium" data-i18n="check_in">Заезд</span>
                                 </label>
                                 <input type="date" name="check_in" id="bookingDateIn" class="input input-bordered input-sm w-full" required onchange="suggestBookingRetreat(); renderBookingServes()" />
-                                <div id="bookingArrivalTime" data-arrival-time="in"></div>
+                                <div id="bookingArrivalTime" data-arrival-time="in" data-date-input="bookingDateIn"></div>
                             </div>
                             <div class="form-control">
                                 <label class="label py-1">
@@ -1275,7 +1275,7 @@
                     <div class="form-control">
                         <label class="label"><span class="label-text" data-i18n="check_in">Заезд</span></label>
                         <input type="date" id="editCheckIn" class="input input-bordered">
-                        <div id="editArrivalTime" data-arrival-time="in" class="mt-1"></div>
+                        <div id="editArrivalTime" data-arrival-time="in" data-date-input="editCheckIn" class="mt-1"></div>
                     </div>
                     <div class="form-control">
                         <label class="label"><span class="label-text" data-i18n="check_out">Выезд</span></label>
@@ -1404,9 +1404,9 @@
     <script src="../js/retreat-select.js?v=1"></script>
     <script src="../js/meal-group-editor.js?v=1"></script>
     <script src="../js/house-guard.js?v=4"></script>
-    <script src="../js/arrival-time.js?v=1"></script>
-    <script src="../js/group-booking.js?v=17"></script>
-    <script src="../js/pages/timeline.js?v=95"></script>
+    <script src="../js/arrival-time.js?v=2"></script>
+    <script src="../js/group-booking.js?v=18"></script>
+    <script src="../js/pages/timeline.js?v=96"></script>
 
 </body>
 </html>

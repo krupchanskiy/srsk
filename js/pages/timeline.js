@@ -522,7 +522,9 @@ async function loadTimelineData() {
                     let endHalf = res.late_checkout === true ? 1 : 0;
 
                     // Время у места (670) — как у кухни: до 9:00 — с утра, после 14:00 — весь день отъезда
-                    if (!res.early_checkin && res.arrival_time && parseInt(res.arrival_time) < ArrivalTime.BH) startHalf = 0;
+                    // ночной приезд (раньше 6:00) — заезд накануне, номер занят с вечера: вторая половина дня
+                    if (!res.early_checkin && res.arrival_time && !ArrivalTime.isNight(res.arrival_time)
+                        && parseInt(res.arrival_time) < ArrivalTime.BH) startHalf = 0;
                     if (!res.late_checkout && res.departure_time && parseInt(res.departure_time) >= ArrivalTime.LH) endHalf = 1;
 
                     // Уточняем по фактическому времени из регистрации на ретрит (время у места сильнее)
@@ -1801,6 +1803,7 @@ function addBookingPersonRow() {
             <div data-role="depTime" data-arrival-time="out"></div>
         </div>`;
     box.appendChild(row);
+    row.querySelector('[data-role="arrTime"]')._dateEl = row.querySelector('[data-role="in"]');
     ArrivalTime.set(row.querySelector('[data-role="arrTime"]'));
     ArrivalTime.set(row.querySelector('[data-role="depTime"]'));
     syncBookingBeds();

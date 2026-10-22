@@ -83,7 +83,7 @@ function ensureDialog() {
                         <div class="form-control">
                             <label for="gbIn" class="label-text font-medium mb-1">${e(tf('check_in', 'Заезд'))}</label>
                             <input id="gbIn" type="date" class="input input-bordered input-sm w-full" />
-                            <div id="gbArrTime" data-arrival-time="in"></div>
+                            <div id="gbArrTime" data-arrival-time="in" data-date-input="gbIn"></div>
                         </div>
                         <div class="form-control">
                             <label for="gbOut" class="label-text font-medium mb-1">${e(tf('check_out', 'Выезд'))}</label>
@@ -778,6 +778,8 @@ function buildListPeople() {
         if (fi) { din = fi.date; tin = fi.time; }
         const fo = !dout && flightOut && fromFlight(flightOut, base, FLIGHT_OUT_H);
         if (fo) { dout = fo.date; tout = fo.time; }
+        // Ночной приезд (раньше 6:00, ВГ 22.10): заезд накануне — номер держится с вечера, ночь обычная
+        if (din && ArrivalTime.isNight(tin)) din = addDays(din, -1);
         const days = parseDates(get(r, 'days'), base);
         if (days.length) { din = din || days[0]; dout = dout || addDays(days[days.length - 1], 1); }
         // «Все вместе» — даты и время группы из окна, свои из списка не берём

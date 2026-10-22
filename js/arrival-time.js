@@ -6,8 +6,11 @@
 //   <div data-arrival-time="in"></div>   ArrivalTime.set(el, { time, keep, legacy })
 //   <div data-arrival-time="out"></div>  ArrivalTime.get(el) → { time, keep, legacy }
 //   ArrivalTime.toPlace(inEl, outEl) → поля residents для сохранения
+// Ночной приезд (ВГ 22.10, мигр. 730): время раньше 6:00 — утро следующего дня после заезда.
+// Поле даты заезда (data-date-input="id" у блока или el._dateEl) при вводе такого времени
+// сдвигается на день раньше — номер держится с вечера, ночь обычная, доплаты нет.
 const ArrivalTime = (() => {
-    const BH = 9, LH = 14;
+    const BH = 9, LH = 14, NIGHT = 6;
     const tr = (key, fallback) => {
         const v = typeof Layout !== 'undefined' ? Layout.t(key) : key;
         return v && v !== key ? v : fallback;
@@ -26,6 +29,7 @@ const ArrivalTime = (() => {
         const h = hour(t);
         if (h === null) return '';
         if (side === 'in') {
+            if (h < NIGHT) return tr('arrival_hint_night', 'приезд ночью — заезд накануне: номер держится с вечера, ночь обычная, в день заезда не ест');
             if (h < BH) return tr('arrival_hint_all', 'успевает на завтрак и обед');
             return h < LH ? tr('arrival_hint_no_breakfast', 'опоздает на завтрак')
                           : tr('arrival_hint_no_lunch', 'опоздает на обед');
@@ -56,9 +60,27 @@ const ArrivalTime = (() => {
                 <span class="label-text text-sm">${esc(legacyLabel)}</span>
             </label></div>`;
         el.dataset.legacyShown = legacy ? '1' : '';
+        // ночное время уже сохранено — дата заезда уже накануне, при открытии не сдвигаем
+        el.dataset.night = side === 'in' && isNight(time) ? '1' : '';
         const input = el.querySelector('[data-at="time"]');
-        input.addEventListener('input', () => refresh(el));
+        input.addEventListener('input', () => { if (side === 'in') shiftDate(el); refresh(el); });
         refresh(el);
+    }
+
+    const isNight = t => { const h = hour(t); return h !== null && h < NIGHT; };
+
+    // Перешли через 6:00 — дата заезда на день раньше (или обратно)
+    function shiftDate(el) {
+        const night = isNight(el.querySelector('[data-at="time"]').value);
+        if (night === (el.dataset.night === '1')) return;
+        el.dataset.night = night ? '1' : '';
+        const dateEl = el._dateEl || (el.dataset.dateInput && document.getElementById(el.dataset.dateInput));
+        if (!dateEl?.value) return;
+        const d = DateUtils.parseDate(dateEl.value);
+        d.setDate(d.getDate() + (night ? -1 : 1));
+        dateEl.value = DateUtils.toISO(d);
+        dateEl.dataset.manual = '1';
+        dateEl.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     function refresh(el) {
@@ -106,12 +128,12 @@ const ArrivalTime = (() => {
     function label(res, side) {
         const t = side === 'in' ? res?.arrival_time : res?.departure_time;
         if (!t) return '';
-        let s = '~' + t.slice(0, 5);
+        let s = '~' + t.slice(0, 5) + (side === 'in' && isNight(t) ? ' ' + tr('arrival_night_suffix', '(ночью, на следующий день)') : '');
         if (side === 'in' && res.keep_arrival_meal && missedOnArrival(t)) {
             s += ', ' + (missedOnArrival(t) === 'lunch' ? tr('arrival_keep_lunch', 'Оставить обед') : tr('arrival_keep_breakfast', 'Оставить завтрак')).toLowerCase();
         }
         return s;
     }
 
-    return { BH, LH, missedOnArrival, set, get, toPlace, fromPlace, label };
+    return { BH, LH, NIGHT, isNight, missedOnArrival, set, get, toPlace, fromPlace, label };
 })();
