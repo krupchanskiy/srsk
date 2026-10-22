@@ -94,7 +94,7 @@ function расчёт(l) {
 // «Персональная договорённость»; хранится по месту и переживает «Пересчитать» / «вернуть по шахматке».
 // Цену номера у группы задают «Договорные цены» на всю группу — её здесь не трогаем
 const делительРасчёт = l => Math.max(1, l.fresh.people
-    - lines.filter(x => x !== l && x.place && x.extraBed && ключКомнаты(x) === ключКомнаты(l)).length);
+    - lines.filter(x => x !== l && x.place && x.extraBed && соседи(x, l)).length);
 const ПОЛЯ = {
     people: { field: 'people', what: 'Делитель номера', fmt: x => `÷ ${x}`, calc: делительРасчёт },
     lateFee: { field: 'late_fee', what: 'Доплата за поздний выезд', fmt: x => inr(x), calc: l => расчёт(l).доплатаРасчёт }
@@ -416,9 +416,21 @@ async function saveRate() {
 // ==================== ТАБЛИЦА ====================
 const цели = () => marked.size ? lines.filter(l => marked.has(l.key)) : lines;
 
-// Комната + период — одна группа строк: у группы разные заезды по номерам (ВГ, 28.09)
+// Номер — одна группа строк, даты у каждого в его строке: заехавшие в разные дни соседи
+// не дробят номер на шапки «мест 1» (ВГ, 22.10; раньше — номер + период, 28.09)
 // Без номера — по брони: места одной групповой брони вместе, разные брони не сливаются
-const ключКомнаты = l => l.place ? `${l.place.room_id || 'b:' + (l.place.booking_id || l.key)}|${l.place.check_in}|${l.place.check_out}` : l.key;
+const ключКомнаты = l => l.place ? (l.place.room_id || 'b:' + (l.place.booking_id || l.key)) : l.key;
+// Соседи — тот же номер и живут в нём одновременно (для доп. кровати и делителя)
+const соседи = (x, l) => ключКомнаты(x) === ключКомнаты(l)
+    && (!l.place.check_out || x.place.check_in < l.place.check_out) && (!x.place.check_out || l.place.check_in < x.place.check_out);
+// Период группы строк: от первого заезда до последнего выезда (без выезда — «…»)
+function периодГруппы(list) {
+    if (!list[0].place) return { from: list[0].eater.start_date, to: list[0].eater.end_date };
+    const from = list.map(l => l.place.check_in).sort()[0];
+    const to = list.some(l => !l.place.check_out) ? null : list.map(l => l.place.check_out).sort().pop();
+    return { from, to };
+}
+const текстПериода = п => `${дата(п.from)}–${п.to ? дата(п.to) : '…'}`;
 // Название шапки: номер, место без номера или запись «Разового питания»
 const имяГруппы = (p, label) => p?.room_id ? `${имяНаЯзыке(названия?.здания.get(p.building_id), p.building || '')} №${p.room || '—'}`
     : p ? `Без номера: ${p.booking_name || label || 'питание'}` : `Разовое питание: ${label || 'группа'}`;
@@ -448,8 +460,9 @@ function headRow(g) {
     const сумма = g.lines.filter(вСчётГруппы).reduce((a, l) => a + расчёт(l).итого, 0);
     const tri = (n, all) => n === 0 ? '' : n === all ? 'checked' : 'data-mixed="1"';
     const имя = имяГруппы(p, l0.label);
-    const даты = p ? `${дата(p.check_in)}–${дата(p.check_out)} · ${p.room_id ? `${Math.max(днейМежду(p.check_in, p.check_out || p.check_in), 0)} ноч.` : 'только питание'}`
-        : `${дата(l0.eater.start_date)}–${дата(l0.eater.end_date)}`;
+    const п = периодГруппы(g.lines);
+    const даты = p ? `${текстПериода(п)} · ${p.room_id ? `${Math.max(днейМежду(п.from, п.to || п.from), 0)} ноч.` : 'только питание'}`
+        : текстПериода(п);
     return `<tr class="bg-base-200 border-t-2 border-base-300">
         <td><input type="checkbox" class="checkbox checkbox-xs" data-gr-markroom="${g.k}" ${tri(отм, g.lines.length)} title="Отметить комнату — для правок «сразу»"></td>
         <td><input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-gr-incroom="${g.k}" ${tri(вкл, g.lines.length)} title="Начисляем за комнату"></td>
@@ -1096,8 +1109,7 @@ function записиПоДням() {
             </table>`;
     }).join('');
 }
-const периодКомнаты = g => { const p = g.l0.place;
-    return p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(g.l0.eater.start_date)}–${дата(g.l0.eater.end_date)}`; };
+const периодКомнаты = g => текстПериода(периодГруппы(g.люди));
 const пометкаГостя = l => { const T = СЛОВА[язык];
     return l.selfPay ? ` <i class="mute">(${T.selfMark})</i>` : !l.included ? ` <i class="mute">(${e(причина(l.excludeReason))})</i>` : ''; };
 
@@ -1235,8 +1247,7 @@ function summaryText(d) {
     if (d.исключены.length) out.push('', `${T.notCharged}: ${d.исключены.map(l => `${имяГостя(l)} — ${причина(l.excludeReason)}`).join('; ')}`);
     out.push('', `${вид === 'short' ? T.byGuest : T.detail}:`);
     d.комнаты.forEach(g => {
-        const p = g.l0.place;
-        out.push('', `${имяКомнаты(g.l0)} · ${p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(g.l0.eater.start_date)}–${дата(g.l0.eater.end_date)}`}${g.сумма ? ` — ${деньги(round2(g.сумма))}` : ''}`);
+        out.push('', `${имяКомнаты(g.l0)} · ${периодКомнаты(g)}${g.сумма ? ` — ${деньги(round2(g.сумма))}` : ''}`);
         g.люди.forEach(l => {
             const r = расчёт(l), части = [];
             if (l.place?.room_id) части.push(`${T.stay.toLowerCase()} ${l.nights} × ${деньги(r.заНочь)} = ${деньги(r.проживание)}`);
@@ -1326,7 +1337,7 @@ function init() {
             // место на доп. кровати платит цену доп. кровати, остальные делят номер между собой
             const l = lines[Number(el.dataset.grExtrabed)];
             l.extraBed = el.checked;
-            for (const x of lines.filter(x => x !== l && x.place && ключКомнаты(x) === ключКомнаты(l) && !x.extraBed && !x.ag?.people)) {
+            for (const x of lines.filter(x => x !== l && x.place && соседи(x, l) && !x.extraBed && !x.ag?.people)) {
                 x.people = Math.max(1, x.people + (el.checked ? -1 : 1));
             }
             dirty = true; render();
