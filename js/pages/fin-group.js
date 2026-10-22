@@ -132,14 +132,27 @@ function питаниеДняВыезда(l) {
     }
 }
 
-// Время выезда мест из шахматки (в данных события его нет); частями — длинный список id не влезает в адрес
+// Время выезда/приезда и «номер целиком» мест из шахматки (в данных события их нет);
+// частями — длинный список id не влезает в адрес
 async function времяВыезда(ids) {
     const out = new Map();
     for (let i = 0; i < ids.length; i += 150) {
-        const { data } = await Layout.db.from('residents').select('id, departure_time').in('id', ids.slice(i, i + 150));
-        for (const r of data || []) out.set(r.id, r.departure_time ? r.departure_time.slice(0, 5) : '');
+        const { data } = await Layout.db.from('residents').select('id, departure_time, arrival_time, whole_room').in('id', ids.slice(i, i + 150));
+        for (const r of data || []) out.set(r.id, r);
     }
     return out;
+}
+
+// Как посчитано проживание строки: пометки и формула (ВГ 22.10)
+const НАЗВ_ПОЛЕЙ = { people: 'делитель', late_fee: 'доплата', room_price: 'цена номера' };
+function какПосчитано(l, r) {
+    if (!l.place?.room_id || !l.nights) return { chips: '', title: '' };
+    return {
+        chips: FinAgreement.chips({ extraBed: l.extraBed, whole: l.wholeRoom, people: l.people, late: r.поздний,
+            night: ArrivalTime.isNight(l.arrTime), agreed: Object.keys(l.ag || {}).map(k => НАЗВ_ПОЛЕЙ[k] || k) }),
+        title: FinAgreement.formula({ nights: l.nights, roomPrice: l.roomPrice, people: l.people, nightPrice: r.заНочь,
+            extraBed: l.extraBed, late: r.поздний, depTime: l.depTime, lateFee: r.доплата, total: r.проживание })
+    };
 }
 
 // Платит сам (ВГ, 02.10): место остаётся в группе, сумма — на его карточке, не организатору
@@ -317,7 +330,10 @@ async function buildLines(data) {
     const [ag, вр] = await Promise.all([FinAgreement.load(места.map(l => l.resident_id)), времяВыезда(места.map(l => l.resident_id))]);
     for (const l of места) {
         l.ag = ag[l.resident_id] || {};
-        l.depTimeSaved = вр.get(l.resident_id) || '';
+        const мв = вр.get(l.resident_id) || {};
+        l.depTimeSaved = мв.departure_time ? мв.departure_time.slice(0, 5) : '';
+        l.arrTime = мв.arrival_time ? мв.arrival_time.slice(0, 5) : '';
+        l.wholeRoom = !!мв.whole_room;
         const s = saved.get(l.key);
         l.depTime = s && 'departure_time' in s ? (s.departure_time || '') : l.depTimeSaved;
         if (l.ag.people) l.people = Number(l.ag.people.value);
@@ -451,6 +467,7 @@ function placeRow(l, i) {
     const выкл = !l.included;
     const числа = (k, v, w, step = 1, title = '') => `<input type="number" min="0" step="${step}" class="input input-bordered input-xs ${w} px-1 text-right" data-gr-f="${i}" data-k="${k}" value="${v}" ${title ? `title="${title}"` : ''} ${выкл ? 'disabled' : ''}>`;
     const питаниеВыкл = p && p.has_meals === false && !l.mealsOn;
+    const как = какПосчитано(l, r);
     return `<tr class="${marked.has(l.key) ? 'bg-primary/5' : ''} ${выкл ? 'opacity-50' : ''}">
         <td><input type="checkbox" class="checkbox checkbox-xs" data-gr-mark="${l.key}" ${marked.has(l.key) ? 'checked' : ''}></td>
         <td><input type="checkbox" class="checkbox checkbox-xs checkbox-success" data-gr-inc="${i}" ${l.included ? 'checked' : ''} title="Начисляем"></td>
@@ -471,7 +488,7 @@ function placeRow(l, i) {
             ${h && l.roomType?.price == null && !l.extraBed ? `<div class="text-[11px] text-warning" title="Задайте цену в «Тарифах» или впишите здесь">цена не задана</div>` : ''}
             ${h && l.roomType && Number(p.capacity) > Number(l.roomType.capacity) ? `<label class="flex items-center gap-1 text-[11px] cursor-pointer opacity-80" title="${p?.capacity}-местный = ${l.roomType?.capacity}-местный + доп. кровать: галочка — это место на доп. кровати">
                 <input type="checkbox" class="checkbox checkbox-xs" data-gr-extrabed="${i}" ${l.extraBed ? 'checked' : ''} ${выкл ? 'disabled' : ''}> доп. кровать</label>` : ''}</td>
-        <td class="text-right font-mono gr-stay-end">${h ? inr(r.проживание) : ''}</td>
+        <td class="text-right font-mono gr-stay-end" title="${e(как.title)}">${h ? inr(r.проживание) : ''}${как.chips ? `<div class="font-sans flex justify-end">${как.chips}</div>` : ''}</td>
         ${питаниеВыкл
             ? `<td colspan="3" class="text-xs gr-meal-start"><span class="opacity-60">питание в шахматке выключено</span>
                 <button type="button" class="btn btn-ghost btn-xs text-primary" data-gr-meals-on="${i}" ${выкл ? 'disabled' : ''}>включить</button></td>`

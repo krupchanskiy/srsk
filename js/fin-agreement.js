@@ -84,5 +84,34 @@ const FinAgreement = (() => {
         return `<button type="button" class="text-warning align-middle" title="${esc(title)}" ${attrs}>${LOCK}</button>`;
     }
 
-    return { lateFactor, lateLabel, load, ask, save, clear, badge, lock };
+    // ==================== КАК ПОСЧИТАНО ПРОЖИВАНИЕ (ВГ 22.10) ====================
+    // Цветные пометки под суммой проживания и формула словами при наведении — одинаково
+    // в «Начислить гостю» и «Начислить группе». Сводку и печать организатору не трогают
+    const ВИД = {
+        share: 'bg-gray-100 text-gray-700', whole: 'bg-blue-100 text-blue-800', extra: 'bg-purple-100 text-purple-800',
+        late: 'bg-orange-100 text-orange-800', night: 'bg-sky-100 text-sky-800', agreed: 'bg-yellow-100 text-yellow-800'
+    };
+    const чип = (вид, текст, title = '') => `<span class="inline-block rounded px-1 text-[10px] leading-4 whitespace-nowrap ${ВИД[вид]}"${title ? ` title="${esc(title)}"` : ''}>${esc(текст)}</span>`;
+
+    // s: { extraBed, whole, people, late, night, agreed: [названия полей] }
+    function chips(s) {
+        const out = [];
+        if (s.extraBed) out.push(чип('extra', 'доп. кровать', 'Цена доп. кровати за ночь вместо доли номера'));
+        else if (s.whole) out.push(чип('whole', s.people > 1 ? `номер целиком ÷ ${s.people}` : 'номер целиком', 'Без подселения: номер делится только на людей этой брони'));
+        else if (s.people) out.push(чип('share', `место ÷ ${s.people}`, 'Цена номера делится на число мест / жильцов'));
+        if (s.late) out.push(чип('late', `поздний выезд ${s.late === 1 ? 'сутки' : '½'}`, 'Выезд 14:00–19:00 — ½ суток, после 19:00 — сутки'));
+        if (s.night) out.push(чип('night', 'ночной приезд', 'Приезд до 6:00 — заезд накануне, ночь обычная, без доплаты'));
+        if (s.agreed?.length) out.push(чип('agreed', `договорённость: ${s.agreed.join(', ')}`, 'Своё значение вместо расчёта — 🔒 у поля'));
+        return out.length ? `<div class="flex flex-wrap gap-0.5 mt-0.5">${out.join('')}</div>` : '';
+    }
+
+    // Формула словами: «4 ноч. × (₹3 500 ÷ 2 = ₹1 750) + сутки за выезд в 21:00 ₹1 750 = ₹8 750»
+    function formula({ nights, roomPrice, people, nightPrice, extraBed, late, depTime, lateFee, total }) {
+        const м = v => FinUtils.fmtMoney(v, 'INR');
+        let s = `${nights} ноч. × ` + (extraBed ? `доп. кровать ${м(nightPrice)}` : people > 1 ? `(${м(roomPrice)} ÷ ${people} = ${м(nightPrice)})` : м(nightPrice));
+        if (lateFee > 0) s += ` + ${late === 1 ? 'сутки' : late === 0.5 ? '½ суток' : 'доплата'} за выезд${depTime ? ` в ${depTime}` : ''} ${м(lateFee)}`;
+        return `${s} = ${м(total)}`;
+    }
+
+    return { lateFactor, lateLabel, load, ask, save, clear, badge, lock, chips, formula };
 })();

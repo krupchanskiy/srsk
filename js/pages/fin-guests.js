@@ -372,13 +372,14 @@ async function initForm(v) {
     forms[v.resident_id] = f;
     // Договорённости места (731) и время выезда из шахматки — для доплаты за поздний выезд
     const [ag, { data: место }] = await Promise.all([FinAgreement.load([v.resident_id]),
-        Layout.db.from('residents').select('departure_time').eq('id', v.resident_id).maybeSingle()]);
+        Layout.db.from('residents').select('departure_time, arrival_time').eq('id', v.resident_id).maybeSingle()]);
     f.ag = ag[v.resident_id] || {};
     f.peopleCalc = f.people;
     f.roomPriceCalc = f.roomPrice;
     применитьДоговорённости(f);
     f.depTime = место?.departure_time ? место.departure_time.slice(0, 5) : '';
     f.depTimeSaved = f.depTime;
+    f.arrTime = место?.arrival_time ? место.arrival_time.slice(0, 5) : '';
     // Питание — ровно то, что считает кухня: день заезда, выезда, ранний/поздний
     if (v.has_meals !== false && v.check_out) {
         // фильтр на сервере: за месяц у всех гостей больше 1000 строк — без него строки гостя обрезались
@@ -571,8 +572,12 @@ function renderForms() {
                 (<input type="number" min="0" step="50" class="input input-bordered input-xs w-24" data-gc-f="${rid}" data-k="roomPrice" value="${f.roomPrice}" title="Цена номера за сутки">
                 ÷ <input type="number" min="1" step="1" class="input input-bordered input-xs w-14" data-gc-f="${rid}" data-k="people" value="${f.people}" title="Сколько человек делят номер"> чел.
                 = <span class="font-mono">${inr(r.заНочь)}</span>)
-                = <b class="font-mono">${inr(r.проживание)}</b>
+                = <b class="font-mono" title="${e(FinAgreement.formula({ nights: f.nights, roomPrice: f.roomPrice, people: f.people,
+                    nightPrice: r.заНочь, extraBed: f.extraBed, late: r.поздний, depTime: f.depTime, lateFee: r.доплата,
+                    total: round2(r.проживание + r.доплата) }))}">${inr(r.проживание)}</b>
                 ${отметка(rid, f, 'roomPrice')} ${отметка(rid, f, 'people')}
+                <div class="w-full">${FinAgreement.chips({ extraBed: f.extraBed, whole: v.whole_room, people: f.people, late: r.поздний,
+                    night: ArrivalTime.isNight(f.arrTime), agreed: Object.keys(f.ag || {}).map(k => ({ people: 'делитель', late_fee: 'доплата', room_price: 'цена номера' })[k] || k) })}</div>
             </div>
             ${v.check_out && !f.leaveOut ? `<div class="flex flex-wrap items-center gap-1 text-sm -mt-2 mb-3">
                 Уезжает ${дата(v.check_out)} в ~ <input type="time" step="900" class="input input-bordered input-xs w-24" data-gc-f="${rid}" data-k="depTime" value="${e(f.depTime)}">
