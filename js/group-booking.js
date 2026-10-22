@@ -52,7 +52,7 @@ function ensureDialog() {
     dlg.id = 'groupBookingModal';
     dlg.className = 'modal';
     dlg.innerHTML = `
-        <div class="modal-box max-w-4xl relative flex flex-col" style="max-height: 92vh">
+        <div class="modal-box max-w-5xl relative flex flex-col" style="max-height: 92vh">
             <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" data-gb="close">✕</button>
             <h3 class="font-bold text-lg mb-3" id="gbTitle"></h3>
             <div id="gbMain" class="overflow-y-auto flex-1 pr-1">
@@ -650,7 +650,9 @@ function autoMap(header, rows) {
         const textCol = [...Array(cols).keys()].find(c => rows.filter(r => /[a-zа-яё]{3}/i.test(r[c] || '')).length > rows.length / 2);
         if (textCol != null) map[textCol] = 'name';
         // Столбцы с датами «12.10» — первый заезд, второй выезд
-        const dateCols = [...Array(cols).keys()].filter(c => map[c] === ''
+        // Столбец с рейсами («30/10 07:00 TK717») не угадываем: прилёт это или вылет — выбирает человек
+        const flightLike = c => rows.filter(r => /\b[A-ZА-Я0-9]{2}\s?\d{2,4}\b/.test(r[c] || '') && /[A-ZА-Я]/.test(r[c] || '')).length > rows.length / 2;
+        const dateCols = [...Array(cols).keys()].filter(c => map[c] === '' && !flightLike(c)
             && rows.filter(r => /\d{1,2}[./]\d{1,2}|\d{4}-\d{2}-\d{2}/.test(r[c] || '')).length > rows.length / 2);
         if (dateCols[0] != null) map[dateCols[0]] = 'in';
         if (dateCols[1] != null) map[dateCols[1]] = 'out';
@@ -802,7 +804,7 @@ function roomOptions(sel) {
         + opt(SELF, tf('timeline_self_stay', 'Самостоятельное проживание'))
         + S.buildings.map(b => {
             const rooms = S.rooms.filter(r => r.building_id === b.id);
-            return rooms.length ? `<optgroup label="${e(Layout.getName(b))}">${rooms.map(r => opt(r.id, '№' + r.number)).join('')}</optgroup>` : '';
+            return rooms.length ? `<optgroup label="${e(Layout.getName(b))}">${rooms.map(r => opt(r.id, `${Layout.getName(b)} №${r.number}`)).join('')}</optgroup>` : '';
         }).join('');
 }
 
@@ -850,10 +852,10 @@ function renderList() {
         <thead><tr><th>${e(tf('timeline_list_name', 'Имя'))}</th><th>${e(tf('timeline_list_in_base', 'В базе'))}</th>
             <th>${e(tf('timeline_list_room_col', 'Номер комнаты'))}</th><th>${e(tf('check_in', 'Заезд'))}</th><th>${e(tf('check_out', 'Выезд'))}</th></tr></thead>
         <tbody>${P.map((p, i) => `<tr class="${i && P[i - 1].row !== p.row ? 'border-t-2' : ''}">
-            <td class="whitespace-nowrap">${e(p.name)}${[p.phone, p.email, p.tg].some(Boolean)
-                ? `<div class="opacity-60">${[p.phone, p.email, p.tg].filter(Boolean).map(e).join(' · ')}</div>` : ''}</td>
+            <td style="max-width: 220px">${e(p.name)}${[p.phone, p.email, p.tg].some(Boolean)
+                ? `<div class="opacity-60 text-[11px] break-all">${[p.phone, p.email, p.tg].filter(Boolean).map(e).join(' · ')}</div>` : ''}</td>
             <td>${matchCell(p, i)}</td>
-            <td><select class="select select-bordered select-xs ${p.notFound ? 'select-error' : ''}" data-lf="key" data-i="${i}">${roomOptions(p.key)}</select>
+            <td><select class="select select-bordered select-xs max-w-44 ${p.notFound ? 'select-error' : ''}" data-lf="key" data-i="${i}">${roomOptions(p.key)}</select>
                 ${p.notFound ? `<div class="text-error text-xs">«${e(p.roomText)}» ${e(tf('timeline_list_room_not_found', 'не найден'))}</div>` : ''}</td>
             ${['in', 'out'].map(s => {
                 const t = s === 'in' ? 'inTime' : 'outTime', fl = s === 'in' ? p.flightIn : p.flightOut;
