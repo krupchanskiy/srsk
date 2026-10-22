@@ -209,6 +209,16 @@ Deno.serve(async (req) => {
     }).then((r) => r.json()).catch(() => null);
   };
 
+  // Убрать отработавшую карточку. Телеграм даёт удалять только сообщения
+  // моложе 48 часов — у более старых снимаем хотя бы кнопки, иначе нажатие
+  // ничего не меняет (замечание ВГ 22.10.2026).
+  async function dropCard(m: any) {
+    const r = await tg("deleteMessage", { chat_id: m.chat.id, message_id: m.message_id });
+    if (!r?.ok) {
+      await tg("editMessageReplyMarkup", { chat_id: m.chat.id, message_id: m.message_id, reply_markup: { inline_keyboard: [] } });
+    }
+  }
+
   async function treasurer() {
     const { data } = await supa.rpc("tg_treasurer");
     return Array.isArray(data) ? data[0] : data;
@@ -352,10 +362,10 @@ Deno.serve(async (req) => {
       // сообщении (см. ветку ok ниже), а сама карточка после решения только
       // занимает место (замечание ВГ 16.09.2026). Бот админ во всех чатах —
       // удаление всегда доступно.
-      await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
+      await dropCard(msg);
     } else if (action === "ack") {
       // «Понял» под предупреждением «не нашёл сумму» — убираем его из чата
-      await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
+      await dropCard(msg);
     } else if (action === "rc") {
       // «Принял» под тегом о получении денег: нажимает только казначей. Тег
       // убираем, на исходное сообщение ставим 👍 — видно, что учтено (ВГ 15.10.2026).
@@ -375,12 +385,12 @@ Deno.serve(async (req) => {
         chat_id: msg.chat.id, message_id: Number(parts[1]),
         reaction: [{ type: "emoji", emoji: "👍" }],
       });
-      await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
+      await dropCard(msg);
     } else if (action === "ok") {
       const { data } = await supa.rpc("tg_set_draft_status", { p_id: parts[1], p_status: "pending", p_card_message_id: msg?.message_id });
       const row = Array.isArray(data) ? data[0] : data;
       if (row) await tg("setMessageReaction", { chat_id: row.chat_id, message_id: row.source_message_id, reaction: [{ type: "emoji", emoji: "👀" }] });
-      await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
+      await dropCard(msg);
     } else if (action === "k" || action === "c" || action === "t" || action === "s" || action === "a" || action === "m") {
       const value = parts[1];
       const draftId = parts[2];
@@ -460,7 +470,7 @@ Deno.serve(async (req) => {
         p_id: parts[1], p_tg_user: cq.from.id, p_accept: action === "hy",
       });
       if (data?.ok) {
-        await tg("deleteMessage", { chat_id: msg.chat.id, message_id: msg.message_id });
+        await dropCard(msg);
       } else if (data?.error === "not_recipient") {
         await tg("answerCallbackQuery", {
           callback_query_id: cq.id, show_alert: true,
