@@ -1420,12 +1420,14 @@ function openTransfer(sourceId) {
     updateTransferCurrency();
     updateTransferRecap();
     document.getElementById('trHolder').dataset.dept = '';
+    document.getElementById('trSrcHolder').dataset.dept = '';
     loadDeptHolders().then(syncTransferHolder);
     document.getElementById('transferModal').showModal();
 }
 
-// Кому из держателей получателя легли деньги (ВГ, 15.10.2026, мигр. 698) — как
-// во «Входящих» (689): один держатель ставится сам, у Кафе и Зелёных выбирают.
+// Кому из держателей получателя легли деньги (ВГ, 15.10.2026, мигр. 698) и с кого
+// из держателей источника списаны (ВГ, 22.10.2026, мигр. 727) — как во «Входящих»
+// (689): один держатель ставится сам, у Кафе и Зелёных выбирают.
 // У Кафе и Магазина есть «выдано на сдачу» — ни на кого (693, 709).
 const CAFE_DEPT_ID = '4b2b3528-abd8-42de-ad35-935029c29340';
 const FLOAT_PICK = 'float';
@@ -1444,39 +1446,48 @@ async function loadDeptHolders() {
     data.forEach(h => (deptHolders[h.department_id] ||= []).push(h));
 }
 
-function transferTargetDept() {
-    const target = document.getElementById('trTarget').value;
-    return FinUtils.refs.accounts.find(a => a.account_id === target)?.department_id || null;
+// side: 'trSource' / 'trTarget' — счёт, 'trSrcHolder' / 'trHolder' — его держатель
+const TR_SIDES = [{ account: 'trSource', holder: 'trSrcHolder' }, { account: 'trTarget', holder: 'trHolder' }];
+
+function transferDept(accountSelectId) {
+    const id = document.getElementById(accountSelectId).value;
+    return FinUtils.refs.accounts.find(a => a.account_id === id)?.department_id || null;
 }
 
-function transferTargetHolders() {
-    return deptHolders?.[transferTargetDept()] || [];
-}
-
-// «Уже потрачено» держателя не получает: приход и расход гасятся
-function syncTransferHolder() {
-    const list = transferTargetHolders();
+// «Уже потрачено» держателя получателя не получает: приход и расход гасятся
+function transferHolderShown(side) {
+    const list = deptHolders?.[transferDept(side.account)] || [];
+    if (side.account === 'trTarget' && document.getElementById('trSpent').checked) return false;
     // у департамента со сдачей выбор нужен и при одном держателе: ему или на сдачу
-    const show = (list.length > 1 || (list.length && isFloatDept(transferTargetDept()))) && !document.getElementById('trSpent').checked;
-    const sel = document.getElementById('trHolder');
-    document.getElementById('trHolderWrap').classList.toggle('hidden', !show);
-    sel.required = show;
-    const dept = transferTargetDept() || '';
-    if (sel.dataset.dept === dept) return;
-    sel.dataset.dept = dept;
-    // Никого не отмечаем заранее — выбор осознанный
-    sel.innerHTML = `<option value="">—</option>` + list.map(h => {
-        const v = h.vaishnavas || {};
-        const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
-        return `<option value="${h.vaishnava_id}">${e(name)}${h.nickname ? ` (${e(h.nickname)})` : ''}</option>`;
-    }).join('') + (isFloatDept(dept) ? `<option value="${FLOAT_PICK}">${floatLabel(dept)}</option>` : '');
+    return list.length > 1 || (list.length > 0 && isFloatDept(transferDept(side.account)));
 }
 
-function transferHolderValue() {
-    if (document.getElementById('trSpent').checked) return null;
-    const list = transferTargetHolders();
-    if (list.length === 1 && !isFloatDept(transferTargetDept())) return list[0].vaishnava_id;
-    const v = document.getElementById('trHolder').value;
+function syncTransferHolder() {
+    TR_SIDES.forEach(side => {
+        const dept = transferDept(side.account) || '';
+        const list = deptHolders?.[dept] || [];
+        const show = transferHolderShown(side);
+        const sel = document.getElementById(side.holder);
+        sel.closest('.form-control').classList.toggle('invisible', !show);
+        sel.required = show;
+        if (sel.dataset.dept === dept) return;
+        sel.dataset.dept = dept;
+        // Никого не отмечаем заранее — выбор осознанный
+        sel.innerHTML = `<option value="">—</option>` + list.map(h => {
+            const v = h.vaishnavas || {};
+            const name = v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim();
+            return `<option value="${h.vaishnava_id}">${e(name)}${h.nickname ? ` (${e(h.nickname)})` : ''}</option>`;
+        }).join('') + (isFloatDept(dept) ? `<option value="${FLOAT_PICK}">${side.account === 'trSource' ? 'Из сдачи (ни с кого)' : floatLabel(dept)}</option>` : '');
+    });
+    document.getElementById('trHoldersRow').classList.toggle('hidden', !TR_SIDES.some(transferHolderShown));
+}
+
+function transferHolderValue(side) {
+    if (side.account === 'trTarget' && document.getElementById('trSpent').checked) return null;
+    const dept = transferDept(side.account);
+    const list = deptHolders?.[dept] || [];
+    if (list.length === 1 && !isFloatDept(dept)) return list[0].vaishnava_id;
+    const v = document.getElementById(side.holder).value;
     return list.length && v && v !== FLOAT_PICK ? v : null;
 }
 
@@ -1536,7 +1547,8 @@ async function submitTransfer(ev) {
     }
     const дата = document.getElementById('trDate').value;
     const комментарий = document.getElementById('trComment').value || null;
-    const держатель = transferHolderValue();
+    const держатель = transferHolderValue(TR_SIDES[1]);
+    const сКого = transferHolderValue(TR_SIDES[0]);
     const res = await FinUtils.rpc('fin_create_transfer', {
         request_id: requestIds.transfer,
         occurred_on: дата,
@@ -1545,7 +1557,8 @@ async function submitTransfer(ev) {
         source_amount: document.getElementById('trAmount').value,
         target_amount: differ ? document.getElementById('trTargetAmount').value : null,
         comment: комментарий,
-        ...(держатель ? { target_holder_person_id: держатель } : {})
+        ...(держатель ? { target_holder_person_id: держатель } : {}),
+        ...(сКого ? { source_holder_person_id: сКого } : {})
     });
     if (!FinUtils.handleResult(res)) return;
     requestIds.transfer = null;
