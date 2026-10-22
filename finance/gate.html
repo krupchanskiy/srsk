@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <!-- соединение с базой открывается заранее: иначе первое обращение
+         к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <script src="../js/color-init.js?v=9"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-title="fin_page_title_gate">Оплаты с проходной — Финансы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=29">
+    <link rel="stylesheet" href="../css/fin.css?v=1">
+</head>
+<body class="fin-page bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1">
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+        <h1 class="text-2xl font-bold" data-i18n="nav_fin_gate">Оплаты с проходной</h1>
+        <select id="sheetPicker" class="select select-bordered select-sm ml-auto"></select>
+        <button type="button" id="newSheetBtn" class="btn btn-outline btn-sm" data-i18n="fin_gate_new_sheet">Новый лист</button>
+    </div>
+
+    <!-- Лист = месяц + плательщик; строки разносятся по департаментам (734) -->
+    <section id="sheetEditor" class="hidden">
+        <div class="card bg-base-100 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="flex flex-wrap items-end gap-3">
+                    <div class="form-control">
+                        <label class="label py-0"><span class="label-text" data-i18n="fin_gate_month">Месяц</span></label>
+                        <select id="sheetMonth" class="select select-bordered select-sm"></select>
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-0"><span class="label-text" data-i18n="fin_gate_payer">Плательщик</span></label>
+                        <select id="sheetPayer" class="select select-bordered select-sm"></select>
+                    </div>
+                    <div class="form-control">
+                        <label class="label py-0"><span class="label-text" data-i18n="fin_gate_sheet_total">Итог в листе</span></label>
+                        <input type="number" id="sheetTotal" class="input input-bordered input-sm w-36 font-mono" step="any">
+                    </div>
+                    <span id="sheetStatus" class="badge"></span>
+                </div>
+                <div id="pasteBlock" class="mt-3">
+                    <label class="label py-0"><span class="label-text" data-i18n="fin_gate_paste">Вставьте таблицу из Excel</span></label>
+                    <textarea id="pasteArea" class="textarea textarea-bordered w-full font-mono text-xs" rows="4"></textarea>
+                    <div class="flex flex-wrap items-center gap-2 mt-1">
+                        <span class="text-xs opacity-70" data-i18n="fin_gate_paste_hint"></span>
+                        <button type="button" id="parseBtn" class="btn btn-sm btn-outline ml-auto" data-i18n="fin_gate_parse">Разобрать</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="sheetWarn" class="space-y-2 mb-4"></div>
+        <div id="sheetSections"></div>
+        <div id="sheetSummary"></div>
+
+        <div class="flex flex-wrap gap-2 mt-4">
+            <button type="button" id="deleteBtn" class="btn btn-ghost btn-sm text-error" data-i18n="fin_gate_delete">Удалить черновик</button>
+            <button type="button" id="printBtn" class="btn btn-outline btn-sm ml-auto" data-i18n="fin_gate_print">Распечатать</button>
+            <button type="button" id="saveBtn" class="btn btn-outline btn-sm" data-i18n="save">Сохранить</button>
+            <button type="button" id="postBtn" class="btn btn-primary btn-sm" data-i18n="fin_gate_post">Провести лист</button>
+        </div>
+    </section>
+
+    <div id="emptyState" class="text-center py-10 opacity-60 hidden" data-i18n="fin_gate_no_sheets">Листов пока нет</div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js?v=5"></script>
+<script src="../js/auth-check.js?v=17"></script>
+<script src="../js/cache.js?v=2"></script>
+<script src="../js/utils.js?v=23"></script>
+<script src="../js/layout.js?v=125"></script>
+<script src="../js/date-utils.js?v=5"></script>
+<script src="../js/fin-utils.js?v=25"></script>
+<script src="../js/pages/fin-gate.js?v=1"></script>
+
+</body>
+</html>

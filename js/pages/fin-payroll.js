@@ -401,10 +401,10 @@ async function init() {
 
     // Кэш переводов в браузере живёт долго и не знает про новые ключи: вместо
     // «fin_payroll_range_all_short» на экране — один раз сбрасываем и перечитываем
-    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text', 'fin_payroll_tg_off_short'].some(k => t(k) === k)
-        && !sessionStorage.getItem('payrollTrReload3')) {
-        sessionStorage.setItem('payrollTrReload3', '1');
-        Cache.invalidate('translations_v55');
+    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text', 'fin_payroll_tg_off_short', 'fin_payroll_tab_hired'].some(k => t(k) === k)
+        && !sessionStorage.getItem('payrollTrReload4')) {
+        sessionStorage.setItem('payrollTrReload4', '1');
+        Cache.invalidate('translations_v83');
         location.reload();
         return;
     }
@@ -431,6 +431,8 @@ async function init() {
     document.getElementById('showEnded').addEventListener('change', render);
     document.getElementById('payrollRange').addEventListener('change', render);
 
+    // вторая вкладка — «Наёмные рабочие» (fin-hired.js)
+    window.FinHired?.init();
     await load();
 }
 

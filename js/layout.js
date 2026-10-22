@@ -130,6 +130,9 @@ const modules = {
             { id: 'fin_inbox', items: [
                 { id: 'fin_inbox', href: 'finance/inbox.html' }
             ]},
+            { id: 'fin_gate', items: [
+                { id: 'fin_gate', href: 'finance/gate.html' }
+            ]},
             { id: 'fin_participants', items: [
                 { id: 'fin_participants', href: 'finance/participants.html' }
             ]},
@@ -355,6 +358,7 @@ const pagePermissions = {
     'finance/index.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
     'finance/dds.html': ['fin_admin', 'fin_observer', 'fin_account_user'],
     'finance/inbox.html': 'fin_admin',
+    'finance/gate.html': 'fin_admin',
     'finance/participants.html': ['fin_admin', 'fin_observer'],
     'finance/accounts.html': ['fin_admin', 'fin_observer', 'fin_account_user', 'fin_dept_viewer'],
     'finance/reconciliation.html': ['fin_admin', 'fin_observer'],
@@ -633,7 +637,7 @@ async function loadTranslations(retried = false) {
     // бампается номер в имени ключа ниже — и кэш сбрасывается сам
     const СУТКИ = 24 * 60 * 60 * 1000;
 
-    const data = await Cache.getOrLoad('translations_v82', async () => {
+    const data = await Cache.getOrLoad('translations_v83', async () => {
         // Одним запросом, а не страницами по тысяче: PostgREST больше тысячи
         // строк за раз не отдаёт, и клиент ходил пять раз подряд, каждый раз
         // ожидая предыдущий ответ — это секунды до первой отрисовки
@@ -669,7 +673,7 @@ async function loadTranslations(retried = false) {
 
     if (!hasAllKeys && !retried) {
         // Кэш устарел, инвалидируем и перезагружаем (только 1 раз)
-        Cache.invalidate('translations_v82');
+        Cache.invalidate('translations_v83');
         return loadTranslations(true);
     }
 
