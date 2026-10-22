@@ -78,10 +78,65 @@ function расчёт(l) {
     const заНочь = l.extraBed ? round2(l.extraBedPrice) : доля(l);
     const завтраков = l.meals.reduce((a, m) => a + приёмов(l, m, 'b'), 0);
     const обедов = l.meals.reduce((a, m) => a + приёмов(l, m, 'l'), 0);
-    const проживание = round2(l.nights * заНочь);
+    // поздний выезд (731): доля суток по времени выезда × цена ночи; договорённость — своя сумма.
+    // Входит в проживание — так же считает сервер (fin_group_save: ночи × цена ночи + late_fee)
+    const поздний = l.place?.room_id && l.place.check_out && l.nights > 0 ? FinAgreement.lateFactor(l.depTime) : 0;
+    const доплатаРасчёт = Math.round(поздний * заНочь);
+    const доплата = l.ag?.late_fee ? round2(Number(l.ag.late_fee.value)) : доплатаРасчёт;
+    const проживание = round2(l.nights * заНочь + доплата);
     const питание = round2(завтраков * l.bPrice + обедов * l.lPrice);
     const доп = round2(Number(l.extra) || 0);
-    return { заНочь, завтраков, обедов, проживание, питание, доп, итого: round2(проживание + питание + доп) };
+    return { заНочь, завтраков, обедов, поздний, доплатаРасчёт, доплата, проживание, питание, доп, итого: round2(проживание + питание + доп) };
+}
+
+// ==================== ДОГОВОРЁННОСТЬ (731) ====================
+// Делитель и доплата за поздний выезд: своё значение вместо расчётного — через окно
+// «Персональная договорённость»; хранится по месту и переживает «Пересчитать» / «вернуть по шахматке».
+// Цену номера у группы задают «Договорные цены» на всю группу — её здесь не трогаем
+const делительРасчёт = l => Math.max(1, l.fresh.people
+    - lines.filter(x => x !== l && x.place && x.extraBed && ключКомнаты(x) === ключКомнаты(l)).length);
+const ПОЛЯ = {
+    people: { field: 'people', what: 'Делитель номера', fmt: x => `÷ ${x}`, calc: делительРасчёт },
+    lateFee: { field: 'late_fee', what: 'Доплата за поздний выезд', fmt: x => inr(x), calc: l => расчёт(l).доплатаРасчёт }
+};
+
+async function договорённость(l, k, value) {
+    const п = ПОЛЯ[k];
+    const calc = п.calc(l);
+    const p = l.place;
+    const who = `${l.label || 'место'}${p.room_id ? ` · №${p.room || ''}` : ''} · ${дата(p.check_in)}–${дата(p.check_out)}`;
+    if (value === calc) {
+        if (l.ag[п.field]) { const r = await FinAgreement.clear(l.resident_id, п.field, { who, what: п.what, calcText: п.fmt(calc) }); if (r) l.ag = r; }
+    } else {
+        const c = await FinAgreement.ask({ who, what: п.what, calcText: п.fmt(calc), valueText: п.fmt(value) });
+        if (c !== null) { const r = await FinAgreement.save(l.resident_id, п.field, calc, value, c); if (r) l.ag = r; }
+    }
+    l.people = l.ag.people ? Number(l.ag.people.value) : делительРасчёт(l);
+    dirty = true; render();
+}
+
+const замок = (l, i, k) => FinAgreement.lock(l.ag?.[ПОЛЯ[k].field], ПОЛЯ[k].fmt(ПОЛЯ[k].calc(l)), `data-gr-agr="${i}" data-k="${k}"`);
+
+// Время выезда поменяли в окне — приёмы дня выезда как у кухни: после 9:00 позавтракал, после 14:00 пообедал
+function питаниеДняВыезда(l) {
+    const d = l.place?.check_out;
+    if (!d || l.place.late_checkout) return;
+    const h = l.depTime ? parseInt(l.depTime, 10) : null;
+    const b = h === null ? true : h >= ArrivalTime.BH, lu = h !== null && h >= ArrivalTime.LH;
+    for (const list of [l.meals, l.base, l.fresh.meals]) {
+        const m = (list || []).find(x => x.d === d);
+        if (m) { m.b = b; m.l = lu; }
+    }
+}
+
+// Время выезда мест из шахматки (в данных события его нет); частями — длинный список id не влезает в адрес
+async function времяВыезда(ids) {
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += 150) {
+        const { data } = await Layout.db.from('residents').select('id, departure_time').in('id', ids.slice(i, i + 150));
+        for (const r of data || []) out.set(r.id, r.departure_time ? r.departure_time.slice(0, 5) : '');
+    }
+    return out;
 }
 
 // Платит сам (ВГ, 02.10): место остаётся в группе, сумма — на его карточке, не организатору
@@ -254,6 +309,16 @@ async function buildLines(data) {
             changed: !!s && !тотЖе
         });
     }
+    // договорённости (731) и время выезда — у мест; в черновике время могло быть поправлено в окне
+    const места = lines.filter(l => l.place);
+    const [ag, вр] = await Promise.all([FinAgreement.load(места.map(l => l.resident_id)), времяВыезда(места.map(l => l.resident_id))]);
+    for (const l of места) {
+        l.ag = ag[l.resident_id] || {};
+        l.depTimeSaved = вр.get(l.resident_id) || '';
+        const s = saved.get(l.key);
+        l.depTime = s && 'departure_time' in s ? (s.departure_time || '') : l.depTimeSaved;
+        if (l.ag.people) l.people = Number(l.ag.people.value);
+    }
     removed = [...saved.keys()].filter(k => !ключи.has(k)).length;
     if (removed || lines.some(l => l.changed)) dirty = true;
 }
@@ -396,7 +461,10 @@ function placeRow(l, i) {
         <td>${h ? числа('nights', l.nights, 'w-12') : p ? '<span class="text-[11px] opacity-60 whitespace-nowrap">без номера</span>' : ''}</td>
         <td class="whitespace-nowrap">${!h ? '' : l.extraBed
             ? `<span class="text-xs">доп. кровать</span> ${числа('extraBedPrice', l.extraBedPrice, 'w-16', 50, 'Цена доп. кровати за сутки')}`
-            : `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}`}
+            : `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}${замок(l, i, 'people')}`}
+            ${h && p.check_out ? `<div class="flex items-center gap-1 text-[11px] mt-0.5 whitespace-nowrap" title="Поздний выезд: до 14:00 — без доплаты, 14:00–19:00 — ½ суток, после 19:00 — сутки">
+                выезд ~<input type="time" step="900" class="input input-bordered input-xs w-[5.5rem] px-1" data-gr-f="${i}" data-k="depTime" value="${e(l.depTime || '')}" ${выкл ? 'disabled' : ''}>
+                ${r.доплатаРасчёт > 0 || l.ag?.late_fee ? `+ ${числа('lateFee', r.доплата, 'w-16', 50, `Поздний выезд: ${FinAgreement.lateLabel(r.поздний)}`)}${замок(l, i, 'lateFee')}` : ''}</div>` : ''}
             ${h && l.roomType?.price == null && !l.extraBed ? `<div class="text-[11px] text-warning" title="Задайте цену в «Тарифах» или впишите здесь">цена не задана</div>` : ''}
             ${h && l.roomType && Number(p.capacity) > Number(l.roomType.capacity) ? `<label class="flex items-center gap-1 text-[11px] cursor-pointer opacity-80" title="${p?.capacity}-местный = ${l.roomType?.capacity}-местный + доп. кровать: галочка — это место на доп. кровати">
                 <input type="checkbox" class="checkbox checkbox-xs" data-gr-extrabed="${i}" ${l.extraBed ? 'checked' : ''} ${выкл ? 'disabled' : ''}> доп. кровать</label>` : ''}</td>
@@ -521,7 +589,7 @@ function applyBulkPrices() {
 function freshAll(list) {
     for (const l of list) {
         l.nights = l.fresh.nights;
-        l.people = l.fresh.people;
+        l.people = l.ag?.people ? Number(l.ag.people.value) : l.fresh.people;   // договорённость остаётся
         l.meals = l.fresh.meals.map(m => ({ ...m }));
         l.changed = false;
     }
@@ -601,13 +669,14 @@ function toLine(l) {
     const o = {
         key: l.key, label: l.label || null, nights: l.nights, room_price: l.roomPrice, people: l.people,
         extra_bed: !!l.extraBed, extra_bed_price: l.extraBed ? l.extraBedPrice : null,
-        night_price: r.заНочь,
+        night_price: r.заНочь, late_fee: r.доплата,
         breakfasts: r.завтраков, lunches: r.обедов, b_price: l.bPrice, l_price: l.lPrice, extra: Number(l.extra) || 0,
         meals: l.meals, persons: l.persons,
         included: l.included, exclude_reason: l.included ? null : (l.excludeReason || '').trim() || null,
         self_pay: !!l.selfPay
     };
     if (l.mealsOn) o.has_meals = true;
+    if (l.place && l.depTime !== l.depTimeSaved) o.departure_time = l.depTime || null;
     if (l.place) {
         Object.assign(o, { resident_id: l.resident_id, check_in: l.place.check_in, check_out: l.place.check_out });
         // пропущенные приёмы → кухня (края проживания сервер отбросит: это ранний заезд / поздний выезд)
@@ -1192,6 +1261,8 @@ function init() {
         }
         const fr = t.closest('[data-gr-fresh]');
         if (fr) { freshAll([lines[Number(fr.dataset.grFresh)]]); return; }
+        const агр = t.closest('[data-gr-agr]');
+        if (агр) { const l = lines[Number(агр.dataset.grAgr)]; договорённость(l, агр.dataset.k, ПОЛЯ[агр.dataset.k].calc(l)); return; }
         const lg = t.closest('[data-gr-lang]');
         if (lg) { язык = lg.dataset.grLang; названиеОкна(); renderRates(); render(); return; }
     });
@@ -1201,7 +1272,7 @@ function init() {
             // место на доп. кровати платит цену доп. кровати, остальные делят номер между собой
             const l = lines[Number(el.dataset.grExtrabed)];
             l.extraBed = el.checked;
-            for (const x of lines.filter(x => x !== l && x.place && ключКомнаты(x) === ключКомнаты(l) && !x.extraBed)) {
+            for (const x of lines.filter(x => x !== l && x.place && ключКомнаты(x) === ключКомнаты(l) && !x.extraBed && !x.ag?.people)) {
                 x.people = Math.max(1, x.people + (el.checked ? -1 : 1));
             }
             dirty = true; render();
@@ -1244,6 +1315,8 @@ function init() {
         } else if (el.dataset.grF !== undefined) {
             const l = lines[Number(el.dataset.grF)];
             const k = el.dataset.k;
+            if (ПОЛЯ[k] && l.place) { const x = Number(el.value) || 0; договорённость(l, k, k === 'people' ? Math.max(x, 1) : x); return; }
+            if (k === 'depTime') { l.depTime = el.value; питаниеДняВыезда(l); dirty = true; render(); return; }
             l[k] = k === 'label' || k === 'excludeReason' ? el.value : Math.max(Number(el.value) || 0, k === 'people' ? 1 : 0);
             dirty = true; render();
         }

@@ -370,6 +370,15 @@ async function initForm(v) {
             np: { spiritual_name: v.guest_name || '', first_name: '', last_name: '', phone: v.guest_phone || '', email: v.guest_email || '' } }
     };
     forms[v.resident_id] = f;
+    // Договорённости места (731) и время выезда из шахматки — для доплаты за поздний выезд
+    const [ag, { data: место }] = await Promise.all([FinAgreement.load([v.resident_id]),
+        Layout.db.from('residents').select('departure_time').eq('id', v.resident_id).maybeSingle()]);
+    f.ag = ag[v.resident_id] || {};
+    f.peopleCalc = f.people;
+    f.roomPriceCalc = f.roomPrice;
+    применитьДоговорённости(f);
+    f.depTime = место?.departure_time ? место.departure_time.slice(0, 5) : '';
+    f.depTimeSaved = f.depTime;
     // Питание — ровно то, что считает кухня: день заезда, выезда, ранний/поздний
     if (v.has_meals !== false && v.check_out) {
         // фильтр на сервере: за месяц у всех гостей больше 1000 строк — без него строки гостя обрезались
@@ -446,8 +455,64 @@ function расчёт(f) {
     const проживание = round2(f.nights * заНочь);
     const питание = round2(завтраков * f.bPrice + обедов * f.lPrice);
     const доп = round2(Number(f.extraAmt) || 0);
-    return { заНочь, завтраков, обедов, проживание, питание, доп, итого: round2(проживание + питание + доп) };
+    // поздний выезд (731): доля суток по времени выезда × цена ночи; договорённость — своя сумма
+    const поздний = f.nights > 0 && f.v.check_out && !f.leaveOut ? FinAgreement.lateFactor(f.depTime) : 0;
+    const доплатаРасчёт = round2(поздний * заНочь);
+    const доплата = f.ag?.late_fee ? round2(Number(f.ag.late_fee.value)) : доплатаРасчёт;
+    return { заНочь, завтраков, обедов, проживание, питание, доп, поздний, доплатаРасчёт, доплата,
+        итого: round2(проживание + доплата + питание + доп) };
 }
+
+// Время выезда поменяли в окне — приёмы дня выезда как у кухни: после 9:00 позавтракал, после 14:00 пообедал
+function питаниеДняВыезда(f) {
+    const d = f.v.check_out;
+    if (!d || f.v.late_checkout) return;
+    const h = f.depTime ? parseInt(f.depTime, 10) : null;
+    const b = h === null ? true : h >= ArrivalTime.BH, l = h !== null && h >= ArrivalTime.LH;
+    for (const list of [f.meals, f.base, f.mealsAll, f.baseAll]) {
+        const m = (list || []).find(x => x.d === d);
+        if (m) { m.b = b; m.l = l; }
+    }
+}
+
+// ==================== ДОГОВОРЁННОСТЬ (731) ====================
+// Делитель, цена номера и доплата за поздний выезд: своё значение вместо расчётного —
+// только через окно «Персональная договорённость»; хранится по месту, переживает новые окна
+const ПОЛЯ = {
+    people: { field: 'people', what: 'Делитель номера', fmt: x => `÷ ${x}`, calc: f => f.peopleCalc },
+    roomPrice: { field: 'room_price', what: 'Цена номера за сутки', fmt: x => inr(x), calc: f => f.roomPriceCalc },
+    lateFee: { field: 'late_fee', what: 'Доплата за поздний выезд', fmt: x => inr(x), calc: f => расчёт(f).доплатаРасчёт }
+};
+
+function применитьДоговорённости(f) {
+    f.people = f.ag.people ? Number(f.ag.people.value) : f.peopleCalc;
+    // цены нет в Тарифах — вписанная вручную не договорённость, её не трогаем
+    if (f.ag.room_price) f.roomPrice = Number(f.ag.room_price.value);
+    else if (f.roomPriceCalc) f.roomPrice = f.roomPriceCalc;
+}
+
+const ктоВизит = v => `${v.name}${v.room ? ` · ${v.building || ''} №${v.room}` : ''} · ${дата(v.check_in)} — ${v.check_out ? дата(v.check_out) : '…'}`;
+
+async function договорённость(rid, k, value) {
+    const f = forms[rid];
+    const п = ПОЛЯ[k];
+    const calc = п.calc(f);
+    const who = ктоВизит(f.v);
+    if (value === calc || (k === 'roomPrice' && !f.roomPriceCalc)) {
+        if (k === 'roomPrice' && !f.roomPriceCalc) f.roomPrice = value;
+        if (f.ag[п.field]) { const r = await FinAgreement.clear(rid, п.field, { who, what: п.what, calcText: п.fmt(calc) }); if (r) f.ag = r; }
+    } else {
+        const c = await FinAgreement.ask({ who, what: п.what, calcText: п.fmt(calc), valueText: п.fmt(value) });
+        if (c !== null) { const r = await FinAgreement.save(rid, п.field, calc, value, c); if (r) f.ag = r; }
+    }
+    применитьДоговорённости(f);
+    renderForms();
+}
+
+const отметка = (rid, f, k) => {
+    const п = ПОЛЯ[k];
+    return FinAgreement.badge(f.ag?.[п.field], п.fmt(п.calc(f)), `data-gc-agr="${rid}" data-k="${k}"`);
+};
 
 function personHtml(rid, f) {
     if (f.person.mode === 'linked') {
@@ -507,7 +572,14 @@ function renderForms() {
                 ÷ <input type="number" min="1" step="1" class="input input-bordered input-xs w-14" data-gc-f="${rid}" data-k="people" value="${f.people}" title="Сколько человек делят номер"> чел.
                 = <span class="font-mono">${inr(r.заНочь)}</span>)
                 = <b class="font-mono">${inr(r.проживание)}</b>
+                ${отметка(rid, f, 'roomPrice')} ${отметка(rid, f, 'people')}
             </div>
+            ${v.check_out && !f.leaveOut ? `<div class="flex flex-wrap items-center gap-1 text-sm -mt-2 mb-3">
+                Уезжает ${дата(v.check_out)} в ~ <input type="time" step="900" class="input input-bordered input-xs w-24" data-gc-f="${rid}" data-k="depTime" value="${e(f.depTime)}">
+                · поздний выезд: <span class="opacity-70">${f.depTime ? FinAgreement.lateLabel(r.поздний) : 'время не указано'}</span>
+                ${r.доплатаРасчёт > 0 || f.ag?.late_fee ? `= <input type="number" min="0" step="50" class="input input-bordered input-xs w-24" data-gc-f="${rid}" data-k="lateFee" value="${r.доплата}"> ${отметка(rid, f, 'lateFee')}` : ''}
+                <div class="w-full text-xs opacity-60">До 14:00 — без доплаты, 14:00–19:00 — ½ суток, после 19:00 — сутки (цена ночи этого человека)</div>
+            </div>` : ''}
             ${v.check_out ? `<div class="flex flex-wrap items-center gap-1 text-xs -mt-2 mb-3">
                 Выезд из номера <input type="date" class="input input-bordered input-xs" data-gc-f="${rid}" data-k="leaveOut" value="${f.leaveOut || v.check_out}" min="${v.check_in}" max="${v.check_out}">
                 ${f.leaveOut && f.leaveOut < v.check_out ? `
@@ -642,6 +714,8 @@ OK — изменить даты всей брони, Отмена — толь�
         if (f.person.mode === 'linked' || f.person.mode === 'existing') payload.vaishnava_id = f.person.id;
         else payload.new_person = Object.fromEntries(Object.entries(f.person.np).map(([k, x]) => [k, (x || '').trim()]));
         if (f.mealsOn) payload.has_meals = true;
+        // «Уезжает в ~» из окна → место в шахматке (731): кухня считает по нему же
+        if (f.depTime !== f.depTimeSaved && !await call('fin_set_departure_time', { resident_id: rid, departure_time: f.depTime || null })) return;
         // края питания → шахматка, чтобы цифра кухни совпала с начислением
         if (f.meals.length) {
             const ранний = f.meals[0].b, поздний = f.meals[f.meals.length - 1].l;
@@ -674,6 +748,9 @@ OK — изменить даты всей брони, Отмена — толь�
             description: описаниеПриёмов('Завтраки', f.meals, 'b'), quantity: r.завтраков, unit_price: вВалюту(f.bPrice) });
         if (r.обедов && f.lPrice > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'meals',
             description: описаниеПриёмов('Обеды', f.meals, 'l'), quantity: r.обедов, unit_price: вВалюту(f.lPrice) });
+        if (r.доплата > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'accommodation',
+            description: `Поздний выезд ${дата(v.check_out)} ~${f.depTime} (${FinAgreement.lateLabel(r.поздний)})${f.ag?.late_fee ? ' — договорённость' : ''}${где}`,
+            quantity: 1, unit_price: вВалюту(r.доплата) });
         if (r.доп > 0) rows.push({ ...base, id: crypto.randomUUID(), kind: 'extra',
             description: f.extraDesc.trim() || 'Дополнительно', quantity: 1, unit_price: вВалюту(r.доп) });
         const res = await call('fin_create_charge', { rows });
@@ -747,7 +824,9 @@ function init() {
             return;
         }
         const дел = ev.target.closest('[data-gc-people]');
-        if (дел) { forms[дел.dataset.gcPeople].people = Number(дел.dataset.n); renderForms(); return; }
+        if (дел) { договорённость(дел.dataset.gcPeople, 'people', Number(дел.dataset.n)); return; }
+        const агр = ev.target.closest('[data-gc-agr]');
+        if (агр) { договорённость(агр.dataset.gcAgr, агр.dataset.k, ПОЛЯ[агр.dataset.k].calc(forms[агр.dataset.gcAgr])); return; }
         const btn = ev.target.closest('[data-gc-all]');
         if (!btn) return;
         const on = btn.dataset.on === '1';
@@ -770,6 +849,8 @@ function init() {
             const f = forms[el.dataset.gcF];
             const k = el.dataset.k;
             if (k === 'leaveOut') { выездИзНомера(f, el.value); renderForms(); return; }
+            if (ПОЛЯ[k]) { const x = Number(el.value) || 0; договорённость(el.dataset.gcF, k, k === 'people' ? Math.max(x, 1) : x); return; }
+            if (k === 'depTime') { f.depTime = el.value; питаниеДняВыезда(f); renderForms(); return; }
             f[k] = ['extraBed', 'freeOn'].includes(k) ? el.checked
                 : ['extraDesc', 'comment', 'freeReason', 'leaveMode', 'selfUntil'].includes(k) ? el.value : Number(el.value) || 0;
             renderForms();
