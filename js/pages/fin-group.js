@@ -34,6 +34,11 @@ const ПРИЧИНА = 'за счёт ашрама';
 
 // Питание по умолчанию, когда в шахматке оно было выключено: как у кухни без времени
 // приезда — в день заезда без завтрака, в день выезда без обеда (ранний/поздний — с ними)
+// Не питается — как в шахматке: has_meals = false или сняты обе галочки «Завтрак» и «Обед»
+// (места групповой брони Дикши: has_meals пусто, галочки сняты). Иначе одни — «выключено»,
+// другие — «0 × цена» (ВГ, 22.10; галочки отдаёт fin_group_get, миграция 732)
+const неПитается = p => p.has_meals === false || (p.breakfast === false && p.lunch === false);
+
 function питаниеПоДатам(p) {
     const out = [];
     if (!p.check_out) return out;
@@ -263,11 +268,11 @@ async function buildLines(data) {
         const тип = p.room_id ? FinGuests.типНомера(p, rooms) : null;
         const s = saved.get(key);
         // питание включили здесь и сохранили черновиком — в шахматке оно ещё выключено
-        const mealsOn = !!s?.has_meals && p.has_meals === false;
+        const mealsOn = !!s?.has_meals && неПитается(p);
         const fresh = {
             nights: p.room_id && p.check_out ? Math.max(днейМежду(p.check_in, p.check_out), 0) : 0,
             people: Math.max(Number(p.roommates) || 1, 1),
-            meals: mealsOn ? питаниеПоДатам(p) : p.has_meals === false ? [] : (поДням.get(p.resident_id) || []).map(m => ({ ...m }))
+            meals: mealsOn ? питаниеПоДатам(p) : неПитается(p) ? [] : (поДням.get(p.resident_id) || []).map(m => ({ ...m }))
         };
         // база для пропусков: шахматка без прежних пропусков этого места
         const base = fresh.meals.map(m => {
@@ -504,7 +509,7 @@ function placeRow(l, i) {
     const h = !!p?.room_id;   // в номере; без номера — только питание
     const выкл = !l.included;
     const числа = (k, v, w, step = 1, title = '') => `<input type="number" min="0" step="${step}" class="input input-bordered input-xs ${w} px-1 text-right" data-gr-f="${i}" data-k="${k}" value="${v}" ${title ? `title="${title}"` : ''} ${выкл ? 'disabled' : ''}>`;
-    const питаниеВыкл = p && p.has_meals === false && !l.mealsOn;
+    const питаниеВыкл = p && неПитается(p) && !l.mealsOn;
     const как = какПосчитано(l, r);
     return `<tr class="${marked.has(l.key) ? 'bg-primary/5' : ''} ${выкл ? 'opacity-50' : ''}">
         <td><input type="checkbox" class="checkbox checkbox-xs" data-gr-mark="${l.key}" ${marked.has(l.key) ? 'checked' : ''}></td>
