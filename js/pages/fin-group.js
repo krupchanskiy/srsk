@@ -501,7 +501,22 @@ function placeRow(l, i) {
             <option value="group">в группе</option>
             <option value="org" ${строкаОрганизатора() === l ? 'selected' : ''}>организатор</option>
             <option value="self" ${l.selfPay ? 'selected' : ''}>платит сам</option></select>` : ''}</td>
-    </tr>` + (expanded === l.key ? detailRow(l, i) : '');
+    </tr>` + (expanded === l.key ? detailRow(l, i) : l.eater ? днейЗаписи(l) : '');
+}
+
+// Запись «Разового питания» — всегда с разбивкой по дням: сколько завтраков и обедов
+// и сумма дня, иначе видно только «1710 × 200» без того, откуда число (ВГ, 22.10)
+function днейЗаписи(l) {
+    const дни = l.meals.filter(m => m.b || m.l);
+    if (!дни.length) return '';
+    return `<tr class="${l.included ? '' : 'opacity-50'}"><td></td><td></td><td colspan="11" class="pt-0">
+        <div class="flex flex-wrap gap-1">${дни.map(m => {
+            const b = приёмов(l, m, 'b'), n = приёмов(l, m, 'l');
+            return `<div class="border border-base-300 rounded px-1.5 py-0.5 text-[11px] leading-tight">
+                <div class="font-medium">${дата(m.d)}</div>
+                <div>З <b>${b}</b> · О <b>${n}</b></div>
+                <div class="font-mono opacity-70">${inr(round2(b * l.bPrice + n * l.lPrice))}</div></div>`;
+        }).join('')}</div></td></tr>`;
 }
 
 // Завтраки/обеды в строке, как номер: число (нажать — дни этого человека) × цена;
@@ -539,8 +554,8 @@ function detailRow(l, i) {
         <div class="flex flex-wrap gap-1 mb-1">
             ${l.meals.map((m, j) => `<div class="border border-base-300 rounded px-1.5 py-0.5 text-xs bg-base-100">
                 <div class="font-medium">${дата(m.d)}</div>
-                <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-meal="${i}" data-j="${j}" data-m="b" ${m.b ? 'checked' : ''}> завтрак</label>
-                <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-meal="${i}" data-j="${j}" data-m="l" ${m.l ? 'checked' : ''}> обед</label>
+                <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-meal="${i}" data-j="${j}" data-m="b" ${m.b ? 'checked' : ''}> завтрак${l.eater && m.bn != null ? ` <b>${m.bn}</b>` : ''}</label>
+                <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-meal="${i}" data-j="${j}" data-m="l" ${m.l ? 'checked' : ''}> обед${l.eater && m.ln != null ? ` <b>${m.ln}</b>` : ''}</label>
             </div>`).join('') || `<span class="text-xs opacity-60">Питание в шахматке выключено</span>${l.place ? ` <button type="button" class="btn btn-ghost btn-xs text-primary" data-gr-meals-on="${i}">включить</button>` : ''}`}
         </div>
         <div class="flex flex-wrap items-center gap-1 text-xs">
@@ -883,7 +898,7 @@ const ОКНО = {
     'Договорные цены группы — остаются здесь и попадают в сводку организатору':
         ['Agreed group rates — kept here and shown in the organizer summary', 'समूह की तय दरें — यहाँ रहती हैं और आयोजक के सारांश में दिखती हैं'],
     'номер 2-мест.': ['double room', '2 बिस्तर का कमरा'], '4-мест.': ['quad room', '4 बिस्तर का कमरा'],
-    'завтрак': ['breakfast', 'नाश्ता'], 'обед': ['lunch', 'दोपहर का भोजन'],
+    'завтрак': ['breakfast', 'नाश्ता'], 'обед': ['lunch', 'दोपहर का भोजन'], 'З': ['B', 'ना'], 'О': ['L', 'भो'],
     'Применить цены': ['Apply rates', 'दरें लागू करें'],
     'Вернуть по шахматке': ['Reset to room chart', 'चार्ट के अनुसार लौटाएँ'],
     'вернуть по шахматке': ['reset to room chart', 'चार्ट के अनुसार लौटाएँ'],
@@ -1035,7 +1050,7 @@ function summaryHtml(d) {
             ${d.s.обедов ? `<tr><td>${T.lunches}</td><td ${R}>${d.s.обедов}</td><td ${R}>${d.ценаО != null ? деньги(d.ценаО) : ''}</td><td ${R}>${деньги(round2(сумПриёма('l')))}</td></tr>` : ''}
             <tr class="sub"><td>${T.total}</td><td></td><td></td><td ${R}>${деньги(d.s.питание)}</td></tr></table>
             ${d.пропуски.length ? `<div class="small mute">${d.пропуски.map(x => `${дата(x.d)} — ${пр(x)}`).join('; ')}</div>` : ''}
-            ${d.поДням.length ? `<h3>${T.mealsDaily}</h3><table class="t narrow">
+            ${d.поДням.length && !(lines.length === 1 && lines[0].eater) ? `<h3>${T.mealsDaily}</h3><table class="t narrow">
                 <thead><tr><th>${T.date}</th><th ${R}>${T.breakfasts}</th><th ${R}>${T.lunches}</th></tr></thead>
                 ${d.поДням.map(x => `<tr><td>${дата(x.d)}</td><td ${R}>${x.b}</td><td ${R}>${x.l}</td></tr>`).join('')}
                 <tr class="sub"><td>${T.total}</td><td ${R}>${d.s.завтраков}</td><td ${R}>${d.s.обедов}</td></tr></table>` : ''}` : ''}
@@ -1043,6 +1058,7 @@ function summaryHtml(d) {
         <table class="t narrow total">${строкиИтога.map(([a, b]) => `<tr><td>${a}</td><td ${R}>${b}</td></tr>`).join('')}</table>
         ${d.исключены.length ? `<div class="small"><b>${T.notCharged}:</b> ${d.исключены.map(l => `${e(имяГостя(l))} — ${e(причина(l.excludeReason))}`).join('; ')}</div>` : ''}
         ${подробно(d)}
+        ${записиПоДням()}
         ${dirty || draft ? `<div class="warn no-print">${T.unsaved}</div>` : ''}
     </div>`;
 }
@@ -1060,7 +1076,25 @@ function днейСводки() {
 function приёмыДня(l, d) {
     const T = СЛОВА[язык], m = l.meals.find(x => x.d === d);
     if (!m) return '';
+    // у записи «Разового питания» — сколько приёмов в этот день
+    if (l.eater) return [m.b ? `${T.B} ${приёмов(l, m, 'b')}` : '', m.l ? `${T.L} ${приёмов(l, m, 'l')}` : ''].filter(Boolean).join(' ') || '–';
     return [m.b ? T.B : '', m.l ? T.L : ''].filter(Boolean).join(' ') || '–';
+}
+// Записи «Разового питания» — по дням: завтраки и обеды × цена, сумма дня (ВГ, 22.10).
+// Питание считали отдельно от проживания — на бумаге видно, из чего сложилась сумма
+function записиПоДням() {
+    const T = СЛОВА[язык], R = 'class="r"';
+    return lines.filter(l => l.eater && l.meals.some(m => m.b || m.l)).map(l => {
+        const r = расчёт(l);
+        const дни = l.meals.filter(m => m.b || m.l);
+        return `<h3>${T.mealsByDay} · ${e(имяКомнаты(l))}${пометкаГостя(l)}</h3>
+            <table class="t narrow rooms">
+                <thead><tr><th>${T.date}</th><th ${R}>${T.breakfasts}</th><th ${R}>${T.lunches}</th><th ${R}>${T.amount}</th></tr></thead>
+                ${дни.map(m => { const b = приёмов(l, m, 'b'), n = приёмов(l, m, 'l');
+                    return `<tr><td>${дата(m.d)}</td><td ${R}>${b || ''}</td><td ${R}>${n || ''}</td><td ${R}>${деньги(round2(b * l.bPrice + n * l.lPrice))}</td></tr>`; }).join('')}
+                <tr class="sub"><td>${T.total}</td><td ${R}>${r.завтраков} × ${деньги(l.bPrice)}</td><td ${R}>${r.обедов} × ${деньги(l.lPrice)}</td><td ${R}>${деньги(r.питание)}</td></tr>
+            </table>`;
+    }).join('');
 }
 const периодКомнаты = g => { const p = g.l0.place;
     return p ? `${дата(p.check_in)}–${дата(p.check_out)}` : `${дата(g.l0.eater.start_date)}–${дата(g.l0.eater.end_date)}`; };
