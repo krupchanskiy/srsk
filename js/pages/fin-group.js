@@ -105,14 +105,17 @@ async function договорённость(l, k, value) {
     const calc = п.calc(l);
     const p = l.place;
     const who = `${l.label || 'место'}${p.room_id ? ` · №${p.room || ''}` : ''} · ${дата(p.check_in)}–${дата(p.check_out)}`;
+    let r = null;
     if (value === calc) {
-        if (l.ag[п.field]) { const r = await FinAgreement.clear(l.resident_id, п.field, { who, what: п.what, calcText: п.fmt(calc) }); if (r) l.ag = r; }
+        if (l.ag[п.field]) r = await FinAgreement.clear(l.resident_id, п.field, { who, what: п.what, calcText: п.fmt(calc) });
     } else {
         const c = await FinAgreement.ask({ who, what: п.what, calcText: п.fmt(calc), valueText: п.fmt(value) });
-        if (c !== null) { const r = await FinAgreement.save(l.resident_id, п.field, calc, value, c); if (r) l.ag = r; }
+        if (c !== null) r = await FinAgreement.save(l.resident_id, п.field, calc, value, c);
     }
+    // отмена — ничего не поменялось, лист не помечаем «не сохранено»
+    if (r) { l.ag = r; dirty = true; }
     l.people = l.ag.people ? Number(l.ag.people.value) : делительРасчёт(l);
-    dirty = true; render();
+    render();
 }
 
 const замок = (l, i, k) => FinAgreement.lock(l.ag?.[ПОЛЯ[k].field], ПОЛЯ[k].fmt(ПОЛЯ[k].calc(l)), `data-gr-agr="${i}" data-k="${k}"`);
