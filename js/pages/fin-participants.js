@@ -526,6 +526,7 @@ async function loadCardCrmInfo() {
     }
     const { data: calc } = await Layout.db.rpc('crm_calc_participation', { p_deal: deal.id });
     if (!calc?.ok) return;
+    setTimeout(renderLateHint);
     cardCalc = calc;
     const условия = ['org_fee', 'accommodation', 'meals']
         .map(k => ({ k, term: calc.blocks?.[k]?.term })).filter(x => x.term);
@@ -962,6 +963,61 @@ async function loadCardCharges() {
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>` : ''}</td>
         </tr>`).join('') || `<tr><td colspan="6" class="text-center py-3 opacity-60">${t('fin_no_charges')}</td></tr>`;
+    renderLateHint();
+}
+
+// ==================== ПОЗДНИЙ ВЫЕЗД УЧАСТНИКА (731) ====================
+// Шкала та же, что в «Начислить гостю/группе» (ВГ 22.10): до 14:00 — без доплаты, 14–19 — ½ суток,
+// после 19 — сутки. Здесь только подсказка по «Уезжает в ~» из шахматки: «Начислить» заполняет
+// обычную форму начисления, «Не брать» — договорённость (fin_stay_agreements), подсказка уходит.
+// Цена суток — проживание участника из CRM ÷ ночей
+async function renderLateHint() {
+    const el = document.getElementById('cardLateHint');
+    if (!el) return;
+    el.innerHTML = '';
+    const pid = card.id, ret = currentRetreat;
+    if (noEventMode || typeof FinAgreement === 'undefined' || !window.hasPermission?.('fin_admin')) return;
+    const { data: места } = await Layout.db.from('residents').select('id, check_in, check_out, departure_time')
+        .eq('vaishnava_id', pid).eq('retreat_id', ret).eq('status', 'confirmed')
+        .not('departure_time', 'is', null).not('room_id', 'is', null)
+        .order('check_out', { ascending: false }).limit(1);
+    const m = места?.[0];
+    const время = m?.departure_time?.slice(0, 5);
+    const k = FinAgreement.lateFactor(время);
+    if (!m?.check_out || !k) return;
+    if (Object.values(cardChargesById).some(c => !c.is_cancelled && (c.description || '').startsWith('Поздний выезд'))) return;
+    const ag = (await FinAgreement.load([m.id]))[m.id]?.late_fee;
+    if (ag || card.id !== pid || currentRetreat !== ret) return;
+    const d = cardCalc?.dates;
+    const ночей = d?.check_in && d?.check_out ? Math.round((DateUtils.parseDate(d.check_out) - DateUtils.parseDate(d.check_in)) / 864e5) : 0;
+    const жильё = Number(cardCalc?.blocks?.accommodation?.final?.INR) || 0;
+    const сумма = ночей > 0 && жильё > 0 ? Math.round(k * жильё / ночей) : 0;
+    const когда = DateUtils.formatShort(DateUtils.parseDate(m.check_out));
+    const описание = `Поздний выезд ${когда} ~${время} (${FinAgreement.lateLabel(k)})`;
+    el.innerHTML = `<div class="alert py-2 px-3 text-sm flex flex-wrap items-center gap-2">
+        <span>Уезжает ${e(когда)} в ~${e(время)} — по правилу <b>${e(FinAgreement.lateLabel(k))}</b>${сумма ? ` ≈ ${FinUtils.fmtMoney(сумма, 'INR')}` : ''}</span>
+        <span class="ml-auto flex gap-1">
+            <button type="button" class="btn btn-primary btn-xs" data-late="charge">Начислить</button>
+            <button type="button" class="btn btn-ghost btn-xs" data-late="skip">Не брать</button></span></div>`;
+    el.querySelector('[data-late="charge"]').onclick = () => {
+        openCharge({ noRibbon: true });
+        const row = document.querySelector('#chargeRows .chg-row');
+        if (!row) return;
+        row.querySelector('.chg-kind').value = 'accommodation';
+        row.querySelector('.chg-kind').dispatchEvent(new Event('change'));
+        row.querySelector('.chg-desc').value = описание;
+        row.querySelector('.chg-qty').value = 1;
+        row.querySelector('.chg-currency').value = 'INR';
+        row.querySelector('.chg-price').value = сумма || '';
+        row.querySelector('.chg-date').value = m.check_out;
+        row.querySelector('.chg-qty').dispatchEvent(new Event('input'));
+    };
+    el.querySelector('[data-late="skip"]').onclick = async () => {
+        const c = await FinAgreement.ask({ who: `${card.name} · ${когда}`, what: 'Доплата за поздний выезд',
+            calcText: сумма ? FinUtils.fmtMoney(сумма, 'INR') : FinAgreement.lateLabel(k), valueText: 'не брать' });
+        if (c === null) return;
+        if (await FinAgreement.save(m.id, 'late_fee', сумма || null, 0, c)) el.innerHTML = '';
+    };
 }
 
 // «Откуда он эти курсы берёт?» (ВГ, 24.08): курс платежа — не из справочника,
