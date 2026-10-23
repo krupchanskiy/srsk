@@ -392,7 +392,8 @@ function prasadUnitHtml(res, sum, retreatId) {
     const inc = sum.income;
     // приход — получено (ВГ 30.09): питание оплачено + зачтено из общего, как в карточке участника
     const incRows = inc ? [inc.mealsPaid == null ? [tr('fin_pu_meals', 'Питание — начислено'), inc.meals] : [tr('fin_pu_meals_paid', 'Питание — получено'), inc.mealsPaid],
-        [tr('fin_pu_donations', 'Прасад - пожертвование'), inc.donations]]
+        [tr('fin_pu_donations', 'Прасад - пожертвование'), inc.donations],
+        [tr('fin_pu_sponsor', 'Прасад — оплата спонсора'), inc.sponsor || 0]]
         .filter(([, v]) => Math.abs(v) > 0.005) : [];
     const expRows = prasadExpenseRows(res, sum, retreatId);
     const table = (titleKey, cls, rows, total, extra = '') => `
@@ -1160,6 +1161,7 @@ async function loadReport() {
 
         ${closureBlock(currentData)}
         <div id="retreatGapsBox"></div>
+        <div id="sponsorBox"></div>
         ${splitTotalsTable}
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-stretch">
             <div id="perPartBox" class="min-w-0"></div>
@@ -1177,6 +1179,73 @@ async function loadReport() {
     renderMoneyByDay(retreats.find(x => x.id === currentRetreat), token);
     if (showPrasad) fillPrasadCost(currentRetreat, prasad || {}, retreatOnlyTotals);
     fillDebtorNotes(currentRetreat, p.debtors || [], token);
+    fillSponsor(currentRetreat, token);
+}
+
+// ==================== СПОНСОР РЕТРИТА ====================
+// ВГ 23.10: «Траты ретрита оплачивает» — все траты ретрита (с любого счёта) и себестоимость
+// прасада сами зачитываются на счёт спонсора (мигр. 740). Минус — мы ему должны, плюс — он нам.
+async function fillSponsor(retreatId, token) {
+    const box = document.getElementById('sponsorBox');
+    if (!box) return;
+    const { data, error } = await Layout.db.rpc('fin_get_retreat_sponsor', { p_retreat: retreatId });
+    if (token !== reportToken) return;
+    if (error) { box.innerHTML = ''; return; }
+    const admin = window.hasPermission?.('fin_admin');
+    const s = data || {};
+    if (!s.account_id && !admin) { box.innerHTML = ''; return; }
+    const select = admin ? `<select class="select select-bordered select-sm" data-sponsor-account>
+            <option value="">${e(tr('fin_sp_nobody', '— за счёт ашрама —'))}</option>
+            ${(s.candidates || []).map(a => `<option value="${a.id}" ${a.id === s.account_id ? 'selected' : ''}>${e(a.name)}</option>`).join('')}
+        </select>` : `<span class="font-medium">${e(s.account_name || '')}</span>`;
+    const total = round2(Number(s.offset_expense || 0) + Number(s.offset_prasad || 0));
+    const bal = b => {
+        const v = Number(b.balance);
+        const hint = v < 0 ? tr('fin_sp_we_owe', 'мы должны') : v > 0 ? tr('fin_sp_he_owes', 'должен нам') : tr('fin_sp_settled', 'в расчёте');
+        return `<span class="font-mono ${v < 0 ? 'text-error' : v > 0 ? 'text-success' : ''}">${e(FinUtils.fmtMoney(v, b.currency))}</span> <span class="text-xs opacity-60">${e(hint)}</span>`;
+    };
+    const missing = (s.missing_rates || []).map(m => `<div class="flex items-center gap-2 flex-wrap text-sm">
+            <span>${e(DateUtils.formatShort(DateUtils.parseDate(m.date)))} · ${e(FinUtils.fmtMoney(m.amount, m.currency))} — ${e(tr('fin_sp_no_market', 'нет рыночного курса, не зачтено'))}</span>
+            ${admin ? `<input type="number" min="0.000001" step="0.000001" class="input input-bordered input-xs w-28" placeholder="₹ за 1 ${e(m.currency)}" data-market-rate="${e(m.currency)}" data-market-date="${e(m.date)}">
+                <button class="btn btn-xs btn-outline" data-action="sponsor-rate">${e(tr('fin_sp_rate_save', 'Внести рыночный курс'))}</button>` : ''}
+        </div>`).join('');
+    box.innerHTML = `<div class="card bg-base-100 shadow-sm"><div class="card-body py-4 space-y-2">
+        <div class="flex items-center gap-3 flex-wrap">
+            <h2 class="card-title text-base">${e(tr('fin_sp_title', 'Траты ретрита оплачивает'))}</h2>
+            ${select}
+        </div>
+        ${s.account_id ? `
+            <div class="text-sm">${e(tr('fin_sp_offset', 'Зачтено спонсору'))}: <span class="font-mono font-semibold">${fmtB(total)}</span>
+                <span class="opacity-70">— ${e(tr('fin_sp_expenses', 'траты'))} ${s.offset_expense_n} · ${fmtB(s.offset_expense)}, ${e(tr('fin_sp_prasad', 'прасад'))} ${fmtB(s.offset_prasad)}</span></div>
+            <div class="text-sm flex flex-wrap gap-x-6 gap-y-1">${e(tr('fin_sp_balance', 'Расчёты со спонсором'))}:
+                ${(s.sponsor_balances || []).map(b => `<span>${e(b.name)}: ${bal(b)}</span>`).join('')}</div>
+            ${missing ? `<div class="alert alert-warning py-2 block space-y-1">⚠ ${e(tr('fin_sp_missing', 'Траты не в рупиях без рыночного курса'))}: ${(s.missing_rates || []).length}${missing}</div>` : ''}
+            <p class="text-xs opacity-60">${e(tr('fin_sp_note', 'Каждая трата ретрита и себестоимость прасада сами зачитываются спонсору; сторно или правка траты — зачёт следует сам. Плюс в ₹ при долге в ₽ закрывается обменом: перевод с ₹-счёта спонсора на ₽-счёт с двумя суммами — по вашему курсу.'))}</p>`
+        : `<p class="text-xs opacity-60">${e(tr('fin_sp_hint', 'Выберите счёт человека, который оплачивает этот ретрит: его траты и прасад будут зачитываться ему (минус на счёте — мы ему должны, плюс — он нам).'))}</p>`}
+    </div></div>`;
+    if (box._delegated) return;
+    box._delegated = true;
+    box.addEventListener('change', async ev => {
+        const sel = ev.target.closest('[data-sponsor-account]');
+        if (!sel) return;
+        const name = sel.selectedOptions[0]?.textContent || '';
+        if (!confirm(sel.value
+            ? tr('fin_sp_confirm_set', 'Все траты и прасад этого ретрита будут зачтены на «{name}». Продолжить?').replace('{name}', name)
+            : tr('fin_sp_confirm_unset', 'Снять спонсора? Все зачёты этого ретрита будут сторнированы.'))) { loadReport(); return; }
+        const { error } = await Layout.db.rpc('fin_set_retreat_sponsor', { p_retreat: currentRetreat, p_account: sel.value || null });
+        if (error) { Layout.handleError(error, 'Спонсор'); return; }
+        loadReport();
+    });
+    box.addEventListener('click', async ev => {
+        const btn = ev.target.closest('[data-action="sponsor-rate"]');
+        if (!btn) return;
+        const inp = btn.parentElement.querySelector('[data-market-rate]');
+        const rate = Number(inp?.value);
+        if (!(rate > 0)) { inp?.focus(); return; }
+        const { error } = await Layout.db.rpc('fin_set_market_rate', { p_currency: inp.dataset.marketRate, p_date: inp.dataset.marketDate, p_rate: rate });
+        if (error) { Layout.handleError(error, 'Курс'); return; }
+        loadReport();
+    });
 }
 
 // Должник — вместе с причиной: последняя заметка кассира из истории сделки
@@ -1410,7 +1479,8 @@ function prasadCsv(r) {
     if (st && st.retreatId === currentRetreat && st.sum?.income) {
         const inc = st.sum.income;
         const received = inc.received ?? inc.charged;
-        const income = [[inc.mealsPaid == null ? 'Питание — начислено' : 'Питание — получено', inc.mealsPaid ?? inc.meals], ['Прасад - пожертвование', inc.donations]]
+        const income = [[inc.mealsPaid == null ? 'Питание — начислено' : 'Питание — получено', inc.mealsPaid ?? inc.meals], ['Прасад - пожертвование', inc.donations],
+            ['Прасад — оплата спонсора', inc.sponsor || 0]]
             .filter(([, v]) => Math.abs(v) > 0.005);
         const expense = [['Себестоимость прасада', st.sum.included],
             ...prasadExpenseRows(st.res, st.sum, st.retreatId).map(x => [`  ${x.name}`, x.v])];
