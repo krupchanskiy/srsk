@@ -1216,8 +1216,8 @@ async function fillSponsor(retreatId, token) {
             <div class="flex-1 min-w-0">${e(DateUtils.formatShort(DateUtils.parseDate(x.occurred_on)))} · ${e(x.account_name)} · ${e(x.category || '')} ·
                 <span class="font-mono">${e(FinUtils.fmtMoney(x.amount, x.currency_code))}</span>
                 <div class="text-xs opacity-80 truncate">${e(x.comment || '')}</div></div>
-            <a class="link text-xs whitespace-nowrap" href="dds.html?op=${e(x.operation_id)}">${e(tr('fin_sp_set_retreat', 'поставить ретрит'))} →</a>
-            ${admin ? `<button class="btn btn-ghost btn-xs" data-action="sponsor-dismiss" data-op="${e(x.operation_id)}">${e(tr('fin_sp_dismiss', 'не относится'))}</button>` : ''}
+            ${admin ? `<button class="btn btn-xs btn-outline whitespace-nowrap" data-action="sponsor-attach" data-op="${e(x.operation_id)}">${e(tr('fin_sp_attach', 'это ретрит'))}</button>
+                <button class="btn btn-ghost btn-xs whitespace-nowrap" data-action="sponsor-dismiss" data-op="${e(x.operation_id)}">${e(tr('fin_sp_dismiss', 'не относится'))}</button>` : ''}
         </div>`).join('');
     box.innerHTML = `<div class="card bg-base-100 shadow-sm"><div class="card-body py-4 space-y-2">
         <div class="flex items-center gap-3 flex-wrap">
@@ -1250,9 +1250,13 @@ async function fillSponsor(retreatId, token) {
         loadReport();
     });
     box.addEventListener('click', async ev => {
-        const btn = ev.target.closest('[data-action="sponsor-dismiss"]');
+        const btn = ev.target.closest('[data-action="sponsor-dismiss"], [data-action="sponsor-attach"]');
         if (!btn) return;
-        const { error } = await Layout.db.rpc('fin_sponsor_dismiss', { p_retreat: currentRetreat, p_operation: btn.dataset.op });
+        const attach = btn.dataset.action === 'sponsor-attach';
+        if (attach && !confirm(tr('fin_sp_attach_confirm', 'Отнести эту трату к ретриту? Она войдёт в его расходы и в зачёт спонсору.'))) return;
+        btn.disabled = true;
+        const { error } = await Layout.db.rpc(attach ? 'fin_sponsor_attach' : 'fin_sponsor_dismiss', { p_retreat: currentRetreat, p_operation: btn.dataset.op });
+        btn.disabled = false;
         if (error) { Layout.handleError(error, 'Спонсор'); return; }
         loadReport();
     });
