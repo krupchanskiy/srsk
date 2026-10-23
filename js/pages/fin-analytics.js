@@ -1184,7 +1184,7 @@ async function loadReport() {
 
 // ==================== СПОНСОР РЕТРИТА ====================
 // ВГ 23.10: «Траты ретрита оплачивает» — все траты ретрита (с любого счёта) и себестоимость
-// прасада сами зачитываются на счёт спонсора (мигр. 740). Минус — мы ему должны, плюс — он нам.
+// прасада сами зачитываются на счёт спонсора в валюте траты (мигр. 740/741). Минус — мы ему должны, плюс — он нам.
 async function fillSponsor(retreatId, token) {
     const box = document.getElementById('sponsorBox');
     if (!box) return;
@@ -1198,29 +1198,33 @@ async function fillSponsor(retreatId, token) {
             <option value="">${e(tr('fin_sp_nobody', '— за счёт ашрама —'))}</option>
             ${(s.candidates || []).map(a => `<option value="${a.id}" ${a.id === s.account_id ? 'selected' : ''}>${e(a.name)}</option>`).join('')}
         </select>` : `<span class="font-medium">${e(s.account_name || '')}</span>`;
-    const total = round2(Number(s.offset_expense || 0) + Number(s.offset_prasad || 0));
+    // зачтено по валютам — без пересчёта (движение в своей валюте)
+    const offs = s.offsets || [];
+    const sumBy = list => list.map(o => FinUtils.fmtMoney(o.amount, o.currency)).join(' + ');
+    const expOffs = offs.filter(o => o.kind === 'expense');
+    const prOffs = offs.filter(o => o.kind === 'prasad');
     const bal = b => {
         const v = Number(b.balance);
         const hint = v < 0 ? tr('fin_sp_we_owe', 'мы должны') : v > 0 ? tr('fin_sp_he_owes', 'должен нам') : tr('fin_sp_settled', 'в расчёте');
         return `<span class="font-mono ${v < 0 ? 'text-error' : v > 0 ? 'text-success' : ''}">${e(FinUtils.fmtMoney(v, b.currency))}</span> <span class="text-xs opacity-60">${e(hint)}</span>`;
     };
-    const missing = (s.missing_rates || []).map(m => `<div class="flex items-center gap-2 flex-wrap text-sm">
-            <span>${e(DateUtils.formatShort(DateUtils.parseDate(m.date)))} · ${e(FinUtils.fmtMoney(m.amount, m.currency))} — ${e(tr('fin_sp_no_market', 'нет рыночного курса, не зачтено'))}</span>
-            ${admin ? `<input type="number" min="0.000001" step="0.000001" class="input input-bordered input-xs w-28" placeholder="₹ за 1 ${e(m.currency)}" data-market-rate="${e(m.currency)}" data-market-date="${e(m.date)}">
-                <button class="btn btn-xs btn-outline" data-action="sponsor-rate">${e(tr('fin_sp_rate_save', 'Внести рыночный курс'))}</button>` : ''}
-        </div>`).join('');
+    const missing = (s.missing_accounts || []).map(m => `<div class="text-sm">
+            ${e(DateUtils.formatShort(DateUtils.parseDate(m.date)))} · ${e(FinUtils.fmtMoney(m.amount, m.currency))}</div>`).join('');
+    const missingCur = [...new Set((s.missing_accounts || []).map(m => m.currency))].join(', ');
     box.innerHTML = `<div class="card bg-base-100 shadow-sm"><div class="card-body py-4 space-y-2">
         <div class="flex items-center gap-3 flex-wrap">
             <h2 class="card-title text-base">${e(tr('fin_sp_title', 'Траты ретрита оплачивает'))}</h2>
             ${select}
         </div>
         ${s.account_id ? `
-            <div class="text-sm">${e(tr('fin_sp_offset', 'Зачтено спонсору'))}: <span class="font-mono font-semibold">${fmtB(total)}</span>
-                <span class="opacity-70">— ${e(tr('fin_sp_expenses', 'траты'))} ${s.offset_expense_n} · ${fmtB(s.offset_expense)}, ${e(tr('fin_sp_prasad', 'прасад'))} ${fmtB(s.offset_prasad)}</span></div>
+            <div class="text-sm">${e(tr('fin_sp_offset', 'Зачтено спонсору'))}:
+                ${e(tr('fin_sp_expenses', 'траты'))} ${expOffs.reduce((a, o) => a + Number(o.n), 0)} · <span class="font-mono">${e(sumBy(expOffs) || '0')}</span>,
+                ${e(tr('fin_sp_prasad', 'прасад'))} <span class="font-mono">${e(sumBy(prOffs) || '0')}</span></div>
             <div class="text-sm flex flex-wrap gap-x-6 gap-y-1">${e(tr('fin_sp_balance', 'Расчёты со спонсором'))}:
                 ${(s.sponsor_balances || []).map(b => `<span>${e(b.name)}: ${bal(b)}</span>`).join('')}</div>
-            ${missing ? `<div class="alert alert-warning py-2 block space-y-1">⚠ ${e(tr('fin_sp_missing', 'Траты не в рупиях без рыночного курса'))}: ${(s.missing_rates || []).length}${missing}</div>` : ''}
-            <p class="text-xs opacity-60">${e(tr('fin_sp_note', 'Каждая трата ретрита и себестоимость прасада сами зачитываются спонсору; сторно или правка траты — зачёт следует сам. Плюс в ₹ при долге в ₽ закрывается обменом: перевод с ₹-счёта спонсора на ₽-счёт с двумя суммами — по вашему курсу.'))}</p>`
+            ${missing ? `<div class="alert alert-warning py-2 block space-y-1">⚠ ${e(tr('fin_sp_missing', 'Не зачтено — у спонсора нет счёта в валюте'))} ${e(missingCur)}: ${(s.missing_accounts || []).length}${missing}
+                <a class="link text-sm" href="accounts.html">${e(tr('fin_sp_open_account', 'Открыть счёт спонсора в этой валюте (тот же департамент)'))} →</a></div>` : ''}
+            <p class="text-xs opacity-60">${e(tr('fin_sp_note', 'Каждая трата ретрита и себестоимость прасада сами зачитываются спонсору; сторно или правка траты — зачёт следует сам. Каждая валюта — на своём счёте, без курса. Плюс в одной валюте при долге в другой закрывается обменом: перевод между счетами спонсора с двумя суммами — по вашему курсу.'))}</p>`
         : `<p class="text-xs opacity-60">${e(tr('fin_sp_hint', 'Выберите счёт человека, который оплачивает этот ретрит: его траты и прасад будут зачитываться ему (минус на счёте — мы ему должны, плюс — он нам).'))}</p>`}
     </div></div>`;
     if (box._delegated) return;
@@ -1234,16 +1238,6 @@ async function fillSponsor(retreatId, token) {
             : tr('fin_sp_confirm_unset', 'Снять спонсора? Все зачёты этого ретрита будут сторнированы.'))) { loadReport(); return; }
         const { error } = await Layout.db.rpc('fin_set_retreat_sponsor', { p_retreat: currentRetreat, p_account: sel.value || null });
         if (error) { Layout.handleError(error, 'Спонсор'); return; }
-        loadReport();
-    });
-    box.addEventListener('click', async ev => {
-        const btn = ev.target.closest('[data-action="sponsor-rate"]');
-        if (!btn) return;
-        const inp = btn.parentElement.querySelector('[data-market-rate]');
-        const rate = Number(inp?.value);
-        if (!(rate > 0)) { inp?.focus(); return; }
-        const { error } = await Layout.db.rpc('fin_set_market_rate', { p_currency: inp.dataset.marketRate, p_date: inp.dataset.marketDate, p_rate: rate });
-        if (error) { Layout.handleError(error, 'Курс'); return; }
         loadReport();
     });
 }
