@@ -29,21 +29,20 @@ async function loadRetreats() {
     }
 
     const select = document.getElementById('retreatSelect');
-    select.innerHTML = `<option value="">${t('select_retreat')}</option>` +
-        (data || []).map(r => `<option value="${r.id}">${Layout.getName(r)}</option>`).join('');
+    RetreatSelect.fill(select, data || [], { noneLabel: t('select_retreat') });
 
     // Check URL for retreat id
     const urlParams = new URLSearchParams(window.location.search);
     const urlRetreatId = urlParams.get('retreat');
     if (urlRetreatId) {
-        select.value = urlRetreatId;
+        RetreatSelect.setValue(select, urlRetreatId);
         onRetreatChange(urlRetreatId);
     } else if (data && data.length > 0) {
         // Автовыбор ближайшего ретрита
         const today = toLocalDateStr(new Date());
         const active = data.filter(r => r.end_date >= today);
         const nearest = active.length > 0 ? active[active.length - 1] : data[0];
-        select.value = nearest.id;
+        RetreatSelect.setValue(select, nearest.id);
         onRetreatChange(nearest.id);
     }
 }

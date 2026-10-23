@@ -171,6 +171,7 @@
 <script src="../js/utils.js?v=23"></script>
 <script src="../js/layout.js?v=125"></script>
 <script src="../js/date-utils.js?v=5"></script>
+<script src="../js/retreat-select.js?v=2"></script>
 <script src="../js/crm-utils.js?v=7"></script>
 <script src="../js/crm-cancel-reason.js?v=1"></script>
 
@@ -214,17 +215,13 @@ function toggleHiddenClosed() {
 async function loadRetreats() {
     const { data } = await Layout.db
         .from('retreats')
-        .select('id, name_ru, name_en, color, start_date')
+        .select('id, name_ru, name_en, color, start_date, end_date, is_external')
         .order('start_date', { ascending: false });
 
     retreats = data || [];
 
     const select = document.getElementById('filterRetreat');
-    retreats.forEach(r => {
-        select.insertAdjacentHTML('beforeend',
-            `<option value="${r.id}">${e(Layout.getName(r))}</option>`
-        );
-    });
+    RetreatSelect.fill(select, retreats);
 }
 
 async function loadDeals() {

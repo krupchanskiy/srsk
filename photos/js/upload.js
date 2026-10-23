@@ -209,31 +209,17 @@
             // Загружаем активные и будущие ретриты
             const { data: retreats, error } = await db
                 .from('retreats')
-                .select('id, name_ru, start_date, end_date')
-                .order('start_date', { ascending: false })
-                .limit(20);
+                .select('id, name_ru, name_en, name_hi, start_date, end_date, is_external')
+                .order('start_date', { ascending: false });
 
             if (error) throw error;
 
-            retreatSelect.innerHTML = '<option value="">Выберите ретрит</option>';
-
-            retreats.forEach(retreat => {
-                const option = document.createElement('option');
-                option.value = retreat.id;
-                option.textContent = `${retreat.name_ru} (${formatDate(retreat.start_date)} - ${formatDate(retreat.end_date)})`;
-                retreatSelect.appendChild(option);
-            });
+            RetreatSelect.fill(retreatSelect, retreats, { noneLabel: 'Выберите ретрит' });
 
         } catch (error) {
             console.error('Failed to load retreats:', error);
             showError('Не удалось загрузить список ретритов');
         }
-    }
-
-    // Форматирование даты
-    function formatDate(dateStr) {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
     }
 
     // Обработчики событий

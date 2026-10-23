@@ -126,6 +126,7 @@
 <script src="../js/utils.js?v=23"></script>
 <script src="../js/layout.js?v=125"></script>
 <script src="../js/date-utils.js?v=5"></script>
+<script src="../js/retreat-select.js?v=2"></script>
 <script src="../js/crm-utils.js?v=7"></script>
 
 <script>
@@ -227,7 +228,7 @@ async function loadReferenceData() {
             .eq('is_active', true)
             .like('roles.code', 'crm_%'),
         Layout.db.from('retreats')
-            .select('id, name_ru, name_en')
+            .select('id, name_ru, name_en, start_date, end_date, is_external')
             .order('start_date', { ascending: false })
     ]);
 
@@ -247,11 +248,7 @@ async function loadReferenceData() {
     });
 
     const retreatSelect = document.getElementById('filterRetreat');
-    retreats.forEach(r => {
-        retreatSelect.insertAdjacentHTML('beforeend',
-            `<option value="${r.id}">${e(Layout.getName(r))}</option>`
-        );
-    });
+    RetreatSelect.fill(retreatSelect, retreats);
 }
 
 async function loadLog() {

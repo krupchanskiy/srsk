@@ -27,12 +27,11 @@ let currentData = null;   // результат fin_get_retreat_report
 // ==================== ПО РЕТРИТУ ====================
 async function loadRetreats() {
     const { data } = await Layout.db.from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date, end_date')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date, is_external')
         .order('start_date', { ascending: false });
     retreats = data || [];
     const sel = document.getElementById('retreatSelect');
-    sel.innerHTML = `<option value="">${t('fin_select_retreat')}</option>` +
-        retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}${FinUtils.retreatDatesLabel(r.start_date, r.end_date)}</option>`).join('');
+    RetreatSelect.fill(sel, retreats, { noneLabel: t('fin_select_retreat') });
     sel.addEventListener('change', () => selectRetreat(sel.value || null));
 }
 
@@ -1935,7 +1934,7 @@ async function init() {
     const params = new URLSearchParams(window.location.search);
     const preset = params.get('retreat');
     if (preset && retreats.some(r => r.id === preset)) {
-        document.getElementById('retreatSelect').value = preset;
+        RetreatSelect.setValue(document.getElementById('retreatSelect'), preset);
         await selectRetreat(preset);
     }
 }

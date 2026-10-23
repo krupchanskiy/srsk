@@ -178,6 +178,7 @@
 <script src="../js/utils.js?v=23"></script>
 <script src="../js/layout.js?v=125"></script>
 <script src="../js/date-utils.js?v=5"></script>
+<script src="../js/retreat-select.js?v=2"></script>
 <script>
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
@@ -190,15 +191,14 @@ const canEdit = () => editAllowed;
 
 async function loadRefs() {
     const [r, s, b] = await Promise.all([
-        Layout.db.from('retreats').select('id, name_ru, name_en, start_date, end_date').order('start_date', { ascending: false }),
+        Layout.db.from('retreats').select('id, name_ru, name_en, start_date, end_date, is_external').order('start_date', { ascending: false }),
         Layout.db.from('crm_services').select('id, code, name_ru, name_en, category, unit, default_price, building_id, room_capacity, room_number_pattern').eq('is_active', true).order('sort_order'),
         Layout.db.from('buildings').select('id, name_ru, name_en, name_hi, is_temporary, sort_order').eq('is_active', true).order('is_temporary').order('sort_order')
     ]);
     retreats = r.data || [];
     services = s.data || [];
     buildings = b.data || [];
-    document.getElementById('retreatSelect').innerHTML =
-        retreats.map(x => `<option value="${x.id}">${e(Layout.getName(x))} · ${DateUtils.formatShort(DateUtils.parseDate(x.start_date))}</option>`).join('');
+    RetreatSelect.fill(document.getElementById('retreatSelect'), retreats, { noneLabel: null });
     // Дефолт — ретрит с наибольшей активностью в канбане, не ближайший по датам (ТЗ 1.1)
     const { data: активность } = await Layout.db.from('crm_deals')
         .select('retreat_id').in('status', ['lead', 'working', 'invoiced', 'booked', 'checklist', 'ready']);
@@ -206,7 +206,7 @@ async function loadRefs() {
         const счёт = {};
         активность.forEach(d => { if (d.retreat_id) счёт[d.retreat_id] = (счёт[d.retreat_id] || 0) + 1; });
         const лидер = Object.entries(счёт).sort((a, z) => z[1] - a[1])[0]?.[0];
-        if (лидер && retreats.some(x => x.id === лидер)) document.getElementById('retreatSelect').value = лидер;
+        if (лидер && retreats.some(x => x.id === лидер)) RetreatSelect.setValue(document.getElementById('retreatSelect'), лидер);
     }
 }
 

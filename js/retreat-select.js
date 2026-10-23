@@ -47,6 +47,80 @@ function html(retreats, selectedId, from, to, { all = false, noneLabel } = {}) {
         + `<option value="${ARCHIVE}">${e(tf('timeline_retreat_archive', 'Архив / все ретриты…'))}</option>`;
 }
 
+// Список «по ретриту» для фильтров и отчётов — один стандарт на всех страницах (ВГ, 23.10.2026):
+//   «Гости без события» (если есть) → «Предстоящие» (наши, ещё не закончились, ближайший
+//   сверху) → «Сторонние мероприятия» (тоже не закончились) → «Архив (N)…» — прошедшие
+//   свёрнуты и раскрываются по годам, новые сверху. Выбранный архивный ретрит виден сразу.
+// Для каждого ретрита нужны start_date, end_date, is_external (и fact_end, если есть).
+function filterHtml(retreats, selectedId, { noneLabel, noneValue = '', head = '', archive = false } = {}) {
+    const e = s => Layout.escapeHtml(s);
+    const option = r => `<option value="${r.id}" ${r.id === selectedId ? 'selected' : ''}>${e(Layout.getName(r))}${shortDates(r)}</option>`;
+    const optgroup = (label, items) => items.length
+        ? `<optgroup label="${e(label)}">` + items.map(option).join('') + '</optgroup>' : '';
+    const today = DateUtils.toISO(new Date());
+    const dated = retreats.filter(r => r.start_date);
+    const top = dated.filter(r => r.start_date.startsWith('2000-'));
+    const real = dated.filter(r => !top.includes(r));
+    const byStart = (a, b) => a.start_date.localeCompare(b.start_date);
+    const live = real.filter(r => endOf(r) >= today).sort(byStart);
+    const past = real.filter(r => endOf(r) < today).sort((a, b) => b.start_date.localeCompare(a.start_date));
+    const open = archive || past.some(r => r.id === selectedId);
+    const years = [...new Set(past.map(r => r.start_date.slice(0, 4)))];
+    return (head || (noneLabel != null ? `<option value="${e(noneValue)}">${e(noneLabel)}</option>` : ''))
+        + top.map(option).join('')
+        + optgroup(tf('retreat_select_upcoming', 'Предстоящие'), live.filter(r => !r.is_external))
+        + optgroup(tf('retreat_select_external', 'Сторонние мероприятия'), live.filter(r => r.is_external))
+        + (open
+            ? years.map(y => optgroup(`${tf('retreat_select_archive', 'Архив')} ${y}`, past.filter(r => r.start_date.startsWith(y)))).join('')
+            : past.length ? `<option value="${ARCHIVE}">${e(tf('retreat_select_archive', 'Архив'))} (${past.length})…</option>` : '');
+}
+
+// « (30.08–12.09.2027)» — коротко, как в Финансах
+function shortDates(r) {
+    const s = r.start_date, f = r.end_date;
+    if (!s || !f || s.startsWith('2000-')) return '';
+    const dm = d => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
+    return ` (${s.slice(0, 4) === f.slice(0, 4) ? dm(s) : `${dm(s)}.${s.slice(0, 4)}`}–${dm(f)}.${f.slice(0, 4)})`;
+}
+
+// Фактическое окончание (мигр. 603): ретрит в «Предстоящих», пока живут его люди.
+// Грузим один раз на страницу и дорисовываем списки, когда пришло.
+let factEnds = null;
+function loadFactEnds() {
+    factEnds = factEnds || Promise.resolve(Layout.db?.from('retreat_fact_end').select('retreat_id, fact_end'))
+        .then(res => new Map((res?.data || []).map(x => [x.retreat_id, x.fact_end])))
+        .catch(() => new Map());
+    return factEnds;
+}
+
+// Заполнить список по стандарту; «Архив…» раскроется в нём же (обработчик ниже).
+// Без noneLabel первый пункт из вёрстки («Все ретриты», data-i18n) остаётся как есть.
+function fill(sel, retreats, opts = {}) {
+    if (!sel) return;
+    if (opts.noneLabel === undefined && !opts.head) {
+        const first = sel._retreatFill?.opts.head ?? (sel.options[0]?.outerHTML || '');
+        opts = { ...opts, head: first, noneValue: sel.options[0]?.value ?? '' };
+    }
+    const state = { retreats, opts };
+    sel._retreatFill = state;
+    sel.innerHTML = filterHtml(retreats, opts.selected, opts);
+    if (opts.selected != null) sel.value = opts.selected;
+    if (retreats.some(r => !r.is_external && r.fact_end === undefined)) loadFactEnds().then(map => {
+        retreats.forEach(r => { if (r.fact_end === undefined) r.fact_end = map.get(r.id) || null; });
+        if (sel._retreatFill !== state) return;
+        const value = sel.value;
+        sel.innerHTML = filterHtml(retreats, value, opts);
+        sel.value = value;
+    });
+}
+
+// Выбрать ретрит из кода: архивный сам раскроет архив
+function setValue(sel, id) {
+    if (!sel?._retreatFill) { if (sel) sel.value = id || ''; return; }
+    const { retreats, opts } = sel._retreatFill;
+    fill(sel, retreats, { ...opts, selected: id || (opts.noneValue ?? '') });
+}
+
 function mismatch(retreats, id, from, to) {
     const r = id && retreats.find(x => x.id === id);
     return !!r && !!from && !fits(r, from, to);
@@ -71,14 +145,18 @@ document.addEventListener('change', ev => {
     const sel = ev.target;
     if (!(sel instanceof HTMLSelectElement) || sel.value !== ARCHIVE) return;
     ev.stopPropagation();
-    const prev = sel.dataset.prev === ARCHIVE ? '' : (sel.dataset.prev || '');
-    sel.innerHTML = html(source(), prev, null, null, { all: true, noneLabel: noneLabel && noneLabel() });
+    const none = sel._retreatFill?.opts.noneValue ?? '';
+    const prev = sel.dataset.prev === ARCHIVE ? none : (sel.dataset.prev ?? none);
+    if (sel._retreatFill) {
+        const { retreats, opts } = sel._retreatFill;
+        sel.innerHTML = filterHtml(retreats, prev, { ...opts, archive: true });
+    } else sel.innerHTML = html(source(), prev, null, null, { all: true, noneLabel: noneLabel && noneLabel() });
     sel.value = prev;
     sel.dataset.prev = prev;
     sel.focus();
-    sel.showPicker?.();
+    try { sel.showPicker?.(); } catch (_) { /* без жеста пользователя браузер не откроет */ }
 }, true);
 
-window.RetreatSelect = { ARCHIVE, fits, html, mismatch, mismatchText, setSource };
+window.RetreatSelect = { ARCHIVE, fits, html, filterHtml, fill, setValue, mismatch, mismatchText, setSource };
 
 })();

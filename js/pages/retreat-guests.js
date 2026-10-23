@@ -32,7 +32,7 @@ let allRetreats = [];
 async function loadAllRetreats() {
     const { data, error } = await Layout.db
         .from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date, end_date, color')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date, color, is_external')
         .order('start_date', { ascending: false });
 
     if (error) {
@@ -43,15 +43,7 @@ async function loadAllRetreats() {
     allRetreats = data || [];
 
     const select = document.getElementById('retreatSelect');
-    select.innerHTML = `<option value="" data-i18n="select_retreat">${t('select_retreat')}</option>`;
-
-    allRetreats.forEach(r => {
-        const name = r[`name_${Layout.currentLang}`] || r.name_ru;
-        const option = document.createElement('option');
-        option.value = r.id;
-        option.textContent = name;
-        select.appendChild(option);
-    });
+    RetreatSelect.fill(select, allRetreats, { noneLabel: t('select_retreat') });
 }
 
 function onRetreatChange(value) {

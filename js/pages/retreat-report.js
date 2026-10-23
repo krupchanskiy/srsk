@@ -41,16 +41,14 @@ const ICON_FUNNEL = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox
 async function loadRetreatsList() {
     const { data, error } = await Layout.db
         .from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date, end_date')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date, is_external')
         .order('start_date', { ascending: false });
 
     if (error) { console.error('Error loading retreats:', error); return; }
     allRetreats = data || [];
 
-    const select = document.getElementById('retreatSelect');
-    select.innerHTML = `<option value="">${t('select_retreat')}</option>` +
-        allRetreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('');
-    if (retreatId) select.value = retreatId;
+    RetreatSelect.fill(document.getElementById('retreatSelect'), allRetreats,
+        { selected: retreatId || '', noneLabel: t('select_retreat') });
 }
 
 function onRetreatChange(id) {

@@ -52,11 +52,10 @@ async function loadRetreats() {
     if (error) { Layout.handleError(error, t('fin_sales_fee_title')); return; }
     retreats = data || [];
     const sel = document.getElementById('retreatSelect');
-    sel.innerHTML = retreats.map(r =>
-        `<option value="${e(r.id)}">${e(r.name)} · ${e(DateUtils.formatRange(r.start_date, r.end_date))}</option>`).join('');
+    RetreatSelect.fill(sel, retreats.map(r => ({ ...r, name_ru: r.name })), { noneLabel: null });
     const fromUrl = new URLSearchParams(location.search).get('retreat');
     currentRetreat = retreats.some(r => r.id === fromUrl) ? fromUrl : retreats[0]?.id || null;
-    if (currentRetreat) sel.value = currentRetreat;
+    if (currentRetreat) RetreatSelect.setValue(sel, currentRetreat);
 }
 
 async function loadCalc() {

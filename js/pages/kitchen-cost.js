@@ -1832,8 +1832,7 @@ function renderControls() {
     Layout.$('#retreatControls').classList.toggle('hidden', state.mode !== 'retreat');
     Layout.$('#periodControls').classList.toggle('hidden', state.mode !== 'period');
     document.querySelectorAll('[data-action="step"]').forEach(b => b.classList.toggle('btn-active', b.dataset.step === state.step));
-    Layout.$('#retreatSelect').innerHTML = `<option value="">${e(tr('select_retreat', 'Выберите ретрит...'))}</option>` + retreats.map(r =>
-        `<option value="${r.id}" ${r.id === state.retreatId ? 'selected' : ''}>${e(Layout.getName(r))} (${e(DateUtils.formatRange(r.start_date, r.end_date))})</option>`).join('');
+    RetreatSelect.fill(Layout.$('#retreatSelect'), retreats, { selected: state.retreatId, noneLabel: tr('select_retreat', 'Выберите ретрит...') });
     Layout.$('#dateFrom').value = state.from;
     Layout.$('#dateTo').value = state.to;
     Layout.$('#periodLabel').textContent = state.from && state.to ? periodLabel(state.from, state.to) : '';

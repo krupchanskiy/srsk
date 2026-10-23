@@ -76,7 +76,7 @@ async function init() {
 async function loadRetreats() {
     const { data, error } = await Layout.db
         .from('retreats')
-        .select('id, name_ru, name_en, name_hi, start_date, end_date')
+        .select('id, name_ru, name_en, name_hi, start_date, end_date, is_external')
         .order('start_date', { ascending: false });
 
     if (error) { Layout.handleError(error, Layout.t('loading_retreats') || 'Загрузка ретритов'); return; }
@@ -87,18 +87,13 @@ async function loadRetreats() {
 
 function renderRetreatSelect() {
     const select = document.getElementById('retreatSelect');
-    const lang = Layout.currentLang || 'ru';
 
     if (retreats.length === 0) {
         select.innerHTML = `<option value="">${Layout.t('no_retreats') || 'Нет ретритов'}</option>`;
         return;
     }
 
-    select.innerHTML = `<option value="">${Layout.t('select_retreat') || 'Выберите ретрит'}</option>` +
-        retreats.map(r => {
-            const name = r[`name_${lang}`] || r.name_ru || Layout.t('no_name') || 'Без названия';
-            return `<option value="${r.id}">${name}</option>`;
-        }).join('');
+    RetreatSelect.fill(select, retreats, { noneLabel: Layout.t('select_retreat') || 'Выберите ретрит' });
 }
 
 async function loadVaishnavas() {

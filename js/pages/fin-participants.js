@@ -60,13 +60,8 @@ async function loadRetreats() {
     if (error) { Layout.handleError(error, 'Ретриты'); return; }
     retreats = data || [];
     const sel = document.getElementById('retreatSelect');
-    // Наши ретриты и сторонние мероприятия — раздельно, как в шахматке и группах питания (ВГ, 29.09)
-    const option = r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`;
-    const optgroup = (label, items) => items.length
-        ? `<optgroup label="${e(label)}">${items.map(option).join('')}</optgroup>` : '';
-    sel.innerHTML = `<option value="">${t('fin_select_retreat')}</option>`
-        + optgroup(t('group_event_retreat'), retreats.filter(r => !r.is_external))
-        + optgroup(t('retreats_is_external'), retreats.filter(r => r.is_external));
+    // Предстоящие / сторонние / архив — общий стандарт (js/retreat-select.js)
+    RetreatSelect.fill(sel, retreats, { noneLabel: t('fin_select_retreat') });
     sel.addEventListener('change', () => { setNoEventMode(false); selectRetreat(sel.value || null); });
 }
 
@@ -3615,7 +3610,7 @@ async function init() {
         // из шахматки: визит → карточка, если уже начислено, иначе окно начисления
         else if (params.get('visit')) window.FinGuests?.openVisit(params.get('visit'));
     } else if (preset && retreats.some(r => r.id === preset)) {
-        document.getElementById('retreatSelect').value = preset;
+        RetreatSelect.setValue(document.getElementById('retreatSelect'), preset);
         await selectRetreat(preset);
         const openPid = params.get('open');
         if (openPid && participants.some(p => p.participant_id === openPid)) openCard(openPid);

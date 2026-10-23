@@ -76,7 +76,7 @@ async function loadAllRetreats() {
     const data = await Cache.getOrLoad('all_retreats', async () => {
         const { data, error } = await Layout.db
             .from('retreats')
-            .select('id, name_ru, name_en, name_hi, start_date, end_date, color')
+            .select('id, name_ru, name_en, name_hi, start_date, end_date, color, is_external')
             .order('start_date', { ascending: false });
         if (error) { console.error('Error loading retreats:', error); return []; }
         return data || [];
@@ -86,15 +86,14 @@ async function loadAllRetreats() {
 
     // Populate select
     const select = document.getElementById('retreatSelect');
-    select.innerHTML = `<option value="">${t('preliminary_select_retreat')}</option>` +
-        allRetreats.map(r => `<option value="${r.id}">${Layout.getName(r)}</option>`).join('');
+    RetreatSelect.fill(select, allRetreats, { noneLabel: t('preliminary_select_retreat') });
 
     // Check URL for retreat id
     const params = new URLSearchParams(window.location.search);
     const urlId = params.get('id');
 
     if (urlId && allRetreats.find(r => r.id === urlId)) {
-        select.value = urlId;
+        RetreatSelect.setValue(select, urlId);
         await selectRetreat(urlId);
     } else if (allRetreats.length > 0) {
         // Auto-select nearest retreat
@@ -107,7 +106,7 @@ async function loadAllRetreats() {
 
         // Select nearest future, or most recent past
         const nearest = futureRetreats[0] || allRetreats[0];
-        select.value = nearest.id;
+        RetreatSelect.setValue(select, nearest.id);
         await selectRetreat(nearest.id);
     }
 }

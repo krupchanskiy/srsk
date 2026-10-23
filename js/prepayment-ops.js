@@ -43,7 +43,7 @@
     PrepaymentOps.ensureRefs = async function() {
         if (_retreats.length && _systems.length) return;
         const [retreatsRes, systemsRes] = await Promise.all([
-            db().from('retreats').select('id, name_ru, name_en, name_hi, color, start_date').order('start_date', { ascending: false }),
+            db().from('retreats').select('id, name_ru, name_en, name_hi, color, start_date, end_date, is_external').order('start_date', { ascending: false }),
             db().from('crm_payment_systems').select('*').eq('is_archived', false).order('sort_order')
         ]);
         _retreats = retreatsRes.data || [];
@@ -261,13 +261,13 @@
                   </label>
                   <select class="select select-bordered select-sm flex-1 min-w-[200px]" data-role="target-retreat">
                     <option value="">— ${e(t('crm_target_retreat'))} —</option>
-                    ${_retreats.map(r => `<option value="${r.id}" ${r.id===preselect?'selected':''}>${e(Layout.getName(r))}</option>`).join('')}
                   </select>
                   <input type="text" class="input input-bordered input-sm flex-1 min-w-[200px] hidden" data-role="transfer-note" placeholder="Комментарий (например «уточнит позже»)" value="${e(initial.transferNote || '')}">
                 </div>
             `;
             const cb = ex.querySelector('[data-role="undecided"]');
             const sel = ex.querySelector('[data-role="target-retreat"]');
+            RetreatSelect.fill(sel, _retreats, { selected: preselect });
             const note = ex.querySelector('[data-role="transfer-note"]');
             const sync = () => {
                 if (cb.checked) {
@@ -315,11 +315,11 @@
                 <div class="flex flex-wrap items-center gap-2">
                   <select class="select select-bordered select-sm flex-1 min-w-[200px]" data-role="donation-retreat" required>
                     <option value="">— ${e(t('crm_target_retreat'))} (обязательно) —</option>
-                    ${_retreats.map(r => `<option value="${r.id}">${e(Layout.getName(r))}</option>`).join('')}
                   </select>
                   <input type="text" class="input input-bordered input-sm flex-1 min-w-[200px]" data-role="donation-note" placeholder="Комментарий (необязательно)" value="${e(initial.donationNote || '')}">
                 </div>
             `;
+            RetreatSelect.fill(ex.querySelector('[data-role="donation-retreat"]'), _retreats);
         }
     }
 
