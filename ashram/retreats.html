@@ -287,6 +287,15 @@
                     <p class="text-xs opacity-50 mt-1" data-i18n="retreats_cafe_eligible_hint">Выключите для ретритов, не связанных с кафе (например, внутренние проекты) — их не будет предлагать подсказка ретрита при вводе прихода/расхода кафе</p>
                 </div>
 
+                <!-- Спонсор (ВГ 23.10.2026): за чей счёт ретрит — видно сразу при заведении.
+                     Тот же выбор, что в Финансах → Аналитика (мигр. 740); видят финансисты -->
+                <div id="sponsorSection" class="form-control hidden">
+                    <label class="label"><span class="label-text font-medium">Траты ретрита оплачивает</span></label>
+                    <select id="sponsorSelect" class="select select-bordered w-full"></select>
+                    <div id="sponsorInfo" class="text-xs mt-1 space-y-0.5"></div>
+                    <p class="text-xs opacity-50 mt-1">Все траты ретрита и себестоимость прасада сами зачитываются на счёт этого человека: минус — мы ему должны, плюс — он нам.</p>
+                </div>
+
                 <!-- Registration Settings -->
                 <div class="divider text-sm opacity-50" data-i18n="retreats_registration">Регистрация</div>
 
@@ -880,6 +889,7 @@
             }
 
             Layout.setupAutoTranslate('#retreatForm', ['name', 'description']);
+            fillSponsor(id);
             modal.showModal();
         }
 
@@ -979,6 +989,47 @@
             form.requestSubmit();
         }
 
+        // ==================== СПОНСОР ====================
+        let sponsorLoaded;   // account_id при открытии ('' — за счёт ашрама); undefined — блок скрыт
+        async function fillSponsor(id) {
+            const section = document.getElementById('sponsorSection');
+            const sel = document.getElementById('sponsorSelect');
+            const info = document.getElementById('sponsorInfo');
+            sponsorLoaded = undefined;
+            section.classList.add('hidden');
+            const { data, error } = await Layout.db.rpc('fin_get_retreat_sponsor', { p_retreat: id || '00000000-0000-0000-0000-000000000000' });
+            if (error || !data || editingId !== id) return;   // нет доступа к финансам — блока нет
+            const admin = window.hasPermission?.('fin_admin');
+            if (!admin && !data.account_id) return;
+            const esc = s => Layout.escapeHtml(String(s ?? ''));
+            sel.innerHTML = `<option value="">— за счёт ашрама —</option>` +
+                (data.candidates || []).map(a => `<option value="${a.id}" ${a.id === data.account_id ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+            sel.disabled = !admin;
+            const money = (v, c) => Number(v).toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ' + ({ INR: '₹', RUB: '₽', USD: '$', EUR: '€' }[c] || c);
+            const bal = (data.sponsor_balances || []).map(b => {
+                const v = Number(b.balance);
+                return `<span class="${v < 0 ? 'text-error' : v > 0 ? 'text-success' : ''}">${esc(b.name)}: ${money(v, b.currency)}${v < 0 ? ' (мы должны)' : v > 0 ? ' (должен нам)' : ''}</span>`;
+            }).join(' · ');
+            const offs = (data.offsets || []).map(o => money(o.amount, o.currency)).join(' + ');
+            const warn = (data.suspects || []).length ? `<div class="text-warning">⚠ Похоже на траты ретрита без пометки: ${data.suspects.length}</div>` : '';
+            info.innerHTML = id && data.account_id ? `${offs ? `<div>Зачтено: ${offs}</div>` : ''}${bal ? `<div>${bal}</div>` : ''}${warn}
+                <a class="link link-primary" href="../finance/analytics.html?retreat=${id}">Подробно в Финансах →</a>` : '';
+            sponsorLoaded = data.account_id || '';
+            section.classList.remove('hidden');
+        }
+
+        async function saveSponsor(retreatId) {
+            if (sponsorLoaded === undefined || !window.hasPermission?.('fin_admin')) return;
+            const sel = document.getElementById('sponsorSelect');
+            if (sel.value === sponsorLoaded) return;
+            const name = sel.selectedOptions[0]?.textContent || '';
+            if (!confirm(sel.value
+                ? `Все траты и прасад этого ретрита будут зачтены на «${name}». Продолжить?`
+                : 'Снять спонсора? Все зачёты этого ретрита будут сторнированы.')) return;
+            const { error } = await Layout.db.rpc('fin_set_retreat_sponsor', { p_retreat: retreatId, p_account: sel.value || null });
+            if (error) Layout.handleError(error, 'Спонсор ретрита');
+        }
+
         async function saveRetreat(e) {
             e.preventDefault();
             const form = document.getElementById('retreatForm');
@@ -1050,6 +1101,8 @@
                         .eq('id', retreatId);
                     if (error) throw error;
                 }
+
+                await saveSponsor(retreatId);
 
                 Cache.invalidate('retreats'); Cache.invalidate('all_retreats');
                 closeModal();
