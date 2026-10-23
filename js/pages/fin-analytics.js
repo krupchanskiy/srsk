@@ -1211,6 +1211,14 @@ async function fillSponsor(retreatId, token) {
     const missing = (s.missing_accounts || []).map(m => `<div class="text-sm">
             ${e(DateUtils.formatShort(DateUtils.parseDate(m.date)))} · ${e(FinUtils.fmtMoney(m.amount, m.currency))}</div>`).join('');
     const missingCur = [...new Set((s.missing_accounts || []).map(m => m.currency))].join(', ');
+    // ⚠ траты в дни ретрита без пометки ретрита — не попали в зачёт (мигр. 742)
+    const suspects = (s.suspects || []).map(x => `<div class="flex items-start gap-2 text-sm border-t border-warning-content/10 pt-1">
+            <div class="flex-1 min-w-0">${e(DateUtils.formatShort(DateUtils.parseDate(x.occurred_on)))} · ${e(x.account_name)} · ${e(x.category || '')} ·
+                <span class="font-mono">${e(FinUtils.fmtMoney(x.amount, x.currency_code))}</span>
+                <div class="text-xs opacity-80 truncate">${e(x.comment || '')}</div></div>
+            <a class="link text-xs whitespace-nowrap" href="dds.html?op=${e(x.operation_id)}">${e(tr('fin_sp_set_retreat', 'поставить ретрит'))} →</a>
+            ${admin ? `<button class="btn btn-ghost btn-xs" data-action="sponsor-dismiss" data-op="${e(x.operation_id)}">${e(tr('fin_sp_dismiss', 'не относится'))}</button>` : ''}
+        </div>`).join('');
     box.innerHTML = `<div class="card bg-base-100 shadow-sm"><div class="card-body py-4 space-y-2">
         <div class="flex items-center gap-3 flex-wrap">
             <h2 class="card-title text-base">${e(tr('fin_sp_title', 'Траты ретрита оплачивает'))}</h2>
@@ -1224,6 +1232,7 @@ async function fillSponsor(retreatId, token) {
                 ${(s.sponsor_balances || []).map(b => `<span>${e(b.name)}: ${bal(b)}</span>`).join('')}</div>
             ${missing ? `<div class="alert alert-warning py-2 block space-y-1">⚠ ${e(tr('fin_sp_missing', 'Не зачтено — у спонсора нет счёта в валюте'))} ${e(missingCur)}: ${(s.missing_accounts || []).length}${missing}
                 <a class="link text-sm" href="accounts.html">${e(tr('fin_sp_open_account', 'Открыть счёт спонсора в этой валюте (тот же департамент)'))} →</a></div>` : ''}
+            ${suspects ? `<div class="alert alert-warning py-2 block space-y-1">⚠ ${e(tr('fin_sp_suspects', 'Похоже на траты ретрита, но ретрит не указан — в зачёт не попали'))}: ${(s.suspects || []).length}${suspects}</div>` : ''}
             <p class="text-xs opacity-60">${e(tr('fin_sp_note', 'Каждая трата ретрита и себестоимость прасада сами зачитываются спонсору; сторно или правка траты — зачёт следует сам. Каждая валюта — на своём счёте, без курса. Плюс в одной валюте при долге в другой закрывается обменом: перевод между счетами спонсора с двумя суммами — по вашему курсу.'))}</p>`
         : `<p class="text-xs opacity-60">${e(tr('fin_sp_hint', 'Выберите счёт человека, который оплачивает этот ретрит: его траты и прасад будут зачитываться ему (минус на счёте — мы ему должны, плюс — он нам).'))}</p>`}
     </div></div>`;
@@ -1237,6 +1246,13 @@ async function fillSponsor(retreatId, token) {
             ? tr('fin_sp_confirm_set', 'Все траты и прасад этого ретрита будут зачтены на «{name}». Продолжить?').replace('{name}', name)
             : tr('fin_sp_confirm_unset', 'Снять спонсора? Все зачёты этого ретрита будут сторнированы.'))) { loadReport(); return; }
         const { error } = await Layout.db.rpc('fin_set_retreat_sponsor', { p_retreat: currentRetreat, p_account: sel.value || null });
+        if (error) { Layout.handleError(error, 'Спонсор'); return; }
+        loadReport();
+    });
+    box.addEventListener('click', async ev => {
+        const btn = ev.target.closest('[data-action="sponsor-dismiss"]');
+        if (!btn) return;
+        const { error } = await Layout.db.rpc('fin_sponsor_dismiss', { p_retreat: currentRetreat, p_operation: btn.dataset.op });
         if (error) { Layout.handleError(error, 'Спонсор'); return; }
         loadReport();
     });
