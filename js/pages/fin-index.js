@@ -57,6 +57,11 @@ async function loadDashboard() {
 
         document.getElementById('realBalances').innerHTML = renderCurrencyMap(realMap);
         document.getElementById('custodialBalances').innerHTML = renderCurrencyMap(custMap);
+        // Список, как у «Минусов» (ВГ 23.10): у кого деньги на руках или кто должен нам
+        document.getElementById('custodialList').innerHTML = custodialPositive
+            .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+            .map(a => `<a href="dds.html?account=${a.account_id}" class="block hover:underline">${e(a.name)}: ${FinUtils.fmtMoney(a.balance, a.currency_code)}</a>`)
+            .join('');
         document.getElementById('totalBalances').innerHTML = renderCurrencyMap(totalMap);
         animateCounts();
     }
