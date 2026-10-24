@@ -95,6 +95,9 @@ function dishCost(recipe, portionSize, servings, date, d) {
 //   kits:       { breakfast: [{product_id, quantity}], lunch: [...] }
 //   externals:  { [meal_id]: [{name, amount, kind, per_person}] }  kind own_cook — готовил повар из наших продуктов
 //   counts:     результат EatingUtils.loadCounts
+// «Готовил из наших продуктов»: кто готовил и что (комментарий в меню)
+const ownCookLabel = x => [x.name, x.comment].filter(Boolean).join(' — ');
+
 function computeCosts(input) {
     const { meals, recipes, products, densities, units, prices, kits, externals, counts } = input;
 
@@ -174,12 +177,16 @@ function computeCosts(input) {
         const external = extRows.reduce((s, x) => s + Number(x.amount), 0);
         const ownCook = allExt.filter(x => x.kind === 'own_cook');
         if (ownCook.length) {
-            const add = ownCook.reduce((s, x) => s + Number(x.per_person || 0), 0) * eaters;
-            food += add;
-            foodByProduct.own_cook = (foodByProduct.own_cook || 0) + add;
+            // по поварам: «own_cook:Готовил Бридж Кишор — плов» — в графике и раскрытии видно, кто и что готовил
+            for (const x of ownCook) {
+                const add = Number(x.per_person || 0) * eaters;
+                const key = `own_cook:${ownCookLabel(x)}`;
+                food += add;
+                foodByProduct[key] = (foodByProduct[key] || 0) + add;
+            }
         }
         const record = { date: meal.date, meal: meal.meal_type, portions: meal.portions || null, eaters,
-                         food, foodByProduct, dishwarePerEater, external, externalNames: extRows.map(x => x.name), ownCookNames: ownCook.map(x => x.name),
+                         food, foodByProduct, dishwarePerEater, external, externalNames: extRows.map(x => x.name), ownCookNames: ownCook.map(ownCookLabel),
                          ownDishes: (meal.dishes || []).length, byEvent };
 
         if (eaters === 0) {
@@ -418,7 +425,7 @@ async function load(db, locationId, from, to) {
 
     const mealIds = meals.map(m => m.id);
     const externalRows = mealIds.length
-        ? await fetchAll(() => db.from('menu_external_items').select('id, meal_id, name, amount, kind, per_person').in('meal_id', mealIds))
+        ? await fetchAll(() => db.from('menu_external_items').select('id, meal_id, name, amount, kind, per_person, comment').in('meal_id', mealIds))
         : [];
     const externals = {};
     externalRows.forEach(x => (externals[x.meal_id] = externals[x.meal_id] || []).push(x));

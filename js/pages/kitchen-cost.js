@@ -1150,7 +1150,7 @@ async function renderCharts() {
 
     if (top.length) charts.push(new Chart(document.getElementById('chTop'), {
         type: 'bar',
-        data: { labels: top.map(([pid]) => view.result.productNames[pid] || (pid === 'own_cook' ? tr('menu_own_cook_title', 'Готовил из наших продуктов') : pid)), datasets: [{ label: tr('cost_food', 'Продукты'), data: top.map(([, v]) => v), backgroundColor: PART_COLORS.food }] },
+        data: { labels: top.map(([pid]) => view.result.productNames[pid] || (pid.startsWith('own_cook') ? pid.slice(9) || tr('menu_own_cook_title', 'Готовил из наших продуктов') : pid)), datasets: [{ label: tr('cost_food', 'Продукты'), data: top.map(([, v]) => v), backgroundColor: PART_COLORS.food }] },
         options: { ...base, indexAxis: 'y', plugins: { legend: { display: false }, tooltip: moneyTip }, scales: { x: { ticks: { callback: money0 } } } }
     }));
 
@@ -1199,8 +1199,10 @@ function personRows(match, split) {
         const key = `${x.vaishnava_id || x.ref_id}|${part}`;
         const n = x.kind === 'group' ? (Number(x.people) || 1) : 1;
         const p = people.get(key) || { key, part, vaishnavaId: x.vaishnava_id, kind: x.kind, refId: x.ref_id, bucket: x.bucket,
-                                       n, days: new Set(), bf: 0, ln: 0, pm: 0, cost: 0 };
+                                       n, days: new Set(), bf: 0, ln: 0, pm: 0, cost: 0, reasons: new Set(), shared: false };
         p.n = Math.max(p.n, n);
+        p.reasons.add(reasonOf(x));
+        if (Number(x.w) < 1) p.shared = true;
         if (x.breakfast || x.lunch) p.days.add(x.d);
         // волонтёр между ретритами — доля w в каждом (697)
         const nw = n * (Number(x.w) || 1);
@@ -1212,6 +1214,25 @@ function personRows(match, split) {
         people.set(key, p);
     }
     return [...people.values()];
+}
+
+// Почему человек здесь и почему его еда — на этот ретрит или на департамент (ВГ 24.10: поимённо с причиной)
+function reasonOf(x) {
+    const r = !!x.retreat_id;
+    if (x.share === 'retreat_volunteer') return tr('cost_why_rv', 'Волонтёр ретрита, отмечен в шахматке');
+    if (x.share === 'retreat_volunteer_unmarked') return tr('cost_why_rv_unmarked', '⚠ Волонтёр ретрита — в брони не отмечены ретриты');
+    if (x.share === 'shrsk_volunteer') return r ? tr('cost_why_shrsk', 'Волонтёр ШРСК — ел в дни ретрита (±3 дня)') : tr('cost_why_shrsk_general', 'Волонтёр ШРСК — вне ретритов, общий расход');
+    if (x.kind === 'registration') return tr('cost_why_registration', 'Регистрация на ретрит, ещё не расселён');
+    if (x.kind === 'extra_child') return tr('cost_why_child', 'Ребёнок при родителе, без своего места');
+    if (x.kind === 'group') return r ? tr('cost_why_group', 'Группа питания ретрита') : tr('cost_why_group_none', 'Группа питания без события');
+    const why = {
+        team: r ? tr('cost_why_team_r', 'Команда, бронь с ретритом') : tr('cost_why_team', 'Постоянная команда — за счёт департамента'),
+        volunteers: r ? tr('cost_why_vol_r', 'Волонтёр, бронь с ретритом') : tr('cost_why_vol', 'Постоянный волонтёр — за счёт департамента'),
+        guests: r ? tr('cost_why_guest_r', 'Участник, бронь с ретритом') : tr('cost_why_guest', 'Гость без события'),
+        vips: r ? tr('cost_why_vip_r', 'Важный гость, бронь с ретритом') : tr('cost_why_vip', 'Важный гость без события'),
+        expected: tr('cost_why_expected', 'Бронь, заезд ещё не отмечен')
+    };
+    return why[x.bucket] || '';
 }
 
 function personLabel(p) {
@@ -1233,7 +1254,8 @@ function peopleTable(list, withBucket) {
             <th class="text-right">${e(tr('cost_person_meals', 'Приёмов пищи'))}</th>
             <th class="text-right">${e(tr('cost_total', 'Всего'))}</th></tr></thead>
         <tbody>${list.map(p => `<tr class="${p.pm ? '' : 'opacity-50'}">
-            <td>${p.vaishnavaId ? `<a class="link link-hover" href="../vaishnavas/person.html?id=${p.vaishnavaId}">${e(personLabel(p))}</a>` : e(personLabel(p))}</td>
+            <td>${p.vaishnavaId ? `<a class="link link-hover" href="../vaishnavas/person.html?id=${p.vaishnavaId}">${e(personLabel(p))}</a>` : e(personLabel(p))}
+                <div class="text-xs opacity-60">${e([...p.reasons].filter(Boolean).join('; '))}${p.shared ? ` · ${e(tr('cost_why_shared', 'часть дней — пополам с другими ретритами'))}` : ''}</div></td>
             ${withBucket ? `<td class="text-xs">${p.bucket === 'team' || p.bucket === 'volunteers'
                 ? `<span class="badge badge-sm border-0 text-white" style="background:${BUCKET_COLORS[p.bucket]}">${e(BUCKET_LABELS[p.bucket]())}</span>`
                 : `<span class="opacity-70">${e(BUCKET_LABELS[p.bucket]())}</span>`}</td>` : ''}

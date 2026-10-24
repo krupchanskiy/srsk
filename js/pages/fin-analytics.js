@@ -196,14 +196,14 @@ async function openCostDrill(rowEl) {
             if (!part) continue;
             for (const [pid, c] of Object.entries(r.foodByProduct || {})) byProd[pid] = (byProd[pid] || 0) + c * part;
         }
-        const ids = Object.keys(byProd).filter(x => x !== 'own_cook');
+        const ids = Object.keys(byProd).filter(x => !x.startsWith('own_cook'));
         const names = new Map();
         for (let i = 0; i < ids.length; i += 100) {
             const { data } = await Layout.db.from('products').select('id, name_ru').in('id', ids.slice(i, i + 100));
             (data || []).forEach(p => names.set(p.id, p.name_ru));
         }
         if (token !== drillToken) return;
-        rows = Object.entries(byProd).map(([pid, v]) => ({ title: pid === 'own_cook' ? tr('fin_pu_own_cook', 'Готовил Бридж Кишор') : (names.get(pid) || '—'), amount: v }));
+        rows = Object.entries(byProd).map(([pid, v]) => ({ title: pid.startsWith('own_cook') ? pid.slice(9) || tr('fin_pu_own_cook', 'Готовил Бридж Кишор') : (names.get(pid) || '—'), amount: v }));
     } else if (key === 'dish' || key === 'ext') {
         for (const r of st.res.mealRecords || []) {
             const { n, part } = share(r);
