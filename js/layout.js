@@ -29,7 +29,9 @@ const modules = {
                 { id: 'recipes', href: 'kitchen/recipes.html' },
                 { id: 'products', href: 'kitchen/products.html' },
                 { id: 'prices', href: 'kitchen/prices.html' },
-                { id: 'cost', href: 'kitchen/cost.html' }
+                { id: 'cost', href: 'kitchen/cost.html' },
+                // деньги департамента — в его модуле (ВГ 24.10); Кухня или Кафе — по выбранной кухне
+                { id: 'dept_account', href: 'kitchen/account.html' }
             ]},
             { id: 'stock', items: [
                 { id: 'stock_balance', href: 'stock/stock.html' },
@@ -226,7 +228,8 @@ const modules = {
             ]},
             { id: 'shop_money', items: [
                 { id: 'shop_owners', href: 'shop/owners.html' },
-                { id: 'shop_analytics', href: 'shop/analytics.html' }
+                { id: 'shop_analytics', href: 'shop/analytics.html' },
+                { id: 'dept_account', href: 'shop/account.html' }
             ]}
         ]
     },
@@ -245,6 +248,7 @@ const modules = {
                 { id: 'worship_library', href: 'worship/library.html' },
                 { id: 'worship_gallery', href: 'worship/gallery.html' },
                 { id: 'worship_kits', href: 'worship/kits.html' },
+                { id: 'dept_account', href: 'worship/account.html' },
                 // звёздочка вместо слова: знак закладок понятен всем и занимает меньше места
                 { id: 'worship_bookmarks', href: 'worship/bookmarks.html', icon: 'star' }
             ]}
@@ -381,6 +385,10 @@ const pagePermissions = {
     // Департаменты: финансисты — все, глава и люди из списка «Кто видит» — свои (сервер проверяет, что департамент свой)
     'departments/index.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
     'departments/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
+    // «Счёт» в модуле департамента: финансисты и кто видит департамент (сервер решает, какой)
+    'kitchen/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
+    'shop/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
+    'worship/account.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
     'worship/standards.html': 'worship_view',
     'worship/schedule.html': 'worship_view',
     'worship/people.html': 'worship_view',

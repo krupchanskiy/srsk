@@ -19,6 +19,16 @@ const WORK_MODULES = {
     worship: { href: '../worship/index.html', perms: ['worship_view'] }
 };
 
+// У департамента со своим модулем «Счёт» живёт в самом модуле (ВГ 24.10): всё о департаменте —
+// в одном месте. Плитка ведёт туда; Кафе — та же страница Кухни, локация «Кухня кафе»
+const MODULE_ACCOUNT = {
+    kitchen: '../kitchen/account.html?d=kitchen',
+    cafe: '../kitchen/account.html?d=cafe',
+    shop: '../shop/account.html',
+    worship: '../worship/account.html'
+};
+const accountHref = d => MODULE_ACCOUNT[d.code] || `account.html?d=${encodeURIComponent(d.id)}`;
+
 async function loadMine() {
     const { data, error } = await Layout.db.rpc('fin_my_departments');
     if (error) { Layout.handleError(error, 'Департаменты'); return []; }
@@ -32,7 +42,7 @@ const dot = color => Utils.isValidColor(color)
 async function initList() {
     await Layout.init({ module: 'departments', menuId: 'departments', itemId: 'departments' });
     const list = await loadMine();
-    if (list.length === 1) { location.replace(`account.html?d=${encodeURIComponent(list[0].id)}`); return; }
+    if (list.length === 1) { location.replace(accountHref(list[0])); return; }
     const box = $('deptTiles');
     if (!list.length) {
         $('deptEmpty').classList.remove('hidden');
@@ -40,7 +50,7 @@ async function initList() {
         return;
     }
     box.innerHTML = list.map(d => `
-        <a href="account.html?d=${encodeURIComponent(d.id)}"
+        <a href="${e(accountHref(d))}"
            class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow border-l-4"
            style="border-left-color:${Utils.isValidColor(d.color) ? d.color : '#d1d5db'}">
             <div class="card-body p-4 gap-1">
@@ -55,10 +65,12 @@ async function initList() {
 async function initAccount() {
     const d = new URLSearchParams(location.search).get('d');
     if (!d) { location.replace('index.html'); return; }
+    if (MODULE_ACCOUNT[d]) { location.replace(MODULE_ACCOUNT[d]); return; }   // старая ссылка по коду
     await DeptAccount.init({ department: d, module: 'departments', menuId: 'departments', itemId: 'departments' });
     const list = await loadMine();
     const dept = list.find(x => x.id === d || x.code === d);
     if (!dept) return;   // чужой департамент — DeptAccount уже показал «нет доступа»
+    if (MODULE_ACCOUNT[dept.code]) { location.replace(MODULE_ACCOUNT[dept.code]); return; }
     document.title = `${dept.name} — ШРСК`;
     $('deptName').textContent = dept.name;
     $('deptDot').innerHTML = dot(dept.color);
@@ -68,7 +80,7 @@ async function initAccount() {
         const sw = $('deptSwitch');
         sw.innerHTML = list.map(x => `<option value="${e(x.id)}" ${x.id === dept.id ? 'selected' : ''}>${e(x.name)}</option>`).join('');
         sw.classList.remove('hidden');
-        sw.addEventListener('change', () => { location.href = `account.html?d=${encodeURIComponent(sw.value)}`; });
+        sw.addEventListener('change', () => { location.href = accountHref(list.find(x => x.id === sw.value)); });
     }
     const mod = WORK_MODULES[dept.code];
     if (mod && mod.perms.some(p => window.hasPermission?.(p))) {
@@ -77,5 +89,15 @@ async function initAccount() {
     }
 }
 
-return { initList, initAccount };
+// ---------- «Счёт» внутри модуля департамента (kitchen|shop|worship/account.html) ----------
+async function initModuleAccount({ code, module, menuId }) {
+    await DeptAccount.init({ department: code, module, menuId, itemId: 'dept_account' });
+    const dept = (await loadMine()).find(x => x.code === code);
+    if (!dept) return;
+    document.title = `${tr('nav_dept_account', 'Счёт')}: ${dept.name} — ШРСК`;
+    $('deptName').textContent = dept.name;
+    $('deptDot').innerHTML = dot(dept.color);
+}
+
+return { initList, initAccount, initModuleAccount };
 })();
