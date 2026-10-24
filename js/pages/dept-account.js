@@ -346,12 +346,15 @@ function renderRevenue() {
             <div class="text-xl font-bold mt-1 text-blue-600">${byCurrency(g.rows)}</div>
             <div class="text-xs opacity-50">≈ ${money(base(g.rows), 'INR')}</div>
         </button>`).join('');
+    // итог не стоит в ряду со своими слагаемыми — он над ними, на всю ширину (правило ВГ 24.10)
     $('daccRevSummary').innerHTML = `
-        <div class="bg-base-100 rounded-xl shadow-sm p-4">
+        <div class="bg-base-100 rounded-xl shadow-sm p-5 sm:col-span-2 lg:col-span-3 border-l-4 border-blue-500">
             <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('dacc_rev_total', 'Выручка за период'))} · ${live.length}</div>
-            <div class="text-2xl font-bold mt-1 text-blue-600">${byCurrency(live)}</div>
-            <div class="text-xs opacity-50">≈ ${money(base(live), 'INR')} · ${e(tr('dacc_rev_hint', 'с любого счёта, куда сдали деньги; «≈» — в рупиях по курсу дня'))}</div>
-        </div>${cards}`;
+            <div class="text-3xl font-bold mt-1 text-blue-600">${money(base(live), 'INR')}</div>
+            <div class="text-sm opacity-70 mt-1">${byCurrency(live)}</div>
+            <div class="text-xs opacity-50 mt-1">${e(tr('dacc_rev_hint', 'с любого счёта, куда сдали деньги; «≈» — в рупиях по курсу дня'))}</div>
+        </div>
+        ${cards ? `<div class="sm:col-span-2 lg:col-span-3 text-xs uppercase tracking-wide opacity-60 px-1 -mb-1">${e(tr('dacc_rev_parts', 'Из чего сложилась'))}</div>${cards}` : ''}`;
     // список статей для фильтра — по всей выручке, не только за период
     const sel = $('daccRevCat');
     const all = [...new Map(incomeRows.map(r => [r.category_id, r.category_name])).entries()].sort((a, b) => a[1].localeCompare(b[1], 'ru'));
@@ -539,16 +542,15 @@ function renderAnalytics() {
         <div class="text-xs uppercase tracking-wide opacity-60">${e(label)}</div>
         <div class="text-2xl font-bold mt-1 ${cls}">${value}</div>
         ${sub ? `<div class="text-xs opacity-60 mt-0.5">${sub}</div>` : ''}</div>`;
+    // «Итог» = выручка − расходы — над ними на всю ширину, а не в одном ряду (правило ВГ 24.10)
     const kpis = [
+        `<div class="col-span-2 bg-base-100 rounded-xl shadow-sm p-5 border-l-4 ${res >= 0 ? 'border-green-500' : 'border-red-500'} ${n > 1 ? 'cursor-pointer hover:shadow-md' : ''}" ${n > 1 ? 'data-dacc-an-result' : ''}>
+            <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('dacc_an_result', 'Итог'))}${n > 1 ? ` <span class="opacity-60">${anResultOpen ? '▾' : '▸'}</span>` : ''}</div>
+            <div class="text-3xl font-bold mt-1 ${res >= 0 ? 'text-green-600' : 'text-red-600'}">${sgn(res)}</div>
+            <div class="text-sm opacity-70 mt-1">${inr(d.revenue.sum)} − ${inr(d.costs.sum)}${d.revenue.sum ? ` · ${Math.round(res / d.revenue.sum * 100)}% ${e(tr('dacc_an_margin', 'от выручки'))}` : ''}${n > 1 ? ` · ${e(tr('dacc_an_per_bucket', 'в среднем за'))} ${stepWord}: ${sgn(res / n)}` : ''}</div></div>`,
         kpi(tr('dacc_an_revenue', 'Выручка'), inr(d.revenue.sum), 'text-blue-600', revCurLine),
         kpi(tr('dacc_an_costs', 'Расходы'), inr(d.costs.sum), 'text-red-600',
-            d.revenue.sum ? `${Math.round(d.costs.sum / d.revenue.sum * 100)}% ${e(tr('dacc_an_margin', 'от выручки'))}` : ''),
-        `<div class="bg-base-100 rounded-xl shadow-sm p-4 ${n > 1 ? 'cursor-pointer hover:shadow-md' : ''}" ${n > 1 ? 'data-dacc-an-result' : ''}>
-            <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('dacc_an_result', 'Итог'))}${n > 1 ? ` <span class="opacity-60">${anResultOpen ? '▾' : '▸'}</span>` : ''}</div>
-            <div class="text-2xl font-bold mt-1 ${res >= 0 ? 'text-green-600' : 'text-red-600'}">${sgn(res)}</div>
-            <div class="text-xs opacity-60 mt-0.5">${inr(d.revenue.sum)} − ${inr(d.costs.sum)}${d.revenue.sum ? ` · ${Math.round(res / d.revenue.sum * 100)}% ${e(tr('dacc_an_margin', 'от выручки'))}` : ''}</div></div>`,
-        n > 1 ? kpi(`${tr('dacc_an_per_bucket', 'в среднем за')} ${stepWord}`, sgn(res / n), res >= 0 ? 'text-green-600' : 'text-red-600',
-            `${inr(d.revenue.sum / n)} − ${inr(d.costs.sum / n)}`) : ''
+            d.revenue.sum ? `${Math.round(d.costs.sum / d.revenue.sum * 100)}% ${e(tr('dacc_an_margin', 'от выручки'))}` : '')
     ].join('');
     const sections = [['summary', tr('dacc_an_sec_summary', 'Сводка')], ['table', tr('dacc_an_sec_table', 'По месяцам')], ['charts', tr('cost_section_charts', 'Графики')]];
     const stepBtn = (s, key, ru) => `<button class="btn btn-sm join-item ${step === s ? 'btn-active' : ''}" data-dacc-step="${s}">${e(tr(key, ru))}</button>`;
@@ -702,7 +704,7 @@ function renderAnalytics() {
             <span class="font-mono font-semibold ${d.result[i] >= 0 ? 'text-green-600' : 'text-red-600'}">${sgn(d.result[i])}</span>
         </div>`).join('')}</div>` : '';
     box.innerHTML = `
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">${kpis}</div>
+        <div class="grid grid-cols-2 gap-3 mb-3">${kpis}</div>
         ${resultList}
         <div class="text-xs opacity-60 mb-3">${e(fmtDay(d.from))} — ${e(fmtDay(d.to))} · ${e(tr('dacc_an_base_hint', 'Все суммы — в рупиях по курсу дня операции, все валюты вместе; сторно не учитывается'))}</div>
         <div class="flex flex-wrap items-center gap-3 mb-4">
