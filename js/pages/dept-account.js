@@ -542,12 +542,32 @@ function renderAnalytics() {
         <div class="text-xs uppercase tracking-wide opacity-60">${e(label)}</div>
         <div class="text-2xl font-bold mt-1 ${cls}">${value}</div>
         ${sub ? `<div class="text-xs opacity-60 mt-0.5">${sub}</div>` : ''}</div>`;
+    // Кухня: ждём поступлений — начислено за питание, не оплачено; сразу под итогом, а не внизу (ВГ 24.10).
+    // В итог не входит: выручка — по дате оплаты
+    function mealsWaitHtml() {
+        const list = mealsOpen.filter(m => Number(m.debt) > 0);
+        const sum = list.reduce((a, m) => a + Number(m.debt), 0);
+        if (!sum) return '';
+        const open = anOpen.has('meals_debt');
+        return `<div class="col-span-2 bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-2.5">
+            <div class="flex items-center gap-2 text-sm cursor-pointer" data-dacc-an-open="meals_debt">
+                <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                <span class="flex-1">${e(tr('dacc_an_meals_wait', 'Ждём поступлений: начислено за питание, не оплачено'))} <span class="opacity-60">· ${list.length} ${open ? '▾' : '▸'}</span></span>
+                <span class="font-mono font-semibold whitespace-nowrap">${inr(sum)}</span></div>
+            ${open ? `<div class="mt-2 ml-7 text-sm">${list.map(m => `<div class="flex items-baseline gap-2 py-0.5">
+                <span class="flex-1">${e(m.retreat_name)} <span class="opacity-60 text-xs">${m.start_date ? `${fmtDay(m.start_date)} – ${fmtDay(m.end_date)}` : ''}</span></span>
+                <span class="opacity-60 text-xs whitespace-nowrap hidden sm:inline">${e(tr('dacc_an_meals_charged', 'начислено'))} ${inr(m.charged)} · ${e(tr('dacc_an_meals_paid', 'оплачено'))} ${inr(m.paid)}</span>
+                <span class="font-mono whitespace-nowrap">${inr(m.debt)}</span></div>`).join('')}
+                <div class="text-xs opacity-70 mt-1">${e(tr('dacc_an_meals_wait_hint', 'В итог не входит: выручка считается по дате оплаты'))}</div></div>` : ''}
+        </div>`;
+    }
     // «Итог» = выручка − расходы — над ними на всю ширину, а не в одном ряду (правило ВГ 24.10)
     const kpis = [
         `<div class="col-span-2 bg-base-100 rounded-xl shadow-sm p-5 border-l-4 ${res >= 0 ? 'border-green-500' : 'border-red-500'} ${n > 1 ? 'cursor-pointer hover:shadow-md' : ''}" ${n > 1 ? 'data-dacc-an-result' : ''}>
             <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('dacc_an_result', 'Итог'))}${n > 1 ? ` <span class="opacity-60">${anResultOpen ? '▾' : '▸'}</span>` : ''}</div>
             <div class="text-3xl font-bold mt-1 ${res >= 0 ? 'text-green-600' : 'text-red-600'}">${sgn(res)}</div>
             <div class="text-sm opacity-70 mt-1">${inr(d.revenue.sum)} − ${inr(d.costs.sum)}${d.revenue.sum ? ` · ${Math.round(res / d.revenue.sum * 100)}% ${e(tr('dacc_an_margin', 'от выручки'))}` : ''}${n > 1 ? ` · ${e(tr('dacc_an_per_bucket', 'в среднем за'))} ${stepWord}: ${sgn(res / n)}` : ''}</div></div>`,
+        mealsWaitHtml(),
         kpi(tr('dacc_an_revenue', 'Выручка'), inr(d.revenue.sum), 'text-blue-600', revCurLine),
         kpi(tr('dacc_an_costs', 'Расходы'), inr(d.costs.sum), 'text-red-600',
             d.revenue.sum ? `${Math.round(d.costs.sum / d.revenue.sum * 100)}% ${e(tr('dacc_an_margin', 'от выручки'))}` : '')
@@ -612,8 +632,8 @@ function renderAnalytics() {
                     <span class="flex-1">${e(m.retreat_name)} <span class="opacity-50 text-xs">${m.start_date ? `${fmtDay(m.start_date)} – ${fmtDay(m.end_date)}` : ''}</span></span>
                     <span class="font-mono">${inr(m[field])}</span></div>`).join('')}</div>` : ''}`;
         };
-        const mealsLines = mealsLine('meals_undated', tr('dacc_an_meals_undated', 'Оплачено до новой системы — без даты'), 'paid_undated')
-            + mealsLine('meals_debt', tr('dacc_an_meals_debt', 'Ожидается: начислено за питание, не оплачено'), 'debt');
+        // ожидаемое (долг) — под итогом, см. mealsWaitHtml
+        const mealsLines = mealsLine('meals_undated', tr('dacc_an_meals_undated', 'Оплачено до новой системы — без даты'), 'paid_undated');
         const mealsCard = mealsLines ? `<div class="bg-base-100 rounded-xl shadow-sm p-3 md:col-span-2 opacity-80">
             <div class="text-xs opacity-60 px-2 mb-1">${e(tr('dacc_an_meals_hint', 'Выручка — по дате оплаты. Эти суммы в неё не входят'))}</div>
             ${mealsLines}</div>` : '';
