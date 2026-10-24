@@ -202,10 +202,20 @@ function deptAccountsHtml(deptId, box = false) {
     const have = new Set(own.map(a => a.currency_code));
     const canAdd = FinUtils.refs.currencies.filter(c => !have.has(c.code));
 
+    // кассу ДДС можно передать другому департаменту: привязать любую наличную
+    // кассу ДДС в недостающей валюте, ✕ — открепить (мигр. 749, ВГ 24.10)
+    const deptName = id => rows.find(d => d.id === id)?.name || '';
+    const canAttach = box ? FinUtils.refs.accounts.filter(a => a.is_active && a.kind === 'real'
+        && a.reconciliation_mode === 'cash_count' && !have.has(a.currency_code)) : [];
+
     const list = own.length
-        ? own.map(a => `<div class="flex justify-between gap-2 text-sm py-0.5">
+        ? own.map(a => `<div class="flex justify-between items-center gap-2 text-sm py-0.5">
                <span>${e(a.name)}</span>
-               <span class="font-mono opacity-70">${FinUtils.fmtMoney(a.balance, a.currency_code)}</span>
+               <span class="flex items-center gap-1">
+                   <span class="font-mono opacity-70">${FinUtils.fmtMoney(a.balance, a.currency_code)}</span>
+                   ${box ? `<button type="button" class="btn btn-ghost btn-xs px-1"
+                       onclick="FinDicts.moveCashbox('${deptId}', '${a.account_id}', null)">✕</button>` : ''}
+               </span>
            </div>`).join('')
         : `<div class="text-sm opacity-60">${t(box ? 'fin_dept_no_cashbox' : 'fin_dept_no_accounts')}</div>`;
 
@@ -219,6 +229,14 @@ function deptAccountsHtml(deptId, box = false) {
                 </select>
                 <button type="button" class="btn btn-outline btn-xs"
                         onclick="FinDicts.addAccount('${deptId}', ${box})">${t(box ? 'fin_dept_add_cashbox' : 'fin_dept_add_account')}</button>
+            </div>` : ''}
+            ${canAttach.length ? `<div class="flex gap-2 mt-2">
+                <select id="f_box_attach" class="select select-bordered select-xs min-w-0 flex-1">
+                    ${canAttach.map(a => `<option value="${a.account_id}">${e(a.name)}${a.cashbox_department_id
+                        ? ` — ${t('fin_dept_cashbox_now_at')} ${e(deptName(a.cashbox_department_id))}` : ''}</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-outline btn-xs"
+                        onclick="FinDicts.moveCashbox('${deptId}', document.getElementById('f_box_attach').value, '${deptId}')">${t('fin_dept_attach_cashbox')}</button>
             </div>` : ''}
         </div>
     </div>`;
@@ -432,6 +450,23 @@ async function addDeptAccount(deptId, box = false) {
     const fresh = document.createElement('div');
     fresh.innerHTML = deptAccountsHtml(deptId, box);
     document.getElementById(box ? 'deptCashboxBlock' : 'deptAccountsBlock')?.replaceWith(fresh.firstElementChild);
+}
+
+async function moveCashbox(deptId, accountId, targetDept) {
+    if (!accountId) return;
+    if (!targetDept) {
+        const name = FinUtils.refs.accounts.find(a => a.account_id === accountId)?.name || '';
+        if (!confirm(t('fin_dept_detach_cashbox_confirm').replace('{name}', name))) return;
+    }
+    const res = await FinUtils.rpc('fin_set_account_cashbox_department', {
+        p_account: accountId, p_department: targetDept
+    });
+    if (!FinUtils.handleResult(res)) return;
+    Layout.showNotification(t(targetDept ? 'fin_dept_cashbox_moved' : 'fin_dept_cashbox_detached'), 'success');
+    await FinUtils.reloadAccounts();
+    const fresh = document.createElement('div');
+    fresh.innerHTML = deptAccountsHtml(deptId, true);
+    document.getElementById('deptCashboxBlock')?.replaceWith(fresh.firstElementChild);
 }
 
 // ==================== ФОРМЫ ====================
@@ -754,6 +789,6 @@ async function init() {
     await loadTab();
 }
 
-window.FinDicts = { openAdd: () => openForm(null), addAccount: addDeptAccount };
+window.FinDicts = { openAdd: () => openForm(null), addAccount: addDeptAccount, moveCashbox };
 init();
 })();

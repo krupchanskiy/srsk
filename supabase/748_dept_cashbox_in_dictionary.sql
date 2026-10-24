@@ -45,13 +45,17 @@ CREATE OR REPLACE VIEW public.fin_v_account_balances AS
          LIMIT 1) r ON true
   WHERE fin_can_see_account(a.id);
 
-create or replace function fin_add_department_cashbox(p_department uuid, p_currency text)
+-- единственный аргумент payload jsonb — как у всех fin_* (FinUtils.rpc заворачивает в payload, мигр. 368)
+drop function if exists fin_add_department_cashbox(uuid, text);
+create or replace function fin_add_department_cashbox(payload jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path to 'public'
 as $$
 DECLARE
+  p_department uuid := nullif(payload->>'p_department', '')::uuid;
+  p_currency text := nullif(payload->>'p_currency', '');
   v_dept_name text;
   v_symbol text;
   v_acc uuid;
@@ -104,10 +108,10 @@ BEGIN
   RETURN jsonb_build_object('ok', true, 'result', jsonb_build_object('account_id', v_acc, 'name', v_name));
 END;
 $$;
-revoke all on function fin_add_department_cashbox(uuid, text) from public, anon;
-grant execute on function fin_add_department_cashbox(uuid, text) to authenticated;
+revoke all on function fin_add_department_cashbox(jsonb) from public, anon;
+grant execute on function fin_add_department_cashbox(jsonb) to authenticated;
 
-comment on function fin_add_department_cashbox(uuid, text) is
+comment on function fin_add_department_cashbox(jsonb) is
   'Завести кассу ДДС, которая хранится у департамента, в указанной валюте. Идемпотентна.';
 
 insert into translations (key, ru, en, hi, page) values
