@@ -100,7 +100,7 @@
             <!-- Главные цифры — видны всегда -->
             <div id="kpiBox" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4 hidden"></div>
 
-            <!-- Разделы: Расчёт / Касса (только «Период») / Графики / Данные -->
+            <!-- Разделы: Сводка / Из чего сложилось / Кто ел / По дням / Касса (только «Период») / Графики / Данные (ВГ 24.10) -->
             <div id="sectionBar" role="tablist" class="tabs tabs-boxed w-fit mb-4 hidden"></div>
 
             <!-- Сводка с итогом (раздел «Расчёт») -->
@@ -120,6 +120,9 @@
                 <p id="summaryNote" class="text-xs opacity-60 px-4 pb-3"></p>
             </div>
 
+            <!-- «Из чего сложилось»: итог над слагаемыми, строка ведёт во вкладку с операциями -->
+            <div id="partsBox" class="bg-base-100 rounded-xl shadow-sm p-4 mb-4 hidden"></div>
+
             <!-- Вкладки -->
             <div id="tabsBox" class="hidden">
                 <div role="tablist" class="tabs tabs-lifted" id="tabBar"></div>
@@ -130,7 +133,14 @@
                         <div class="overflow-x-auto"><table class="table table-sm w-full cost-table">
                             <thead id="eatersHead"></thead><tbody id="eatersBody"></tbody>
                         </table></div>
-                        <h3 class="font-semibold" data-i18n="cost_by_day">По дням</h3>
+                    </div>
+
+                    <div data-panel="days" class="hidden space-y-4">
+                        <p class="text-sm opacity-60" data-i18n="cost_days_hint">Каждый завтрак и обед: сколько человек ели, во что обошлись продукты и посуда по меню, доля зарплат, газа и света, хозрасходов — и цена одной порции. Нажмите на «Завтрак» / «Обед» — откроется меню этого дня.</p>
+                        <div class="overflow-x-auto max-h-[36rem]"><table class="table table-sm table-pin-rows w-full cost-table">
+                            <thead id="dayCostHead"></thead><tbody id="dayCostBody"></tbody>
+                        </table></div>
+                        <h3 class="font-semibold" data-i18n="cost_days_by_category">Сколько человек ели — по категориям</h3>
                         <div class="overflow-x-auto max-h-[32rem]"><table class="table table-sm table-pin-rows w-full cost-table">
                             <thead id="daysHead"></thead><tbody id="daysBody"></tbody>
                         </table></div>
@@ -341,6 +351,6 @@
     <script src="../js/layout.js?v=126"></script>
     <script src="../js/eating-utils.js?v=14"></script>
     <script src="../js/kitchen-cost.js?v=21"></script>
-    <script src="../js/pages/kitchen-cost.js?v=48"></script>
+    <script src="../js/pages/kitchen-cost.js?v=49"></script>
 </body>
 </html>

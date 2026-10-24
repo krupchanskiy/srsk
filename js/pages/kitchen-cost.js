@@ -42,9 +42,13 @@ const ALL_BUCKETS = ['team', 'volunteers', 'vips', 'guests', 'groups', 'expected
 let locationId = null;
 let caps = { view: false, edit: false };
 let retreats = [];
-// section: calc | now | charts | data; tab — вкладка «Расчёта», dataTab — вкладка «Данных»
-let state = { mode: 'retreat', step: 'month', retreatId: '', from: '', to: '', section: 'calc', tab: 'eaters', dataTab: 'completeness', cashTab: 'cashMonths' };
+// section: summary | parts | who | days | cash | charts | data (ВГ 24.10); tab — вкладка «Из чего сложилось» / «Кто ел»,
+// dataTab — вкладка «Данных»
+let state = { mode: 'retreat', step: 'month', retreatId: '', from: '', to: '', section: 'summary', tab: 'eaters', dataTab: 'completeness', cashTab: 'cashMonths' };
 const DATA_TABS = ['completeness', 'problems', 'settings'];
+// вкладка → раздел, в котором она лежит
+const TAB_SECTION = { direct: 'parts', overhead: 'parts', reconcile: 'parts', eaters: 'who', departments: 'who' };
+const SECTIONS = ['summary', 'parts', 'who', 'days', 'cash', 'charts', 'data'];
 let view = null;          // { from, to, result, detail, incomes }
 let calcToken = 0;
 let kits = { breakfast: [], lunch: [] };
@@ -79,6 +83,10 @@ const zero = () => ({ pm: 0, food: 0, dish: 0, ext: 0, ovR: 0, ovG: 0, prov: fal
 const direct = x => x.food + x.dish + x.ext;
 const overhead = x => x.ovR + x.ovG;
 const total = x => direct(x) + overhead(x);
+function addAgg(acc, x) {
+    acc.pm += x.pm; acc.food += x.food; acc.dish += x.dish; acc.ext += x.ext; acc.ovR += x.ovR; acc.ovG += x.ovG; acc.prov = acc.prov || x.prov;
+    return acc;
+}
 function addCell(acc, c) {
     if (!c) return acc;
     acc.pm += c.personMeals; acc.food += c.food; acc.dish += c.dishware; acc.ext += c.external;
@@ -308,7 +316,7 @@ async function calculate() {
 
 function hideResult() {
     view = null;
-    ['#summaryBox', '#tabsBox', '#kpiBox', '#sectionBar', '#qualityBanner', '#topBox'].forEach(sel => Layout.$(sel).classList.add('hidden'));
+    ['#summaryBox', '#tabsBox', '#kpiBox', '#sectionBar', '#qualityBanner', '#topBox', '#partsBox'].forEach(sel => Layout.$(sel).classList.add('hidden'));
 }
 
 // ==================== ROWS ====================
@@ -886,7 +894,10 @@ function problemCount() {
 function sectionList() {
     const problems = problemCount();
     return [
-        { id: 'calc', label: tr('cost_section_calc', 'Расчёт') },
+        { id: 'summary', label: tr('cost_section_summary', 'Сводка') },
+        { id: 'parts', label: tr('cost_section_parts', 'Из чего сложилось') },
+        { id: 'who', label: tr('cost_section_who', 'Кто ел') },
+        { id: 'days', label: tr('cost_section_days', 'По дням') },
         state.mode === 'period' ? { id: 'cash', label: tr('cost_section_cash', 'Касса') } : null,
         { id: 'charts', label: tr('cost_section_charts', 'Графики') },
         { id: 'data', label: `${tr('cost_section_data', 'Данные')}${problems ? ` (${problems})` : ''}`, warn: problems > 0 }
@@ -906,10 +917,12 @@ function tabList() {
         { id: 'cashMonths', label: tr('cost_tab_cash_months', 'По месяцам') },
         { id: 'cashYears', label: tr('cost_tab_cash_years', 'По годам') }
     ];
-    if (state.section !== 'calc') return [];
-    return [
+    if (state.section === 'who') return [
         { id: 'eaters', label: tr('cost_tab_eaters', 'Вкушающие') },
-        { id: 'departments', label: tr('cost_tab_departments', 'Команда и волонтёры') },
+        { id: 'departments', label: tr('cost_tab_departments', 'Команда и волонтёры') }
+    ];
+    if (state.section !== 'parts') return [];
+    return [
         { id: 'direct', label: tr('cost_tab_direct2', 'Продукты и посуда') },
         { id: 'overhead', label: tr('cost_tab_overhead2', 'Зарплаты, газ и свет, хозрасходы') },
         // сверка — проверка всей кухни: закупки в ДДС не помечены ретритом, поэтому только в «Периоде»
@@ -919,11 +932,13 @@ function tabList() {
 
 function renderTabs() {
     const sections = sectionList();
-    if (!sections.some(x => x.id === state.section)) state.section = 'calc';
+    if (!sections.some(x => x.id === state.section)) state.section = 'summary';
     Layout.$('#sectionBar').innerHTML = sections.map(x =>
         `<a role="tab" class="tab ${x.id === state.section ? 'tab-active' : ''} ${x.warn && x.id !== state.section ? 'text-warning' : ''}" data-action="section" data-section="${x.id}">${e(x.label)}</a>`).join('');
     Layout.$('#sectionBar').classList.remove('hidden');
-    Layout.$('#summaryBox').classList.toggle('hidden', state.section !== 'calc');
+    Layout.$('#summaryBox').classList.toggle('hidden', state.section !== 'summary');
+    Layout.$('#partsBox').classList.toggle('hidden', state.section !== 'parts');
+    if (state.section === 'parts') renderParts();
 
     const tabs = tabList();
     const cur = state.section === 'data' ? 'dataTab' : state.section === 'cash' ? 'cashTab' : 'tab';
@@ -931,10 +946,11 @@ function renderTabs() {
     Layout.$('#tabBar').innerHTML = tabs.map(x =>
         `<a role="tab" class="tab ${x.id === state[cur] ? 'tab-active [--tab-bg:oklch(var(--b1))]' : ''} ${x.warn ? 'text-warning' : ''}" data-action="tab" data-tab="${x.id}">${e(x.label)}${HOW_SECTIONS[x.id] ? `<span class="how-q" data-action="how" data-sec="${HOW_SECTIONS[x.id]}" title="${e(tr('cost_how_q_hint', 'Нажмите, чтобы открыть подсказку: как считается'))}">?</span>` : ''}</a>`).join('');
     Layout.$('#tabBar').classList.toggle('hidden', !tabs.length);
-    const panel = state.section === 'calc' ? state.tab : state.section === 'data' ? state.dataTab : state.section === 'cash' ? state.cashTab : state.section;
+    const panel = state.section === 'parts' || state.section === 'who' ? state.tab : state.section === 'data' ? state.dataTab : state.section === 'cash' ? state.cashTab : state.section;
     document.querySelectorAll('[data-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== panel));
-    Layout.$('#tabsBox').classList.remove('hidden');
-    ({ eaters: renderEaters, departments: renderDepartments, direct: renderDirect, overhead: renderOverhead,
+    // «Сводка» — только таблица сводки, без нижней рамки вкладок
+    Layout.$('#tabsBox').classList.toggle('hidden', state.section === 'summary');
+    ({ eaters: renderEaters, days: renderDays, departments: renderDepartments, direct: renderDirect, overhead: renderOverhead,
        reconcile: renderReconcile, settings: () => { renderKits(); renderThreshold(); renderGroups(); }, problems: renderWarnings,
        completeness: renderCompleteness, charts: renderCharts,
        cashMonths: () => renderCashMovement(false), cashYears: () => renderCashMovement(true) })[panel]?.();
@@ -1327,7 +1343,114 @@ function renderEaters() {
             <td class="text-right ${s.none ? '' : 'opacity-40'}">${num(s.none)}</td>
             <td class="text-right">${num(x.pm)}</td></tr>${open}`;
     }).join('');
+}
 
+// ---------- Из чего сложилось ----------
+// Итог крупно сверху, ниже — слагаемые с долей (правило ВГ 24.10); строка ведёт во вкладку, где видны операции
+const PART_LABELS = {
+    food: () => tr('cost_part_food', 'Продукты по рецептам меню'),
+    dish: () => tr('cost_part_dish', 'Одноразовая посуда'),
+    ext: () => tr('cost_part_ext', 'Готовое со стороны'),
+    payroll: () => tr('cost_part_payroll', 'Зарплаты'),
+    utilities: () => tr('cost_part_utilities', 'Газ, свет и вода'),
+    equipment: () => tr('cost_part_equipment', 'Оборудование и инвентарь'),
+    household: () => tr('cost_part_household', 'Хозтовары и прочее'),
+    retreat: () => tr('cost_part_retreat', 'Расходы «на ретрит»: билеты, гонорары')
+};
+function renderParts() {
+    const scope = scopeEvents();
+    const cells = view.result.cells;
+    const acc = zero();
+    for (const ev of Object.keys(cells)) if (!scope || scope.includes(ev)) addAgg(acc, aggregate(cells, ev, ALL_BUCKETS));
+    const parts = { food: acc.food, dish: acc.dish, ext: acc.ext, payroll: 0, utilities: 0, equipment: 0, household: 0, retreat: 0 };
+    for (const l of view.result.overheadLines) {
+        const v = Object.entries(l.byEvent || {}).reduce((a, [ev, x]) => a + (!scope || scope.includes(ev) ? x : 0), 0);
+        if (v) parts[KitchenCost.overheadComponent(l)] += v;
+    }
+    const sum = total(acc);
+    const ps = pricesState();
+    const rows = Object.entries(parts).filter(([, v]) => v > 0.5).sort((a, b) => b[1] - a[1]);
+    Layout.$('#partsBox').innerHTML = `
+        <div class="border-l-4 border-primary pl-4 mb-4">
+            <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('cost_col_total', 'Себестоимость всего'))}</div>
+            <div class="text-3xl font-bold mt-1">${money(sum)}${warnMark(ps)}</div>
+            <div class="text-sm opacity-70 mt-1">${num(acc.pm)} ${e(tr('cost_meals_word', 'приёмов пищи'))}${acc.pm ? ` · ${e(tr('cost_col_per_meal', 'Цена одной порции'))} ${money2(sum / acc.pm)}` : ''}</div>
+        </div>
+        <div class="text-xs uppercase tracking-wide opacity-60 mb-1">${e(tr('cost_parts_from', 'Из чего сложилась'))}</div>
+        ${rows.map(([k, v]) => {
+            const share = sum ? v / sum : 0;
+            const tab = ['food', 'dish', 'ext'].includes(k) ? 'direct' : 'overhead';
+            return `<div class="px-2 py-1.5 rounded-lg cursor-pointer hover:bg-base-200" data-action="tab" data-tab="${tab}">
+                <div class="flex items-baseline gap-2 text-sm">
+                    <span class="flex-1">${e(PART_LABELS[k]())}</span>
+                    <span class="opacity-50 text-xs">${Math.round(share * 100)}%</span>
+                    <span class="font-mono whitespace-nowrap">${money(v)}</span>
+                </div>
+                <div class="h-1 rounded-full bg-base-200 mt-1"><div class="h-1 rounded-full ${tab === 'direct' ? 'bg-amber-500' : 'bg-slate-500'}" style="width:${Math.max(share * 100, 1).toFixed(1)}%"></div></div>
+            </div>`;
+        }).join('') || `<div class="text-sm opacity-60 px-2">${e(tr('cost_nothing', 'За период нет данных'))}</div>`}
+        <div class="text-xs opacity-60 mt-2 px-2">${e(tr('cost_parts_hint', 'Нажмите на строку — ниже откроются приёмы пищи или расходы с операциями'))}</div>`;
+}
+
+// ---------- По дням ----------
+// Каждый приём пищи: люди, продукты и посуда по меню (доля выбранного ретрита / всех), доля зарплат и хозрасходов,
+// цена порции. Накладные — точно как в расчёте: по каждой строке её ставка × вкушающие этого приёма пищи
+function renderDays() {
+    const scope = scopeEvents();
+    const inScope = ev => !scope || scope.includes(ev);
+    const ps = pricesState();
+    const nOf = b => b ? ALL_BUCKETS.reduce((a, k) => a + (b[k] || 0), 0) : 0;
+    const lines = view.result.overheadLines.filter(l => l.rate > 0 && !l.unallocated);
+    const recs = new Map();
+    for (const r of view.result.mealRecords) if (!r.unallocated) recs.set(`${r.date}|${r.meal}`, r);
+    const menuLink = (d, meal) => `<a class="link link-hover" href="menu.html#day/${d}/${meal}" title="${e(tr('cost_open_menu', 'Открыть меню этого дня'))}">${e(MEAL_LABELS[meal]())}</a>`;
+    Layout.$('#dayCostHead').innerHTML = `<tr><th>${e(tr('date', 'Дата'))}</th><th></th>
+        <th class="text-right">${e(tr('cost_people', 'Людей'))}</th>
+        <th class="text-right">${e(tr('cost_col_direct', 'Продукты и посуда (по меню)'))}</th>
+        <th class="text-right">${e(tr('cost_col_overhead', 'Зарплаты, газ и свет, хозрасходы'))}</th>
+        <th class="text-right">${e(tr('cost_col_total', 'Себестоимость всего'))}</th>
+        <th class="text-right">${e(tr('cost_col_per_meal', 'Цена одной порции'))}</th></tr>`;
+    const out = [];
+    const sum = { n: 0, dir: 0, ov: 0 };
+    const dates = Object.keys(view.result.counts || {}).filter(d => d >= view.from && d <= view.to).sort();
+    for (const d of dates) {
+        let first = true;
+        for (const m of ['breakfast', 'lunch']) {
+            const byEv = view.result.counts[d].byEvent?.[m] || {};
+            const n = Object.entries(byEv).reduce((a, [ev, b]) => a + (inScope(ev) ? nOf(b) : 0), 0);
+            if (!n) continue;
+            const r = recs.get(`${d}|${m}`);
+            let dir = 0;
+            if (r) for (const [ev, b] of Object.entries(r.byEvent || {})) {
+                const k = inScope(ev) ? nOf(b) : 0;
+                if (k) dir += (r.food + r.external) * k / r.eaters + r.dishwarePerEater * k;
+            }
+            let ov = 0;
+            for (const l of lines) {
+                if (d < l.from || d > l.to) continue;
+                for (const ev of Object.keys(l.pmByEvent)) if (inScope(ev)) ov += l.rate * nOf(byEv[ev]);
+            }
+            sum.n += n; sum.dir += dir; sum.ov += ov;
+            out.push(`<tr class="${r ? '' : 'opacity-60'}"><td class="whitespace-nowrap">${first ? e(fmtDay(d)) : ''}</td>
+                <td class="text-sm">${menuLink(d, m)}${r ? '' : ` <span class="badge badge-warning badge-xs">${e(tr('cost_no_menu', 'меню не внесено'))}</span>`}</td>
+                <td class="text-right">${fmtN(n)}</td>
+                <td class="text-right">${r ? `${money(dir)}${warnMark(ps)}` : '—'}</td>
+                <td class="text-right">${money(ov)}</td>
+                <td class="text-right font-medium">${money(dir + ov)}</td>
+                <td class="text-right">${money2((dir + ov) / n)}</td></tr>`);
+            first = false;
+        }
+    }
+    Layout.$('#dayCostBody').innerHTML = out.length ? out.join('') + `<tr class="font-semibold border-t-2 border-base-300">
+            <td colspan="2">${e(tr('cost_total', 'Всего'))}</td><td class="text-right">${fmtN(Math.round(sum.n * 10) / 10)}</td>
+            <td class="text-right">${money(sum.dir)}</td><td class="text-right">${money(sum.ov)}</td>
+            <td class="text-right">${money(sum.dir + sum.ov)}</td><td class="text-right">${sum.n ? money2((sum.dir + sum.ov) / sum.n) : '—'}</td></tr>`
+        : `<tr><td colspan="7" class="text-center opacity-60">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`;
+    renderDayCounts();
+}
+
+// Сколько человек ели в каждый приём пищи — по категориям
+function renderDayCounts() {
     const scope = scopeEvents();
     const cols = ALL_BUCKETS;
     Layout.$('#daysHead').innerHTML = `<tr><th>${e(tr('date', 'Дата'))}</th><th></th>
@@ -1965,7 +2088,7 @@ function saveState() {
 
 // ==================== ПАМЯТКА «КАК СЧИТАЕТСЯ» ====================
 // «?» у вкладки открывает памятку на своём разделе
-const HOW_SECTIONS = { eaters: 'eaters', departments: 'team', direct: 'direct', overhead: 'overhead',
+const HOW_SECTIONS = { eaters: 'eaters', days: 'eaters', departments: 'team', direct: 'direct', overhead: 'overhead',
                        reconcile: 'gaps', completeness: 'gaps', problems: 'gaps', settings: 'direct' };
 
 function openHow(sec) {
@@ -2059,7 +2182,7 @@ document.addEventListener('click', ev => {
             break;
         case 'open-no-menu':
             directOnlyNoMenu = true;
-            state.section = 'calc';
+            state.section = 'parts';
             state.tab = 'direct';
             saveState();
             if (view) renderTabs();
@@ -2070,7 +2193,7 @@ document.addEventListener('click', ev => {
             break;
         case 'open-dept':
             deptFilter = btn.dataset.bucket || 'all';
-            state.section = 'calc';
+            state.section = 'who';
             state.tab = 'departments';
             saveState();
             if (view) renderTabs();
@@ -2081,13 +2204,16 @@ document.addEventListener('click', ev => {
             break;
         case 'section':
             state.section = btn.dataset.section;
+            // у раздела свои вкладки: «Из чего сложилось» открывается на «Продуктах», «Кто ел» — на «Вкушающих»
+            if (state.section === 'parts' && TAB_SECTION[state.tab] !== 'parts') state.tab = 'direct';
+            if (state.section === 'who' && TAB_SECTION[state.tab] !== 'who') state.tab = 'eaters';
             saveState();
             if (view) renderTabs();
             break;
         case 'tab':
             if (DATA_TABS.includes(btn.dataset.tab)) { state.section = 'data'; state.dataTab = btn.dataset.tab; }
             else if (CASH_TABS.includes(btn.dataset.tab)) { state.section = 'cash'; state.cashTab = btn.dataset.tab; }
-            else { if (state.section !== 'calc') state.section = 'calc'; state.tab = btn.dataset.tab; }
+            else { state.section = TAB_SECTION[btn.dataset.tab] || 'summary'; state.tab = btn.dataset.tab; }
             saveState();
             if (view) renderTabs();
             break;
@@ -2170,16 +2296,18 @@ async function init() {
     let saved = {};
     try { saved = JSON.parse(localStorage.getItem('kitchen_cost_view') || '{}'); } catch { saved = {}; }
     state.mode = saved.mode === 'period' ? 'period' : 'retreat';
-    state.section = ['calc', 'cash', 'charts', 'data'].includes(saved.section) ? saved.section : 'calc';
+    state.section = SECTIONS.includes(saved.section) ? saved.section : 'summary';
     state.cashTab = CASH_TABS.includes(saved.cashTab) ? saved.cashTab : 'cashMonths';
-    state.tab = saved.tab || 'eaters';
+    state.tab = TAB_SECTION[saved.tab] ? saved.tab : 'eaters';
+    if (TAB_SECTION[state.tab] && (state.section === 'parts' || state.section === 'who') && TAB_SECTION[state.tab] !== state.section)
+        state.tab = state.section === 'parts' ? 'direct' : 'eaters';
     state.dataTab = DATA_TABS.includes(saved.dataTab) ? saved.dataTab : 'completeness';
     const current = retreats.find(r => r.start_date <= today && r.end_date >= today)
         || retreats.find(r => r.end_date < today);
     state.retreatId = retreats.some(r => r.id === saved.retreatId) ? saved.retreatId : (current?.id || '');
     // ссылка «Подробно →» из Финансов: ?retreat=<id> — сразу этот ретрит
     const urlRetreat = new URLSearchParams(location.search).get('retreat');
-    if (urlRetreat && retreats.some(r => r.id === urlRetreat)) { state.mode = 'retreat'; state.retreatId = urlRetreat; state.section = 'calc'; }
+    if (urlRetreat && retreats.some(r => r.id === urlRetreat)) { state.mode = 'retreat'; state.retreatId = urlRetreat; state.section = 'summary'; }
     setStep(['month', 'quarter', 'year'].includes(saved.step) ? saved.step : 'month', today);
 
     Layout.$('#costContent').classList.remove('hidden');
