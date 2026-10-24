@@ -764,6 +764,31 @@ const WorshipSchedule = (() => {
         рисоватьЛюдейДляКлетки();
     }
 
+    /**
+     * Занятость человека в этот день: сколько служб и сколько на них времени.
+     * Отменённые на день службы не считаем. Длительность не задана — служба
+     * идёт в счёт, но в часы не попадает (помечаем «+?»).
+     */
+    function занятостьДня(personId, день) {
+        const свои = назначения.filter(н => н.duty_date === день && н.person_id === personId
+            && !(н.service_id && отменена(н.service_id, день)));
+        let минут = 0, безДлительности = 0;
+        const список = свои.map(н => {
+            const с = н.service_id && службы.find(x => x.id === н.service_id);
+            const о = н.override_id && отклонения.find(x => x.id === н.override_id);
+            const м = (с || о)?.duration_minutes;
+            if (м) минут += м; else безДлительности++;
+            return `${(времяНазначения(н) || '').slice(0, 5)} ${с ? Layout.getName(с) : (о?.title || 'служба')}${
+                м ? ` — ${часыКоротко(м)}` : ' — длительность не задана'}`;
+        }).sort();
+        return { служб: свои.length, минут, безДлительности, список };
+    }
+
+    const часыКоротко = м => {
+        const ч = Math.floor(м / 60), мин = м % 60;
+        return ч ? (мин ? `${ч} ч ${мин} мин` : `${ч} ч`) : `${мин} мин`;
+    };
+
     function рисоватьЛюдейДляКлетки() {
         const q = $('#нПоиск').value.trim().toLowerCase();
         const { день, serviceId } = клетка;
@@ -791,9 +816,10 @@ const WorshipSchedule = (() => {
                 if (рядом) {
                     const где = службы.find(с2 => с2.id === рядом.service_id);
                     пометки.push([`уже на «${где ? Layout.getName(где) : 'другой службе'}» в это время`, 'badge-error']);
-                } else if (назначения.some(н => н.duty_date === день && н.person_id === ч.id && !уже.has(ч.id))) {
-                    пометки.push(['в этот день уже занят', 'badge-ghost']);
                 }
+                // занятость дня часами — раньше было только «в этот день уже занят»,
+                // и не понять, у кого одна короткая служба, а у кого полдня
+                const занят = занятостьДня(ч.id, день);
                 if (ч.active_to && ч.active_to < день) пометки.push(['срок участия истёк', 'badge-warning']);
                 if (ч.active_from && ч.active_from > день) пометки.push(['ещё не в отделе', 'badge-warning']);
                 if (ч.безВхода) пометки.push(['нет входа — скажите голосом', 'badge-ghost']);
@@ -802,18 +828,33 @@ const WorshipSchedule = (() => {
                 // и свободный стоял пятым по алфавиту, и на телефоне его искали прокруткой
                 const вес = пометки.reduce((м, [т, к]) => Math.max(м,
                     к === 'badge-error' || т.includes('срок') || т.includes('не в отделе') ? 3
-                    : т === 'нет допуска' ? 2 : т.includes('уже занят') ? 1 : 0), 0);
-                return { ч, пометки, стоит: уже.has(ч.id), вес };
+                    : т === 'нет допуска' ? 2 : 0), 0);
+                return { ч, пометки, стоит: уже.has(ч.id), вес, занят };
             })
-            .sort((a, b) => a.вес - b.вес || a.ч.имя.localeCompare(b.ч.имя, 'ru'));
+            // внутри группы — сначала свободные и менее загруженные в этот день
+            .sort((a, b) => a.вес - b.вес
+                || (a.занят.минут + a.занят.безДлительности * 30) - (b.занят.минут + b.занят.безДлительности * 30)
+                || a.ч.имя.localeCompare(b.ч.имя, 'ru'));
 
-        $('#нСписок').innerHTML = строки.map(({ ч, пометки, стоит }) => `
+        $('#нСписок').innerHTML = строки.map(({ ч, пометки, стоит, занят }) => `
             <li class="border-b border-base-200 last:border-0 py-2 flex items-center gap-3">
                 <span class="flex-1 min-w-0">
                     <span class="font-semibold">${e(ч.имя)}</span>
                     ${кто === 'all' && ч.kind === 'volunteer'
                         ? '<span class="badge badge-sm badge-outline ml-1">волонтёр</span>' : ''}
-                    ${пометки.map(([т, к]) => `<span class="badge badge-sm ${к} ml-1">${e(т)}</span>`).join('')}
+                    ${пометки.map(([т, к]) => `<span class="badge badge-sm whitespace-nowrap ${к} ml-1">${e(т)}</span>`).join('')}
+                    <!-- занятость дня — своей строкой: на телефоне колонка справа
+                         сжимала имена до переноса по слогам -->
+                    <span class="block text-sm tabular-nums mt-0.5 ${занят.служб ? '' : 'opacity-60'}"
+                          title="${e(занят.служб ? занят.список.join('\n') : 'в этот день служб нет')}">${
+                        !занят.служб ? 'в этот день служб нет'
+                        : занят.минут
+                            ? `в этот день: <b>${e(часыКоротко(занят.минут))}${занят.безДлительности ? ' +?' : ''}</b>
+                               <span class="opacity-70">· ${Layout.pluralize(занят.служб,
+                                   { ru: ['служба', 'службы', 'служб'], en: ['service', 'services'], hi: 'सेवा' })}</span>`
+                            : `в этот день: <b>${Layout.pluralize(занят.служб,
+                                   { ru: ['служба', 'службы', 'служб'], en: ['service', 'services'], hi: 'सेवा' })}</b>
+                               <span class="opacity-70">· длительность не задана</span>`}</span>
                 </span>
                 ${стоит
                     ? '<span class="text-sm opacity-60">уже стоит</span>'
