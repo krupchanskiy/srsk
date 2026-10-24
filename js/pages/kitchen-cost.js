@@ -528,7 +528,7 @@ function renderTop() {
 // Режим «Ретрит»: касса прасада (реальные деньги) + результат. Себестоимость — в таблице сводки ниже.
 function renderCash() {
     const box = Layout.$('#kpiBox');
-    box.className = 'grid grid-cols-2 xl:grid-cols-4 gap-3 mb-4';
+    box.className = 'grid grid-cols-2 xl:grid-cols-3 gap-3 mb-4';
     const inc = view.incomes[state.retreatId];
     const whole = aggregate(view.result.cells, `retreat:${state.retreatId}`, ALL_BUCKETS);
     const ps = pricesState();
@@ -540,21 +540,25 @@ function renderCash() {
         inc ? `<span class="inline-block w-4 text-base opacity-60">${expanded.has(`cash:${dir}`) ? '▾' : '▸'}</span>${money(amount)}` : '—',
         sub, cls, inc ? `data-action="toggle-cash" data-dir="${dir}"` : '');
     const result = inc ? inc.full - total(whole) : null;
+    // «Результат» — главное, крупно на всю ширину над слагаемыми (правило ВГ 24.10)
+    const resCls = result === null || ps === 'none' ? '' : result < 0 ? 'text-error' : 'text-success';
+    const resultCard = `<div class="col-span-full bg-base-100 rounded-xl shadow-sm p-5 border-l-4 ${result === null || ps === 'none' ? 'border-base-300' : result < 0 ? 'border-error' : 'border-success'}">
+        <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('cost_result', 'Результат'))}</div>
+        <div class="text-3xl font-bold mt-1 ${resCls}">${result === null || ps === 'none' ? '—' : money(result)}${result !== null && ps !== 'none' ? warnMark(ps) : ''}</div>
+        <div class="text-sm opacity-70 mt-1">${ps === 'none' ? `⚠ <a class="link" href="prices.html">${e(tr('cost_result_after_prices', 'появится после внесения цен'))} →</a>`
+            : inc ? `${e(tr('cost_collected_short', 'собрано'))} ${money(inc.full)} − ${e(tr('cost_cost_short', 'себестоимость'))} ${money(total(whole))}` : ''}</div></div>`;
     const cards = [
-        opsCard('in', tr('cost_cash_in', 'Получено за прасад'), inc?.full, 'text-blue-600', e(tr('cost_cash_in_hint', 'оплаты участников, по Финансам'))),
-        opsCard('out', tr('cost_cash_out', 'Потрачено из кассы на прасад'), inc?.expense, 'text-red-600', e(tr('cost_cash_out_hint', 'расходы, отнесённые в Финансах на прасад ретрита'))),
-        card(tr('cost_cash_balance', 'Сальдо'), inc ? money(inc.full - inc.expense) : '—', e(tr('cost_cash_balance_hint', 'получено − потрачено'))),
-        card(tr('cost_result', 'Результат'), result === null || ps === 'none' ? '—' : money(result),
-            ps === 'none' ? `⚠ <a class="link" href="prices.html">${e(tr('cost_result_after_prices', 'появится после внесения цен'))} →</a>`
-                : e(tr('cost_result_hint', 'получено − себестоимость ретрита')),
-            result === null || ps === 'none' ? '' : result < 0 ? 'text-error' : 'text-success')
+        resultCard,
+        opsCard('in', tr('cost_collected', 'Собрано за прасад'), inc?.full, 'text-blue-600', e(tr('cost_collected_hint', 'оплаты за питание и пожертвования на прасад, по Финансам'))),
+        opsCard('out', tr('cost_spent_prasad', 'Потрачено на прасад'), inc?.expense, 'text-red-600', e(tr('cost_cash_out_hint', 'расходы, отнесённые в Финансах на прасад ретрита'))),
+        card(tr('cost_collected_left', 'Собрано − потрачено'), inc ? money(inc.full - inc.expense) : '—', e(tr('cost_collected_left_hint', 'сколько осталось из собранного')))
     ];
     const open = ['in', 'out'].find(d => expanded.has(`cash:${d}`));
     const ops = open ? (open === 'in' ? view.incomeOps : view.expenseOps)[state.retreatId] : null;
-    box.innerHTML = `<div class="col-span-full text-sm font-semibold uppercase tracking-wide opacity-60 -mb-1">${e(tr('cost_cash_title', 'Касса прасада — реальные деньги'))}</div>
+    box.innerHTML = `<div class="col-span-full text-sm font-semibold uppercase tracking-wide opacity-60 -mb-1">${e(tr('cost_money_title', 'Деньги за прасад — по Финансам'))}</div>
         ${cards.join('')}
         ${open ? `<div class="col-span-full bg-base-100 rounded-xl shadow-sm p-3">
-            <div class="text-sm font-medium mb-1">${e(open === 'in' ? tr('cost_income_ops', 'Приходы прасада ретрита') : tr('cost_expense_ops', 'Расходы прасада ретрита'))}</div>
+            <div class="text-sm font-medium mb-1">${e(open === 'in' ? tr('cost_collected_ops', 'Собрано за прасад ретрита') : tr('cost_expense_ops', 'Расходы прасада ретрита'))}</div>
             ${opsTable(ops)}</div>` : ''}`;
 }
 
@@ -604,14 +608,14 @@ function renderKitchenCash() {
         card(tr('cost_kcash_opening', 'Остаток на начало'), signed(c.opening),
             e(first ? `${tr('cost_kcash_on', 'на')} ${fmtDay(view.from)} · ${tr('cost_kcash_since', 'с начала учёта')} (${monthTitle(first).toLowerCase()})` : tr('cost_kcash_no_data', 'в Финансах ещё нет операций')),
             signCls(c.opening)),
-        opsCard('in', tr('cost_kcash_in', 'Пришло за прасад'), c.income, 'text-blue-600', e(tr('cost_kcash_in_hint', 'оплаты за питание и пожертвования на прасад'))),
+        opsCard('in', tr('cost_collected', 'Собрано за прасад'), c.income, 'text-blue-600', e(tr('cost_kcash_in_hint', 'оплаты за питание и пожертвования на прасад'))),
         opsCard('out', tr('cost_kcash_out', 'Ушло с кухни'), c.expense, 'text-red-600', e(tr('cost_kcash_out_hint', 'всё со счетов департамента «Кухня»; траты других департаментов не входят'))),
         card(tr('cost_kcash_closing', 'Остаток на конец'), `<span class="cursor-help" title="${e(teamNote)}">${signed(closing)}</span>`,
             `${e(tr('cost_kcash_for_period', 'за период'))} <span class="${signCls(c.income - c.expense)}">${signed(c.income - c.expense)}</span> · <a class="link" data-action="section" data-section="cash">${e(tr('cost_kcash_movement', 'движение денег'))} →</a>`,
             signCls(closing))
     ];
     const open = ['in', 'out'].find(d => expanded.has(`kcash:${d}`));
-    box.innerHTML = `<div class="col-span-full text-sm font-semibold uppercase tracking-wide opacity-60 -mb-1">${e(tr('cost_kcash_title', 'Касса кухни — реальные деньги по датам поступления и оплаты'))}</div>
+    box.innerHTML = `<div class="col-span-full text-sm font-semibold uppercase tracking-wide opacity-60 -mb-1">${e(tr('cost_money_title_period', 'Деньги за прасад — по датам поступления и оплаты'))}</div>
         ${cards.join('')}
         ${open ? `<div class="col-span-full bg-base-100 rounded-xl shadow-sm p-3">${kitchenCashOps(open)}</div>` : ''}`;
 }
@@ -633,7 +637,7 @@ function kitchenCashOps(dir) {
             <td class="whitespace-nowrap row-muted">${e(fmtDay(o.occurred_on))} · ${e(o.account_name)}</td>
             <td class="text-right">${money(o.amount)}</td></tr>`).join('') : ''}`;
     }).join('');
-    return `<div class="text-sm font-medium mb-1">${e(dir === 'in' ? tr('cost_kcash_in', 'Пришло за прасад') : tr('cost_kcash_out', 'Ушло с кухни'))} · ${e(DateUtils.formatRange(view.from, view.to))}</div>
+    return `<div class="text-sm font-medium mb-1">${e(dir === 'in' ? tr('cost_collected', 'Собрано за прасад') : tr('cost_kcash_out', 'Ушло с кухни'))} · ${e(DateUtils.formatRange(view.from, view.to))}</div>
         <div class="overflow-x-auto"><table class="table table-sm w-full cost-table"><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -898,7 +902,7 @@ function sectionList() {
         { id: 'parts', label: tr('cost_section_parts', 'Из чего сложилось') },
         { id: 'who', label: tr('cost_section_who', 'Кто ел') },
         { id: 'days', label: tr('cost_section_days', 'По дням') },
-        state.mode === 'period' ? { id: 'cash', label: tr('cost_section_cash', 'Касса') } : null,
+        state.mode === 'period' ? { id: 'cash', label: tr('cost_section_money', 'Деньги по месяцам') } : null,
         { id: 'charts', label: tr('cost_section_charts', 'Графики') },
         { id: 'data', label: `${tr('cost_section_data', 'Данные')}${problems ? ` (${problems})` : ''}`, warn: problems > 0 }
     ].filter(Boolean);
