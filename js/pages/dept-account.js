@@ -28,6 +28,8 @@ let sort = { key: 'date', dir: 'desc' };
 // Выручка: приходы по статьям департамента с любого счёта (мигр. 706/711) — выручку магазина сдают
 // в Кассу и Гест-хаус, а не на его счёт
 let incomeRows = [];
+// Кухня: питание, не вошедшее в выручку по дате оплаты, — зачтённое без даты и долг (мигр. 753)
+let mealsOpen = [];
 const ledgerKind = () => view === 'box' ? 'box' : 'own';
 
 const money = (v, cur) => FinUtils.fmtMoney(v, cur);
@@ -595,11 +597,30 @@ function renderAnalytics() {
                 <span class="flex-1">${e(tr('dacc_an_retreats', 'Траты на ретриты — затраты ретритов, в итог не входят'))}</span>
                 <span class="font-mono">${inr(d.retreat.sum)}</span></div></div>
             ${rOpen ? lines(d.retreat.groups, d.retreat.sum, 'bg-base-300') : ''}</div>` : '';
+        // Кухня: выручка — по дате оплаты; оплаченное до новой системы (без даты) и ожидаемое — отдельно, в итог не входят
+        const mealsLine = (key, label, field) => {
+            const list = mealsOpen.filter(m => Number(m[field]) > 0);
+            const sum = list.reduce((a, m) => a + Number(m[field]), 0);
+            if (!sum) return '';
+            const open = anOpen.has(key);
+            return `<div class="px-2 py-1.5 rounded-lg cursor-pointer hover:bg-base-200" data-dacc-an-open="${key}">
+                <div class="flex items-baseline gap-2 text-sm"><span class="opacity-50 w-3">${open ? '▾' : '▸'}</span>
+                <span class="flex-1">${e(label)}</span><span class="font-mono">${inr(sum)}</span></div></div>
+                ${open ? `<div class="ml-6 mb-2 text-sm">${list.map(m => `<div class="flex items-baseline gap-2 py-0.5">
+                    <span class="flex-1">${e(m.retreat_name)} <span class="opacity-50 text-xs">${m.start_date ? `${fmtDay(m.start_date)} – ${fmtDay(m.end_date)}` : ''}</span></span>
+                    <span class="font-mono">${inr(m[field])}</span></div>`).join('')}</div>` : ''}`;
+        };
+        const mealsLines = mealsLine('meals_undated', tr('dacc_an_meals_undated', 'Оплачено до новой системы — без даты'), 'paid_undated')
+            + mealsLine('meals_debt', tr('dacc_an_meals_debt', 'Ожидается: начислено за питание, не оплачено'), 'debt');
+        const mealsCard = mealsLines ? `<div class="bg-base-100 rounded-xl shadow-sm p-3 md:col-span-2 opacity-80">
+            <div class="text-xs opacity-60 px-2 mb-1">${e(tr('dacc_an_meals_hint', 'Выручка — по дате оплаты. Эти суммы в неё не входят'))}</div>
+            ${mealsLines}</div>` : '';
         body = `<div class="grid md:grid-cols-2 gap-3">
             ${linesCard}
             ${card(tr('dacc_an_rev_from', 'Выручка — откуда'), d.revenue, 'bg-blue-500', 'text-blue-600')}
             ${card(tr('dacc_an_costs_on', 'Расходы — на что'), d.costs, 'bg-red-500', 'text-red-600')}
             ${retreatsCard}
+            ${mealsCard}
         </div>`;
     } else if (anSection === 'table') {
         const fmt = v => v ? inr(v) : '<span class="opacity-30">—</span>';
@@ -858,9 +879,11 @@ async function init(options) {
     accounts = await loadAccounts();
     if (accounts === null) { $('daccNoAccess').classList.remove('hidden'); return; }
     $('daccContent').classList.remove('hidden');
-    const [inc, an] = await Promise.all([loadIncome(),
-        Layout.db.rpc('fin_department_analytics', { p_department: cfg.department })]);
+    const [inc, an, mo] = await Promise.all([loadIncome(),
+        Layout.db.rpc('fin_department_analytics', { p_department: cfg.department }),
+        cfg.department === 'kitchen' ? Layout.db.rpc('fin_kitchen_meals_open') : Promise.resolve({ data: [] })]);
     incomeRows = inc;
+    mealsOpen = mo.error ? [] : (mo.data || []);
     anRows = an.error ? [] : (an.data || []);
     // вкладки видов: «Выручка» — если у департамента есть приходы по его статьям, «Касса ДДС» — если касса у него хранится
     const hasBox = accounts.some(a => a.purpose === 'cashbox');
