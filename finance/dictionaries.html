@@ -36,7 +36,7 @@
     </div>
 
     <!-- Панель: поиск + фильтр направления (для статей) -->
-    <div class="flex flex-wrap items-center gap-3 mb-3">
+    <div class="flex flex-wrap items-center gap-3 mb-3" id="dictToolbar">
         <input type="search" id="dictSearch" class="input input-bordered input-sm w-56"
                data-i18n-placeholder="fin_dict_search" placeholder="Поиск по названию или коду…">
         <div class="join" id="dirFilter" style="display:none">
@@ -47,7 +47,7 @@
         <span id="dictCount" class="text-sm opacity-60 ml-auto"></span>
     </div>
 
-    <div class="card bg-base-100 shadow-sm">
+    <div class="card bg-base-100 shadow-sm" id="dictCard">
         <div class="card-body p-0">
             <div class="overflow-x-auto">
                 <table class="table table-sm">
@@ -59,6 +59,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Курсы валют: Текущие / График / Архив (строится в JS) -->
+    <div id="ratesView" class="hidden"></div>
 </main>
 
 <div id="footer-placeholder"></div>
@@ -85,7 +88,7 @@
 <script src="../js/layout.js?v=125"></script>
 <script src="../js/date-utils.js?v=5"></script>
 <script src="../js/fin-utils.js?v=25"></script>
-<script src="../js/pages/fin-dictionaries.js?v=25"></script>
+<script src="../js/pages/fin-dictionaries.js?v=26"></script>
 
 </body>
 </html>

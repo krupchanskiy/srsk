@@ -27,11 +27,12 @@ async function loadTab() {
         cost_centers: () => Layout.db.from('fin_v_cost_centers').select('*').order('name'),
         contractors: () => Layout.db.from('fin_v_contractors').select('*').order('name'),
         departments: () => Layout.db.from('fin_v_departments').select('*').order('name'),
-        rates: () => Layout.db.from('fin_v_exchange_rates').select('*').order('effective_date', { ascending: false }).limit(200)
+        rates: () => Layout.db.from('fin_v_exchange_rates').select('*').order('effective_date', { ascending: false }).limit(1000)
     };
     const { data, error } = await sources[currentTab]();
     if (error) { Layout.handleError(error, 'Справочники'); return; }
     rows = data || [];
+    if (currentTab === 'rates') await loadNoRateRetreats();
     if (currentTab === 'departments') {
         if (!knownChats) await loadKnownChats();
         await loadDeptCategories();
@@ -99,19 +100,14 @@ function filteredRows() {
     });
 }
 
-// «Действующий сейчас» курс = самый свежий (effective_date ≤ сегодня) для пары валюта|объект
-function computeCurrentRateIds(list) {
-    const today = FinUtils.todayISO();
-    const seen = new Set(), current = new Set();
-    // list уже отсортирован по effective_date desc
-    for (const r of list) {
-        const key = `${r.from_currency}|${r.object_id || ''}`;
-        if (!seen.has(key) && r.effective_date <= today) { current.add(r.id); seen.add(key); }
-    }
-    return current;
-}
-
 function renderTab() {
+    // У курсов своя раскладка (вкладки, график, архив) — таблица справочника скрыта
+    const isRates = currentTab === 'rates';
+    document.getElementById('dictToolbar').classList.toggle('hidden', isRates);
+    document.getElementById('dictCard').classList.toggle('hidden', isRates);
+    document.getElementById('ratesView').classList.toggle('hidden', !isRates);
+    if (isRates) { renderRates(); return; }
+
     const head = document.getElementById('dictHead');
     const body = document.getElementById('dictBody');
     const view = filteredRows();
@@ -165,26 +161,330 @@ function renderTab() {
                 <td class="text-right">${r.people_count || ''}</td>
                 <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
             </tr>`).join('');
-    } else {
-        const currentIds = computeCurrentRateIds(rows);
-        head.innerHTML = `<tr><th>${t('fin_currency')}</th><th>${t('fin_effective_date')}</th><th>${t('fin_rate')}</th><th>${t('fin_retreat_object')}</th><th></th></tr>`;
-        body.innerHTML = view.map(r => `
-            <tr class="${currentIds.has(r.id) ? 'font-medium' : 'opacity-70'}">
-                <td class="font-mono font-bold">${e(r.from_currency)}</td>
-                <td>${DateUtils.formatShort(DateUtils.parseDate(r.effective_date))}${currentIds.has(r.id) ? ` <span class="badge badge-success badge-xs">${t('fin_rate_current')}</span>` : ''}</td>
-                <td class="font-mono">${r.rate}</td>
-                <td>${e(r.object_name || t('fin_general_rate'))}</td>
-                <td class="text-right"><button class="btn btn-ghost btn-sm" data-edit="${r.id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button></td>
-            </tr>`).join('');
     }
     if (!view.length) {
-        const canAdd = currentTab !== 'rates' || window.hasPermission?.('fin_admin');
         const msg = rows.length ? t('fin_nothing_found') : t('fin_dict_empty');
         body.innerHTML = `<tr><td colspan="6" class="text-center py-10 opacity-60">
             <div class="mb-2">${msg}</div>
-            ${!rows.length && canAdd ? `<button class="btn btn-primary btn-sm" onclick="FinDicts.openAdd()">${t('fin_add')}</button>` : ''}
+            ${!rows.length ? `<button class="btn btn-primary btn-sm" onclick="FinDicts.openAdd()">${t('fin_add')}</button>` : ''}
         </td></tr>`;
     }
+}
+
+// ==================== КУРСЫ ВАЛЮТ ====================
+// Три вкладки (ВГ 24.10): Текущие / График / Архив. Раньше все курсы шли одним
+// списком, и прошлые тонули в портянке. Общий курс уходит в архив, когда есть
+// свежее; курс ретрита — когда ретрит закончился по факту (retreat_fact_end).
+// Курс ретрита не «действует», а зафиксирован: fin_private_retreat_rate берёт его
+// при любой дате, и он один на валюту (мигр. 750).
+const CHART_JS = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+const RATE_COLORS = { general: '#2563eb', retreats: '#8b5cf6' };
+let ratesTab = 'current';     // current | chart | archive
+let chartCur = null;
+let chartMode = 'both';       // general | retreats | both
+let chartMonths = 12;         // 3 | 6 | 12 | 0 (всё)
+let ratesChart = null;
+let chartLib = null;
+let noRateRetreats = [];
+
+async function loadNoRateRetreats() {
+    const { data } = await Layout.db.rpc('fin_get_retreats_without_rate');
+    noRateRetreats = data?.ok ? (data.result || []) : [];
+}
+
+function loadChartLib() {
+    if (window.Chart) return Promise.resolve(window.Chart);
+    if (!chartLib) chartLib = new Promise((res, rej) => {
+        const sc = document.createElement('script');
+        sc.src = CHART_JS; sc.onload = () => res(window.Chart); sc.onerror = () => { chartLib = null; rej(); };
+        document.head.appendChild(sc);
+    });
+    return chartLib;
+}
+
+// Ретрит закончился по факту (последний выезд), объект без ретрита — закрыт
+function objectArchived(o) {
+    if (!o) return false;
+    if (o.retreat_id) return !!o.fact_end && o.fact_end < FinUtils.todayISO();
+    return !!o.is_closed;
+}
+
+// Даты курса ретрита: даты самого ретрита, у объекта без ретрита — дата курса
+function retreatSpan(o, r) {
+    const start = o?.retreat?.start_date || r.effective_date;
+    return { start, end: o?.fact_end || o?.retreat?.end_date || start };
+}
+
+function splitRates() {
+    const today = FinUtils.todayISO();
+    const objects = new Map(FinUtils.refs.objects.map(o => [o.id, o]));
+    const res = { general: [], prev: {}, retreats: [], archGeneral: [], archRetreats: [] };
+
+    // Общий: будущие и действующий — в «Текущие», всё старше действующего — в архив
+    const byCur = {};
+    for (const r of rows.filter(r => !r.object_id)) (byCur[r.from_currency] = byCur[r.from_currency] || []).push(r);
+    for (const list of Object.values(byCur)) {
+        const idx = list.findIndex(r => r.effective_date <= today);   // rows отсортированы desc
+        const cut = idx === -1 ? list.length : idx + 1;
+        res.general.push(...list.slice(0, cut));
+        res.archGeneral.push(...list.slice(cut));
+        // «изменился 11 окт, было 108»: курс часто вносят тем же числом — ищем прошлое другое значение
+        if (idx === -1) continue;
+        let j = idx;
+        while (list[j + 1] && Number(list[j + 1].rate) === Number(list[idx].rate)) j++;
+        if (list[j + 1]) res.prev[list[idx].id] = { rate: list[j + 1].rate, since: list[j].effective_date };
+    }
+    const order = c => { const i = ['USD', 'EUR', 'RUB'].indexOf(c); return i === -1 ? 9 : i; };
+    res.general.sort((a, b) => order(a.from_currency) - order(b.from_currency) || b.effective_date.localeCompare(a.effective_date));
+
+    // Ретриты: по объекту, внутри — по курсу на валюту
+    const byObj = new Map();
+    for (const r of rows.filter(r => r.object_id)) {
+        if (!byObj.has(r.object_id)) {
+            const o = objects.get(r.object_id);
+            byObj.set(r.object_id, { obj: o, name: r.object_name || o?.display_name || '—', ...retreatSpan(o, r), rates: [] });
+        }
+        byObj.get(r.object_id).rates.push(r);
+    }
+    for (const g of byObj.values()) {
+        g.rates.sort((a, b) => order(a.from_currency) - order(b.from_currency));
+        (objectArchived(g.obj) ? res.archRetreats : res.retreats).push(g);
+    }
+    res.retreats.sort((a, b) => a.start.localeCompare(b.start));
+    res.archRetreats.sort((a, b) => b.start.localeCompare(a.start));
+    return res;
+}
+
+const fmtDate = iso => DateUtils.formatShort(DateUtils.parseDate(iso));
+const editBtn = id => `<button class="btn btn-ghost btn-sm" data-edit="${id}" aria-label="${t('edit')}" title="${t('edit')}">${editIcon}</button>`;
+const fixedBadge = () => `<span class="badge badge-info badge-sm" title="${e(tr('fin_rate_fixed_hint', 'Курс зафиксирован на весь ретрит'))}">${e(tr('fin_rate_fixed', 'зафиксирован'))}</span>`;
+
+// Курсы ретрита одной строкой: «USD 95 · EUR 109», клик по курсу — правка
+function rateChips(g) {
+    return g.rates.map(r => `<button class="btn btn-ghost btn-xs font-mono gap-1" data-edit="${r.id}" title="${t('edit')}">
+        <span class="font-bold">${e(r.from_currency)}</span> ${e(String(r.rate))}</button>`).join('');
+}
+
+function retreatRow(g, withBadge) {
+    return `<tr>
+        <td>${e(g.name)}</td>
+        <td class="whitespace-nowrap">${e(DateUtils.formatRange(g.start, g.end))}</td>
+        <td>${withBadge ? fixedBadge() : ''}</td>
+        <td><div class="flex flex-wrap gap-1">${rateChips(g)}</div></td>
+    </tr>`;
+}
+
+function sectionCard(title, inner) {
+    return `<div class="card bg-base-100 shadow-sm mb-4"><div class="card-body p-4">
+        <h2 class="font-semibold mb-2">${e(title)}</h2><div class="overflow-x-auto">${inner}</div></div></div>`;
+}
+
+function renderRates() {
+    const box = document.getElementById('ratesView');
+    const tabs = [['current', tr('fin_rates_current', 'Текущие')], ['chart', tr('fin_rates_chart', 'График')], ['archive', tr('fin_rates_archive', 'Архив')]];
+    const s = splitRates();
+    box.innerHTML = `<div role="tablist" class="tabs tabs-bordered w-fit mb-4">${tabs.map(([k, label]) =>
+        `<a role="tab" class="tab ${ratesTab === k ? 'tab-active' : ''}" data-rates-tab="${k}">${e(label)}</a>`).join('')}</div>
+        <div id="ratesBody">${ratesTab === 'current' ? ratesCurrentHtml(s) : ratesTab === 'archive' ? ratesArchiveHtml(s) : ratesChartHtml()}</div>`;
+    if (ratesTab === 'chart') drawRatesChart();
+}
+
+function ratesCurrentHtml(s) {
+    const today = FinUtils.todayISO();
+    // ⚠ сверху: ретрит без своего курса считается по общему на дату — курс плавает
+    const warn = noRateRetreats.length ? `<div class="alert alert-warning mb-4 items-start">
+        <div class="w-full"><div class="font-semibold mb-1">⚠ ${e(tr('fin_rates_retreats', 'Курсы ретритов'))}: ${noRateRetreats.length} — ${e(tr('fin_rates_no_own', 'нет своего курса — считается по общему на дату операции'))}</div>
+        <ul class="text-sm space-y-0.5">${noRateRetreats.map(x => {
+            const obj = FinUtils.refs.objects.find(o => o.retreat_id === x.retreat_id);
+            return `<li>${obj && window.hasPermission?.('fin_admin')
+                ? `<a class="link" data-add-rate-for="${obj.id}">${e(x.title)}</a>` : e(x.title)}
+                <span class="opacity-70">· ${e(DateUtils.formatRange(x.start_date, x.end_date))}${x.waiting ? ` · ${e(x.waiting)}` : ''}</span></li>`;
+        }).join('')}</ul></div></div>` : '';
+
+    const general = `<table class="table table-sm"><thead><tr><th>${t('fin_currency')}</th><th>${t('fin_effective_date')}</th><th>${t('fin_rate')}</th><th></th></tr></thead><tbody>${
+        s.general.map(r => {
+            const future = r.effective_date > today;
+            const prev = s.prev[r.id];
+            return `<tr class="${future ? 'opacity-70' : 'font-medium'}">
+                <td class="font-mono font-bold">${e(r.from_currency)}</td>
+                <td>${fmtDate(r.effective_date)} ${future
+                    ? `<span class="badge badge-ghost badge-xs">${e(tr('fin_rate_upcoming', 'с этой даты'))}</span>`
+                    : `<span class="badge badge-success badge-xs">${t('fin_rate_current')}</span>`}</td>
+                <td class="font-mono">${e(String(r.rate))}${prev
+                    ? ` <span class="text-xs opacity-60 font-sans">${e(tr('fin_rate_changed', 'изменился {date}, было {rate}')
+                        .replace('{date}', fmtDate(prev.since)).replace('{rate}', String(prev.rate)))}</span>` : ''}</td>
+                <td class="text-right">${editBtn(r.id)}</td>
+            </tr>`;
+        }).join('')}</tbody></table>`;
+
+    const retreats = s.retreats.length
+        ? `<table class="table table-sm"><tbody>${s.retreats.map(g => retreatRow(g, true)).join('')}</tbody></table>`
+        : `<div class="text-sm opacity-60">${e(tr('fin_rates_no_retreats', 'Нет предстоящих и идущих ретритов со своим курсом'))}</div>`;
+
+    return warn + sectionCard(t('fin_general_rate'), general) + sectionCard(tr('fin_rates_retreats', 'Курсы ретритов'), retreats);
+}
+
+// Архив: по годам (свежий год раскрыт), внутри общего курса — по месяцам
+function ratesArchiveHtml(s) {
+    if (!s.archGeneral.length && !s.archRetreats.length) {
+        return `<div class="card bg-base-100 shadow-sm"><div class="card-body text-center opacity-60">${e(tr('fin_rates_archive_empty', 'В архиве пока пусто'))}</div></div>`;
+    }
+    const locale = { ru: 'ru-RU', en: 'en-US', hi: 'hi-IN' }[DateUtils.getLang()] || 'ru-RU';
+    const monthName = ym => { const m = DateUtils.parseDate(ym + '-01').toLocaleDateString(locale, { month: 'long' }); return m[0].toUpperCase() + m.slice(1); };
+    const byYear = (list, dateOf) => {
+        const map = new Map();
+        for (const x of list) { const y = dateOf(x).slice(0, 4); if (!map.has(y)) map.set(y, []); map.get(y).push(x); }
+        return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    };
+    const yearBlock = (y, i, n, inner) => `<details class="mb-2" ${i === 0 ? 'open' : ''}>
+        <summary class="cursor-pointer font-semibold py-1">${e(y)} <span class="opacity-60 font-normal">· ${n}</span></summary>${inner}</details>`;
+
+    // Курсы вносят разом по всем валютам — одна строка на дату: «22 окт · USD 96 · EUR 106 · RUB 1.08»
+    const byDate = new Map();
+    for (const r of [...s.archGeneral].sort((a, b) => b.effective_date.localeCompare(a.effective_date))) {
+        if (!byDate.has(r.effective_date)) byDate.set(r.effective_date, { date: r.effective_date, rates: [] });
+        byDate.get(r.effective_date).rates.push(r);
+    }
+    const order = c => { const i = ['USD', 'EUR', 'RUB'].indexOf(c); return i === -1 ? 9 : i; };
+    const general = byDate.size ? byYear([...byDate.values()], d => d.date).map(([y, list], i) => {
+        let month = '';
+        const body = list.map(d => {
+            const ym = d.date.slice(0, 7);
+            const head = ym !== month ? `<tr class="bg-base-200"><td colspan="2" class="text-xs font-semibold uppercase opacity-70">${e(monthName(ym))}</td></tr>` : '';
+            month = ym;
+            d.rates.sort((a, b) => order(a.from_currency) - order(b.from_currency));
+            return head + `<tr>
+                <td class="whitespace-nowrap w-40">${fmtDate(d.date)}</td>
+                <td><div class="flex flex-wrap gap-1">${rateChips(d)}</div></td></tr>`;
+        }).join('');
+        return yearBlock(y, i, list.length, `<table class="table table-sm"><tbody>${body}</tbody></table>`);
+    }).join('') : `<div class="text-sm opacity-60">${e(tr('fin_rates_archive_empty', 'В архиве пока пусто'))}</div>`;
+
+    const retreats = s.archRetreats.length ? byYear(s.archRetreats, g => g.start).map(([y, list], i) =>
+        yearBlock(y, i, list.length, `<table class="table table-sm"><tbody>${list.map(g => retreatRow(g, false)).join('')}</tbody></table>`)
+    ).join('') : `<div class="text-sm opacity-60">${e(tr('fin_rates_archive_empty', 'В архиве пока пусто'))}</div>`;
+
+    return sectionCard(t('fin_general_rate'), general) + sectionCard(tr('fin_rates_retreats', 'Курсы ретритов'), retreats);
+}
+
+function ratesChartHtml() {
+    const currencies = [...new Set(rows.map(r => r.from_currency))].sort((a, b) =>
+        ['USD', 'EUR', 'RUB'].indexOf(a) - ['USD', 'EUR', 'RUB'].indexOf(b));
+    if (!currencies.includes(chartCur)) chartCur = currencies[0] || null;
+    const join = (attr, items, active) => `<div class="join">${items.map(([v, label]) =>
+        `<button class="join-item btn btn-sm ${String(v) === String(active) ? 'btn-active' : ''}" ${attr}="${v}">${e(label)}</button>`).join('')}</div>`;
+    return `<div class="card bg-base-100 shadow-sm"><div class="card-body p-4">
+        <div class="flex flex-wrap gap-2 mb-3">
+            ${join('data-chart-cur', currencies.map(c => [c, c]), chartCur)}
+            ${join('data-chart-mode', [['general', t('fin_general_rate')], ['retreats', tr('fin_rates_retreats', 'Курсы ретритов')], ['both', tr('fin_rates_both', 'Оба')]], chartMode)}
+            ${join('data-chart-months', [[3, tr('fin_rates_p3', '3 мес')], [6, tr('fin_rates_p6', '6 мес')], [12, tr('fin_rates_p12', 'Год')], [0, tr('fin_rates_all', 'Всё')]], chartMonths)}
+        </div>
+        <div class="relative h-80"><canvas id="ratesChart"></canvas></div>
+        <div id="ratesChartEmpty" class="hidden text-center text-sm opacity-60 py-6">${e(tr('fin_rates_chart_empty', 'За этот период курсов нет'))}</div>
+    </div></div>`;
+}
+
+async function drawRatesChart() {
+    let Chart;
+    try { Chart = await loadChartLib(); } catch {
+        document.getElementById('ratesChart')?.replaceWith(Object.assign(document.createElement('div'), { className: 'text-sm text-error', textContent: tr('cost_charts_load_error', 'Не удалось загрузить графики') }));
+        return;
+    }
+    const canvas = document.getElementById('ratesChart');
+    if (!canvas) return;
+    if (ratesChart) { ratesChart.destroy(); ratesChart = null; }
+
+    const ts = iso => DateUtils.parseDate(iso).getTime();
+    const s = splitRates();
+    const general = [...s.general, ...s.archGeneral].filter(r => r.from_currency === chartCur)
+        .sort((a, b) => a.effective_date.localeCompare(b.effective_date));
+    const retreats = [...s.retreats, ...s.archRetreats]
+        .map(g => ({ ...g, rate: g.rates.find(r => r.from_currency === chartCur) })).filter(g => g.rate);
+
+    // Ось — от начала периода до сегодня (или до последней будущей даты)
+    const today = FinUtils.todayISO();
+    const lastIso = [today, ...general.map(r => r.effective_date), ...retreats.map(g => g.end)].sort().pop();
+    const firstIso = [...general.map(r => r.effective_date), ...retreats.map(g => g.start)].sort()[0] || today;
+    const max = ts(lastIso);
+    let min = ts(firstIso);
+    if (chartMonths) {
+        const d = DateUtils.parseDate(today); d.setMonth(d.getMonth() - chartMonths);
+        min = Math.max(min, d.getTime());
+    }
+
+    const datasets = [];
+    if (chartMode !== 'retreats') {
+        // Общий курс держится до следующей записи — ступенькой
+        // точки — только там, где курс сменился: тот же курс вносят каждую неделю
+        const before = general.filter(r => ts(r.effective_date) <= min).pop();
+        const pts = [];
+        if (before) pts.push({ x: min, y: Number(before.rate) });
+        for (const r of general.filter(r => ts(r.effective_date) > min)) {
+            if (!pts.length || pts[pts.length - 1].y !== Number(r.rate)) pts.push({ x: ts(r.effective_date), y: Number(r.rate) });
+        }
+        if (pts.length) pts.push({ x: max, y: pts[pts.length - 1].y, edge: true });
+        // 'before' в Chart.js: значение держится до следующей точки, потом ступенька
+        if (pts.length) datasets.push({ label: t('fin_general_rate'), data: pts, stepped: 'before', borderColor: RATE_COLORS.general,
+            backgroundColor: RATE_COLORS.general, borderWidth: 2, pointRadius: pts.map(p => p.edge || p.x === min ? 0 : 3) });
+    }
+    if (chartMode !== 'general') {
+        // Курс ретрита — отрезок на даты ретрита, разрыв между ретритами
+        const pts = [];
+        for (const g of retreats.sort((a, b) => a.start.localeCompare(b.start))) {
+            const a = ts(g.start), b = ts(g.end);
+            if (b < min || a > max) continue;
+            const y = Number(g.rate.rate);
+            pts.push({ x: Math.max(a, min), y, name: g.name }, { x: Math.min(b, max), y, name: g.name }, { x: Math.min(b, max), y: null });
+        }
+        if (pts.length) datasets.push({ label: tr('fin_rates_retreats', 'Курсы ретритов'), data: pts, spanGaps: false,
+            borderColor: RATE_COLORS.retreats, backgroundColor: RATE_COLORS.retreats, borderWidth: 4, pointRadius: 3 });
+    }
+
+    document.getElementById('ratesChartEmpty').classList.toggle('hidden', datasets.length > 0);
+    canvas.parentElement.classList.toggle('hidden', !datasets.length);
+    if (!datasets.length) return;
+
+    const day = v => DateUtils.formatShort(new Date(v));
+    ratesChart = new Chart(canvas, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false, parsing: false,
+            interaction: { mode: 'nearest', intersect: false },
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12 } },
+                tooltip: { callbacks: {
+                    title: items => day(items[0].raw.x),
+                    label: c => `${c.raw.name || c.dataset.label}: ${c.raw.y} ₹`
+                } }
+            },
+            scales: {
+                x: { type: 'linear', min, max, ticks: { maxTicksLimit: 8, callback: day } },
+                y: { ticks: { callback: v => Number(v).toLocaleString('ru-RU') } }
+            }
+        }
+    });
+}
+
+function wireRatesView() {
+    document.getElementById('ratesView').addEventListener('click', ev => {
+        const tab = ev.target.closest('[data-rates-tab]');
+        const edit = ev.target.closest('[data-edit]');
+        const add = ev.target.closest('[data-add-rate-for]');
+        const cur = ev.target.closest('[data-chart-cur]');
+        const mode = ev.target.closest('[data-chart-mode]');
+        const months = ev.target.closest('[data-chart-months]');
+        if (tab) { ratesTab = tab.dataset.ratesTab; renderRates(); }
+        else if (edit) openForm(rows.find(r => r.id === edit.dataset.edit));
+        else if (add) {
+            openForm(null);
+            const sel = document.getElementById('f_obj');
+            if (sel) sel.value = add.dataset.addRateFor;
+        }
+        else if (cur) { chartCur = cur.dataset.chartCur; renderRates(); }
+        else if (mode) { chartMode = mode.dataset.chartMode; renderRates(); }
+        else if (months) { chartMonths = Number(months.dataset.chartMonths); renderRates(); }
+    });
 }
 
 // ==================== СЧЕТА ДЕПАРТАМЕНТА ====================
@@ -760,6 +1060,7 @@ async function init() {
     });
 
     document.getElementById('dictForm').addEventListener('submit', submitForm);
+    wireRatesView();
 
     // Кнопки сотрудников живут внутри dictFields, который каждый openForm
     // пересобирает целиком — вешаем один делегированный слушатель на форму
