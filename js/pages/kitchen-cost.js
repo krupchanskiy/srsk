@@ -308,7 +308,7 @@ async function calculate() {
 
 function hideResult() {
     view = null;
-    ['#summaryBox', '#tabsBox', '#kpiBox', '#sectionBar', '#qualityBanner'].forEach(sel => Layout.$(sel).classList.add('hidden'));
+    ['#summaryBox', '#tabsBox', '#kpiBox', '#sectionBar', '#qualityBanner', '#topBox'].forEach(sel => Layout.$(sel).classList.add('hidden'));
 }
 
 // ==================== ROWS ====================
@@ -414,6 +414,7 @@ function pricesState() {
 // ==================== RENDER ====================
 function render() {
     renderQuality();
+    renderTop();
     renderKpis();
     renderSummary();
     renderTabs();
@@ -443,6 +444,76 @@ function renderQuality() {
         <ul class="list-disc ml-5 mt-1">${reasons.map(r => `<li>${r}</li>`).join('')}</ul></div>
         <a class="btn btn-sm shrink-0 whitespace-nowrap justify-self-end bg-base-100 border-base-100 hover:bg-base-200" data-action="tab" data-tab="completeness">${e(tr('cost_tab_completeness', 'Полнота данных'))} →</a>
     </div>`;
+    box.classList.remove('hidden');
+}
+
+// «?» у названия: подсказка при наведении, нажатие — раздел памятки «Как считается»
+const howQ = (hint, sec) => `<span class="how-q cursor-help" title="${e(hint)}" ${sec ? `data-action="how" data-sec="${sec}"` : ''}>?</span>`;
+
+// Порции ретрита по приёмам пищи: продукты и посуда — по меню своего приёма пищи (доля ретрита),
+// зарплаты и хозрасходы — поровну на каждый приём пищи; сумма порций × приёмы = себестоимость всего
+function portionStats(ev) {
+    const s = { breakfast: { pm: 0, direct: 0 }, lunch: { pm: 0, direct: 0 } };
+    const n = b => b ? ALL_BUCKETS.reduce((a, k) => a + (b[k] || 0), 0) : 0;
+    for (const rec of view.result.mealRecords || []) {
+        const k = n(rec.byEvent?.[ev]);
+        if (rec.unallocated || !k || !s[rec.meal]) continue;
+        s[rec.meal].direct += (rec.food + rec.external) * k / rec.eaters + rec.dishwarePerEater * k;
+    }
+    // приёмы пищи — по вкушающим, и без меню тоже (люди ели)
+    for (const [d, day] of Object.entries(view.result.counts || {})) {
+        if (d < view.from || d > view.to) continue;
+        for (const m of ['breakfast', 'lunch']) s[m].pm += n(day.byEvent?.[m]?.[ev]);
+    }
+    return s;
+}
+
+// Сводка ретрита сверху: главные цифры простыми словами (ВГ 24.10)
+function renderTop() {
+    const box = Layout.$('#topBox');
+    if (state.mode !== 'retreat') { box.classList.add('hidden'); return; }
+    const ev = `retreat:${state.retreatId}`;
+    const whole = aggregate(view.result.cells, ev, ALL_BUCKETS);
+    const row = { ev, buckets: ALL_BUCKETS };
+    const st = peopleStats(row);
+    const ps = pricesState();
+    const ov = whole.pm ? overhead(whole) / whole.pm : 0;
+    const p = portionStats(ev);
+    const portion = m => p[m].pm ? p[m].direct / p[m].pm + ov : null;
+    const bf = portion('breakfast'), ln = portion('lunch');
+    const perPerson = st.participants ? total(whole) / st.participants : null;
+    const val = v => v === null ? '—' : `${money(v)}${warnMark(ps)}`;
+    const card = (label, v, sub, hint) => `<div class="bg-base-100 rounded-xl shadow-sm p-4">
+        <div class="text-xs uppercase tracking-wide opacity-60">${e(label)}${hint ? howQ(hint, 'direct') : ''}</div>
+        <div class="text-2xl font-bold mt-1">${val(v)}</div>
+        ${sub ? `<div class="text-xs opacity-60 mt-1">${sub}</div>` : ''}</div>`;
+    const meals = m => `${num(p[m].pm)} ${e(tr('cost_portions_word', 'порций'))}`;
+    const days = daysOf(row);
+    const facts = [DateUtils.formatRange(view.from, view.to),
+        `${String(days).replace(/ <span.*$/, '')} ${e(tr('cost_days_word', 'дн.'))}`,
+        `${num(st.people)} ${e(tr('cost_people_word', 'чел.'))}`,
+        `${num(whole.pm)} ${e(tr('cost_meals_word', 'приёмов пищи'))}`];
+    // сколько заплатили на одну порцию — полученное за прасад на все порции ретрита (как «Результат»)
+    const inc = view.incomes[state.retreatId];
+    const paidPer = inc && whole.pm ? inc.full / whole.pm : null;
+    const costPer = whole.pm ? total(whole) / whole.pm : null;
+    const paidLine = paidPer === null ? '' : `<div class="bg-base-100 rounded-xl shadow-sm px-4 py-3 col-span-full flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+        <span>${e(tr('cost_paid_per_portion', 'Заплатили на одну порцию'))}${howQ(tr('cost_paid_per_portion_hint', 'Получено за прасад (по Финансам) ÷ все порции ретрита, включая команду и волонтёров ретрита. Сравните с ценой порции: меньше — прасад ретрита в минусе.'))}</span>
+        <span class="text-xl font-bold text-blue-600">${money2(paidPer)}</span>
+        ${costPer !== null && ps !== 'none' ? `<span class="opacity-70">${e(tr('cost_vs_cost_per_portion', 'а обошлась в среднем'))} ${money2(costPer)}${warnMark(ps)}</span>
+            <span class="font-semibold ${paidPer >= costPer ? 'text-success' : 'text-error'}">${paidPer >= costPer ? '+' : '−'}${money2(Math.abs(paidPer - costPer))}</span>` : ''}
+    </div>`;
+    const portionHint = tr('cost_portion_hint', 'Продукты и посуда по меню этого приёма пищи + доля зарплат, газа и света, хозрасходов (поровну на каждую порцию). Наши порции × эти цены = себестоимость ретрита.');
+    box.className = 'grid grid-cols-2 xl:grid-cols-4 gap-3 mb-4';
+    box.innerHTML = `<div class="col-span-full flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span class="text-sm font-semibold uppercase tracking-wide opacity-60">${e(tr('cost_top_title', 'Сколько стоит прасад'))}</span>
+            <span class="text-sm opacity-70">${facts.join(' · ')}</span></div>
+        ${card(tr('cost_portion_breakfast', 'Порция завтрака'), bf, bf === null ? '' : meals('breakfast'), portionHint)}
+        ${card(tr('cost_portion_lunch', 'Порция обеда'), ln, ln === null ? '' : meals('lunch'), portionHint)}
+        ${card(tr('cost_meal_day', 'День питания'), bf !== null && ln !== null ? bf + ln : null, e(tr('cost_meal_day_sub', 'завтрак + обед')))}
+        ${card(tr('cost_per_person_retreat', 'На одного человека за ретрит'), perPerson, st.participants ? `${num(st.participants)} ${e(tr('cost_participants_word', 'участников, без команды и волонтёров'))}` : '',
+            tr('cost_per_person_retreat_hint', 'Себестоимость всего ÷ участники ретрита. Команда и волонтёры ретрита едят, их еда входит в себестоимость, но в делитель не входят.'))}
+        ${paidLine}`;
     box.classList.remove('hidden');
 }
 
@@ -624,11 +695,11 @@ function renderSummary() {
         ${isPeriod ? `<th class="text-right">${e(tr('cost_days', 'Дней'))}</th>` : ''}
         <th class="text-right">${e(tr('cost_people', 'Людей'))}</th>
         <th class="text-right">${e(tr('cost_person_meals', 'Приёмов пищи'))}</th>
-        <th class="text-right">${e(tr('cost_direct', 'Прямые'))}</th>
-        <th class="text-right">${e(tr('cost_overhead', 'Накладные'))}</th>
-        <th class="text-right">${e(tr('cost_total', 'Всего'))}</th>
-        <th class="text-right">${e(tr('cost_per_meal', 'На приём пищи'))}</th>
-        <th class="text-right">${e(tr('cost_per_participant', 'На участника'))}</th>
+        <th class="text-right">${e(tr('cost_col_direct', 'Продукты и посуда (по меню)'))}${howQ(tr('cost_col_direct_hint', 'Продукты по рецептам меню на порции повара, одноразовая посуда на каждого, готовое со стороны по чеку'), 'direct')}</th>
+        <th class="text-right">${e(tr('cost_col_overhead', 'Зарплаты, газ и свет, хозрасходы'))}${howQ(tr('cost_col_overhead_hint', 'Расходы кухни не на конкретное блюдо: зарплаты, газ, свет, вода, оборудование, хозтовары. Делятся поровну на каждый приём пищи за свой срок'), 'overhead')}</th>
+        <th class="text-right">${e(tr('cost_col_total', 'Себестоимость всего'))}</th>
+        <th class="text-right">${e(tr('cost_col_per_meal', 'Цена одной порции'))}${howQ(tr('cost_col_per_meal_hint', 'Себестоимость всего ÷ приёмы пищи (один завтрак или один обед одного человека)'))}</th>
+        <th class="text-right">${e(tr('cost_per_person_retreat', 'На одного человека за ретрит'))}${howQ(tr('cost_per_person_retreat_hint', 'Себестоимость всего ÷ участники ретрита. Команда и волонтёры ретрита едят, их еда входит в себестоимость, но в делитель не входят.'))}</th>
         ${isPeriod ? `<th class="text-right" title="${e(tr('cost_income_hint_period', 'Начислено за питание (со скидками, без отмен) плюс пожертвования на прасад. Ретрит — своей долей по дням; пожертвования без ретрита и приход сторонних ретритов — в «Гостях без события»'))}">${e(tr('cost_income_charged', 'Доход прасада (начислено)'))}</th>
         <th class="text-right">${e(tr('cost_result', 'Результат'))}</th>` : ''}
     </tr>`;
@@ -694,8 +765,8 @@ function renderSummary() {
 
     Layout.$('#summaryBody').innerHTML = (html || `<tr><td colspan="11" class="text-center opacity-60 py-6">${e(tr('cost_nothing', 'За период нет данных'))}</td></tr>`) + grandHtml + lostHtml;
     Layout.$('#summaryNote').textContent = isPeriod
-        ? tr('cost_summary_note_period2', 'Ретрит, который захватывает несколько месяцев, входит в период своей долей: расходы — по дням, доход прасада — по доле приёмов пищи. Доход — начисленное за питание плюс пожертвования на прасад; неотмеченное пожертвование в даты нашего общего ретрита идёт ретриту, остальные и приход сторонних ретритов — «Гостям без события». Им же — начисленное за питание гостям без события: визит на стыке периодов делится по дням. Итог — весь доход минус вся себестоимость кухни, включая команду. «На участника» — стоимость ретрита на одного участника без команды и волонтёров.')
-        : tr('cost_summary_note_retreat', 'Ретрит целиком, включая дни раннего заезда и позднего выезда его участников, до конца — по броням. «На участника» — вся стоимость ретрита на одного участника без постоянной команды и волонтёров (они — на вкладке «Команда и волонтёры»).');
+        ? tr('cost_summary_note_period3', 'Ретрит, который захватывает несколько месяцев, входит в период своей долей: расходы — по дням, доход прасада — по доле приёмов пищи. Доход — начисленное за питание плюс пожертвования на прасад; неотмеченное пожертвование в даты нашего общего ретрита идёт ретриту, остальные и приход сторонних ретритов — «Гостям без события». Им же — начисленное за питание гостям без события: визит на стыке периодов делится по дням. Итог — весь доход минус вся себестоимость кухни, включая команду. «На одного человека за ретрит» — стоимость ретрита на одного участника без команды и волонтёров.')
+        : tr('cost_summary_note_retreat2', 'Ретрит целиком, включая дни раннего заезда и позднего выезда его участников, до конца — по броням. «На одного человека за ретрит» — вся стоимость ретрита на одного участника без постоянной команды и волонтёров (они — на вкладке «Команда и волонтёры»).');
     Layout.$('#summaryBox').classList.remove('hidden');
 }
 
@@ -839,8 +910,8 @@ function tabList() {
     return [
         { id: 'eaters', label: tr('cost_tab_eaters', 'Вкушающие') },
         { id: 'departments', label: tr('cost_tab_departments', 'Команда и волонтёры') },
-        { id: 'direct', label: tr('cost_tab_direct', 'Прямые затраты') },
-        { id: 'overhead', label: tr('cost_tab_overhead', 'Накладные') },
+        { id: 'direct', label: tr('cost_tab_direct2', 'Продукты и посуда') },
+        { id: 'overhead', label: tr('cost_tab_overhead2', 'Зарплаты, газ и свет, хозрасходы') },
         // сверка — проверка всей кухни: закупки в ДДС не помечены ретритом, поэтому только в «Периоде»
         state.mode === 'period' ? { id: 'reconcile', label: tr('cost_reconcile_title', 'Сверка с ДДС') } : null
     ].filter(Boolean);
@@ -900,7 +971,7 @@ function renderCompleteness() {
         { label: tr('cost_c_payroll', 'Месяцы с начисленной зарплатой (не оценкой)'), ok: months.size - w.payrollEstimated.filter(m => months.has(m)).length, total: months.size,
           href: '../finance/payroll.html', link: tr('fin_payroll', 'Зарплаты') },
         { label: tr('cost_c_unassigned', 'Расходы «на ретрит» с назначением'), ok: unassigned.length ? 0 : 1, total: 1, count: unassigned.length,
-          tab: 'overhead', link: tr('cost_tab_overhead', 'Накладные') }
+          tab: 'overhead', link: tr('cost_tab_overhead2', 'Зарплаты, газ и свет, хозрасходы') }
     ];
     Layout.$('#completenessBody').innerHTML = items.map(it => {
         const pct = it.total ? Math.round(it.ok / it.total * 100) : 100;
@@ -1035,7 +1106,7 @@ async function renderCharts() {
             { type: 'bar', label: tr('cost_food', 'Продукты'), data: mData.map(x => x.food), backgroundColor: PART_COLORS.food, stack: 's' },
             { type: 'bar', label: tr('cost_dishware', 'Посуда'), data: mData.map(x => x.dish), backgroundColor: PART_COLORS.dish, stack: 's' },
             { type: 'bar', label: tr('cost_external', 'Готовое'), data: mData.map(x => x.ext), backgroundColor: PART_COLORS.ext, stack: 's' },
-            { type: 'bar', label: tr('cost_overhead', 'Накладные'), data: mData.map(x => overhead(x)), backgroundColor: PART_COLORS.ov, stack: 's' }
+            { type: 'bar', label: tr('cost_col_overhead', 'Зарплаты, газ и свет, хозрасходы'), data: mData.map(x => overhead(x)), backgroundColor: PART_COLORS.ov, stack: 's' }
         ] },
         options: { ...base, plugins: { ...base.plugins, tooltip: { callbacks: { ...moneyTip.callbacks,
                 footer: items => { const x = mData[items[0].dataIndex];
