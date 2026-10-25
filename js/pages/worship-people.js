@@ -17,6 +17,7 @@ const WorshipPeople = (() => {
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
 
     let люди = [], службы = [], назначения = [], отметки = [];
+    let особыеСегодня = [];       // отмены, сдвиги и разовые службы на сегодня
     let яЧеловек = null, открытый = null;
 
     // ---------- загрузка ----------
@@ -25,10 +26,10 @@ const WorshipPeople = (() => {
 
         // всё одним кругом: люди приходят сразу с именами, допуски — рядом.
         // Было три круга подряд, и на мобильной сети это секунды
-        const [л, с, н, о, доп] = await Promise.all([
+        const [л, с, н, о, доп, ос] = await Promise.all([
             Layout.db.rpc('worship_people_list'),
             Layout.db.from('worship_services')
-                .select('id, name_ru, name_en, name_hi, time_of_day, article_id, is_active')
+                .select('id, name_ru, name_en, name_hi, time_of_day, duration_minutes, article_id, is_active')
                 .order('sort_order').order('time_of_day'),
             Layout.db.from('worship_duties')
                 .select('id, duty_date, service_id, override_id, person_id, role')
@@ -36,13 +37,16 @@ const WorshipPeople = (() => {
             Layout.db.from('worship_absences')
                 .select('id, person_id, date_from, date_to, reason').order('date_from'),
             Layout.db.from('worship_person_services').select('person_id, service_id'),
+            Layout.db.from('worship_day_overrides')
+                .select('id, service_id, title, time_of_day, duration_minutes').eq('duty_date', сегодня),
         ]);
-        const ошибка = л.error || с.error || н.error || о.error || доп.error;
+        const ошибка = л.error || с.error || н.error || о.error || доп.error || ос.error;
         if (ошибка) { Layout.handleError(ошибка, 'Люди отдела'); return false; }
 
         службы = с.data || [];
         назначения = н.data || [];
         отметки = о.data || [];
+        особыеСегодня = ос.data || [];
         люди = л.data || [];
 
         люди = люди.map(ч => ({
@@ -76,7 +80,33 @@ const WorshipPeople = (() => {
             .sort((a, b) => a.date_from.localeCompare(b.date_from))[0];
     };
 
-    const служб = id => назначения.filter(н => н.person_id === id).length;
+    /**
+     * Службы человека сегодня: сколько, сколько это времени и какие.
+     * Отменённые на сегодня не считаем, у сдвинутых — новое время.
+     */
+    function сегодняУ(personId) {
+        const сегодня = DateUtils.todayAshramISO();
+        let минут = 0, безДлительности = 0;
+        const список = назначения.filter(н => н.person_id === personId && н.duty_date === сегодня)
+            .map(н => {
+                const с = н.service_id && службы.find(x => x.id === н.service_id);
+                const о = н.service_id
+                    ? особыеСегодня.find(x => x.service_id === н.service_id)
+                    : особыеСегодня.find(x => x.id === н.override_id);
+                if (с && о && !о.time_of_day) return null;            // отменена на сегодня
+                const м = (с || о)?.duration_minutes;
+                if (м) минут += м; else безДлительности++;
+                return `${((о?.time_of_day) || с?.time_of_day || '').slice(0, 5)} ${
+                    с ? Layout.getName(с) : (о?.title || 'служба')}`;
+            })
+            .filter(Boolean).sort();
+        return { служб: список.length, минут, безДлительности, список };
+    }
+
+    const часыКоротко = м => {
+        const ч = Math.floor(м / 60), мин = м % 60;
+        return ч ? (мин ? `${ч} ч ${мин} мин` : `${ч} ч`) : `${мин} мин`;
+    };
 
     // ---------- список ----------
     /** Строка списка: имя с состоянием слева, нагрузка справа. */
@@ -108,12 +138,16 @@ const WorshipPeople = (() => {
                         ? '<span class="badge badge-sm whitespace-nowrap badge-ghost ml-1">нет входа</span>' : ''}
                     ${срокСловами(ч) ? `<span class="block text-sm opacity-70">${срокСловами(ч)}</span>` : ''}
                 </span>
-                ${служб(ч.id) || ч.is_active !== false ? `
-                <span class="text-sm opacity-70 whitespace-nowrap tabular-nums">
-                    ${Layout.pluralize(служб(ч.id), {
-                        ru: ['служба впереди', 'службы впереди', 'служб впереди'],
-                        en: ['duty ahead', 'duties ahead'], hi: 'सेवा' })}
-                </span>` : ''}
+                ${(() => {
+                    // нагрузка сегодня, а не «служб впереди»: важнее, кто занят прямо сейчас
+                    if (ч.is_active === false) return '';
+                    const с = сегодняУ(ч.id);
+                    if (!с.служб) return '<span class="text-sm opacity-50 whitespace-nowrap">сегодня служб нет</span>';
+                    return `<span class="text-sm whitespace-nowrap tabular-nums" title="${e(с.список.join('\n'))}">
+                        сегодня <b>${Layout.pluralize(с.служб, { ru: ['служба', 'службы', 'служб'],
+                            en: ['service', 'services'], hi: 'सेवा' })}</b>${с.минут
+                            ? `<span class="opacity-70"> · ${часыКоротко(с.минут)}${с.безДлительности ? ' +?' : ''}</span>` : ''}</span>`;
+                })()}
             </button>
             ${вРезерве && можноВести() ? `
             <span class="flex gap-1 pr-3 shrink-0">
