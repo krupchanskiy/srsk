@@ -839,7 +839,7 @@ const WorshipSchedule = (() => {
         $('#нСписок').innerHTML = строки.map(({ ч, пометки, стоит, занят }) => `
             <li class="border-b border-base-200 last:border-0 py-2 flex items-center gap-3">
                 <span class="flex-1 min-w-0">
-                    <span class="font-semibold">${e(ч.имя)}</span>
+                    <span class="font-semibold">${e(ч.имя)}</span>${window.WorshipInitiation?.значок(ч.initiation) || ''}
                     ${кто === 'all' && ч.kind === 'volunteer'
                         ? '<span class="badge badge-sm badge-outline ml-1">волонтёр</span>' : ''}
                     ${пометки.map(([т, к]) => `<span class="badge badge-sm whitespace-nowrap ${к} ml-1">${e(т)}</span>`).join('')}

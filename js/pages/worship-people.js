@@ -92,7 +92,7 @@ const WorshipPeople = (() => {
                 <!-- основа 12rem: на телефоне счётчик служб уходит под имя,
                      а не сжимает его до наложения букв -->
                 <span class="flex-1 basis-48 min-w-0">
-                    <span class="font-semibold">${e(ч.имя)}</span>
+                    <span class="font-semibold">${e(ч.имя)}</span>${window.WorshipInitiation?.значок(ч.initiation) || ''}
                     ${ч.kind === 'volunteer'
                         ? '<span class="badge badge-sm whitespace-nowrap badge-outline ml-1">волонтёр</span>' : ''}
                     ${ч.мой ? '<span class="badge badge-sm whitespace-nowrap ml-1">это вы</span>' : ''}
@@ -194,6 +194,7 @@ const WorshipPeople = (() => {
         $('#кСрокПо').value = открытый.active_to || '';
         $('#кСрокБлок').hidden = !можноВести();
         рисоватьВид();
+        рисоватьПосвящение();
         рисоватьСлужбыЧеловека();
         рисоватьДопуски();
         рисоватьОтметки();
@@ -230,6 +231,8 @@ const WorshipPeople = (() => {
             : ч.active_to ? `по ${к(ч.active_to)}` : ч.active_from ? `с ${к(ч.active_from)}` : '';
         const чипы = [
             `<span class="кЧип свой">${ч.kind === 'volunteer' ? 'Волонтёр' : 'Команда'}</span>`,
+            ч.initiation ? `<span class="кЧип">${WorshipInitiation.значок(ч.initiation).replace('margin-left:.3rem;', '')}${
+                WorshipInitiation.ПОДПИСЬ[ч.initiation]}</span>` : '',
             ч.is_active === false ? '<span class="кЧип">в резерве</span>' : '',
             срок ? `<span class="кЧип">${ЗНАЧОК.срок}${e(срок)}</span>` : '',
             ч.телефон ? `<a class="кЧип tabular-nums" href="tel:${e(ч.телефон.replace(/[^\d+]/g, ''))}">${ЗНАЧОК.телефон}${e(ч.телефон)}</a>` : '',
@@ -404,6 +407,26 @@ const WorshipPeople = (() => {
         $('#кВидПодпись').textContent = (открытый.kind || 'team') === 'volunteer'
             ? 'Приехал на время. Ставьте с оглядкой на срок участия ниже.'
             : 'Постоянный состав отдела.';
+    }
+
+    /** Посвящение — выбор старшего: не указано / нет / первая / вторая. */
+    function рисоватьПосвящение() {
+        $('#кПосвящениеБлок').hidden = !можноВести();
+        document.querySelectorAll('[data-посвящение]').forEach(б =>
+            б.classList.toggle('btn-active', б.getAttribute('data-посвящение') === (открытый.initiation || '')));
+    }
+
+    async function записатьПосвящение(код) {
+        const { data, error } = await Layout.db.from('worship_people')
+            .update({ initiation: код || null, updated_at: new Date().toISOString(),
+                      updated_by: window.currentUser?.id || null })
+            .eq('id', открытый.id).select('id');
+        if (error) return Layout.handleError(error, 'Посвящение');
+        if (!data?.length) return Layout.showNotification('Не сохранилось: состав ведёт старший', 'error');
+        открытый.initiation = код || null;
+        рисоватьПосвящение();
+        рисоватьШапку();
+        await перечитать();
     }
 
     async function записатьВид(вид) {
@@ -680,6 +703,8 @@ const WorshipPeople = (() => {
             if (b.dataset.убрать) return разом(b, () => убрать(b.dataset.убрать));
             const вид = ev.target.closest('[data-вид-человека]');
             if (вид && открытый) return записатьВид(вид.getAttribute('data-вид-человека'));
+            const посв = ev.target.closest('[data-посвящение]');
+            if (посв && открытый) return записатьПосвящение(посв.getAttribute('data-посвящение'));
 
             if (b.id === 'кСрокСохранить') {
                 const ок = await записатьСрок();
