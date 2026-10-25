@@ -42,6 +42,12 @@
             <ul class="list-none m-0 p-0" id="список"></ul>
         </div>
 
+        <!-- снимки галереи, отмеченные звёздочкой в просмотре -->
+        <section id="снимкиБлок" hidden class="mt-6">
+            <h2 class="надзаголовок mb-1.5">Снимки <span class="opacity-60" id="снимкиСчёт"></span></h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 desktop:grid-cols-4 gap-3" id="снимкиИзбр"></div>
+        </section>
+
         <!-- недавнее система ведёт сама: сюда приходят и за тем, что читали вчера -->
         <section id="недавнееБлок" hidden class="mt-6">
             <h2 class="надзаголовок mb-1.5" data-i18n="worship_recent_title">Недавно открытое</h2>
@@ -59,7 +65,9 @@
     <script src="../js/layout.js?v=126"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-bookmarks.js?v=4"></script>
+    <script src="../js/worship-links.js?v=1"></script>
+    <script src="../js/media.js?v=3"></script>
+    <script src="../js/pages/worship-bookmarks.js?v=5"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_bookmarks' });

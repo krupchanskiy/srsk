@@ -516,17 +516,22 @@ const WorshipHome = (() => {
 
     async function личное() {
         const { data, error } = await Layout.db.from('worship_bookmarks')
-            .select('kind, article_id, created_at').order('created_at', { ascending: false });
+            .select('kind, article_id, image_id, created_at').order('created_at', { ascending: false });
         if (error) return;                       // личный список не повод ломать страницу
 
         await основа;
         const заголовок = id => статьи.find(с => с.id === id)?.title || 'Статья';
 
         const закладки = (data || []).filter(з => з.kind === 'bookmark' && з.article_id);
+        // снимки галереи в избранном — одной строкой со ссылкой: миниатюры
+        // живут на странице «Избранное», на главной им места нет
+        const снимков = (data || []).filter(з => з.kind === 'bookmark' && з.image_id).length;
         $('#marks').innerHTML = закладки.slice(0, ПОКАЗЫВАЕМ)
             .map(з => строка(з.article_id, заголовок(з.article_id), '')).join('')
-            + хвостСписка(закладки.length, 'bookmarks.html');
-        настроитьГруппу('marksCard', закладки.length);
+            + хвостСписка(закладки.length, 'bookmarks.html')
+            + (снимков ? `<li class="py-2"><a class="link link-hover text-sm" href="bookmarks.html">${
+                Layout.pluralize(снимков, { ru: ['снимок', 'снимка', 'снимков'], en: ['photo', 'photos'], hi: 'फ़ोटो' })} в избранном</a></li>` : '');
+        настроитьГруппу('marksCard', закладки.length + снимков);
 
         const недавние = (data || []).filter(з => з.kind === 'recent' && з.article_id)
             .filter(з => !закладки.some(з2 => з2.article_id === з.article_id));

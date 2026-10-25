@@ -180,20 +180,25 @@ const Media = (() => {
     // ---------- просмотр ----------
     let просмотр = null;
 
+    const ЗВЕЗДА = '<svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>';
+
     /**
      * Полноэкранный просмотр: стрелки, свайп, Escape. Снимки — массив
-     * { адрес, подпись }.
+     * { адрес, подпись, id? }. избранное — { есть(снимок), переключить(снимок) }:
+     * тогда вверху звёздочка «в избранное» (у снимков с id). закрыт() —
+     * вызывается, когда просмотр закрыли.
      */
-    function открыть(снимки, начало = 0) {
+    function открыть(снимки, начало = 0, { избранное, закрыт } = {}) {
         if (!снимки?.length) return;
         закрыть();
 
         const корень = document.createElement('div');
-        корень.className = 'fixed inset-0 z-[200] bg-black/95 flex flex-col';
+        корень.className = 'fixed inset-0 z-[200] bg-black flex flex-col';   // плотный: страница не просвечивает
         корень.innerHTML = `
             <div class="flex items-center gap-3 p-3 text-white/80">
                 <span class="text-sm" data-счёт></span>
                 <span class="flex-1"></span>
+                <button class="btn btn-sm btn-ghost text-white gap-1" data-звезда hidden></button>
                 <button class="btn btn-sm btn-ghost text-white" data-закрыть aria-label="Закрыть">✕</button>
             </div>
             <div class="flex-1 flex items-center justify-center overflow-hidden px-2">
@@ -213,12 +218,29 @@ const Media = (() => {
             корень.querySelector('[data-подпись]').textContent = с.подпись || '';
             корень.querySelector('[data-счёт]').textContent = `${i + 1} из ${снимки.length}`;
             корень.querySelectorAll('[data-шаг]').forEach(б => { б.hidden = снимки.length < 2; });
+            const звезда = корень.querySelector('[data-звезда]');
+            звезда.hidden = !(избранное && с.id);
+            if (!звезда.hidden) {
+                const есть = !!избранное.есть(с);
+                звезда.innerHTML = ЗВЕЗДА.replace('<svg ', `<svg fill="${есть ? 'currentColor' : 'none'}" `)
+                    + `<span class="text-sm">${есть ? 'В избранном' : 'В избранное'}</span>`;
+                звезда.style.color = есть ? '#facc15' : '';
+                звезда.setAttribute('aria-pressed', есть);
+                звезда.title = есть ? 'Убрать из избранного' : 'Добавить в избранное';
+            }
         };
         const шаг = куда => { i = (i + куда + снимки.length) % снимки.length; рисовать(); };
 
-        корень.addEventListener('click', ev => {
+        корень.addEventListener('click', async ev => {
             const кнопка = ev.target.closest('[data-шаг]');
             if (кнопка) return шаг(Number(кнопка.dataset.шаг));
+            const звезда = ev.target.closest('[data-звезда]');
+            if (звезда) {
+                if (звезда.disabled) return;
+                звезда.disabled = true;
+                try { await избранное.переключить(снимки[i]); } finally { звезда.disabled = false; }
+                return рисовать();
+            }
             if (ev.target.closest('[data-закрыть]') || ev.target === корень) закрыть();
         });
 
@@ -238,7 +260,7 @@ const Media = (() => {
             if (Math.abs(путь) > 50) шаг(путь < 0 ? 1 : -1);
         }, { passive: true });
 
-        просмотр = { корень, клавиши };
+        просмотр = { корень, клавиши, закрыт };
         рисовать();
     }
 
@@ -247,7 +269,9 @@ const Media = (() => {
         document.removeEventListener('keydown', просмотр.клавиши);
         просмотр.корень.remove();
         document.body.style.overflow = '';
+        const после = просмотр.закрыт;
         просмотр = null;
+        после?.();
     }
 
     /**

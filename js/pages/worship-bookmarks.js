@@ -17,10 +17,12 @@ const WorshipBookmarks = (() => {
     const НЕДАВНИХ = 10;
 
     let закладки = [], недавние = [], статьи = {};
+    // избранные снимки: { id, путь, миниатюра, подпись, album_id, папка }
+    let снимки = [], ссылки = {};
 
     async function загрузить() {
         const { data, error } = await Layout.db.from('worship_bookmarks')
-            .select('id, kind, article_id, created_at')
+            .select('id, kind, article_id, image_id, created_at')
             .order('created_at', { ascending: false });
         if (error) { Layout.handleError(error, 'Избранное'); return false; }
 
@@ -37,7 +39,74 @@ const WorshipBookmarks = (() => {
                 .select('id, title, kind, status, summary').in('id', ids);
             статьи = Object.fromEntries((ст || []).map(с => [с.id, с]));
         }
+        await загрузитьСнимки((data || []).filter(з => з.kind === 'bookmark' && з.image_id).map(з => з.image_id));
         return true;
+    }
+
+    /** Избранные снимки — с папкой и ссылками на миниатюры, в порядке отметки. */
+    async function загрузитьСнимки(ids) {
+        снимки = [];
+        if (!ids.length) return;
+        const { data: им } = await Layout.db.from('worship_images')
+            .select('id, storage_path, thumb_path, caption, album_id').in('id', ids);
+        const папкиIds = [...new Set((им || []).map(и => и.album_id))];
+        const { data: па } = папкиIds.length
+            ? await Layout.db.from('worship_albums').select('id, title').in('id', папкиIds) : { data: [] };
+        const папки = Object.fromEntries((па || []).map(п => [п.id, п.title]));
+        const поId = Object.fromEntries((им || []).map(и => [и.id, и]));
+        // снимок из закрытой папки или удалённый — просто не показываем
+        снимки = ids.map(id => поId[id]).filter(и => и && папки[и.album_id] !== undefined)
+            .map(и => ({ ...и, папка: папки[и.album_id] }));
+        ссылки = await WorshipLinks.подписать(Layout.db, снимки.map(и => и.thumb_path || и.storage_path));
+    }
+
+    function рисоватьСнимки() {
+        $('#снимкиБлок').hidden = !снимки.length;
+        $('#снимкиСчёт').textContent = снимки.length || '';
+        $('#снимкиИзбр').innerHTML = снимки.map((и, i) => `
+            <figure class="rounded-xl overflow-hidden bg-base-200">
+                <button type="button" class="block w-full aspect-square cursor-zoom-in" data-снимок="${i}"
+                        aria-label="${e(и.caption || 'Открыть снимок')}">
+                    ${ссылки[и.thumb_path || и.storage_path]
+                        ? `<img src="${e(ссылки[и.thumb_path || и.storage_path])}" alt="${e(и.caption)}" loading="lazy"
+                                class="w-full h-full object-cover">`
+                        : '<span class="text-xs opacity-50 p-2 block">снимок не загрузился</span>'}
+                </button>
+                <figcaption class="px-2 py-1.5 text-xs leading-snug">
+                    ${и.caption ? `<span class="block">${e(и.caption)}</span>` : ''}
+                    <a class="link link-hover opacity-70" href="album.html?id=${и.album_id}">${e(и.папка)}</a>
+                </figcaption>
+            </figure>`).join('');
+    }
+
+    /** Просмотр избранных снимков; звёздочкой в нём же снимок убирают. */
+    async function смотреть(начало) {
+        const оригиналы = await WorshipLinks.подписать(Layout.db, снимки.map(и => и.storage_path));
+        const убранные = new Set();
+        Media.открыть(снимки.map(и => ({
+            id: и.id, адрес: оригиналы[и.storage_path] || ссылки[и.thumb_path || и.storage_path],
+            подпись: [и.caption, и.папка].filter(Boolean).join(' · '),
+        })), начало, {
+            избранное: {
+                есть: с => !убранные.has(с.id),
+                переключить: async с => {
+                    const я = window.currentUser?.id;
+                    const убрать = !убранные.has(с.id);
+                    const { error } = убрать
+                        ? await Layout.db.from('worship_bookmarks').delete()
+                            .eq('kind', 'bookmark').eq('image_id', с.id).eq('user_id', я)
+                        : await Layout.db.from('worship_bookmarks').insert({ user_id: я, kind: 'bookmark', image_id: с.id });
+                    if (error && error.code !== '23505') return Layout.handleError(error, 'Избранное');
+                    убрать ? убранные.add(с.id) : убранные.delete(с.id);
+                },
+            },
+            // убранные звёздочкой пропадают из списка, когда просмотр закрыли:
+            // посреди листания снимки не должны уезжать из-под пальца
+            закрыт: () => {
+                снимки = снимки.filter(и => !убранные.has(и.id));
+                рисоватьСнимки();
+            },
+        });
     }
 
     const куда = с => `${с.kind === 'material' ? 'material' : 'article'}.html?id=${с.id}`;
@@ -64,13 +133,17 @@ const WorshipBookmarks = (() => {
     function рисовать() {
         const живые = закладки.filter(з => статьи[з.article_id]);
 
-        $('#список').innerHTML = живые.map(з => строка(з, true)).join('') || `
+        $('#список').innerHTML = живые.map(з => строка(з, true)).join('') || (снимки.length
+            ? '<li class="px-5 py-4 text-sm opacity-70">Стандартов и материалов здесь пока нет — только снимки ниже.</li>'
+            : `
             <li class="px-5 py-8 text-center">
                 <div class="font-semibold mb-1">В избранном пока пусто</div>
                 <div class="text-sm opacity-70 max-w-md mx-auto">Открывая стандарт или материал,
-                    нажмите звёздочку в шапке — он появится здесь. Список личный:
-                    у каждого в отделе свой.</div>
-            </li>`;
+                    нажмите звёздочку в шапке — он появится здесь. Снимок галереи —
+                    звёздочкой в просмотре. Список личный: у каждого в отделе свой.</div>
+            </li>`);
+
+        рисоватьСнимки();
 
         const свежие = недавние.filter(з => статьи[з.article_id]);
         $('#недавнееБлок').hidden = !свежие.length;
@@ -108,6 +181,8 @@ const WorshipBookmarks = (() => {
         document.addEventListener('click', ev => {
             const кнопка = ev.target.closest('[data-убрать]');
             if (кнопка) return убрать(кнопка.dataset.убрать);
+            const снимок = ev.target.closest('[data-снимок]');
+            if (снимок) return смотреть(Number(снимок.dataset.снимок));
             const назад = ev.target.closest('[data-вернуть]');
             if (назад) вернуть(назад.dataset.вернуть, назад);
         });

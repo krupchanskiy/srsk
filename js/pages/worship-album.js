@@ -20,6 +20,7 @@ const WorshipAlbum = (() => {
 
     const id = new URLSearchParams(location.search).get('id');
     let набор = null, снимки = [], ссылки = {};
+    let избранные = new Set();           // id снимков этой папки, отмеченных звёздочкой
     let неудачи = [];
 
     async function загрузить() {
@@ -35,8 +36,33 @@ const WorshipAlbum = (() => {
 
         набор = н.data;
         снимки = с.data || [];
-        await обновитьСсылки();
+        await Promise.all([обновитьСсылки(), загрузитьИзбранные()]);
         return true;
+    }
+
+    /** Свои избранные снимки этой папки — звёздочка в плитке и в просмотре. */
+    async function загрузитьИзбранные() {
+        const ids = снимки.map(с => с.id);
+        if (!ids.length) { избранные = new Set(); return; }
+        const { data } = await Layout.db.from('worship_bookmarks')
+            .select('image_id').eq('kind', 'bookmark').in('image_id', ids);
+        избранные = new Set((data || []).map(з => з.image_id));
+    }
+
+    /** Звёздочка в просмотре: добавить снимок в избранное или убрать. */
+    async function переключитьИзбранное(снимок) {
+        const я = window.currentUser?.id;
+        if (!я || !снимок?.id) return;
+        const есть = избранные.has(снимок.id);
+        const { error } = есть
+            ? await Layout.db.from('worship_bookmarks').delete()
+                .eq('kind', 'bookmark').eq('image_id', снимок.id).eq('user_id', я)
+            : await Layout.db.from('worship_bookmarks')
+                .insert({ user_id: я, kind: 'bookmark', image_id: снимок.id });
+        if (error && error.code !== '23505') return Layout.handleError(error, 'Избранное');
+        есть ? избранные.delete(снимок.id) : избранные.add(снимок.id);
+        Layout.showNotification(есть ? 'Убрано из избранного' : 'В избранном — раздел «Снимки»', 'success');
+        рисоватьСнимки();
     }
 
     /** В плитке — миниатюра, если она уже есть; оригинал — только при просмотре. */
@@ -169,6 +195,11 @@ const WorshipAlbum = (() => {
                     ${набор.cover_image_id === с.id
                         ? `<span class="absolute bottom-2 left-2 badge badge-sm bg-base-100/90 border-0">обложка</span>`
                         : ''}
+                    ${избранные.has(с.id)
+                        ? `<span class="absolute top-2 right-2 rounded-full bg-black/45 p-1 leading-none" title="В избранном">
+                               <svg width="16" height="16" viewBox="0 0 24 24" fill="#facc15" stroke="#facc15" stroke-width="1.5"
+                                    stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+                           </span>` : ''}
                 </div>
 
                 <!-- Ручки появляются при наведении: на экран приходят смотреть,
@@ -363,8 +394,10 @@ const WorshipAlbum = (() => {
                 // в просмотре — оригиналы: плитки показывают миниатюры
                 const оригиналы = await WorshipLinks.подписать(Layout.db, снимки.map(с => с.storage_path));
                 return Media.открыть(снимки.map(с => ({
-                    адрес: оригиналы[с.storage_path] || ссылки[плитка(с)], подпись: с.caption || '',
-                })), Number(смотреть.dataset.смотреть));
+                    id: с.id, адрес: оригиналы[с.storage_path] || ссылки[плитка(с)], подпись: с.caption || '',
+                })), Number(смотреть.dataset.смотреть), {
+                    избранное: { есть: с => избранные.has(с.id), переключить: переключитьИзбранное },
+                });
             }
 
             const двигать = ev.target.closest('[data-двигать]');
