@@ -284,7 +284,10 @@ const WorshipLoad = (() => {
                          aria-label="${e(`${имя}, ${ДНИ[(день.getDay() + 6) % 7]} ${день.getDate()}: ${подсказка}`)}">${e(текст)}</a>`;
         };
 
-        $('#загрузка').innerHTML = шапка + (строки.map(ч => `
+        // поиск только сужает список: норму и дыры считаем по всему отделу
+        const q = ($('#поискЗанятость')?.value || '').trim().toLowerCase();
+        const видимые = q ? строки.filter(ч => [ч.имя, ч.worldly].some(и => (и || '').toLowerCase().includes(q))) : строки;
+        $('#загрузка').innerHTML = шапка + (видимые.map(ч => `
             <div class="строкаЗагрузки человек py-2.5">
                 <div class="кто min-w-0">
                     <a href="people.html?id=${ч.id}" class="link link-hover font-semibold">${e(ч.имя)}</a>
@@ -306,7 +309,9 @@ const WorshipLoad = (() => {
                         поВремени ? (ч.служб ? служб(ч.служб) : '')
                                   : (ч.служб ? служб(ч.служб).replace(/^\d+\s*/, '') : '')}</div>
                 </div>
-            </div>`).join('') || '<p class="py-4 text-sm opacity-70">В отделе на эту неделю никого нет</p>');
+            </div>`).join('') || (q
+                ? '<p class="py-4 text-sm opacity-70">Никого с таким именем</p>'
+                : '<p class="py-4 text-sm opacity-70">В отделе на эту неделю никого нет</p>'));
 
         рисоватьСлужбы(дни);
     }
@@ -363,6 +368,7 @@ const WorshipLoad = (() => {
     }
 
     async function init() {
+        $('#поискЗанятость')?.addEventListener('input', () => рисовать());
         document.addEventListener('click', ev => {
             // строка «где остаются дыры» — в эту неделю расписания
             const кНеделе = ev.target.closest('[data-неделя-расписания]');

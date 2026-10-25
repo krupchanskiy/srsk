@@ -5,7 +5,7 @@
     <script src="../js/color-init.js?v=9"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Загрузка отдела — ШРСК</title>
+    <title>Занятость отдела — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,12 +75,12 @@
         <div role="tablist" class="tabs tabs-bordered mb-4 w-fit max-w-full overflow-x-auto">
             <a role="tab" class="tab whitespace-nowrap" href="schedule.html" data-i18n="worship_schedule_title">Расписание</a>
             <a role="tab" class="tab whitespace-nowrap" href="people.html" data-i18n="worship_people_title">Люди отдела</a>
-            <a role="tab" class="tab tab-active whitespace-nowrap" href="load.html" data-i18n="worship_load_title">Загрузка</a>
+            <a role="tab" class="tab tab-active whitespace-nowrap" href="load.html" data-i18n="worship_occupancy_title">Занятость</a>
         </div>
 
         <div class="flex flex-wrap items-end gap-3 mb-4">
             <div class="flex-1 min-w-full desktop:min-w-0">
-                <h1 class="text-3xl font-bold tracking-tight" data-i18n="worship_load_title">Загрузка</h1>
+                <h1 class="text-3xl font-bold tracking-tight" data-i18n="worship_occupancy_title">Занятость</h1>
                 <!-- без data-i18n: подпись описывает именно эту раскладку -->
                 <p class="text-sm opacity-70 mt-1">Кто сколько несёт по дням недели — в часах
                     и службах. Мерило — норма отдела за день на месте: отъезд не делает человека отстающим.</p>
@@ -116,6 +116,15 @@
             <!-- служба без длительности в часы не попадает — говорим об этом
                  прямо, иначе человек с такой службой выглядит бездельником -->
             <p id="безДлительности" hidden class="text-sm mb-2 rounded-lg px-3 py-2 bg-warning/10 border border-warning/40"></p>
+            <!-- быстрый поиск: в отделе с волонтёрами строк много, человека ищут по имени -->
+            <label class="input input-bordered input-sm flex items-center gap-2 mb-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" class="opacity-50" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path>
+                </svg>
+                <input id="поискЗанятость" type="search" class="grow" placeholder="Найти по имени"
+                       aria-label="Найти человека по имени">
+            </label>
             <div class="card bg-base-100 shadow">
                 <div class="card-body p-4 sm:p-5" id="загрузка" aria-live="polite"></div>
             </div>
@@ -139,7 +148,7 @@
     <script src="../js/layout.js?v=126"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=17"></script>
-    <script src="../js/pages/worship-load.js?v=15"></script>
+    <script src="../js/pages/worship-load.js?v=16"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
