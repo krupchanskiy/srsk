@@ -2271,9 +2271,105 @@ function openPayment() {
         addPayRow();
     }
     updatePayRunningTotal();
+    renderPayAdvance();
     closeCharge();
     document.getElementById('paySection').classList.remove('hidden');
     document.getElementById('paySection').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// Предоплата лежит без блока, а форма берёт долги блоков — так у Андры аванс €300
+// не зачёлся и за питание €130 взяли новые деньги (ВГ, 25.10)
+function непокрытаяПредоплата() {
+    const b = балансКарточки();
+    const аванс = Number(b?.general_advance) || 0;
+    const долги = BLOCKS.map(k => ({ k, v: Number(b?.blocks?.[k]?.balance) || 0 })).filter(x => x.v > 0.005);
+    const долг = долги.reduce((a, x) => a + x.v, 0);
+    return аванс > 0.005 && долг > 0.005 ? { аванс, долги, долг, cur: валютаРасчёта(b) } : null;
+}
+
+function renderPayAdvance() {
+    const el = document.getElementById('payAdvance');
+    if (!el) return;
+    const п = непокрытаяПредоплата();
+    if (!п) { el.innerHTML = ''; return; }
+    const зачесть = Math.min(п.аванс, п.долг);
+    el.innerHTML = `<div class="alert alert-warning py-2 mb-2 text-sm">
+        <span>⚠ У человека лежит предоплата <b>${FinUtils.fmtMoney(п.аванс, п.cur)}</b>, а долг <b>${FinUtils.fmtMoney(п.долг, п.cur)}</b>.
+        Сначала зачтите предоплату — новые деньги нужны только на то, что она не покроет.</span>
+        ${window.hasPermission?.('fin_admin') ? `<button type="button" class="btn btn-sm btn-warning" id="payAdvanceApply">Зачесть ${FinUtils.fmtMoney(зачесть, п.cur)}</button>` : ''}
+    </div>`;
+    document.getElementById('payAdvanceApply')?.addEventListener('click', ev => зачестьПредоплату(ev.currentTarget));
+}
+
+// Переносим принадлежность уже принятых денег из «Предоплаты» в блоки с долгом —
+// штатным перераспределением платежа (сторно + новый платёж), как зачёт спутника
+async function зачестьПредоплату(btn) {
+    const п = непокрытаяПредоплата();
+    if (!п) return;
+    const objectId = await ensureObjectId();
+    if (!objectId) return;
+    btn.disabled = true;
+    const { data: строки, error } = await Layout.db.from('fin_v_account_ledger')
+        .select('operation_id, participant_balance_kind, amount, currency_code, is_reversed, type, occurred_on')
+        .eq('participant_id', card.id).eq('object_id', objectId).eq('type', 'payment')
+        .eq('participant_balance_kind', 'general');
+    if (error) { Layout.handleError(error, 'Предоплата'); btn.disabled = false; return; }
+    // перевешиваем только деньги в валюте расчёта: иначе сумма в блоке разойдётся с курсом
+    const операции = [...new Set((строки || [])
+        .filter(x => !x.is_reversed && x.currency_code === п.cur)
+        .sort((a, c) => a.occurred_on.localeCompare(c.occurred_on))
+        .map(x => x.operation_id))];
+    if (!операции.length) {
+        Layout.showNotification('Предоплата внесена в другой валюте — перенесите её в блок вручную: ⟳ у платежа в истории', 'warning');
+        btn.disabled = false;
+        return;
+    }
+    const долги = п.долги.map(x => ({ ...x }));
+    let осталось = Math.min(п.аванс, п.долг);
+    const план = [];
+    for (const opId of операции) {
+        if (осталось <= 0.005) break;
+        const { data: все } = await Layout.db.from('fin_v_account_ledger')
+            .select('participant_id, participant_balance_kind, amount, currency_code, direction')
+            .eq('operation_id', opId);
+        // со сдачей или обменом перераспределение превратило бы выдачу в приход — такие вручную
+        if ((все || []).some(x => x.direction !== 'in')) continue;
+        const rows = [];
+        let перенесено = 0;
+        for (const x of все || []) {
+            const своя = x.participant_id === card.id && x.participant_balance_kind === 'general' && x.currency_code === п.cur;
+            if (!своя || осталось <= 0.005) {
+                rows.push({ participant_id: x.participant_id, participant_balance_kind: x.participant_balance_kind, amount: x.amount });
+                continue;
+            }
+            let строка = Number(x.amount);
+            for (const d of долги) {
+                const v = round2(Math.min(строка, d.v, осталось));
+                if (v <= 0.005) continue;
+                rows.push({ participant_id: card.id, participant_balance_kind: d.k, amount: v });
+                d.v = round2(d.v - v); строка = round2(строка - v); осталось = round2(осталось - v);
+                перенесено = round2(перенесено + v);
+            }
+            if (строка > 0.005) rows.push({ participant_id: card.id, participant_balance_kind: 'general', amount: строка });
+        }
+        if (перенесено > 0.005) план.push({ opId, rows, перенесено });
+    }
+    const итого = round2(план.reduce((a, x) => a + x.перенесено, 0));
+    if (!план.length || !confirm(`Зачесть предоплату ${FinUtils.fmtMoney(итого, п.cur)} в долг?\nДеньги уже в кассе — меняется только блок, за что они внесены.`)) {
+        btn.disabled = false;
+        return;
+    }
+    for (const x of план) {
+        const res = await FinUtils.rpc('fin_reallocate_payment', {
+            request_id: FinUtils.newRequestId(),
+            operation_id: x.opId,
+            rows: x.rows,
+            reason: `Зачёт предоплаты в долг: ${FinUtils.fmtMoney(x.перенесено, п.cur)}`
+        });
+        if (!FinUtils.handleResult(res)) break;
+    }
+    await refreshAfterChange();
+    openPayment();
 }
 
 function closePayment() {
@@ -2426,6 +2522,8 @@ async function submitPayment(ev) {
     ev.preventDefault();
     const payer = document.getElementById('payPayerId').value;
     if (!payer) { Layout.showNotification(t('fin_participant_required'), 'warning'); return; }
+    const п = payer === card.id ? непокрытаяПредоплата() : null;
+    if (п && !confirm(`У человека лежит незачтённая предоплата ${FinUtils.fmtMoney(п.аванс, п.cur)}.\nВсё равно принять новые деньги?`)) return;
     const objectId = await ensureObjectId();
     if (!objectId) return;
 
