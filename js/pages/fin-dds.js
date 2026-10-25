@@ -240,8 +240,9 @@ function renderTotals() {
     el.innerHTML = `<div class="flex flex-wrap gap-2 items-stretch text-sm">${chips.join('')}</div>`;
 }
 
-// Перевод и трата, сделанные одним действием («выдано … и сразу потрачено»), — рядом:
-// перевод, сразу под ним трата со значком ↳ (решение ВГ 25.09.2026, как на странице «Счёт»).
+// Перевод и трата, сделанные одним действием («выдано … и сразу потрачено»), — рядом.
+// Список от новых к старым, поэтому трата со значком ↳ сверху, перевод под ней:
+// снизу вверх читается «сначала передал, потом потратил» (ВГ 25.10.2026, как на странице «Счёт»).
 // Пары из чата — по заявке (fin_operation_groups); пары из формы «перевод + сразу потрачено»
 // связи не имеют — узнаём соседние строки с той же датой и тем же комментарием.
 async function pairTransfers(list) {
@@ -264,8 +265,8 @@ async function pairTransfers(list) {
         if (!g || members.get(g).length < 2) { out.push(x); continue; }
         if (placed.has(g)) continue;
         placed.add(g);
-        const m = members.get(g).sort((a, b) => (a.type === 'transfer' ? 0 : 1) - (b.type === 'transfer' ? 0 : 1));
-        m.forEach((r, i) => { r._paired = i > 0; });
+        const m = members.get(g).sort((a, b) => (a.type === 'transfer' ? 1 : 0) - (b.type === 'transfer' ? 1 : 0));
+        m.forEach((r, i) => { r._paired = i < m.length - 1; });
         out.push(...m);
     }
     return out;

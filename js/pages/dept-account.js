@@ -839,8 +839,9 @@ function renderTable(list) {
     const cmp = sort.key === 'amount'
         ? (a, b) => Number(a.signed_amount) - Number(b.signed_amount) || a.ord - b.ord
         : null;
-    // по дате пара не разрывается: перевод сверху, трата сразу под ним в обоих направлениях
-    const sorted = cmp ? [...list].sort(cmp) : [...list].sort((a, b) => (sort.dir === 'desc' ? b.grp - a.grp : a.grp - b.grp) || a.sub - b.sub);
+    // по дате пара не разрывается и идёт в том же направлении, что и лента: от новых к старым —
+    // трата сверху, перевод под ней; от старых к новым — наоборот (ВГ 25.10)
+    const sorted = cmp ? [...list].sort(cmp) : [...list].sort((a, b) => sort.dir === 'desc' ? b.grp - a.grp || b.sub - a.sub : a.grp - b.grp || a.sub - b.sub);
     if (cmp && sort.dir === 'desc') sorted.reverse();
     $('daccHead').innerHTML = `<tr>
         <th class="w-6"></th>
