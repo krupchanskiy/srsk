@@ -312,7 +312,16 @@ const WorshipPeople = (() => {
     }
 
     function рисоватьДопуски() {
-        $('#кДопуски').innerHTML = службы.filter(с => с.is_active).map(с => `
+        const действующие = службы.filter(с => с.is_active);
+        // «Все службы» — разом: допуск ко всем действующим, галочка стоит,
+        // когда отмечена каждая
+        const всеОтмечены = действующие.length > 0 && действующие.every(с => открытый.допуск.has(с.id));
+        $('#кДопуски').innerHTML = (действующие.length > 1 ? `
+            <label class="кДопуск font-semibold">
+                <input type="checkbox" data-допускВсе ${всеОтмечены ? 'checked' : ''}
+                       ${можноВести() ? '' : 'disabled'}>
+                <span>Все службы</span>
+            </label>` : '') + действующие.map(с => `
             <label class="кДопуск">
                 <input type="checkbox" data-допуск="${с.id}"
                        ${открытый.допуск.has(с.id) ? 'checked' : ''}
@@ -369,6 +378,26 @@ const WorshipPeople = (() => {
     }
 
     // ---------- действия ----------
+
+    /** Допуск ко всем действующим службам разом — или снять все. */
+    async function допускКоВсем(включить) {
+        const ids = службы.filter(с => с.is_active).map(с => с.id);
+        const нужно = включить ? ids.filter(id => !открытый.допуск.has(id)) : ids.filter(id => открытый.допуск.has(id));
+        if (!нужно.length) return true;
+        const запрос = включить
+            ? Layout.db.from('worship_person_services')
+                .insert(нужно.map(id => ({ person_id: открытый.id, service_id: id })))
+            : Layout.db.from('worship_person_services')
+                .delete().eq('person_id', открытый.id).in('service_id', нужно);
+        const { data, error } = await запрос.select('service_id');
+        if (error) { Layout.handleError(error, 'Допуск'); return false; }
+        if (!data?.length) {
+            Layout.showNotification('Не сохранилось: допуски ведёт старший пуджари', 'error');
+            return false;
+        }
+        data.forEach(д => включить ? открытый.допуск.add(д.service_id) : открытый.допуск.delete(д.service_id));
+        return true;
+    }
 
     async function переключитьДопуск(serviceId, включить) {
         const запрос = включить
@@ -759,10 +788,18 @@ const WorshipPeople = (() => {
         });
 
         document.addEventListener('change', async ev => {
+            const все = ev.target.closest('[data-допускВсе]');
+            if (все) {
+                все.disabled = true;
+                try { await допускКоВсем(все.checked); }
+                finally { рисоватьДопуски(); }        // галочки — по тому, что записалось; сбой не запирает кнопку
+                return;
+            }
             const д = ev.target.closest('[data-допуск]');
             if (!д) return;
             const вышло = await переключитьДопуск(д.dataset.допуск, д.checked);
             if (!вышло) д.checked = !д.checked;       // вернём галочку, раз не записалось
+            рисоватьДопуски();                        // «Все службы» отметится или снимется сам
         });
 
         $('#дПоиск').addEventListener('input', Layout.debounce(искатьЛюдей, 300));
