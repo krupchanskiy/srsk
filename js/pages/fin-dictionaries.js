@@ -33,6 +33,13 @@ async function loadTab() {
     if (error) { Layout.handleError(error, 'Справочники'); return; }
     rows = data || [];
     if (currentTab === 'rates') await loadNoRateRetreats();
+    if (currentTab === 'categories') {
+        // Для списка департаментов в карточке статьи (ВГ 29.10)
+        const { data: depts } = await Layout.db.from('fin_v_departments').select('id, name').order('name');
+        catDepts = depts || [];
+        await loadDeptCategories();
+        await loadDeptIncome();
+    }
     if (currentTab === 'departments') {
         if (!knownChats) await loadKnownChats();
         await loadDeptCategories();
@@ -48,6 +55,73 @@ let knownChats = null;
 async function loadKnownChats() {
     const { data } = await Layout.db.from('fin_v_known_chats').select('*').order('title');
     knownChats = data || [];
+}
+
+// Код подсказываем из имени: перевод на английский → snake_case, пока перевода
+// нет — транслит. Поправили код руками — подсказка его больше не трогает (ВГ 29.10).
+const slugCode = text => (text || '').toLowerCase().replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '').split('_').filter(w => !['of', 'the', 'a', 'an', 'and', 'for'].includes(w))
+    .slice(0, 4).join('_');
+function uniqueCode(base) {
+    const taken = new Set(rows.filter(r => r.id !== editingId).map(r => r.code));
+    let code = base, n = 2;
+    while (taken.has(code)) code = `${base}_${n++}`;
+    return code;
+}
+function wireCodeSuggest() {
+    const name = document.getElementById('f_name');
+    const code = document.getElementById('f_code');
+    let touched = !!code.value, seq = 0;
+    code.addEventListener('input', () => { touched = !!code.value.trim(); });
+    const suggest = Layout.debounce(async () => {
+        if (touched) return;
+        const text = name.value.trim();
+        const my = ++seq;
+        code.value = text ? uniqueCode(slugCode(Translit.ru(text))) : '';
+        if (!text) return;
+        const en = slugCode(await AutoTranslate.translate(text, 'ru', 'en'));
+        if (my === seq && !touched && en) code.value = uniqueCode(en);
+    }, 500);
+    name.addEventListener('input', suggest);
+}
+
+// Каким департаментам видна статья — прямо в карточке статьи (ВГ 29.10).
+// Расход: у департамента со своим набором отметка = статья в его наборе;
+// департамент на общем наборе видит все статьи с галочкой, его не переключаем.
+// Приход: набор статей выручки департамента.
+let catDepts = [];
+let formCatDepts = new Set();
+function renderCatDepts() {
+    const box = document.getElementById('f_cat_depts');
+    if (!box) return;
+    const isOut = document.getElementById('f_dir').value === 'out';
+    const visible = document.getElementById('f_visible').checked;
+    const own = d => (deptCategories[d.id] || []).length > 0;
+    const anyOwn = catDepts.some(d => own(d) && formCatDepts.has(d.id));
+    if (isOut && !visible && !anyOwn) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="form-control mb-2">
+        <label class="label py-0"><span class="label-text">${isOut
+            ? tr('fin_cat_depts', 'Каким департаментам видна')
+            : tr('fin_cat_income_depts', 'В выручке департаментов')}</span></label>
+        <div class="max-h-48 overflow-y-auto border border-base-300 rounded-lg p-2">
+            ${catDepts.map(d => {
+                const common = isOut && !own(d);
+                return `<label class="label ${common ? '' : 'cursor-pointer'} justify-start gap-2 py-0.5">
+                    <input type="checkbox" class="checkbox checkbox-xs cat-dept" value="${d.id}"
+                        ${common ? `disabled ${visible ? 'checked' : ''}` : (formCatDepts.has(d.id) ? 'checked' : '')}>
+                    <span class="label-text text-sm">${e(d.name)}${common
+                        ? ` <span class="opacity-50 text-xs">— ${tr('fin_cat_depts_common', 'общий набор')}</span>` : ''}</span>
+                </label>`;
+            }).join('')}
+        </div>
+        <span class="text-xs opacity-60 mt-1">${isOut
+            ? tr('fin_cat_depts_hint', 'Департаменты на общем наборе видят все статьи с галочкой «Видна департаментам». Свой набор у департамента задаётся в его карточке.')
+            : t('fin_dept_income_categories_hint')}</span>
+    </div>`;
+    box.querySelectorAll('.cat-dept:not([disabled])').forEach(cb => cb.addEventListener('change', () => {
+        cb.checked ? formCatDepts.add(cb.value) : formCatDepts.delete(cb.value);
+        renderCatDepts();
+    }));
 }
 
 // Свои наборы статей по департаментам: { department_id: [category_id, …] }.
@@ -785,19 +859,25 @@ function openForm(row) {
 
     if (currentTab === 'categories') {
         fields.innerHTML =
-            fieldHtml('f_code', 'col_code', `<input type="text" id="f_code" class="input input-bordered input-sm" value="${e(row?.code || '')}" required>`) +
             fieldHtml('f_name', 'col_name', `<input type="text" id="f_name" class="input input-bordered input-sm" value="${e(row?.name || '')}" required>`) +
+            fieldHtml('f_code', 'col_code', `<input type="text" id="f_code" class="input input-bordered input-sm font-mono" value="${e(row?.code || '')}" required>`) +
             fieldHtml('f_dir', 'fin_direction', `<select id="f_dir" class="select select-bordered select-sm" ${row ? 'disabled' : ''}>
                 <option value="in" ${row?.direction === 'in' ? 'selected' : ''}>${t('fin_dir_in')}</option>
                 <option value="out" ${row?.direction === 'out' ? 'selected' : ''}>${t('fin_dir_out')}</option></select>`) +
             `<div class="form-control mb-2"><label class="label cursor-pointer justify-start gap-3 py-1">
                 <input type="checkbox" id="f_visible" class="checkbox checkbox-sm" ${row?.visible_to_departments ? 'checked' : ''}>
                 <span class="label-text">${t('fin_visible_departments')}</span></label></div>` +
+            `<div id="f_cat_depts"></div>` +
             activeCheckbox(row);
+        formCatDepts = new Set(catDepts.map(d => d.id).filter(id =>
+            (row?.direction === 'in' ? deptIncome : deptCategories)[id]?.includes(row?.id)));
+        renderCatDepts();
+        document.getElementById('f_visible').addEventListener('change', renderCatDepts);
+        document.getElementById('f_dir').addEventListener('change', () => { formCatDepts.clear(); renderCatDepts(); });
     } else if (currentTab === 'cost_centers') {
         fields.innerHTML =
-            fieldHtml('f_code', 'col_code', `<input type="text" id="f_code" class="input input-bordered input-sm" value="${e(row?.code || '')}" required>`) +
             fieldHtml('f_name', 'col_name', `<input type="text" id="f_name" class="input input-bordered input-sm" value="${e(row?.name || '')}" required>`) +
+            fieldHtml('f_code', 'col_code', `<input type="text" id="f_code" class="input input-bordered input-sm font-mono" value="${e(row?.code || '')}" required>`) +
             activeCheckbox(row);
     } else if (currentTab === 'contractors') {
         fields.innerHTML =
@@ -900,6 +980,7 @@ function openForm(row) {
             (row ? `<p class="text-xs opacity-60 mt-2">${t('fin_rate_history_note')}</p>
                     <button type="button" class="btn btn-outline btn-error btn-sm mt-2" id="f_rate_delete">${t('delete')}</button>` : '');
     }
+    if (currentTab === 'categories' || currentTab === 'cost_centers') wireCodeSuggest();
     // Поля формы пересоздаются каждый раз, поэтому подсказку по людям вешаем здесь,
     // а не в init — иначе она указывала бы на удалённый input.
     if (currentTab === 'departments') {
@@ -987,6 +1068,9 @@ async function submitForm(ev) {
         res = await FinUtils.rpc('fin_save_category', {
             id: editingId, code: val('f_code'), name: val('f_name'),
             direction: val('f_dir'), visible_to_departments: checked('f_visible'), is_active: checked('f_active')
+        });
+        if (res?.ok) res = await FinUtils.rpc('fin_save_category_departments', {
+            category_id: res.result?.id || editingId, department_ids: [...formCatDepts]
         });
     } else if (currentTab === 'cost_centers') {
         res = await FinUtils.rpc('fin_save_cost_center', {
