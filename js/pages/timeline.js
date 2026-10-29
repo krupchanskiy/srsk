@@ -3418,10 +3418,9 @@ function showCheckoutScreen() {
 
     document.getElementById('checkoutGuestName').textContent = currentResident.name;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    let defaultDate = formatDateYMD(today);
+    // Дата выезда — как в шахматке (ВГ 29.10); без даты — сегодня
     const res = currentResident.rawData;
+    let defaultDate = res.check_out || DateUtils.toISO(new Date());
     if (defaultDate < res.check_in) defaultDate = res.check_in;
 
     document.getElementById('checkoutDate').value = defaultDate;
@@ -3837,17 +3836,8 @@ async function convertToCheckin() {
     // Человек в броне уже назван — заселение сводится к отметке о приезде,
     // переспрашивать имя незачем.
     if (!res.arrived_at && (res.vaishnava_id || res.guest_name)) {
+        // Даты — как в шахматке (ВГ 29.10): приехал позже — правят через «Даты»
         const update = { status: 'confirmed', arrived_at: new Date().toISOString() };
-        // Приехал позже брони — дни до приезда он не жил и не ел: предлагаем сдвинуть начало
-        const today = DateUtils.toISO(new Date());
-        if (res.check_in < today && (!res.check_out || res.check_out >= today)) {
-            const q = tf('timeline_late_arrival_shift', 'По плану заезд %s. Сдвинуть начало проживания на сегодня?')
-                .replace('%s', formatDisplayDate(res.check_in));
-            if (confirm(q)) {
-                update.check_in = today;
-                if (res.meal_start_date && res.meal_start_date < today) update.meal_start_date = today;
-            }
-        }
         const { error } = await Layout.db
             .from('residents')
             .update(update)
@@ -3891,10 +3881,8 @@ async function convertToCheckin() {
     // Сбрасываем форму
     document.getElementById('checkinForm').reset();
     delete document.querySelector('#checkinForm [data-prasad-meals]').dataset.byGroup;
-    // Заселяют позже брони — начало с сегодняшнего дня (дата в форме видна и правится)
-    const todayIso = DateUtils.toISO(new Date());
-    document.getElementById('checkinDateIn').value =
-        res.check_in < todayIso && (!res.check_out || res.check_out >= todayIso) ? todayIso : res.check_in;
+    // Даты — как в шахматке (ВГ 29.10); в форме видны и правятся
+    document.getElementById('checkinDateIn').value = res.check_in;
     document.getElementById('checkinDateOut').value = res.check_out || '';
 
     // Время и примечание поварам — как в брони (670)
