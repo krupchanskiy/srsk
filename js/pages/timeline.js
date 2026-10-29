@@ -2782,6 +2782,15 @@ function openResidentModal(guestData, buildingName, roomName) {
                 ${t('timeline_move')}
             </button>`;
         }
+        // Заезд/выезд отметила ночная задача (756), а не ресепшен — «Не приехал» остаётся
+        if (!isBooking && res.arrived_auto) {
+            actionsHtml += `<button class="btn btn-error btn-outline" data-action="no-show">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                ${e(tf('timeline_no_show', 'Не приехал / отказ'))}
+            </button>`;
+        }
         // Для выселенных (isCheckedOut) — только кнопка удаления
 
         // Кнопка удаления для всех
