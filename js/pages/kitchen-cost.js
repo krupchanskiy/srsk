@@ -460,33 +460,38 @@ const howQ = (hint, sec) => `<span class="how-q cursor-help" title="${e(hint)}" 
 
 // Порции ретрита по приёмам пищи: продукты и посуда — по меню своего приёма пищи (доля ретрита),
 // зарплаты и хозрасходы — поровну на каждый приём пищи; сумма порций × приёмы = себестоимость всего
-function portionStats(ev) {
-    const s = { breakfast: { pm: 0, direct: 0 }, lunch: { pm: 0, direct: 0 } };
+// inScope(ev) — какие события считаем: ретрит или всё (режим «Период»)
+function portionStats(inScope) {
+    const s = { breakfast: { pm: 0, direct: 0 }, lunch: { pm: 0, direct: 0 }, days: 0 };
     const n = b => b ? ALL_BUCKETS.reduce((a, k) => a + (b[k] || 0), 0) : 0;
+    const nIn = byEv => Object.entries(byEv || {}).reduce((a, [ev, b]) => a + (inScope(ev) ? n(b) : 0), 0);
     for (const rec of view.result.mealRecords || []) {
-        const k = n(rec.byEvent?.[ev]);
+        const k = nIn(rec.byEvent);
         if (rec.unallocated || !k || !s[rec.meal]) continue;
         s[rec.meal].direct += (rec.food + rec.external) * k / rec.eaters + rec.dishwarePerEater * k;
     }
     // приёмы пищи — по вкушающим, и без меню тоже (люди ели)
     for (const [d, day] of Object.entries(view.result.counts || {})) {
         if (d < view.from || d > view.to) continue;
-        for (const m of ['breakfast', 'lunch']) s[m].pm += n(day.byEvent?.[m]?.[ev]);
+        let any = false;
+        for (const m of ['breakfast', 'lunch']) { const k = nIn(day.byEvent?.[m]); s[m].pm += k; any = any || k > 0; }
+        if (any) s.days++;
     }
     return s;
 }
 
-// Сводка ретрита сверху: главные цифры простыми словами (ВГ 24.10)
+// Сводка сверху: главные цифры простыми словами (ВГ 24.10). «Ретрит» — его люди, «Период» — все, кто ел
 function renderTop() {
     const box = Layout.$('#topBox');
-    if (state.mode !== 'retreat') { box.classList.add('hidden'); return; }
+    const isRetreat = state.mode === 'retreat';
     const ev = `retreat:${state.retreatId}`;
-    const whole = aggregate(view.result.cells, ev, ALL_BUCKETS);
-    const row = { ev, buckets: ALL_BUCKETS };
-    const st = peopleStats(row);
+    const inScope = isRetreat ? x => x === ev : () => true;
+    const whole = zero();
+    for (const k of Object.keys(view.result.cells)) if (inScope(k)) addAgg(whole, aggregate(view.result.cells, k, ALL_BUCKETS));
+    const st = isRetreat ? peopleStats({ ev, buckets: ALL_BUCKETS }) : { people: peopleTotal(), participants: 0 };
     const ps = pricesState();
     const ov = whole.pm ? overhead(whole) / whole.pm : 0;
-    const p = portionStats(ev);
+    const p = portionStats(inScope);
     const portion = m => p[m].pm ? p[m].direct / p[m].pm + ov : null;
     const bf = portion('breakfast'), ln = portion('lunch');
     const perPerson = st.participants ? total(whole) / st.participants : null;
@@ -496,22 +501,28 @@ function renderTop() {
         <div class="text-2xl font-bold mt-1">${val(v)}</div>
         ${sub ? `<div class="text-xs opacity-60 mt-1">${sub}</div>` : ''}</div>`;
     const meals = m => `${num(p[m].pm)} ${e(tr('cost_portions_word', 'порций'))}`;
-    const days = daysOf(row);
-    const facts = [DateUtils.formatRange(view.from, view.to),
-        `${String(days).replace(/ <span.*$/, '')} ${e(tr('cost_days_word', 'дн.'))}`,
+    const facts = [isRetreat ? DateUtils.formatRange(view.from, view.to) : periodLabel(view.from, view.to),
+        `${p.days} ${e(tr('cost_days_word', 'дн.'))}`,
         `${num(st.people)} ${e(tr('cost_people_word', 'чел.'))}`,
         `${num(whole.pm)} ${e(tr('cost_meals_word', 'приёмов пищи'))}`];
-    // сколько заплатили на одну порцию — полученное за прасад на все порции ретрита (как «Результат»)
-    const inc = view.incomes[state.retreatId];
-    const paidPer = inc && whole.pm ? inc.full / whole.pm : null;
+    // сколько заплатили на одну порцию — собранное за прасад на все порции (как «Результат»)
+    const collected = isRetreat ? view.incomes[state.retreatId]?.full : view.cash?.income;
+    const paidPer = collected != null && whole.pm ? collected / whole.pm : null;
     const costPer = whole.pm ? total(whole) / whole.pm : null;
     const paidLine = paidPer === null ? '' : `<div class="bg-base-100 rounded-xl shadow-sm px-4 py-3 col-span-full flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-        <span>${e(tr('cost_paid_per_portion', 'Заплатили на одну порцию'))}${howQ(tr('cost_paid_per_portion_hint', 'Получено за прасад (по Финансам) ÷ все порции ретрита, включая команду и волонтёров ретрита. Сравните с ценой порции: меньше — прасад ретрита в минусе.'))}</span>
+        <span>${e(tr('cost_paid_per_portion', 'Заплатили на одну порцию'))}${howQ(isRetreat
+            ? tr('cost_paid_per_portion_hint2', 'Собрано за прасад (по Финансам) ÷ все порции ретрита, включая команду и волонтёров ретрита. Сравните с ценой порции: меньше — прасад ретрита в минусе.')
+            : tr('cost_paid_per_portion_hint_period', 'Собрано за прасад за период (по датам поступления) ÷ все порции периода, включая постоянную команду и волонтёров — их питание не оплачивается, поэтому здесь меньше, чем у ретрита.'))}</span>
         <span class="text-xl font-bold text-blue-600">${money2(paidPer)}</span>
         ${costPer !== null && ps !== 'none' ? `<span class="opacity-70">${e(tr('cost_vs_cost_per_portion', 'а обошлась в среднем'))} ${money2(costPer)}${warnMark(ps)}</span>
             <span class="font-semibold ${paidPer >= costPer ? 'text-success' : 'text-error'}">${paidPer >= costPer ? '+' : '−'}${money2(Math.abs(paidPer - costPer))}</span>` : ''}
     </div>`;
-    const portionHint = tr('cost_portion_hint', 'Продукты и посуда по меню этого приёма пищи + доля зарплат, газа и света, хозрасходов (поровну на каждую порцию). Наши порции × эти цены = себестоимость ретрита.');
+    const portionHint = tr('cost_portion_hint2', 'Продукты и посуда по меню этого приёма пищи + доля зарплат, газа и света, хозрасходов (поровну на каждую порцию). Все порции × эти цены = себестоимость всего.');
+    // четвёртая цифра: у ретрита — на человека за ретрит, у периода — себестоимость всего
+    const lastCard = isRetreat
+        ? card(tr('cost_per_person_retreat', 'На одного человека за ретрит'), perPerson, st.participants ? `${num(st.participants)} ${e(tr('cost_participants_word', 'участников, без команды и волонтёров'))}` : '',
+            tr('cost_per_person_retreat_hint', 'Себестоимость всего ÷ участники ретрита. Команда и волонтёры ретрита едят, их еда входит в себестоимость, но в делитель не входят.'))
+        : card(tr('cost_col_total', 'Себестоимость всего'), total(whole), e(tr('cost_period_total_sub', 'все, кто ел: ретриты, гости, команда, волонтёры')));
     box.className = 'grid grid-cols-2 xl:grid-cols-4 gap-3 mb-4';
     box.innerHTML = `<div class="col-span-full flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span class="text-sm font-semibold uppercase tracking-wide opacity-60">${e(tr('cost_top_title', 'Сколько стоит прасад'))}</span>
@@ -519,8 +530,7 @@ function renderTop() {
         ${card(tr('cost_portion_breakfast', 'Порция завтрака'), bf, bf === null ? '' : meals('breakfast'), portionHint)}
         ${card(tr('cost_portion_lunch', 'Порция обеда'), ln, ln === null ? '' : meals('lunch'), portionHint)}
         ${card(tr('cost_meal_day', 'День питания'), bf !== null && ln !== null ? bf + ln : null, e(tr('cost_meal_day_sub', 'завтрак + обед')))}
-        ${card(tr('cost_per_person_retreat', 'На одного человека за ретрит'), perPerson, st.participants ? `${num(st.participants)} ${e(tr('cost_participants_word', 'участников, без команды и волонтёров'))}` : '',
-            tr('cost_per_person_retreat_hint', 'Себестоимость всего ÷ участники ретрита. Команда и волонтёры ретрита едят, их еда входит в себестоимость, но в делитель не входят.'))}
+        ${lastCard}
         ${paidLine}`;
     box.classList.remove('hidden');
 }
@@ -593,7 +603,7 @@ function renderKitchenCash() {
     const box = Layout.$('#kpiBox');
     const c = view.cash;
     if (!c) { box.classList.add('hidden'); return; }
-    box.className = 'grid grid-cols-2 xl:grid-cols-4 gap-3 mb-4';
+    box.className = 'grid grid-cols-2 xl:grid-cols-3 gap-3 mb-4';
     const first = c.months[0]?.ym;
     const closing = c.opening + c.income - c.expense;
     const card = (label, value, sub, cls = '', action = '') => `<div class="bg-base-100 rounded-xl shadow-sm p-4 ${action ? 'cursor-pointer hover:shadow-md' : ''}" ${action}>
@@ -604,15 +614,19 @@ function renderKitchenCash() {
         `<span class="inline-block w-4 text-base opacity-60">${expanded.has(`kcash:${dir}`) ? '▾' : '▸'}</span>${money(amount)}`,
         sub, cls, `data-action="toggle-kcash" data-dir="${dir}"`);
     const teamNote = tr('cost_kcash_team_note', 'Минус — не обязательно убыток: из этих денег питаются и постоянная команда с волонтёрами, их питание прасадом не оплачивается.');
+    // «Остаток на конец» — главное, крупно над слагаемыми (правило ВГ 24.10)
+    const closingCard = `<div class="col-span-full bg-base-100 rounded-xl shadow-sm p-5 border-l-4 ${closing < 0 ? 'border-error' : 'border-success'}">
+        <div class="text-xs uppercase tracking-wide opacity-60">${e(tr('cost_kcash_closing', 'Остаток на конец'))} <span class="how-q cursor-help" title="${e(teamNote)}">?</span></div>
+        <div class="text-3xl font-bold mt-1 ${signCls(closing)}">${signed(closing)}</div>
+        <div class="text-sm opacity-70 mt-1">${e(tr('cost_kcash_on', 'на'))} ${e(fmtDay(view.to))} · ${e(tr('cost_kcash_for_period', 'за период'))} <span class="${signCls(c.income - c.expense)}">${signed(c.income - c.expense)}</span>
+            · <a class="link" data-action="section" data-section="cash">${e(tr('cost_kcash_movement', 'движение денег'))} →</a></div></div>`;
     const cards = [
+        closingCard,
         card(tr('cost_kcash_opening', 'Остаток на начало'), signed(c.opening),
             e(first ? `${tr('cost_kcash_on', 'на')} ${fmtDay(view.from)} · ${tr('cost_kcash_since', 'с начала учёта')} (${monthTitle(first).toLowerCase()})` : tr('cost_kcash_no_data', 'в Финансах ещё нет операций')),
             signCls(c.opening)),
         opsCard('in', tr('cost_collected', 'Собрано за прасад'), c.income, 'text-blue-600', e(tr('cost_kcash_in_hint', 'оплаты за питание и пожертвования на прасад'))),
-        opsCard('out', tr('cost_kcash_out', 'Ушло с кухни'), c.expense, 'text-red-600', e(tr('cost_kcash_out_hint', 'всё со счетов департамента «Кухня»; траты других департаментов не входят'))),
-        card(tr('cost_kcash_closing', 'Остаток на конец'), `<span class="cursor-help" title="${e(teamNote)}">${signed(closing)}</span>`,
-            `${e(tr('cost_kcash_for_period', 'за период'))} <span class="${signCls(c.income - c.expense)}">${signed(c.income - c.expense)}</span> · <a class="link" data-action="section" data-section="cash">${e(tr('cost_kcash_movement', 'движение денег'))} →</a>`,
-            signCls(closing))
+        opsCard('out', tr('cost_kcash_out', 'Ушло с кухни'), c.expense, 'text-red-600', e(tr('cost_kcash_out_hint', 'всё со счетов департамента «Кухня»; траты других департаментов не входят')))
     ];
     const open = ['in', 'out'].find(d => expanded.has(`kcash:${d}`));
     box.innerHTML = `<div class="col-span-full text-sm font-semibold uppercase tracking-wide opacity-60 -mb-1">${e(tr('cost_money_title_period', 'Деньги за прасад — по датам поступления и оплаты'))}</div>
