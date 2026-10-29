@@ -376,11 +376,14 @@
         .guest-bar.self-stay.self-staff { background: var(--cat-color); border-color: var(--cat-color); color: #fff; }
         .guest-bar.self-stay.self-staff .retreat-tag { background: rgba(255, 255, 255, 0.25); }
         .guest-bar.self-stay .retreat-tag { background: rgba(0, 0, 0, 0.1); }
-        /* Бронь без номера (ещё не отмечен заезд) — пунктир и штриховка, как бронь в номерах */
+        /* Бронь без номера (ещё не отмечен заезд) — жёлтая «ждём» со штриховкой, видна сразу (ВГ 29.10) */
         .guest-bar.self-stay.self-booked {
-            border-style: dashed;
-            background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.55) 0 4px, transparent 4px 8px);
+            background: repeating-linear-gradient(45deg, #fde68a 0 4px, #fef3c7 4px 8px);
+            border: 1.5px dashed #d97706;
+            color: #78350f;
+            font-weight: 500;
         }
+        .guest-bar.self-stay.self-booked .retreat-tag { background: rgba(120, 53, 15, 0.12); }
         /* Групповая бронь без номера: строка группы и её места */
         .guest-bar.self-stay.self-group { font-weight: 600; }
         .self-seat-label { padding-left: 18px; }
