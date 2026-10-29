@@ -781,7 +781,7 @@ function renderSummary() {
     const t2 = view.result.totals;
     const lost = [];
     if (t2.unallocated > 0.5) lost.push(`${tr('cost_unallocated', 'Расходы приёмов пищи без вкушающих (не распределены)')}: ${money(t2.unallocated)}`);
-    if (t2.overheadUnallocated > 0.5) lost.push(`${tr('cost_overhead_unallocated2', 'Накладные расходы за период, где не было ни одного вкушающего (не распределены)')}: ${money(t2.overheadUnallocated)}`);
+    if (t2.overheadUnallocated > 0.5) lost.push(`${tr('cost_overhead_unallocated2', 'Зарплаты и хозрасходы за период, где не было ни одного вкушающего (не распределены)')}: ${money(t2.overheadUnallocated)}`);
     if (isPeriod && view.noEvent && !view.noEvent.ok) lost.push(tr('cost_donations_err', '⚠ Не удалось загрузить пожертвования на прасад — доход «Гостей без события» неполный'));
     if (isPeriod && view.noEvent && !view.noEvent.mealsOk) lost.push(tr('cost_noevent_meals_err', '⚠ Не удалось загрузить питание гостей без события — их доход неполный'));
     if (isPeriod && view.noEvent?.mealsNoRate) lost.push(`⚠ ${tr('cost_noevent_meals_norate', 'Питание гостей без события в валюте без общего курса — в доход не вошло')}: ${view.noEvent.mealsNoRate}`);
@@ -1792,14 +1792,14 @@ function renderOverhead() {
     });
     const warnBox = Layout.$('#overheadWarn');
     warnBox.innerHTML = noMenu.length ? `<span><b>⚠ ${e(tr('cost_no_menu_title', 'Нет меню'))}: ${noMenu.length} ${e(tr('cost_meals_short', 'приёмов пищи'))}, ${new Set(noMenu.map(x => x.split(' ')[0])).size} ${e(tr('cost_days_short', 'дн.'))}</b>
-        — ${e(tr('cost_ov_no_menu_note', 'люди ели, поэтому накладные на эти приёмы пищи разложены, но продукты по ним не посчитаны. Какие именно дни — на вкладке «Прямые затраты».'))}</span>
+        — ${e(tr('cost_ov_no_menu_note', 'люди ели, поэтому зарплаты и хозрасходы на эти приёмы пищи разложены, но продукты по ним не посчитаны. Какие именно дни — на вкладке «Продукты и посуда».'))}</span>
         <button class="btn btn-sm shrink-0 whitespace-nowrap bg-base-100 border-base-100 hover:bg-base-200" data-action="open-no-menu">${e(tr('cost_open_no_menu', 'Показать дни без меню'))}</button>` : '';
     warnBox.classList.toggle('hidden', !noMenu.length);
 
     const total = sumOf(items);
     Layout.$('#overheadBody').innerHTML = out.length
         ? out.join('') + `<tr class="font-semibold border-t-2 border-base-300"><td colspan="3">${e(tr('cost_total', 'Всего'))}</td><td class="text-right">${money(total.amount)}</td><td class="text-right">${money(total.part)}</td></tr>`
-        : `<tr><td colspan="5" class="text-center opacity-60">${e(tr('cost_ov_none', 'Накладных расходов в периоде нет'))}</td></tr>`;
+        : `<tr><td colspan="5" class="text-center opacity-60">${e(tr('cost_ov_none', 'Зарплат, газа и света, хозрасходов в периоде нет'))}</td></tr>`;
     renderUnassigned();
 }
 
@@ -1831,11 +1831,11 @@ function renderWarnings() {
         w.noMenu.map(s => { const [d, m] = s.split(' '); return `${fmtDay(d)} · ${MEAL_LABELS[m]()}`; }), 'alert-info'));
     parts.push(nonEmpty(tr('cost_w_noeaters', 'Приём пищи с расходами, но без вкушающих'),
         w.noEaters.map(s => { const [d, m] = s.split(' '); return `${fmtDay(d)} · ${MEAL_LABELS[m]()}`; })));
-    if (w.overheadError) parts.push(warningBox(`${tr('cost_w_ov_error', 'Не удалось загрузить накладные расходы (зарплаты, общие расходы, билеты), показаны только прямые затраты')}: ${w.overheadError}`, []));
+    if (w.overheadError) parts.push(warningBox(`${tr('cost_w_ov_error', 'Не удалось загрузить зарплаты, газ и свет, хозрасходы — показаны только продукты и посуда')}: ${w.overheadError}`, []));
     parts.push(nonEmpty(tr('cost_w_payroll_est', 'Зарплата за месяц взята оценкой (начисления ещё нет), итог предварительный'), w.payrollEstimated, 'alert-info'));
     parts.push(nonEmpty(tr('cost_w_ov_nobase', 'Расход «на ретрит», а вкушающих ретрита в периоде нет: учтён в общих'), w.overheadNoBase));
     parts.push(nonEmpty(tr('cost_w_ov_unalloc', 'Расход периода, в котором нет вкушающих: не распределён'), w.overheadUnallocated));
-    if (w.overheadUnassigned) parts.push(warningBox(`${tr('cost_w_ov_unassigned', 'Расходы «на ретрит» без ретрита и назначения считаются общими, назначьте их во вкладке «Накладные»')}: ${w.overheadUnassigned}`, [], 'alert-info'));
+    if (w.overheadUnassigned) parts.push(warningBox(`${tr('cost_w_ov_unassigned', 'Расходы «на ретрит» без ретрита и назначения считаются общими, назначьте их во вкладке «Зарплаты, газ и свет, хозрасходы»')}: ${w.overheadUnassigned}`, [], 'alert-info'));
     parts.push(nonEmpty(tr('cost_w_labor', 'Выплата по статье «Зарплата» не связана с ведомостью: возможен двойной счёт с начислениями'), w.laborUnlinked));
     if (w.overheadForeign) parts.push(warningBox(`${tr('cost_w_foreign', 'Зарплата не в рупиях, не учтена')}: ${w.overheadForeign}`, []));
     // правило ВГ 28.09: волонтёр привязан к департаменту или к ретриту (метка в шахматке) — каждого ссылкой на карточку
