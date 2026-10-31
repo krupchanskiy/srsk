@@ -316,7 +316,7 @@ async function calculate() {
 
 function hideResult() {
     view = null;
-    ['#summaryBox', '#tabsBox', '#kpiBox', '#sectionBar', '#qualityBanner', '#topBox', '#partsBox'].forEach(sel => Layout.$(sel).classList.add('hidden'));
+    ['#summaryBox', '#tabsBox', '#kpiBox', '#sectionBar', '#qualityBanner', '#topBox', '#partsBox', '#exportExcel'].forEach(sel => Layout.$(sel).classList.add('hidden'));
 }
 
 // ==================== ROWS ====================
@@ -421,6 +421,7 @@ function pricesState() {
 
 // ==================== RENDER ====================
 function render() {
+    Layout.$('#exportExcel').classList.remove('hidden');
     renderQuality();
     renderTop();
     renderKpis();
@@ -2130,11 +2131,235 @@ function closeHow() {
 
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeHow(); });
 
+// ==================== ВЫГРУЗКА В EXCEL ====================
+// Листы повторяют разделы страницы и читаются из тех же таблиц, что на экране: цифры совпадают с экраном
+const XLSX_JS = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+function loadXlsxLib() {
+    if (window.XLSX) return Promise.resolve(window.XLSX);
+    return new Promise((res, rej) => {
+        const sc = document.createElement('script');
+        sc.src = XLSX_JS; sc.onload = () => res(window.XLSX); sc.onerror = rej;
+        document.head.appendChild(sc);
+    });
+}
+
+// «1 234,5 ₹» → 1234.5 по разделителям текущего языка; не число — остаётся текстом
+function xlValue(text) {
+    const parts = new Intl.NumberFormat(locale()).formatToParts(12345.6);
+    const group = parts.find(x => x.type === 'group')?.value || '';
+    const decimal = parts.find(x => x.type === 'decimal')?.value || '.';
+    const clean = text.replace(/⚠/g, '').replace(/₹/g, '').trim();
+    const plain = clean.split(group).join('').replace(/[\s  ]/g, '').replace(decimal, '.').replace('−', '-').replace(/^\+/, '');
+    return /^-?\d+(\.\d+)?$/.test(plain) ? Number(plain) : text;
+}
+
+// Текст ячейки без подсказок, стрелок и ссылок-переходов; подпись из вложенного блока — через тире
+function xlText(node, dropBlocks) {
+    const c = node.cloneNode(true);
+    c.querySelectorAll('.how-q, span.inline-block.w-4, button').forEach(x => x.remove());
+    c.querySelectorAll('div').forEach(x => { if (dropBlocks) x.remove(); else x.prepend(' — '); });
+    return c.textContent.replace(/\s+/g, ' ').trim();
+}
+
+// Строки таблицы: первые textCols столбцов — текст, остальные — числа; fillDown — дата в каждой строке
+function xlTable(headSel, bodySel, { textCols = 1, fillDown = false } = {}) {
+    const body = Layout.$(bodySel);
+    const head = headSel ? Layout.$(headSel) : body.closest('table').querySelector('thead');
+    const rows = [[...head.querySelectorAll('th')].map(th => xlText(th))];
+    let lastDate = '';
+    for (const tr of body.children) {
+        const row = [];
+        for (const td of tr.children) {
+            const i = row.length;
+            const indent = td.classList.contains('tbl-lvl-2') ? '      ' : td.classList.contains('tbl-lvl-1') ? '   ' : '';
+            row.push(i < textCols ? indent + xlText(td) : xlValue(xlText(td, true)));
+            for (let k = 1; k < td.colSpan; k++) row.push('');
+        }
+        if (fillDown) {
+            if (row[0] === '' && row[1] !== '') row[0] = lastDate; else lastDate = row[0];
+        }
+        rows.push(row);
+    }
+    return rows;
+}
+
+// Предупреждение над таблицей на экране — первой строкой листа (правило ВГ: о пропуске предупреждать)
+function xlWarn(sel) {
+    const el = Layout.$(sel);
+    const b = el && !el.classList.contains('hidden') ? el.querySelector('b') : null;
+    return b ? [[b.textContent.trim()], []] : [];
+}
+
+// Карточки с главными цифрами: подпись, значение, пояснение
+function xlCards(box) {
+    return [...box.children].map(card => {
+        const val = card.querySelector('.text-2xl, .text-3xl');
+        if (!val) return null;
+        const sub = val.nextElementSibling;
+        if (sub) sub.querySelectorAll('a').forEach(a => a.remove());
+        return [xlText(val.previousElementSibling), xlValue(xlText(val)), sub ? xlText(sub).replace(/[\s·]+$/, '') : ''];
+    }).filter(Boolean);
+}
+
+function xlSheetSummary() {
+    const rows = [[Layout.$('#summaryTitle').textContent.trim()]];
+    if (Layout.$('#summarySub').textContent) rows.push([Layout.$('#summarySub').textContent.trim()]);
+    if (view.result.totals.provisional) rows.push([`⚠ ${tr('cost_provisional', 'предварительно')}`]);
+    const quality = Layout.$('#qualityBanner');
+    if (!quality.classList.contains('hidden')) {
+        rows.push([`⚠ ${tr('cost_q_title', 'Данные могут быть неточными')}`]);
+        quality.querySelectorAll('li').forEach(li => rows.push([`• ${li.textContent.trim()}`]));
+    }
+    rows.push([]);
+    const top = Layout.$('#topBox');
+    rows.push([top.querySelector('.text-sm.font-semibold')?.textContent.trim() || '', top.querySelector('.text-sm.opacity-70')?.textContent.trim() || '']);
+    rows.push(...xlCards(top));
+    const paid = top.querySelector('.col-span-full.text-sm');
+    if (paid) rows.push([xlText(paid)]);
+    rows.push([]);
+    rows.push(...xlTable('#summaryHead', '#summaryBody'));
+    return rows;
+}
+
+function xlSheetParts() {
+    renderParts();
+    const box = Layout.$('#partsBox');
+    const rows = [[tr('cost_col_total', 'Себестоимость всего'), xlValue(xlText(box.querySelector('.text-3xl')))], [],
+        [tr('cost_parts_from', 'Из чего сложилась'), tr('cost_ov_amount', 'Сумма'), '%']];
+    box.querySelectorAll('[data-tab]').forEach(r => {
+        const [label, share, sum] = r.querySelector('.flex').children;
+        rows.push([label.textContent.trim(), xlValue(sum.textContent), share.textContent.trim()]);
+    });
+    return rows;
+}
+
+function xlSheetDirect() {
+    directOnlyNoMenu = false;
+    renderDirect();
+    return [...xlWarn('#directWarn'), ...xlTable('#directHead', '#directBody', { textCols: 2 })];
+}
+
+// Все строки раскрыты: статья → месяцы и операции
+function xlSheetOverhead() {
+    let added;
+    do {
+        renderOverhead();
+        added = false;
+        Layout.$('#overheadBody').querySelectorAll('[data-key]').forEach(r => {
+            if (!expanded.has(r.dataset.key)) { expanded.add(r.dataset.key); added = true; }
+        });
+    } while (added);
+    return [...xlWarn('#overheadWarn'), ...xlTable('#overheadHead', '#overheadBody', { textCols: 3 })];
+}
+
+// Сверху — итоги по строкам «Вкушающих», ниже — каждый человек с причиной, почему он здесь
+function xlSheetWho() {
+    renderEaters();
+    const scope = scopeEvents();
+    const people = personRows((x, ev) => !scope || scope.includes(ev), x => x.bucket)
+        .sort((a, b) => b.pm - a.pm || personLabel(a).localeCompare(personLabel(b), 'ru'));
+    const rows = xlTable('#eatersHead', '#eatersBody');
+    rows.push([], [tr('name', 'Имя'), tr('cost_x_category', 'Категория'), tr('cost_x_why', 'Почему здесь'), tr('cost_days', 'Дней'),
+        tr('breakfast', 'Завтраков'), tr('lunch', 'Обедов'), tr('cost_person_meals', 'Приёмов пищи'), tr('cost_total', 'Всего')]);
+    const sum = { pm: 0, cost: 0 };
+    for (const p of people) {
+        sum.pm += p.pm; sum.cost += p.cost;
+        rows.push([personLabel(p), BUCKET_LABELS[p.bucket]?.() || '', [...p.reasons].filter(Boolean).join('; '), p.days.size, p.bf, p.ln, p.pm, Math.round(p.cost)]);
+    }
+    rows.push([tr('cost_total', 'Всего'), '', '', '', '', '', sum.pm, Math.round(sum.cost)]);
+    return rows;
+}
+
+function xlSheetDepartments() {
+    deptFilter = 'all';
+    renderDepartments();
+    const note = Layout.$('#deptRetreatNote');
+    return [...(note.classList.contains('hidden') ? [] : [[note.textContent.trim()], []]), ...xlTable('#deptHead', '#deptBody')];
+}
+
+function xlSheetDays() {
+    renderDays();
+    return [...xlTable('#dayCostHead', '#dayCostBody', { textCols: 2, fillDown: true }), [],
+        [tr('cost_days_by_category', 'Сколько человек ели — по категориям')],
+        ...xlTable('#daysHead', '#daysBody', { textCols: 2, fillDown: true })];
+}
+
+// Деньги за прасад: главные цифры, по месяцам (только «Период») и все операции
+async function xlSheetMoney() {
+    renderKpis();
+    const rows = xlCards(Layout.$('#kpiBox'));
+    const opsHead = [tr('date', 'Дата'), tr('cost_x_direction', 'Куда'), tr('cost_x_operation', 'Операция'), tr('cost_x_details', 'Подробности'), tr('cost_x_foreign', 'В валюте'), tr('cost_ov_amount', 'Сумма')];
+    const inLabel = tr('cost_collected', 'Собрано за прасад');
+    if (state.mode === 'retreat') {
+        await Promise.all([loadIncomeOps(state.retreatId, 'in'), loadIncomeOps(state.retreatId, 'out')]);
+        const outLabel = tr('cost_spent_prasad', 'Потрачено на прасад');
+        rows.push([], opsHead);
+        for (const [label, list] of [[inLabel, view.incomeOps[state.retreatId]], [outLabel, view.expenseOps[state.retreatId]]])
+            for (const o of list || []) rows.push([fmtDay(o.date), label, o.title, o.meta, o.foreign, Math.round(o.amount * 100) / 100]);
+    } else if (view.cash) {
+        renderCashMovement(false);
+        rows.push([], ...xlTable(null, '#cashMonthsBody'), [], opsHead);
+        const outLabel = tr('cost_kcash_out', 'Ушло с кухни');
+        for (const o of [...view.cash.ops].sort((a, b) => a.occurred_on.localeCompare(b.occurred_on)))
+            rows.push([fmtDay(o.occurred_on), o.dir === 'in' ? inLabel : outLabel, o.category_name, [o.comment, o.participant, o.account_name].filter(Boolean).join(' · '), '', Math.round(o.amount * 100) / 100]);
+    }
+    return rows;
+}
+
+function xlAddSheet(wb, XLSX, name, rows) {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const widths = [];
+    rows.forEach(row => row.forEach((v, i) => {
+        // длинные пояснения в первой колонке (строка из одной ячейки) ширину не задают
+        if (row.length > 1) widths[i] = Math.max(widths[i] || 8, Math.min(String(v ?? '').length + 2, 60));
+    }));
+    ws['!cols'] = widths.map(wch => ({ wch: wch || 8 }));
+    for (const cell of Object.values(ws)) if (cell?.t === 'n') cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.00';
+    XLSX.utils.book_append_sheet(wb, ws, name.replace(/[\\/?*:[\]]/g, ' ').slice(0, 31));
+}
+
+async function exportExcel() {
+    if (!view) return;
+    const savedExpanded = [...expanded], savedFilter = deptFilter, savedNoMenu = directOnlyNoMenu;
+    Layout.showLoader();
+    try {
+        const XLSX = await loadXlsxLib();
+        const wb = XLSX.utils.book_new();
+        const isPeriod = state.mode === 'period';
+        const sheets = [
+            [tr('cost_section_summary', 'Сводка'), xlSheetSummary],
+            [tr('cost_section_parts', 'Из чего сложилось'), xlSheetParts],
+            [tr('cost_tab_direct2', 'Продукты и посуда'), xlSheetDirect],
+            [tr('cost_x_overhead_sheet', 'Зарплаты и хозрасходы'), xlSheetOverhead],
+            [tr('cost_section_who', 'Кто ел'), xlSheetWho],
+            [tr('cost_tab_departments', 'Команда и волонтёры'), xlSheetDepartments],
+            [tr('cost_section_days', 'По дням'), xlSheetDays],
+            [tr('cost_x_money_sheet', 'Деньги за прасад'), xlSheetMoney]
+        ];
+        if (isPeriod) sheets.splice(4, 0, [tr('cost_reconcile_title', 'Сверка с ДДС'), () => { renderReconcile(); return xlTable(null, '#reconcileBody'); }]);
+        for (const [name, build] of sheets) xlAddSheet(wb, XLSX, name, await build());
+        const title = isPeriod ? `${view.from}_${view.to}` : retreatName(state.retreatId);
+        XLSX.writeFile(wb, `${tr('cost_x_file', 'Себестоимость')} ${title.replace(/[\\/?*:"<>|]/g, ' ')}.xlsx`);
+    } catch (err) {
+        console.error('Excel:', err);
+        Layout.showNotification(errorText(err), 'error');
+    } finally {
+        expanded.clear();
+        savedExpanded.forEach(k => expanded.add(k));
+        deptFilter = savedFilter; directOnlyNoMenu = savedNoMenu;
+        if (view) render();
+        Layout.hideLoader();
+    }
+}
+
 // ==================== EVENTS ====================
 document.addEventListener('click', ev => {
     const btn = ev.target.closest('[data-action]');
     if (!btn) return;
     switch (btn.dataset.action) {
+        case 'export-excel':
+            exportExcel();
+            break;
         case 'mode':
             state.mode = btn.dataset.mode;
             saveState(); renderControls();
