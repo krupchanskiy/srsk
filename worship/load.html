@@ -93,12 +93,13 @@
                     <button class="btn btn-sm join-item" data-состав="volunteer">Волонтёры</button>
                 </div>
                 <!-- неделя листается: нагрузку распределяют и на следующую -->
-                <div class="join">
+                <!-- на телефоне — во всю ширину: «Эта неделя · 26 окт — 1 ноя» не влезала -->
+                <div class="join w-full sm:w-auto">
                     <button class="btn btn-sm join-item" data-неделя="-1" aria-label="Предыдущая неделя">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                              stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
                     </button>
-                    <button class="btn btn-sm join-item tabular-nums min-w-36" data-неделя="0" id="подписьНедели"
+                    <button class="btn btn-sm join-item tabular-nums min-w-36 flex-1 sm:flex-none" data-неделя="0" id="подписьНедели"
                             title="Вернуться к текущей неделе">—</button>
                     <button class="btn btn-sm join-item" data-неделя="1" aria-label="Следующая неделя">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"

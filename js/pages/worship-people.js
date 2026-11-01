@@ -13,6 +13,8 @@ const WorshipPeople = (() => {
     const $ = s => document.querySelector(s);
     const e = str => Layout.escapeHtml(str ?? '');
     const можноВести = () => !!window.hasPermission?.('worship_approve');
+    // отъезды за других отмечает и тот, кто ведёт расписание
+    const можноОтъезды = () => можноВести() || !!window.hasPermission?.('worship_schedule');
 
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
 
@@ -240,7 +242,7 @@ const WorshipPeople = (() => {
         $('#кВернуть').hidden = !(вРезерве && можноВести());
         $('#кУбрать').hidden = !(вРезерве && можноВести());
         // свои отметки человек ставит сам, чужие — старший
-        $('#кДобавитьОтметку').hidden = !(можноВести() || открытый.мой);
+        $('#кДобавитьОтметку').hidden = !(можноОтъезды() || открытый.мой);
         $('#карточка').showModal();
     }
 
@@ -332,7 +334,7 @@ const WorshipPeople = (() => {
 
     function рисоватьОтметки() {
         const свои = отметки.filter(а => а.person_id === открытый.id);
-        const можноСнимать = можноВести() || открытый.мой;
+        const можноСнимать = можноОтъезды() || открытый.мой;
         $('#кОтметки').innerHTML = свои.map(а => `
             <li class="flex items-center gap-2 py-1.5 border-b border-base-200 last:border-0">
                 <span class="flex-1 min-w-0">

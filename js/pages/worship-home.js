@@ -17,6 +17,7 @@ const WorshipHome = (() => {
 
     const можноПисать = () => !!window.hasPermission?.('worship_write');
     const можноУтверждать = () => !!window.hasPermission?.('worship_approve');
+    const можноВести = () => можноУтверждать() || !!window.hasPermission?.('worship_schedule');
 
     let разделы = [], статьи = [];
     let основа = Promise.resolve();    // разделы и статьи: ждут их лента и закладки
@@ -396,7 +397,7 @@ const WorshipHome = (() => {
 
     /** Старшему — пустые клетки на завтра: их закрывают сегодня, а не утром. */
     async function пустыеЗавтра() {
-        if (!можноУтверждать()) return;
+        if (!можноВести()) return;
         const завтра = DateUtils.toISO(DateUtils.addDays(DateUtils.nowAshram(), 1));
         const [с, о, н, л, от] = await Promise.all([
             Layout.db.from('worship_services')

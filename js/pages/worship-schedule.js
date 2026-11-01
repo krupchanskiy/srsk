@@ -12,7 +12,10 @@
 const WorshipSchedule = (() => {
     const $ = s => document.querySelector(s);
     const e = str => Layout.escapeHtml(str ?? '');
-    const можноВести = () => !!window.hasPermission?.('worship_approve');
+    // Вести расписание: старший или тот, кому дали отдельное право
+    // (ставить людей, особые дни). Справочник служб — только старшему.
+    const можноВести = () => !!(window.hasPermission?.('worship_approve') || window.hasPermission?.('worship_schedule'));
+    const можноСлужбы = () => !!window.hasPermission?.('worship_approve');
 
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
     // своя роль словами: «вы — помощник» понятнее серой плашки «помощник»
@@ -250,7 +253,7 @@ const WorshipSchedule = (() => {
                         style="background: var(--current-color); color:#fff;">Как на прошлой неделе</button>
                    <!-- состав служб и их время правят не каждый день, но ищут
                         именно здесь: под «ещё» эту кнопку не находили -->
-                   <button class="btn btn-sm btn-outline" id="вестиСлужбы">Службы и время</button>`
+                   ${можноСлужбы() ? '<button class="btn btn-sm btn-outline" id="вестиСлужбы">Службы и время</button>' : ''}`
                 : яЧеловек
                     ? `<button class="btn btn-sm btn-outline" id="яНеСмогу">${поЯзыку({ ru: 'Меня не будет', en: 'I will be away', hi: 'मैं नहीं रहूँगा' })}</button>`
                     : ''}
@@ -274,7 +277,7 @@ const WorshipSchedule = (() => {
         const поле = $('#подзаголовок');
         поле.className = 'text-sm opacity-70 mt-1';
         if (!службы.length) {
-            поле.textContent = можноВести()
+            поле.textContent = можноСлужбы()
                 ? 'Служб пока нет — заведите их кнопкой «Службы»'
                 : 'Служб пока нет: их заводит старший пуджари';
         } else if (прошлая) {
@@ -418,7 +421,7 @@ const WorshipSchedule = (() => {
 
         $('#строкиСлужб').innerHTML = строки.join('') ||
             `<tr><td colspan="8" class="text-sm opacity-60 p-4">
-                Служб пока нет. ${можноВести() ? 'Заведите их кнопкой «Службы».'
+                Служб пока нет. ${можноСлужбы() ? 'Заведите их кнопкой «Службы».'
                     : 'Их заводит старший пуджари.'}</td></tr>`;
     }
 
@@ -516,6 +519,8 @@ const WorshipSchedule = (() => {
      * один-два дня, и без этой строки их ищут глазами по всему столбцу.
      */
     function рисоватьИтогДней() {
+        // карточка особых дней — тем, кто ведёт расписание
+        $('#отклонения').classList.toggle('hidden', !можноВести());
         const список = дни();
         const сегодня = DateUtils.todayAshramISO();
         const активные = службы.filter(с => с.is_active);
