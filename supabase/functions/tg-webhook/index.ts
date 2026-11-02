@@ -793,11 +793,21 @@ Deno.serve(async (req) => {
     if (update.edited_message && !update.message) return new Response("ok");
     const tre = await treasurer();
     const tag = tre?.username ? `@${tre.username}` : "Казначей";
-    await tg("sendMessage", {
+    // Сообщение уже в «Поступлениях» (760): окно ведёт туда и исчезает само после
+    // внесения вместе с 👍 (763). Где сообщения не сохраняются — прежняя кнопка.
+    const { data: saved } = await supa.rpc("tg_receipt_saved", { p_chat: m.chat.id, p_message: m.message_id });
+    const sent = await tg("sendMessage", {
       chat_id: m.chat.id, reply_to_message_id: m.message_id,
-      text: `${tag} — здесь про получение денег. Заявку не создаю: передачу записывает тот, кто выдал. Проверьте, пожалуйста.`,
-      reply_markup: { inline_keyboard: [[{ text: "✅ Принял", callback_data: `rc:${m.message_id}` }]] },
+      text: saved
+        ? `${tag} — здесь про получение денег. Записал в «Поступления», внесите, пожалуйста.`
+        : `${tag} — здесь про получение денег. Заявку не создаю: передачу записывает тот, кто выдал. Проверьте, пожалуйста.`,
+      reply_markup: { inline_keyboard: [[saved
+        ? { text: "📥 Внести", url: "https://in.rupaseva.com/finance/inbox.html?tab=receipts" }
+        : { text: "✅ Принял", callback_data: `rc:${m.message_id}` }]] },
     });
+    if (saved && sent?.result?.message_id) {
+      await supa.rpc("tg_receipt_set_tag", { p_chat: m.chat.id, p_message: m.message_id, p_tag: sent.result.message_id });
+    }
     return new Response("ok");
   }
 
