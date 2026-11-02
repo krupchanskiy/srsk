@@ -1402,7 +1402,50 @@ async function submitIncome(ev) {
         highlightNext = true;
         await FinUtils.reloadAccounts();
         await loadTable();
+        await finishReceipt(res);
     }
+}
+
+// ---- Приход из вкладки «Поступления» (760): ?receipt=<id> ----
+// Форма та же; подставлены касса, сумма, статья, день приёма и текст сообщения.
+// Закрыли форму без сохранения — сообщение остаётся в списке.
+let receiptId = null;
+
+async function openFromReceipt(id) {
+    const { data: r } = await Layout.db.from('fin_v_tg_receipts').select('*').eq('id', id).maybeSingle();
+    if (!r) { Layout.showNotification('Сообщение не найдено', 'error'); return; }
+    if (r.receipt_status !== 'new') { Layout.showNotification('Это сообщение уже обработано', 'warning'); return; }
+    receiptId = r.id;
+    openIncome();
+    document.getElementById('incDate').value = r.received_date;
+    document.getElementById('incComment').value = r.raw_text || '';
+    if (r.cash_account_id) {
+        setSel(document.getElementById('incAccount'), r.cash_account_id);
+        document.getElementById('incChannel').value = каналСчёта(r.cash_account_id);
+    }
+    const category = categoryByCode(r.suggest_category_code);
+    if (category) setSel(document.getElementById('incCategory'), category.id);
+    document.getElementById('incAmount').value = r.amount ?? '';
+    // Точка кафе не распознана — сумма не теряется: казначей видит её в комментарии и выбирает точку
+    if (r.suggest_cafe_point && r.amount) {
+        document.getElementById(r.suggest_cafe_point === 'self' ? 'incCafeSelf' : 'incCafeHall').value = r.amount;
+    }
+    document.getElementById('incCategory').dispatchEvent(new Event('change'));
+    updateIncomeRecap();
+}
+
+async function finishReceipt(res) {
+    if (!receiptId) return;
+    const id = receiptId;
+    receiptId = null;
+    const operation = res.operation_id ?? res.result?.operation_id;
+    const { data, error } = await Layout.db.rpc('fin_tg_receipt_set', { p_id: id, p_status: 'posted', p_operation: operation || null });
+    // Приход уже проведён — говорим прямо, иначе сообщение останется в списке и его внесут второй раз
+    if (error || !data?.ok) {
+        Layout.showNotification('Приход проведён, но сообщение не отмечено. Нажмите у него «Уже внесено».', 'warning');
+        return;
+    }
+    location.href = 'inbox.html?tab=receipts';
 }
 
 // ==================== ФОРМА: ПЕРЕВОД ====================
@@ -1688,6 +1731,7 @@ async function init() {
     // Быстрые действия с главной: ?new=expense|income|transfer
     const openForm = { expense: openExpense, income: openIncome, transfer: openTransfer };
     if (openForm[params.get('new')]) openForm[params.get('new')]();
+    if (params.get('receipt')) await openFromReceipt(params.get('receipt'));
 
     // Deep-link на операцию: ?op=<id> — разворот + подсветка + автоскролл (общий режим)
     const opId = params.get('op');

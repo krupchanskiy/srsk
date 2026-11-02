@@ -44,7 +44,144 @@ async function loadUnfinishedCount() {
     el.classList.toggle('badge-ghost', (count || 0) === 0);
 }
 
+async function loadReceiptsCount() {
+    const { count } = await Layout.db.from('fin_v_tg_receipts')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_receipt', true).eq('receipt_status', 'new');
+    const el = document.getElementById('receiptsTabCount');
+    el.textContent = count || 0;
+    el.classList.toggle('badge-warning', (count || 0) > 0);
+    el.classList.toggle('badge-ghost', (count || 0) === 0);
+}
+
+// ==================== ПОСТУПЛЕНИЯ ИЗ ЧАТОВ (760) ====================
+// Что написали в чате о получении денег. Приход проводится обычной формой ДДС
+// (?receipt=id) — здесь только список и отметки.
+const receiptFilter = { status: 'new', department: '', search: '' };
+let receiptRows = [];
+
+function receiptLink(r) {
+    if (!r.message_id) return '';
+    const chat = String(r.chat_id).replace(/^-100/, '');
+    const url = `https://t.me/c/${chat}/${r.topic_id ? r.topic_id + '/' : ''}${r.message_id}`;
+    return `<a class="link link-hover text-xs" href="${e(url)}" target="_blank" rel="noopener">открыть в чате</a>`;
+}
+
+function receiptCardHtml(r) {
+    const when = new Date(r.received_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const category = FinUtils.refs.categories.find(c => c.code === r.suggest_category_code)?.name;
+    const money = r.amount && r.currency ? FinUtils.fmtMoney(r.amount, r.currency)
+        : '<span class="badge badge-warning badge-sm">сумма или валюта не распознаны</span>';
+    const actions = !r.is_receipt
+        ? `<button class="btn btn-outline btn-sm" data-action="receipt-mark">Это поступление</button>`
+        : r.receipt_status === 'new'
+        ? `<a class="btn btn-success btn-sm" href="dds.html?receipt=${r.id}">Провести</a>
+           <button class="btn btn-outline btn-sm" data-action="receipt-linked">Уже внесено</button>
+           <button class="btn btn-ghost btn-sm" data-action="receipt-dismiss">Не поступление</button>`
+        : r.receipt_status === 'dismissed'
+        ? `<button class="btn btn-ghost btn-sm" data-action="receipt-restore">Вернуть</button>`
+        : r.operation_id ? `<a class="btn btn-ghost btn-sm" href="dds.html?op=${r.operation_id}">Открыть приход</a>` : '';
+    const similar = r.similar_operation_id ? `
+        <div class="alert alert-warning py-2 mt-2 text-sm">
+            <span>Похоже, уже внесено: ${e(r.similar_date.split('-').reverse().join('.'))}
+            ${e([r.similar_category, r.similar_comment].filter(Boolean).join(' · '))}.
+            <a class="link" href="dds.html?op=${r.similar_operation_id}" target="_blank" rel="noopener">Посмотреть</a></span>
+        </div>` : '';
+    return `
+    <div class="card bg-base-100 shadow-sm" data-receipt="${r.id}">
+        <div class="card-body py-4">
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="badge badge-ghost badge-sm">${e(r.department || '—')}</span>
+                <span class="font-mono font-semibold">${money}</span>
+                ${category ? `<span class="badge badge-outline badge-sm">${e(category)}</span>` : ''}
+                <div class="ml-auto flex flex-wrap gap-2">${actions}</div>
+            </div>
+            <div class="mt-1">${e(r.raw_text)}</div>
+            <div class="text-xs opacity-70 flex flex-wrap gap-3 mt-1">
+                <span>${e(when)}</span><span>${e(r.author || '')}</span>${receiptLink(r)}
+            </div>
+            ${similar}
+        </div>
+    </div>`;
+}
+
+function renderReceiptList() {
+    const box = document.getElementById('receiptRows');
+    const q = receiptFilter.search.toLowerCase();
+    const rows = receiptRows.filter(r => !q || (r.raw_text || '').toLowerCase().includes(q) || (r.author || '').toLowerCase().includes(q));
+    const totals = {};
+    rows.filter(r => r.receipt_status === 'new' && r.is_receipt && r.amount && r.currency)
+        .forEach(r => { totals[r.currency] = (totals[r.currency] || 0) + Number(r.amount); });
+    const warn = document.getElementById('receiptWarn');
+    const count = rows.filter(r => r.receipt_status === 'new' && r.is_receipt).length;
+    warn.classList.toggle('hidden', !count);
+    warn.innerHTML = `<span>⚠ Не внесено в кассу: ${count} · ${Object.entries(totals).map(([c, s]) => FinUtils.fmtMoney(s, c)).join(' · ')}</span>`;
+    box.innerHTML = rows.length ? rows.map(receiptCardHtml).join('')
+        : `<div class="text-center py-14 opacity-70">Сообщений нет</div>`;
+}
+
+async function loadReceipts() {
+    const list = document.getElementById('inboxList');
+    if (!document.getElementById('receiptRows')) {
+        const depts = departments.map(d =>
+            `<option value="${d.id}" ${d.id === receiptFilter.department ? 'selected' : ''}>${e(d.name)}</option>`).join('');
+        const statuses = [['new', 'Не внесено'], ['done', 'Внесено'], ['dismissed', 'Не поступления'], ['all', 'Все сообщения']];
+        list.innerHTML = `
+            <div class="flex flex-wrap gap-2 mb-1">
+                <select id="receiptStatus" class="select select-bordered select-sm" aria-label="Что показать">
+                    ${statuses.map(([v, n]) => `<option value="${v}" ${v === receiptFilter.status ? 'selected' : ''}>${n}</option>`).join('')}
+                </select>
+                <select id="receiptDept" class="select select-bordered select-sm" aria-label="Департамент">
+                    <option value="">Все департаменты</option>${depts}
+                </select>
+                <input id="receiptSearch" type="search" class="input input-bordered input-sm w-64 max-w-full"
+                       placeholder="Поиск по тексту и автору" value="${e(receiptFilter.search)}">
+            </div>
+            <div id="receiptWarn" class="alert alert-warning py-2 hidden"></div>
+            <div id="receiptRows" class="space-y-3"></div>`;
+        document.getElementById('receiptStatus').addEventListener('change', ev => { receiptFilter.status = ev.target.value; loadReceipts(); });
+        document.getElementById('receiptDept').addEventListener('change', ev => { receiptFilter.department = ev.target.value; loadReceipts(); });
+        document.getElementById('receiptSearch').addEventListener('input', Layout.debounce(ev => {
+            receiptFilter.search = ev.target.value.trim();
+            renderReceiptList();
+        }, 200));
+    }
+    let q = Layout.db.from('fin_v_tg_receipts').select('*')
+        .order('received_at', { ascending: receiptFilter.status === 'new' }).limit(500);
+    if (receiptFilter.department) q = q.eq('department_id', receiptFilter.department);
+    if (receiptFilter.status === 'new') q = q.eq('is_receipt', true).eq('receipt_status', 'new');
+    else if (receiptFilter.status === 'done') q = q.eq('is_receipt', true).in('receipt_status', ['posted', 'linked']);
+    else if (receiptFilter.status === 'dismissed') q = q.eq('receipt_status', 'dismissed');
+    const { data, error } = await q;
+    if (error) { Layout.handleError(error, 'Поступления'); return; }
+    receiptRows = data || [];
+    renderReceiptList();
+    await loadCounts();
+}
+
+async function setReceipt(id, status, operationId) {
+    const { data, error } = await Layout.db.rpc('fin_tg_receipt_set', {
+        p_id: Number(id), p_status: status, p_operation: operationId || null });
+    if (error) { Layout.handleError(error, 'Поступления'); return; }
+    if (!data?.ok) { Layout.showNotification(data?.error || 'Ошибка', 'error'); return; }
+    await loadReceipts();
+}
+
+function receiptAction(id, action) {
+    const r = receiptRows.find(x => String(x.id) === String(id));
+    if (!r) return;
+    if (action === 'receipt-dismiss') setReceipt(id, 'dismissed');
+    else if (action === 'receipt-restore' || action === 'receipt-mark') setReceipt(id, 'new');
+    else if (action === 'receipt-linked') {
+        const text = r.similar_operation_id
+            ? `Привязать к приходу от ${r.similar_date.split('-').reverse().join('.')}:${[r.similar_category, r.similar_comment].filter(Boolean).join(' · ')}?`
+            : 'Похожего прихода не нашлось. Всё равно отметить как внесённое?';
+        if (confirm(text)) setReceipt(id, 'linked', r.similar_operation_id);
+    }
+}
+
 async function loadCounts() {
+    await loadReceiptsCount();
     const { data } = await Layout.db.from('fin_v_operations')
         .select('operation_id, approval')
         .in('approval', ['pending', 'disputed']);
@@ -152,6 +289,11 @@ function opCardHtml(op) {
 async function loadList() {
     const list = document.getElementById('inboxList');
     list.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span></div>`;
+
+    if (currentTab === 'receipts') {
+        await loadReceipts();
+        return;
+    }
 
     if (currentTab === 'unposted') {
         const { data, error } = await Layout.db.from('fin_v_unposted_crm_payments')
@@ -977,6 +1119,11 @@ async function init() {
         const att = ev.target.closest('[data-attachment-path]');
         if (att) { FinUtils.openAttachment(att.dataset.attachmentPath); return; }
         const btn = ev.target.closest('[data-action]');
+        const receiptCard = ev.target.closest('[data-receipt]');
+        if (receiptCard) {
+            if (btn) receiptAction(receiptCard.dataset.receipt, btn.dataset.action);
+            return;
+        }
         // Заявки из чатов — своя карточка (data-draft), без разворота деталей
         const draftCard = ev.target.closest('[data-draft]');
         if (draftCard && btn) {

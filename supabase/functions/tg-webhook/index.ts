@@ -30,7 +30,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // расходе («взял продукты»), и в получении («взял деньги у Ашиша»), поэтому
 // в получении оно распознаётся только с уточнением: «взял у…», «взял деньги».
 const RECEIPT_WORDS =
-  /получ|принял|при[её]м касс|забрал|вн[её]с|пришл[оаи]|приход|поступил|взял[аи]?\s+(деньги|у\s)/i;
+  /получ|приня[лт]|при[её]м касс|забрал|вн[её]с|пришл[оаи]|приход|поступил|взял[аи]?\s+(деньги|у\s)/i;
 const TRANSFER_WORDS =
   /выда(л|ла|ли|ть|ю|но)|передал|передач|передать|отдал|отдать|вручил|скинул/i;
 const EXPENSE_WORDS =
@@ -44,7 +44,8 @@ const CUR_WORDS = "[₹₽$€]|usd|eur|inr|rub|rs|руб\\p{L}*|рупи\\p{L}*
 // Только обычный пробел как разделитель тысяч («20 000») — не \s: он матчит и
 // перенос строки, из-за чего «...28/09/2026\n12000₽» склеивалось в 202612000
 // (дата с новой строки + сумма). Баг ВГ 16.09.2026.
-const NUM = "\\d[\\d ]{0,9}\\d|\\d";
+// Неразрывные пробелы подставляет телефон: «8 310» читалось как 310 (ВГ 02.11.2026).
+const NUM = "\\d[\\d \\u00A0\\u202F]{0,9}\\d|\\d";
 const AMT = `(${NUM})(?:[.,](\\d{1,2}))?(?![\\d])`;
 const amtValue = (int: string, frac?: string) =>
   parseFloat(int.replace(/\s/g, "") + (frac ? "." + frac : ""));
@@ -62,7 +63,8 @@ function maskNonMoney(text: string): string {
   const blank = (m: string) => " ".repeat(m.length);
   return text
     // даты и время: 28/09/2026, 28.09.26, 2026-09-28, 14:30, 14:30:59
-    .replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?/g, blank)
+    // и короткие «28/10», «22-24/10»: иначе «за 28/10 27150» склеивалось в 1027150
+    .replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?|(?:\d{1,2}-)?\d{1,2}\/\d{1,2}(?![\d/])/g, blank)
     // число + единица измерения/счёта (единица не должна быть началом другого слова)
     .replace(new RegExp(`(?:${NUM})(?:[.,]\\d{1,2})?[ \\t]*(?:${QTY_UNITS})(?![\\p{L}])`, "giu"), blank);
 }
@@ -695,6 +697,19 @@ Deno.serve(async (req) => {
   if (!chat) return new Response("ok");
 
   const money = parseMoney(text);
+  // Сообщение финансовой темы — для вкладки «Поступления» во «Входящих» (760).
+  // Сбой записи не должен мешать заявкам, поэтому результат не проверяем.
+  if (!m.from.is_bot) {
+    await supa.rpc("tg_note_message", {
+      p: { chat_id: m.chat.id, chat_title: m.chat.title ?? null, chat_type: m.chat.type,
+           tg_user_id: m.from.id, username: m.from.username ?? null,
+           full_name: [m.from.first_name, m.from.last_name].filter(Boolean).join(" "),
+           message_id: m.message_id, topic_id: m.message_thread_id ?? null, text,
+           received_at: new Date(m.date * 1000).toISOString(),
+           amount: money?.amount ?? null, currency: parseCurrency(text),
+           is_receipt: RECEIPT_WORDS.test(text) },
+    });
+  }
   if (!money) {
     // Похоже на трату, но суммы нет (забыли написать либо было только количество
     // вроде «300шт») — молчать нельзя: человек будет думать, что заявка принята
