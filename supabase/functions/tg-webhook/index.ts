@@ -260,13 +260,15 @@ Deno.serve(async (req) => {
         text: n.toLocaleString("ru-RU"),
         callback_data: `m:${n}:${draftId}`,
       })));
+      keyboard.push([{ text: "📥 Приход", callback_data: `rcpt:${draftId}` }]);
       keyboard.push([{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]);
     } else if (st.needs_kind) {
       head = `🤔 <b>Что это за сумма?</b>`;
       keyboard = [[
         { text: "💸 Расход", callback_data: `k:expense:${draftId}` },
         { text: "🔁 Передача", callback_data: `k:transfer:${draftId}` },
-      ], [{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]];
+      ], [{ text: "📥 Приход", callback_data: `rcpt:${draftId}` }],
+      [{ text: "✖️ Не про деньги", callback_data: `no:${draftId}` }]];
     } else if (st.needs_target) {
       const { data: depts } = await supa.rpc("tg_list_departments", { p_exclude: null });
       head = `🔁 <b>Кому передаём?</b>`;
@@ -365,6 +367,15 @@ Deno.serve(async (req) => {
       // занимает место (замечание ВГ 16.09.2026). Бот админ во всех чатах —
       // удаление всегда доступно.
       await dropCard(msg);
+    } else if (action === "rcpt") {
+      // «Приход»: сообщение уходит в «Поступления» (761), проводит казначей на сайте.
+      // Уже закрытая заявка ничего не вернёт — тогда карточку не трогаем.
+      const { data } = await supa.rpc("tg_draft_to_receipt", { p_id: parts[1] });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row) {
+        await tg("setMessageReaction", { chat_id: row.chat_id, message_id: row.source_message_id, reaction: [{ type: "emoji", emoji: "👀" }] });
+        await dropCard(msg);
+      }
     } else if (action === "ack") {
       // «Понял» под предупреждением «не нашёл сумму» — убираем его из чата
       await dropCard(msg);

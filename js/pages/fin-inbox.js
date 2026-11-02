@@ -69,18 +69,28 @@ function receiptLink(r) {
 
 function receiptCardHtml(r) {
     const when = new Date(r.received_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    const category = FinUtils.refs.categories.find(c => c.code === r.suggest_category_code)?.name;
+    const category = r.suggest_category_code === 'murti' ? 'Касса Магазин → Мурти'
+        : FinUtils.refs.categories.find(c => c.code === r.suggest_category_code)?.name;
     const money = r.amount && r.currency ? FinUtils.fmtMoney(r.amount, r.currency)
         : '<span class="badge badge-warning badge-sm">сумма или валюта не распознаны</span>';
     const actions = !r.is_receipt
         ? `<button class="btn btn-outline btn-sm" data-action="receipt-mark">Это поступление</button>`
         : r.receipt_status === 'new'
-        ? `<a class="btn btn-success btn-sm" href="dds.html?receipt=${r.id}">Провести</a>
+        ? `<button class="btn btn-success btn-sm" data-action="receipt-post">Провести</button>
            <button class="btn btn-outline btn-sm" data-action="receipt-linked">Уже внесено</button>
            <button class="btn btn-ghost btn-sm" data-action="receipt-dismiss">Не поступление</button>`
         : r.receipt_status === 'dismissed'
         ? `<button class="btn btn-ghost btn-sm" data-action="receipt-restore">Вернуть</button>`
         : r.operation_id ? `<a class="btn btn-ghost btn-sm" href="dds.html?op=${r.operation_id}">Открыть приход</a>` : '';
+    // Куда лягут деньги: касса ДДС у департамента или его подотчёт — видно и правится сразу
+    const account = r.is_receipt && r.receipt_status === 'new' ? `
+        <label class="flex flex-wrap items-center gap-2 mt-2 text-sm">
+            <span class="font-medium">На счёт:</span>
+            <select class="select select-bordered select-sm max-w-full" data-receipt-account>
+                ${r.cash_account_id ? '' : '<option value="">— выберите счёт —</option>'}
+                ${FinUtils.accountOptions(r.cash_account_id, r.currency ? a => a.currency_code === r.currency : null)}
+            </select>
+        </label>` : '';
     const similar = r.similar_operation_id ? `
         <div class="alert alert-warning py-2 mt-2 text-sm">
             <span>Похоже, уже внесено: ${e(r.similar_date.split('-').reverse().join('.'))}
@@ -97,6 +107,7 @@ function receiptCardHtml(r) {
                 <div class="ml-auto flex flex-wrap gap-2">${actions}</div>
             </div>
             <div class="mt-1">${e(r.raw_text)}</div>
+            ${account}
             <div class="text-xs opacity-70 flex flex-wrap gap-3 mt-1">
                 <span>${e(when)}</span><span>${e(r.author || '')}</span>${receiptLink(r)}
             </div>
@@ -170,7 +181,12 @@ async function setReceipt(id, status, operationId) {
 function receiptAction(id, action) {
     const r = receiptRows.find(x => String(x.id) === String(id));
     if (!r) return;
-    if (action === 'receipt-dismiss') setReceipt(id, 'dismissed');
+    if (action === 'receipt-post') {
+        const account = document.querySelector(`[data-receipt="${id}"] [data-receipt-account]`)?.value;
+        if (!account) { Layout.showNotification('Выберите счёт, на который легли деньги', 'error'); return; }
+        location.href = `dds.html?receipt=${id}&account=${account}`;
+    }
+    else if (action === 'receipt-dismiss') setReceipt(id, 'dismissed');
     else if (action === 'receipt-restore' || action === 'receipt-mark') setReceipt(id, 'new');
     else if (action === 'receipt-linked') {
         const text = r.similar_operation_id

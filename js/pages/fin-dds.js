@@ -1411,7 +1411,7 @@ async function submitIncome(ev) {
 // Закрыли форму без сохранения — сообщение остаётся в списке.
 let receiptId = null;
 
-async function openFromReceipt(id) {
+async function openFromReceipt(id, accountChoice) {
     const { data: r } = await Layout.db.from('fin_v_tg_receipts').select('*').eq('id', id).maybeSingle();
     if (!r) { Layout.showNotification('Сообщение не найдено', 'error'); return; }
     if (r.receipt_status !== 'new') { Layout.showNotification('Это сообщение уже обработано', 'warning'); return; }
@@ -1419,13 +1419,22 @@ async function openFromReceipt(id) {
     openIncome();
     document.getElementById('incDate').value = r.received_date;
     document.getElementById('incComment').value = r.raw_text || '';
-    if (r.cash_account_id) {
-        setSel(document.getElementById('incAccount'), r.cash_account_id);
-        document.getElementById('incChannel').value = каналСчёта(r.cash_account_id);
+    // Счёт выбран на карточке; в форме его тоже можно поменять
+    const accountId = accountChoice || r.cash_account_id;
+    if (accountId) {
+        setSel(document.getElementById('incAccount'), accountId);
+        document.getElementById('incChannel').value = каналСчёта(accountId);
     }
-    const category = categoryByCode(r.suggest_category_code);
+    // Мурти продаёт Магазин: тот же формат, что в обычном приходе — «Касса Магазин»
+    // с частью «Из них на Мурти», которую можно поправить (ВГ, 02.11.2026)
+    const isMurti = r.suggest_category_code === 'murti';
+    const category = categoryByCode(isMurti ? 'shop_cash' : r.suggest_category_code);
     if (category) setSel(document.getElementById('incCategory'), category.id);
     document.getElementById('incAmount').value = r.amount ?? '';
+    if (isMurti && r.amount) {
+        document.getElementById('incShopMurti').value = r.amount;
+        document.getElementById('incShopMurtiNote').value = r.raw_text || '';
+    }
     // Точка кафе не распознана — сумма не теряется: казначей видит её в комментарии и выбирает точку
     if (r.suggest_cafe_point && r.amount) {
         document.getElementById(r.suggest_cafe_point === 'self' ? 'incCafeSelf' : 'incCafeHall').value = r.amount;
@@ -1731,7 +1740,7 @@ async function init() {
     // Быстрые действия с главной: ?new=expense|income|transfer
     const openForm = { expense: openExpense, income: openIncome, transfer: openTransfer };
     if (openForm[params.get('new')]) openForm[params.get('new')]();
-    if (params.get('receipt')) await openFromReceipt(params.get('receipt'));
+    if (params.get('receipt')) await openFromReceipt(params.get('receipt'), params.get('account'));
 
     // Deep-link на операцию: ?op=<id> — разворот + подсветка + автоскролл (общий режим)
     const opId = params.get('op');
