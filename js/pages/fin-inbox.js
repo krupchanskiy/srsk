@@ -76,7 +76,8 @@ function receiptCardHtml(r) {
     const actions = !r.is_receipt
         ? `<button class="btn btn-outline btn-sm" data-action="receipt-mark">Это поступление</button>`
         : r.receipt_status === 'new'
-        ? `<button class="btn btn-success btn-sm" data-action="receipt-post">Провести</button>
+        ? `<button class="btn ${r.suggest_category_code ? 'btn-success' : 'btn-outline'} btn-sm" data-action="receipt-post">Провести</button>
+           <button class="btn ${r.suggest_category_code ? 'btn-outline' : 'btn-success'} btn-sm" data-action="receipt-participant">От участника</button>
            <button class="btn btn-outline btn-sm" data-action="receipt-linked">Уже внесено</button>
            <button class="btn btn-ghost btn-sm" data-action="receipt-dismiss">Не поступление</button>`
         : r.receipt_status === 'dismissed'
@@ -181,10 +182,11 @@ async function setReceipt(id, status, operationId) {
 function receiptAction(id, action) {
     const r = receiptRows.find(x => String(x.id) === String(id));
     if (!r) return;
-    if (action === 'receipt-post') {
+    if (action === 'receipt-post' || action === 'receipt-participant') {
         const account = document.querySelector(`[data-receipt="${id}"] [data-receipt-account]`)?.value;
         if (!account) { Layout.showNotification('Выберите счёт, на который легли деньги', 'error'); return; }
-        location.href = `dds.html?receipt=${id}&account=${account}`;
+        const page = action === 'receipt-post' ? 'dds' : 'participants';
+        location.href = `${page}.html?receipt=${id}&account=${account}`;
     }
     else if (action === 'receipt-dismiss') setReceipt(id, 'dismissed');
     else if (action === 'receipt-restore' || action === 'receipt-mark') setReceipt(id, 'new');

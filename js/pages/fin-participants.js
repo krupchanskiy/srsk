@@ -2258,6 +2258,7 @@ function openPayment() {
     // один блок или доплата другой валютой — «+ Добавить» на месте.
     const баланс = participants.find(x => x.participant_id === card.id)?.balance;
     const долги = BLOCKS.filter(k => Number(баланс?.blocks?.[k]?.balance) > 0.005);
+    const подсказки = [];
     if (долги.length) {
         долги.forEach((k, i) => {
             if (i) addPayRow();
@@ -2265,7 +2266,7 @@ function openPayment() {
             const row = [...document.querySelectorAll('#payRows .pay-row')].pop();
             row.querySelector('.pay-kind').value = k;
             onPayCurrencyChange(row);
-            updateRowHint(row);
+            подсказки.push(updateRowHint(row));
         });
     } else {
         addPayRow();
@@ -2273,8 +2274,81 @@ function openPayment() {
     updatePayRunningTotal();
     renderPayAdvance();
     closeCharge();
+    // Суммы долгов приходят из updateRowHint асинхронно — сообщение накладываем после них
+    Promise.all(подсказки).then(applyReceiptToPayment);
     document.getElementById('paySection').classList.remove('hidden');
     document.getElementById('paySection').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// ---- Оплата из вкладки «Поступления»: ?receipt=<id>&account=<id> (ВГ, 02.11.2026) ----
+// Человека выбирает казначей. Форма платежа та же, подставляем только то, что
+// написано в сообщении: день приёма, текст, счёт и сколько получено от гостя.
+let receipt = null;
+
+async function loadReceiptBanner(id, accountId) {
+    const { data: r } = await Layout.db.from('fin_v_tg_receipts').select('*').eq('id', id).maybeSingle();
+    if (!r) { Layout.showNotification('Сообщение не найдено', 'error'); return; }
+    if (r.receipt_status !== 'new') { Layout.showNotification('Это сообщение уже обработано', 'warning'); return; }
+    receipt = { ...r, account_id: accountId || r.cash_account_id };
+    const money = r.amount && r.currency ? FinUtils.fmtMoney(r.amount, r.currency) : 'сумма не распознана';
+    const account = FinUtils.refs.accounts.find(a => a.account_id === receipt.account_id)?.name;
+    const el = document.getElementById('receiptBanner');
+    el.innerHTML = `<div class="flex-1 min-w-0">
+            <div class="font-semibold">Вносим: ${e(money)}${account ? ` → ${e(account)}` : ''}</div>
+            <div>${e(r.raw_text)}</div>
+            <div class="text-sm">Выберите ретрит или «Гости без события», откройте человека и примите оплату. Дата и текст подставятся сами.</div>
+        </div>
+        <a class="btn btn-sm btn-ghost" href="inbox.html?tab=receipts">Назад к поступлениям</a>`;
+    el.classList.remove('hidden');
+}
+
+function applyReceiptToPayment() {
+    if (!receipt) return;
+    document.getElementById('payDate').value = receipt.received_date;
+    document.getElementById('payComment').value = receipt.raw_text || '';
+    if (!receipt.amount || !receipt.currency) return;
+    const строки = [...document.querySelectorAll('#payRows .pay-row')];
+    // Долгов нет — одна пустая строка: сумма и валюта прямо из сообщения
+    if (строки.length === 1 && !Number(строки[0].querySelector('.pay-amount').value)) {
+        const валюта = строки[0].querySelector('.pay-currency');
+        if ([...валюта.options].some(o => o.value === receipt.currency)) {
+            валюта.value = receipt.currency;
+            onPayCurrencyChange(строки[0]);
+            const сумма = строки[0].querySelector('.pay-amount');
+            сумма.value = receipt.amount;
+            сумма.dataset.touched = '1';
+        }
+    }
+    строки.filter(row => row.querySelector('.pay-currency').value === receipt.currency).forEach(row => {
+        const счёт = row.querySelector('.pay-account');
+        if ([...счёт.options].some(o => o.value === receipt.account_id)) {
+            счёт.value = receipt.account_id;
+            row.querySelector('.pay-channel').value = FinUtils.accountChannel(receipt.account_id);
+        }
+    });
+    updatePayRunningTotal();
+    const получено = document.querySelector(`#payReceivedRows .rcv-line[data-cur="${receipt.currency}"] .rcv-amount`);
+    if (получено) {
+        получено.value = receipt.amount;
+        получено.dataset.touched = '1';
+        updatePayRunningTotal();
+    } else {
+        Layout.showNotification(`В сообщении ${FinUtils.fmtMoney(receipt.amount, receipt.currency)}, а строки оплаты в другой валюте — проверьте суммы`, 'warning');
+    }
+}
+
+async function finishReceipt(res) {
+    if (!receipt) return;
+    const id = receipt.id;
+    receipt = null;
+    const { data, error } = await Layout.db.rpc('fin_tg_receipt_set', {
+        p_id: id, p_status: 'posted', p_operation: res.result?.operation_id || null });
+    // Оплата уже проведена — говорим прямо, иначе сообщение внесут второй раз
+    if (error || !data?.ok) {
+        Layout.showNotification('Оплата проведена, но сообщение не отмечено. Нажмите у него «Уже внесено».', 'warning');
+        return;
+    }
+    location.href = 'inbox.html?tab=receipts';
 }
 
 // Предоплата лежит без блока, а форма берёт долги блоков — так у Андры аванс €300
@@ -2702,6 +2776,7 @@ async function submitPayment(ev) {
         closePayment();
         await FinUtils.reloadAccounts();
         await refreshAfterChange();
+        await finishReceipt(res);
     }
 }
 
@@ -3700,6 +3775,7 @@ async function init() {
         selectRetreat(null);
     });
     const params = new URLSearchParams(window.location.search);
+    if (params.get('receipt')) await loadReceiptBanner(params.get('receipt'), params.get('account'));
     const preset = params.get('retreat');
     if (params.get('guests')) {
         await enterNoEvent();
