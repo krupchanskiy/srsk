@@ -772,6 +772,13 @@
                         </svg>
                         <span data-i18n="add_booking">Забронировать</span>
                     </button>
+                    <!-- Группа у нас не живёт, только ест — сразу заявка «По дням», без брони (ВГ, 03.11.2026) -->
+                    <button class="btn btn-success col-span-2 hidden" onclick="openSelfMealRequest()" data-self-guests-only>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span data-i18n="timeline_meal_only_group">Только питание группы</span>
+                    </button>
                     <button class="btn btn-warning" onclick="handleAction('cleaning')" data-room-only>
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
@@ -1397,7 +1404,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=5"></script>
-    <script src="../js/layout.js?v=127"></script>
+    <script src="../js/layout.js?v=128"></script>
     <script>
     function toggleFullscreen(btn) {
         const isFS = document.body.classList.toggle('board-fullscreen');
@@ -1405,11 +1412,11 @@
     }
     </script>
     <script src="../js/retreat-select.js?v=2"></script>
-    <script src="../js/meal-group-editor.js?v=1"></script>
+    <script src="../js/meal-group-editor.js?v=2"></script>
     <script src="../js/house-guard.js?v=4"></script>
     <script src="../js/arrival-time.js?v=2"></script>
-    <script src="../js/group-booking.js?v=18"></script>
-    <script src="../js/pages/timeline.js?v=99"></script>
+    <script src="../js/group-booking.js?v=19"></script>
+    <script src="../js/pages/timeline.js?v=100"></script>
 
 </body>
 </html>

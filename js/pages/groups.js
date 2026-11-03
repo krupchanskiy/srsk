@@ -1,12 +1,13 @@
 // ==================== GROUPS.JS ====================
-// CRUD для meal_groups — «Разовое питание» (ВГ, 02.10.2026): разовые приходы на день-два,
-// в шахматку можно не заносить. Регулярных — в шахматку (бронь, в том числе без номера)
+// CRUD для meal_groups — «Питание по заявке» (до 03.11.2026 «Разовое питание»): разовые приходы
+// на день-два и питание группы ретрита «По дням». Регулярных — в шахматку (бронь, в том числе без номера)
 
 (function() {
 'use strict';
 
 let groups = [];
 let retreats = [];
+let period = 'current';          // вкладка: 'current' — идут и будущие, 'past' — закончились
 
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
@@ -100,8 +101,13 @@ function renderGroups() {
     checkDoubleCount();
     const tbody = Layout.$('#groupsTable');
     const noGroups = Layout.$('#noGroups');
+    const today = DateUtils.toISO(new Date());
+    const pastCount = groups.filter(g => g.end_date < today).length;
+    Layout.$('#countCurrent').textContent = groups.length - pastCount;
+    Layout.$('#countPast').textContent = pastCount;
+    const shown = groups.filter(g => (g.end_date < today) === (period === 'past'));
 
-    if (groups.length === 0) {
+    if (shown.length === 0) {
         tbody.innerHTML = '';
         noGroups.classList.remove('hidden');
         return;
@@ -109,10 +115,9 @@ function renderGroups() {
 
     noGroups.classList.add('hidden');
 
-    const today = DateUtils.toISO(new Date());
     // Порядок: действующие (скоро заканчивающиеся выше) → будущие (ближайшие выше) → прошедшие (недавно закончившиеся выше)
     const rank = g => g.end_date < today ? 2 : g.start_date > today ? 1 : 0;
-    const sorted = [...groups].sort((a, b) => {
+    const sorted = [...shown].sort((a, b) => {
         const ra = rank(a), rb = rank(b);
         if (ra !== rb) return ra - rb;
         if (ra === 0) return a.end_date.localeCompare(b.end_date) || a.start_date.localeCompare(b.start_date);
@@ -122,10 +127,9 @@ function renderGroups() {
 
     tbody.innerHTML = sorted.map(g => {
         const isActive = g.start_date <= today && g.end_date >= today;
-        const isPast = g.end_date < today;
 
         return `
-            <tr class="${isPast ? 'opacity-50' : ''}">
+            <tr>
                 <td>
                     <div class="font-medium">${e(g.name)}</div>
                     ${isActive ? '<span class="badge badge-success badge-xs">active</span>' : ''}
@@ -167,6 +171,13 @@ function openGroupModal(groupId = null) {
 
 // ==================== EVENT DELEGATION ====================
 document.addEventListener('click', ev => {
+    const tab = ev.target.closest('#periodTabs [data-period]');
+    if (tab) {
+        period = tab.dataset.period;
+        Layout.$$('#periodTabs .tab').forEach(x => x.classList.toggle('tab-active', x === tab));
+        renderGroups();
+        return;
+    }
     const btn = ev.target.closest('[data-action]');
     if (!btn) return;
 

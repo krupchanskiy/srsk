@@ -111,6 +111,8 @@ function ensureDialog() {
                         <span class="font-medium">${e(tf('timeline_prasad', 'Прасад'))}:</span>
                         <label class="flex items-center gap-1"><input type="checkbox" id="gbBreakfast" class="checkbox checkbox-sm" checked> ${e(tf('breakfast', 'Завтрак'))}</label>
                         <label class="flex items-center gap-1"><input type="checkbox" id="gbLunch" class="checkbox checkbox-sm" checked> ${e(tf('lunch', 'Обед'))}</label>
+                        <!-- Группа присылает числа по дням — заявка «По дням» прямо отсюда (ВГ, 03.11.2026) -->
+                        <button type="button" class="btn btn-xs btn-outline" data-gb="meal-request" data-group-only>${e(tf('timeline_meal_by_request', 'По заявке — числа по дням'))}</button>
                     </div>
                     <div id="gbMealNote" class="sm:col-span-2 text-xs opacity-80 hidden"></div>
                     <label class="form-control sm:col-span-2">
@@ -172,6 +174,8 @@ function ensureDialog() {
         if (ev.target.closest('[data-gb="list"]')) { showList(true); return; }
         if (ev.target.closest('[data-gb="list-back"]')) { showList(false); return; }
         if (ev.target.closest('[data-gb="list-apply"]')) { applyList(); return; }
+        if (ev.target.closest('[data-gb="meal-request"]')) { openMealRequest(); return; }
+        if (ev.target.closest('[data-gb="meal-open"]')) { openMealRequest(S.mealGroup); return; }
         if (ev.target.closest('[data-gb="list-clear"]')) { S.assign = []; S.manual = []; renderRooms(); return; }
         const pick = ev.target.closest('[data-person-pick]');
         if (pick) {
@@ -373,12 +377,12 @@ async function applyRetreat() {
     applyMealGroup();
 }
 
-// «Разовое питание по дням» у ретрита — кухня считает по заявке, галочек прасада у мест нет
+// «Питание по заявке» по дням у ретрита — кухня считает по заявке, галочек прасада у мест нет
 async function applyMealGroup() {
     const retreatId = $('gbRetreat').value;
     let mg = null;
     if (retreatId && $('gbIn').value) {
-        const { data } = await Layout.db.from('meal_groups').select('id, name')
+        const { data } = await Layout.db.from('meal_groups').select('*')
             .eq('retreat_id', retreatId).eq('by_day', true)
             .lte('start_date', $('gbOut').value || $('gbIn').value).gte('end_date', $('gbIn').value).limit(1);
         mg = data?.[0] || null;
@@ -388,8 +392,27 @@ async function applyMealGroup() {
     $('gbMeals').classList.toggle('hidden', !!mg || !!S.booking);
     $('gbMealNote').classList.toggle('hidden', !mg);
     $('gbMealNote').innerHTML = mg
-        ? `Питание отдельно от проживания: кухня считает по заявке «${e(mg.name)}» в <a class="link link-primary" href="../vaishnavas/groups.html" target="_blank">Разовом питании</a>.`
+        ? `Питание отдельно от проживания: кухня считает по заявке «${e(mg.name)}» в <a class="link link-primary" href="../vaishnavas/groups.html" target="_blank">«Питании по заявке»</a>.`
+            + ` <button type="button" class="btn btn-xs btn-outline ml-1" data-gb="meal-open">${e(tf('timeline_meal_open', 'Открыть заявку'))}</button>`
         : '';
+}
+
+// Заявка «По дням» поверх брони: новая — с ретритом, датами, названием и числом мест брони;
+// после сохранения галочки мест прячутся сами (applyMealGroup), бронь не теряется
+function openMealRequest(mg = null) {
+    if (!window.MealGroupEditor) return;
+    if (mg) return MealGroupEditor.open(mg, { onSaved: applyMealGroup });
+    const retreatId = $('gbRetreat').value;
+    const retreat = S.retreats.find(r => r.id === retreatId);
+    if (!retreat) return Layout.showNotification(tf('timeline_meal_need_retreat', 'Сначала выберите ретрит: заявка по дням привязана к ретриту'), 'error');
+    if (!$('gbIn').value || !$('gbOut').value) return Layout.showNotification(tf('timeline_dates_required', 'Укажите заезд и выезд'), 'error');
+    MealGroupEditor.open(null, {
+        byDay: true,
+        defaults: { name: $('gbName').value.trim() || Layout.getName(retreat), retreat_id: retreatId,
+            start_date: $('gbIn').value, end_date: $('gbOut').value,
+            people_count: seatTotals().total || parseInt($('gbPeople').value) || 1 },
+        onSaved: applyMealGroup
+    });
 }
 
 async function onDatesChanged(fromRetreat) {
@@ -1125,7 +1148,7 @@ async function save() {
     const people = parseInt($('gbPeople').value) || 0;
 
     if (!from || !to) return Layout.showNotification(tf('timeline_dates_required', 'Укажите заезд и выезд'), 'error');
-    if (to === from) return Layout.showNotification(tf('timeline_same_day_use_meals', 'Заезд и выезд в один день — ни одной ночи. Чтобы покормить без ночёвки, внесите в «Разовое питание»'), 'error');
+    if (to === from) return Layout.showNotification(tf('timeline_same_day_use_meals', 'Заезд и выезд в один день — ни одной ночи. Чтобы покормить без ночёвки, внесите в «Питание по заявке»'), 'error');
     if (to < from) return Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
     if (!name && !retreat) return Layout.showNotification(tf('timeline_group_name_required', 'Выберите ретрит или впишите название группы'), 'error');
     if (!total) return Layout.showNotification(tf('timeline_group_no_seats', 'Выберите номера или места без номера'), 'error');
@@ -1165,7 +1188,7 @@ async function savePerson() {
     const roomId = Object.keys(S.picks).find(k => S.picks[k]);
 
     if (!from || !to) return Layout.showNotification(tf('timeline_dates_required', 'Укажите заезд и выезд'), 'error');
-    if (to === from) return Layout.showNotification(tf('timeline_same_day_use_meals', 'Заезд и выезд в один день — ни одной ночи. Чтобы покормить без ночёвки, внесите в «Разовое питание»'), 'error');
+    if (to === from) return Layout.showNotification(tf('timeline_same_day_use_meals', 'Заезд и выезд в один день — ни одной ночи. Чтобы покормить без ночёвки, внесите в «Питание по заявке»'), 'error');
     if (to < from) return Layout.showNotification(tf('timeline_checkout_before_checkin', 'Выезд не может быть раньше заезда'), 'error');
     if (!people.length) return Layout.showNotification(tf('timeline_person_required', 'Укажите человека: выберите из справочника или впишите имя'), 'error');
     const ids = people.map(p => p.vid).filter(Boolean);

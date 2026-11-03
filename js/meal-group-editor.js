@@ -1,6 +1,7 @@
 // ==================== MEAL-GROUP-EDITOR.JS ====================
-// Окно записи «Разового питания» (meal_groups) — одно на страницу «Разовое питание»
-// и на шахматку (ВГ, 08.10.2026): что поправили в одном месте, видно в другом.
+// Окно записи «Питания по заявке» (meal_groups, до 03.11 «Разовое питание») — одно на страницу
+// «Питание по заявке» и на шахматку (ВГ, 08.10.2026): что поправили в одном месте, видно в другом.
+// Из шахматки открывается и на новую запись: бронь группы «По заявке», «Только питание группы» (03.11).
 // «Одинаково каждый день» — как раньше: число людей × галочки.
 // «По дням» — таблица meal_group_days: дата · завтраков · обедов · примечание к дню
 // (примечание уходит поварам). Кухня считает по таблице (eating_detail, миграция 640).
@@ -328,7 +329,8 @@ function toggleNote(d) {
 }
 
 // ==================== ОТКРЫТЬ / СОХРАНИТЬ ====================
-// group — запись meal_groups (или null — новая); opts: { onSaved, focusDate, defaults }
+// group — запись meal_groups (или null — новая); opts: { onSaved, focusDate, defaults, byDay }
+// byDay — новая запись сразу «По дням» (группа ретрита из шахматки)
 async function open(group, opts = {}) {
     ensureDialog();
     translate();
@@ -359,19 +361,24 @@ async function open(group, opts = {}) {
     renderEvent();
     sel.value = g.retreat_id || '';
     showEventWarn();
+    // новая запись с датами из шахматки — ретрит подставляем по датам, как при их смене
+    if (!group && !g.retreat_id && g.start_date) onDatesChange();
 
     if (group?.by_day) {
         const { data, error } = await Layout.db.from('meal_group_days')
             .select('d, breakfast, lunch, note').eq('group_id', group.id);
-        if (error) { Layout.handleError(error, tr('nav_groups', 'Разовое питание')); return; }
+        if (error) { Layout.handleError(error, tr('nav_groups', 'Питание по заявке')); return; }
         for (const r of data || []) {
             days.set(r.d, { b: r.breakfast, l: r.lunch, note: r.note || '' });
             if ((r.note || '').trim()) openNotes.add(r.d);
         }
     }
     // запись уже «По дням» — дни без чисел так и остаются пустыми, не заполняем «одинаково»
+    // новая «По дням» без числа людей (группа без брони) — таблица пустая, числа вписывают сами
+    if (!group && opts.byDay && !g.people_count)
+        for (const d of dateList(g.start_date, g.end_date)) days.set(d, { b: 0, l: 0, note: '' });
     byDay = !!group?.by_day;
-    setMode(byDay);
+    setMode(group ? byDay : !!opts.byDay);
 
     document.getElementById('mgeModal').showModal();
     if (opts.focusDate && byDay) {
@@ -457,11 +464,36 @@ async function save(ev) {
         }
         close();
         Layout.showNotification(t('groups_saved'), 'success');
+        if (byDay && data.retreat_id) await offerClearPrasad(data);
         if (onSaved) await onSaved(id);
     } catch (err) {
         console.error('Error saving meal group:', err);
         Layout.showNotification(t('groups_save_error') + ': ' + err.message, 'error');
     }
+}
+
+// Заявка «По дням» у ретрита: кухня считает по её числам. Места этого ретрита на те же дни,
+// у которых ещё стоит прасад, кухня посчитала бы второй раз — предлагаем снять (ВГ, 03.11.2026)
+async function offerClearPrasad(g) {
+    const { data, error } = await Layout.db.from('residents')
+        .select('id, guest_name, rooms(number), vaishnavas(spiritual_name, first_name, last_name)')
+        .eq('retreat_id', g.retreat_id).neq('status', 'cancelled')
+        .or('breakfast.eq.true,lunch.eq.true')
+        .lte('check_in', g.end_date).gte('check_out', g.start_date);
+    if (error || !data?.length) return;
+    const label = r => {
+        const v = r.vaishnavas;
+        const name = v ? (v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim()) : (r.guest_name || tr('mge_seat_no_name', 'место без имени'));
+        return r.rooms?.number ? `${name} (№${r.rooms.number})` : name;
+    };
+    const shown = data.slice(0, 15).map(r => '• ' + label(r)).join('\n');
+    const more = data.length > 15 ? `\n… ${tr('mge_and_more', 'и ещё')} ${data.length - 15}` : '';
+    if (!confirm(tr('mge_clear_prasad_ask', 'Мест ретрита с прасадом на эти дни: %n — кухня посчитает их второй раз, сверх заявки. Снять у них завтрак и обед?')
+        .replace('%n', data.length) + '\n\n' + shown + more)) return;
+    const { error: upErr } = await Layout.db.from('residents')
+        .update({ breakfast: false, lunch: false }).in('id', data.map(r => r.id));
+    if (upErr) { Layout.showNotification(upErr.message, 'error'); return; }
+    Layout.showNotification(tr('mge_prasad_cleared', 'Прасад снят у мест: %n').replace('%n', data.length), 'success');
 }
 
 async function remove() {

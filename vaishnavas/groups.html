@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <script src="../js/color-init.js?v=9"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Разовое питание — ШРСК</title>
+    <title>Питание по заявке — ШРСК</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -27,7 +27,7 @@
 
         <!-- Page Header -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <h1 class="text-2xl font-bold" data-i18n="nav_groups">Разовое питание</h1>
+            <h1 class="text-2xl font-bold" data-i18n="nav_groups">Питание по заявке</h1>
             <button class="btn btn-primary gap-2" data-action="open-group-modal" data-permission="edit_preliminary">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -36,10 +36,22 @@
             </button>
         </div>
 
-        <!-- Правило (ВГ, 02.10.2026): разово — здесь, регулярно — в шахматку -->
-        <div class="text-sm opacity-70 mb-3" data-i18n="one_time_meals_rule">Для разовых приходов: человек или группа пришли поесть на день-два, в шахматку можно не заносить. Кто ходит регулярно или живёт несколько дней — заведите в шахматку (бронь, в том числе без номера в «Самостоятельном проживании»).</div>
+        <!-- Правило (ВГ, 02.10.2026): разово — здесь, регулярно — в шахматку; группа ретрита «По дням» — тоже здесь (03.11) -->
+        <div class="text-sm opacity-70 mb-3" data-i18n="one_time_meals_rule">Разовые приходы: человек или группа пришли поесть на день-два, в шахматку можно не заносить. Питание группы ретрита «По дням»: кухня считает только по числам заявки, в шахматке у мест галочек прасада нет. Кто ходит регулярно или живёт несколько дней сам по себе — заведите в шахматку.</div>
         <!-- ⚠ Одни и те же люди и здесь, и в шахматке — кухня посчитает дважды -->
         <div id="doubleCountAlert" class="alert alert-warning text-sm mb-3 hidden block"></div>
+
+        <!-- Текущие (идут и будущие) / Прошедшие (ВГ, 03.11.2026) -->
+        <div role="tablist" class="tabs tabs-boxed inline-flex mb-4" id="periodTabs">
+            <button role="tab" class="tab tab-active" data-period="current">
+                <span data-i18n="groups_tab_current">Текущие</span>
+                <sup class="ml-1 opacity-60" id="countCurrent">0</sup>
+            </button>
+            <button role="tab" class="tab" data-period="past">
+                <span data-i18n="groups_tab_past">Прошедшие</span>
+                <sup class="ml-1 opacity-60" id="countPast">0</sup>
+            </button>
+        </div>
 
         <!-- Groups Table -->
         <div class="overflow-x-auto">
@@ -77,10 +89,10 @@
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=23"></script>
     <script src="../js/date-utils.js?v=5"></script>
-    <script src="../js/layout.js?v=127"></script>
+    <script src="../js/layout.js?v=128"></script>
     <script src="../js/retreat-select.js?v=2"></script>
-    <script src="../js/meal-group-editor.js?v=1"></script>
-    <script src="../js/pages/groups.js?v=9"></script>
+    <script src="../js/meal-group-editor.js?v=2"></script>
+    <script src="../js/pages/groups.js?v=10"></script>
 
 </body>
 </html>

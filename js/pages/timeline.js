@@ -967,6 +967,8 @@ function showActionScreen() {
     // «Заселить» = человек уже здесь, заезд отмечается сразу
     const isSelf = !!modalContext?.isSelf;
     document.querySelectorAll('#actionScreen [data-room-only]').forEach(b => b.classList.toggle('hidden', isSelf));
+    document.querySelectorAll('#actionScreen [data-self-guests-only]').forEach(b =>
+        b.classList.toggle('hidden', !isSelf || modalContext.selfKind === 'team'));
     document.getElementById('actionCheckinLabel').textContent = isSelf
         ? tf('timeline_self_here', 'Уже здесь (заехал)') : t('timeline_checkin');
     document.getElementById('bookingChoice')?.classList.add('hidden');
@@ -2022,7 +2024,7 @@ function setPrasadByGroup(mealGroup, form, checks, note, mealTypeSel) {
     mealTypeSel?.classList.toggle('hidden', !!mealGroup);
     note.classList.toggle('hidden', !mealGroup);
     note.innerHTML = mealGroup
-        ? `Питание отдельно от проживания: кухня считает по заявке «${e(mealGroup.name)}» в <a class="link link-primary" href="../vaishnavas/groups.html" target="_blank">Разовом питании</a>. Лишний едок — добавьте его в числа заявки.`
+        ? `Питание отдельно от проживания: кухня считает по заявке «${e(mealGroup.name)}» в <a class="link link-primary" href="../vaishnavas/groups.html" target="_blank">«Питании по заявке»</a>. Лишний едок — добавьте его в числа заявки.`
         : '';
 }
 
@@ -4815,7 +4817,20 @@ function mealDayRows(g, canEdit) {
     return line('b', t('breakfast')) + line('l', t('lunch'));
 }
 
-// Клик по полосе питания группы: окно «Разового питания» на том дне, куда кликнули
+// «Только питание группы» из «+ Добавить» гостей: группа у нас не живёт — без брони, сразу
+// заявка «По дням» на даты экрана действия; ретрит окно подберёт по датам (ВГ, 03.11.2026)
+function openSelfMealRequest() {
+    if (!canEditTimeline()) return;
+    document.getElementById('actionModal').close();
+    MealGroupEditor.open(null, {
+        byDay: true,
+        defaults: { start_date: document.getElementById('modalCheckIn').value,
+            end_date: document.getElementById('modalCheckOut').value },
+        onSaved: async () => { await loadTimelineData(); renderTable(); }
+    });
+}
+
+// Клик по полосе питания группы: окно «Питания по заявке» на том дне, куда кликнули
 function openMealGroup(id, bar, ev, day = null) {
     const g = mealStrips.find(x => x.id === id);
     if (!g) return;
