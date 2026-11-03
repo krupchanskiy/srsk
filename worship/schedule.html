@@ -160,14 +160,17 @@
                 box-shadow: 1px 0 0 oklch(var(--b3));
             }
         }
-        /* Строка дней с датами не уезжает вверх, когда служб много.
+        /* Строка дней с датами не уезжает вверх, когда служб много. Шапка
+           сайта на этой странице не липнет: две липкие полосы съедали
+           пол-экрана телефона, а меню при листании шахматки не нужно.
            Неделю листают вбок — такая обёртка не даёт строке прилипнуть к
            странице, поэтому шахматка не выше экрана и листается сама.
            Влезает неделя целиком (.целиком ставит скрипт) — обёртка без
-           прокрутки, строка прилипает к странице под шапкой сайта. */
+           прокрутки, строка прилипает к верху страницы. */
         @media screen {
+            body > header.sticky { position: relative; }
             #шахматка > .card-body {
-                max-height: calc(100dvh - var(--высотаШапки, 5rem) - .75rem);
+                max-height: calc(100dvh - .75rem);
                 overflow: auto;
             }
             #шахматка thead th {
@@ -176,7 +179,6 @@
                 box-shadow: 0 1px 0 oklch(var(--b3));
             }
             #шахматка.целиком > .card-body { max-height: none; overflow: visible; }
-            #шахматка.целиком thead th { top: var(--высотаШапки, 0px); }
             /* подсветка «сегодня» — поверх сплошного фона, иначе сквозь
                строку дат просвечивают имена из прокрученных строк */
             #шахматка thead th.сегодня {
@@ -547,7 +549,7 @@
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=18"></script>
     <script src="../js/worship-initiation.js?v=1"></script>
-    <script src="../js/pages/worship-schedule.js?v=50"></script>
+    <script src="../js/pages/worship-schedule.js?v=51"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
