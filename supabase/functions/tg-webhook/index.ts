@@ -44,8 +44,8 @@ const CUR_WORDS = "[₹₽$€]|usd|eur|inr|rub|rs|руб\\p{L}*|рупи\\p{L}*
 // Только обычный пробел как разделитель тысяч («20 000») — не \s: он матчит и
 // перенос строки, из-за чего «...28/09/2026\n12000₽» склеивалось в 202612000
 // (дата с новой строки + сумма). Баг ВГ 16.09.2026.
-// Неразрывные пробелы подставляет телефон: «8 310» читалось как 310 (ВГ 02.11.2026).
-const NUM = "\\d[\\d \\u00A0\\u202F]{0,9}\\d|\\d";
+// Неразрывные и узкие пробелы подставляет телефон: «8 310» читалось как 310 (ВГ 02.11.2026).
+const NUM = "\\d[\\d \\u00A0\\u2000-\\u200A\\u202F\\u205F\\u3000]{0,9}\\d|\\d";
 const AMT = `(${NUM})(?:[.,](\\d{1,2}))?(?![\\d])`;
 const amtValue = (int: string, frac?: string) =>
   parseFloat(int.replace(/\s/g, "") + (frac ? "." + frac : ""));
@@ -65,6 +65,8 @@ function maskNonMoney(text: string): string {
     // даты и время: 28/09/2026, 28.09.26, 2026-09-28, 14:30, 14:30:59
     // и короткие «28/10», «22-24/10»: иначе «за 28/10 27150» склеивалось в 1027150
     .replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?|(?:\d{1,2}-)?\d{1,2}\/\d{1,2}(?![\d/])/g, blank)
+    // «25.10 500»: день.месяц перед числом склеивался в 10500. Без числа следом это сумма: «12.50 ₹»
+    .replace(/(?<![\d.,])(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])(?=[ \t\u00A0\u2000-\u200A\u202F\u205F\u3000]+\d)/g, blank)
     // число + единица измерения/счёта (единица не должна быть началом другого слова)
     .replace(new RegExp(`(?:${NUM})(?:[.,]\\d{1,2})?[ \\t]*(?:${QTY_UNITS})(?![\\p{L}])`, "giu"), blank);
 }
@@ -119,6 +121,14 @@ function parseMoney(rawText: string): { amount: number | null; raw: string; cand
     : all[all.length - 1];
   const n = amtValue(m[1], m[2]);
   return n > 0 ? { amount: n, raw: m[0] } : null;
+}
+// Перед суммой вплотную стоит ещё число — возможно, прочитан только хвост: «8,310» → 310.
+// Возвращает этот кусок текста для предупреждения. Та же проверка — в fin-inbox.js.
+function suspiciousAmount(rawText: string, amount: number | null): string | null {
+  if (!rawText || !amount) return null;
+  const text = rawText.replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?|(?:\d{1,2}-)?\d{1,2}[./]\d{1,2}(?![\d./])/g, " ");
+  const m = text.match(new RegExp(`\\d+[^\\p{L}\\d\\n\\r%]{1,2}${Math.trunc(amount)}(?!\\d)`, "u"));
+  return m ? m[0] : null;
 }
 // Валюта только если названа ЯВНО. Иначе null — бот спросит (решение ВГ).
 function parseCurrency(text: string): string | null {
@@ -237,7 +247,9 @@ Deno.serve(async (req) => {
       st.category ? esc(st.category) : null,
       st.source_account ? `откуда: ${esc(st.source_account)}` : null,
     ].filter(Boolean).join(" · ");
-    const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>`;
+    const doubt = suspiciousAmount(st.raw_text, st.amount);
+    const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>`
+      + (doubt ? `\n⚠️ <b>Проверьте сумму:</b> в сообщении «${esc(doubt)}», я прочитал ${st.amount}.` : "");
     let head: string;
     let keyboard: any[][];
     // Подсказка «как писать в следующий раз, чтобы я не переспрашивал» —

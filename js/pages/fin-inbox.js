@@ -67,6 +67,30 @@ function receiptLink(r) {
     return `<a class="link link-hover text-xs" href="${e(url)}" target="_blank" rel="noopener">открыть в чате</a>`;
 }
 
+// Перед суммой вплотную стоит ещё число — возможно, прочитан только хвост: «8,310» → 310.
+// Возвращает этот кусок текста. Та же проверка — в tg-webhook (карточка бота).
+function suspiciousAmount(rawText, amount) {
+    if (!rawText || !amount) return null;
+    const text = rawText.replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?|(?:\d{1,2}-)?\d{1,2}[./]\d{1,2}(?![\d./])/g, ' ');
+    const m = text.match(new RegExp(`\\d+[^\\p{L}\\d\\n\\r%]{1,2}${Math.trunc(amount)}(?!\\d)`, 'u'));
+    return m ? m[0] : null;
+}
+
+function amountDoubtHtml(d) {
+    const doubt = suspiciousAmount(d.raw_text, Number(d.amount));
+    return doubt ? `
+        <div class="alert alert-warning py-2 mt-2 text-sm">
+            <span>Проверьте сумму: в сообщении «${e(doubt)}», прочитано ${FinUtils.fmtMoney(d.amount, d.currency || 'INR')}.</span>
+        </div>` : '';
+}
+
+// Заявку с сомнительной суммой молча не проводим. Сумма в заявке не правится:
+// если неверна — отклонить и внести заново.
+function confirmDraftAmount(d) {
+    const doubt = d && suspiciousAmount(d.raw_text, Number(d.amount));
+    return !doubt || confirm(`В сообщении «${doubt}», прочитано ${FinUtils.fmtMoney(d.amount, d.currency || 'INR')}.\n\nСумма верна? Если нет — нажмите «Отмена», отклоните заявку и внесите заново.`);
+}
+
 function receiptCardHtml(r) {
     const when = new Date(r.received_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     const category = r.suggest_category_code === 'murti' ? 'Касса Магазин → Мурти'
@@ -108,6 +132,7 @@ function receiptCardHtml(r) {
                 <div class="ml-auto flex flex-wrap gap-2">${actions}</div>
             </div>
             <div class="mt-1">${e(r.raw_text)}</div>
+            ${amountDoubtHtml(r)}
             ${account}
             <div class="text-xs opacity-70 flex flex-wrap gap-3 mt-1">
                 <span>${e(when)}</span><span>${e(r.author || '')}</span>${receiptLink(r)}
@@ -256,6 +281,7 @@ function chatDraftCardHtml(d) {
                 </div>
             </div>
             <div class="text-xs opacity-60 mt-1">${e([d.author, d.raw_text].filter(Boolean).join(' · '))}</div>
+            ${amountDoubtHtml(d)}
             ${d.note ? `<div class="text-xs mt-1"><span class="font-medium">${Layout.translations?.['fin_draft_note'] ? t('fin_draft_note') : 'Пояснение'}:</span> ${e(d.note)}</div>` : ''}
         </div>
     </div>`;
@@ -468,6 +494,7 @@ async function submitReversal(ev) {
 // сначала выбрать, кому именно отданы деньги, иначе в /баланс они «не привязано» (689)
 async function postDraft(id) {
     const draft = chatDrafts.find(d => d.id === id);
+    if (!confirmDraftAmount(draft)) return;
     if (draft?.kind === 'transfer' && draft.target_department_id) {
         const holders = await loadHolders(draft.target_department_id);
         if (!holders) return;
@@ -710,6 +737,7 @@ function openSplit(id) {
 
 async function submitSplit(ev) {
     ev.preventDefault();
+    if (!confirmDraftAmount(splitDraft)) return;
     const rows = [...document.querySelectorAll('[data-split-row]')].map(r => {
         const dept = r.querySelector('[data-split-dept]').value || null;
         return {
@@ -985,6 +1013,7 @@ async function submitRefine(ev) {
     ev.preventDefault();
     const id = document.getElementById('refineDraftId').value;
     const spent = document.getElementById('refineSpent').checked;
+    if ((spent || (refineHolderShown() && document.getElementById('refineHolder').value)) && !confirmDraftAmount(refineDraft)) return;
 
     const self = refineIsSelf();
     const { data, error } = await Layout.db.rpc('tg_refine_draft', {
