@@ -57,6 +57,19 @@ function convert(amount, ingUnit, productUnit, density, units) {
     return null;
 }
 
+// ---------- ингредиент тяжелее готового блюда ----------
+// Ингредиента больше, чем выходит блюда, — признак ошибки единицы (масло 1200 кг вместо 1,2 кг).
+// Уварка, чистка, вода дают «больше» и в норме, поэтому ошибка — от 3 раз (ВГ 04.11.2026):
+// 'error' — красная строка, вопрос при сохранении, предупреждение в Себестоимости; 'hint' — подсказка в рецепте.
+const AMOUNT_ERROR_RATIO = 3;
+function amountVsOutput(ing, recipe, densities, units) {
+    if (recipe.output_unit !== 'kg' || !(Number(recipe.output_amount) > 0)) return null;
+    const grams = convert(Number(ing.amount) || 0, ing.unit, 'g', densities?.[ing.product_id], units);
+    if (!(grams > 0)) return null;
+    const ratio = grams / (Number(recipe.output_amount) * 1000);
+    return ratio >= AMOUNT_ERROR_RATIO ? { level: 'error', ratio } : ratio > 1 ? { level: 'hint', ratio } : null;
+}
+
 // ---------- стоимость блюда ----------
 // Продукты рецепта на servings порций по portionSize (размер порции в меню → порция рецепта → 100),
 // по ценам на дату, с учётом отходов. Одна формула для Себестоимости и для цены порции в меню.
@@ -116,6 +129,7 @@ function computeCosts(input) {
         missingPrices: new Map(),     // product_id → сколько раз не нашлась цена
         unresolvedUnits: new Map(),   // 'продукт|ед. рецепта|ед. продукта' → раз
         recipesNoOutput: new Set(),
+        suspiciousAmounts: new Map(), // recipe_id → { name, items: Map(название продукта → во сколько раз больше выхода) }
         noEaters: [],                 // приёмы пищи с расходами, но без вкушающих
         noMenu: []                    // есть вкушающие, но приём пищи в меню не заведён
     };
@@ -155,6 +169,13 @@ function computeCosts(input) {
             if (!recipe) continue;
             const r = dishCost(recipe, dish.portion_size, portions, meal.date, input);
             if (r.noOutput) warn.recipesNoOutput.add(dish.recipe_id);
+            for (const ing of (recipe.ingredients || [])) {
+                const s = amountVsOutput(ing, recipe, densities, units);
+                if (s?.level !== 'error') continue;
+                const w = warn.suspiciousAmounts.get(dish.recipe_id)
+                    || warn.suspiciousAmounts.set(dish.recipe_id, { name: recipes[dish.recipe_id]?.name_ru || '—', items: new Map() }).get(dish.recipe_id);
+                w.items.set(products[ing.product_id]?.name || '—', s.ratio);
+            }
             r.missing.forEach(id => note(warn.missingPrices, id));
             r.unresolved.forEach(k => note(warn.unresolvedUnits, k));
             food += r.cost;
@@ -432,7 +453,7 @@ async function load(db, locationId, from, to) {
 
     const recipeIds = [...new Set(meals.flatMap(m => (m.dishes || []).map(d => d.recipe_id)).filter(Boolean))];
     const recipeRows = recipeIds.length
-        ? await fetchAll(() => db.from('recipes').select('id, output_amount, output_unit, portion_amount').in('id', recipeIds))
+        ? await fetchAll(() => db.from('recipes').select('id, name_ru, output_amount, output_unit, portion_amount').in('id', recipeIds))
         : [];
     const ingRows = recipeIds.length
         ? await fetchAll(() => db.from('recipe_ingredients').select('recipe_id, product_id, amount, unit').in('recipe_id', recipeIds))
@@ -674,7 +695,7 @@ async function saveRetreatCost(db, retreatId, summary) {
     if (error) console.error('fin_save_prasad_cost:', error);
 }
 
-const api = { computeCosts, calculate, priceOn, convert, dishCost, loadDishRates, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost,
+const api = { computeCosts, calculate, priceOn, convert, dishCost, amountVsOutput, AMOUNT_ERROR_RATIO, loadDishRates, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost,
               loadIncome, incomeSummary, overheadComponent };
 if (typeof module !== 'undefined') module.exports = api;
 return api;

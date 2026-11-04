@@ -187,7 +187,7 @@
                                     <span class="label-text font-medium" data-i18n="field_output">Выход *</span>
                                 </label>
                                 <label class="input input-bordered flex items-center gap-2 w-full">
-                                    <input type="number" name="output_amount" min="0.1" step="0.1" class="grow w-full" required />
+                                    <input type="number" name="output_amount" min="0.1" step="0.1" class="grow w-full" required oninput="refreshAllAmountChecks()" />
                                     <select name="output_unit" onchange="onOutputUnitChange()" class="select select-ghost select-xs bg-transparent border-0 focus:outline-none opacity-50 px-0 min-h-0 h-auto w-auto">
                                         <option value="kg" data-i18n="unit_kg">кг</option>
                                         <option value="pcs" data-i18n="unit_pcs">шт</option>
@@ -384,6 +384,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/layout.js?v=128"></script>
+    <script src="../js/kitchen-cost.js?v=22"></script>
     <script>
         // ==================== STATE ====================
         let recipeId = null;
@@ -401,6 +402,8 @@
         let currentProductCategory = 'all';
 
         const t = key => Layout.t(key);
+        // перевод с русским запасным текстом: новый ключ, пока у человека в кэше старый словарь (до суток)
+        const tf = (key, ru) => { const v = Layout.t(key); return v === key ? ru : v; };
         const form = () => document.getElementById('recipeForm');
 
         // ==================== AUTO-TRANSLATE ====================
@@ -552,6 +555,7 @@
                 portionInput.min = '1';
                 portionInput.step = '1';
             }
+            refreshAllAmountChecks();
         }
 
         // ==================== DATA LOADING ====================
@@ -644,6 +648,35 @@
             const ingType = units.find(u => u.code === unit)?.type;
             if (!baseType || !ingType || ingType === baseType) return false;
             return (ingType === 'count' || baseType === 'count') && !isPieceWeightPair(product.unit, unit);
+        }
+
+        // Ингредиент тяжелее готового блюда (общая проверка Себестоимости, js/kitchen-cost.js):
+        // от 3 раз — красная строка и вопрос при сохранении, просто больше — серая подсказка
+        function amountCheck(ing) {
+            const f = form();
+            const unitMap = Object.fromEntries(units.map(u => [u.code, { type: u.type, ratio: Number(u.to_base_ratio) }]));
+            return KitchenCost.amountVsOutput({ ...ing, unit: ing.unit || ing.products?.unit || 'g' },
+                { output_amount: f.output_amount.value, output_unit: f.output_unit.value }, densities, unitMap);
+        }
+
+        // Сразу при вводе — без перерисовки списка, чтобы не терять курсор в поле
+        function refreshAmountCheck(index) {
+            const row = document.getElementById(`ingRow${index}`);
+            const box = document.getElementById(`ingCheck${index}`);
+            if (!row || !box) return;
+            const s = amountCheck(ingredients[index]);
+            row.classList.toggle('ring-2', s?.level === 'error');
+            row.classList.toggle('ring-error', s?.level === 'error');
+            row.classList.toggle('bg-error/10', s?.level === 'error');
+            // отдельной строкой на всю ширину — на телефоне колонка с названием узкая
+            box.className = 'col-span-full -mt-1 text-xs ' + (!s ? 'hidden' : s.level === 'error' ? 'text-error font-medium' : 'opacity-60');
+            box.textContent = !s ? ''
+                : s.level === 'error' ? `⚠ ${tf('recipe_amount_error', 'В {n} раз больше, чем выходит готового блюда — похоже, перепутаны граммы и килограммы').replace('{n}', Math.round(s.ratio))}`
+                : tf('recipe_amount_hint', 'Больше, чем выходит готового блюда — проверьте количество и единицу');
+        }
+
+        function refreshAllAmountChecks() {
+            ingredients.forEach((_, i) => refreshAmountCheck(i));
         }
 
         // Получить доступные единицы для продукта
@@ -780,7 +813,7 @@
                 const countMismatch = isCountMismatch(product, currentUnit);
 
                 return `
-                    <div class="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center ${zebraClass} rounded-lg p-3">
+                    <div id="ingRow${index}" class="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center ${zebraClass} rounded-lg p-3">
                         <div class="min-w-0">
                             <div class="font-medium truncate flex items-center gap-1">
                                 <span class="truncate">${name}</span>
@@ -794,9 +827,9 @@
                         <div class="flex items-center gap-1">
                             <input type="number" value="${ing.amount}" step="0.01" min="0"
                                    class="input input-bordered input-sm w-20 text-center"
-                                   onchange="updateIngredient(${index}, 'amount', parseFloat(this.value))" />
+                                   oninput="updateIngredient(${index}, 'amount', parseFloat(this.value)); refreshAmountCheck(${index})" />
                             <select class="select select-bordered select-sm w-20"
-                                    onchange="updateIngredient(${index}, 'unit', this.value)">
+                                    onchange="updateIngredient(${index}, 'unit', this.value); refreshAmountCheck(${index})">
                                 ${unitOptions}
                             </select>
                         </div>
@@ -808,9 +841,11 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
+                        <div id="ingCheck${index}" class="hidden"></div>
                     </div>
                 `;
             }).join('');
+            refreshAllAmountChecks();
         }
 
         // ==================== PRODUCT MODAL ====================
@@ -1117,6 +1152,21 @@
                 saving = false;
                 document.querySelectorAll('[onclick="saveRecipe()"], #recipeForm [type="submit"]').forEach(btn => btn.disabled = false);
                 return;
+            }
+
+            // Ингредиент в 3+ раза тяжелее готового блюда — переспросить, прежде чем сохранять
+            const suspicious = ingredients.map((ing, i) => ({ ing, i, s: amountCheck(ing) })).filter(x => x.s?.level === 'error');
+            if (suspicious.length) {
+                const list = suspicious.map(({ ing, s }) =>
+                    `• ${Layout.getName(ing.products)}: ${ing.amount} ${getUnitShort(ing.unit)} — ×${Math.round(s.ratio)}`).join('\n');
+                const ok = await спросить(tf('recipe_amount_confirm_title', 'Похоже, в рецепте ошибка'),
+                    tf('recipe_amount_confirm_text', 'Ингредиента указано намного больше, чем выходит готового блюда ({out}):\n{list}\n\nВы уверены, что данные верны? «Да» — сохранить как есть, «Отмена» — вернуться и исправить.').replace('{out}', `${f.output_amount.value} ${getUnitShort(f.output_unit.value)}`).replace('{list}', list));
+                if (!ok) {
+                    document.getElementById(`ingRow${suspicious[0].i}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    saving = false;
+                    document.querySelectorAll('[onclick="saveRecipe()"], #recipeForm [type="submit"]').forEach(btn => btn.disabled = false);
+                    return;
+                }
             }
 
             // Build instructions text
