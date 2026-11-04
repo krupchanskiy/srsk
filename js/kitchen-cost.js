@@ -60,8 +60,11 @@ function convert(amount, ingUnit, productUnit, density, units) {
 // ---------- ингредиент тяжелее готового блюда ----------
 // Ингредиента больше, чем выходит блюда, — признак ошибки единицы (масло 1200 кг вместо 1,2 кг).
 // Уварка, чистка, вода дают «больше» и в норме, поэтому ошибка — от 3 раз (ВГ 04.11.2026):
-// 'error' — красная строка, вопрос при сохранении, предупреждение в Себестоимости; 'hint' — подсказка в рецепте.
+// 'error' — красная рамка, 'hint' — жёлтая; любое непроверенное — вопрос при сохранении рецепта,
+// предупреждение в Себестоимости и на странице «Проверка данных».
 const AMOUNT_ERROR_RATIO = 3;
+// Повар подтвердил строку «так и должно быть» — действует, пока количество и единица те же (мигр. 772)
+const amountChecked = ing => ing.checked_amount != null && Number(ing.checked_amount) === Number(ing.amount) && ing.checked_unit === ing.unit;
 function amountVsOutput(ing, recipe, densities, units) {
     if (recipe.output_unit !== 'kg' || !(Number(recipe.output_amount) > 0)) return null;
     const grams = convert(Number(ing.amount) || 0, ing.unit, 'g', densities?.[ing.product_id], units);
@@ -129,7 +132,7 @@ function computeCosts(input) {
         missingPrices: new Map(),     // product_id → сколько раз не нашлась цена
         unresolvedUnits: new Map(),   // 'продукт|ед. рецепта|ед. продукта' → раз
         recipesNoOutput: new Set(),
-        suspiciousAmounts: new Map(), // recipe_id → { name, items: Map(название продукта → во сколько раз больше выхода) }
+        suspiciousAmounts: new Map(), // recipe_id → { name, items: Map(продукт → во сколько раз больше выхода) } — только непроверенные
         noEaters: [],                 // приёмы пищи с расходами, но без вкушающих
         noMenu: []                    // есть вкушающие, но приём пищи в меню не заведён
     };
@@ -169,11 +172,13 @@ function computeCosts(input) {
             if (!recipe) continue;
             const r = dishCost(recipe, dish.portion_size, portions, meal.date, input);
             if (r.noOutput) warn.recipesNoOutput.add(dish.recipe_id);
-            for (const ing of (recipe.ingredients || [])) {
-                const s = amountVsOutput(ing, recipe, densities, units);
-                if (s?.level !== 'error') continue;
+            // проверяем сам рецепт (не снимок прошедшего дня): отметка «проверено» живёт у его строк
+            const live = recipes[dish.recipe_id];
+            for (const ing of (live?.ingredients || [])) {
+                const s = amountVsOutput(ing, live, densities, units);
+                if (!s || amountChecked(ing)) continue;
                 const w = warn.suspiciousAmounts.get(dish.recipe_id)
-                    || warn.suspiciousAmounts.set(dish.recipe_id, { name: recipes[dish.recipe_id]?.name_ru || '—', items: new Map() }).get(dish.recipe_id);
+                    || warn.suspiciousAmounts.set(dish.recipe_id, { name: live.name_ru || '—', items: new Map() }).get(dish.recipe_id);
                 w.items.set(products[ing.product_id]?.name || '—', s.ratio);
             }
             r.missing.forEach(id => note(warn.missingPrices, id));
@@ -456,7 +461,7 @@ async function load(db, locationId, from, to) {
         ? await fetchAll(() => db.from('recipes').select('id, name_ru, output_amount, output_unit, portion_amount').in('id', recipeIds))
         : [];
     const ingRows = recipeIds.length
-        ? await fetchAll(() => db.from('recipe_ingredients').select('recipe_id, product_id, amount, unit').in('recipe_id', recipeIds))
+        ? await fetchAll(() => db.from('recipe_ingredients').select('recipe_id, product_id, amount, unit, checked_amount, checked_unit').in('recipe_id', recipeIds))
         : [];
     const recipes = {};
     recipeRows.forEach(r => (recipes[r.id] = { ...r, ingredients: [] }));
@@ -695,7 +700,7 @@ async function saveRetreatCost(db, retreatId, summary) {
     if (error) console.error('fin_save_prasad_cost:', error);
 }
 
-const api = { computeCosts, calculate, priceOn, convert, dishCost, amountVsOutput, AMOUNT_ERROR_RATIO, loadDishRates, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost,
+const api = { computeCosts, calculate, priceOn, convert, dishCost, amountVsOutput, amountChecked, AMOUNT_ERROR_RATIO, loadDishRates, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost,
               loadIncome, incomeSummary, overheadComponent };
 if (typeof module !== 'undefined') module.exports = api;
 return api;

@@ -30,6 +30,8 @@ const modules = {
                 { id: 'products', href: 'kitchen/products.html' },
                 { id: 'prices', href: 'kitchen/prices.html' },
                 { id: 'cost', href: 'kitchen/cost.html' },
+                // все упущения кухни в одном месте (ВГ 04.11)
+                { id: 'data_check', href: 'kitchen/data-check.html' },
                 // деньги департамента — в его модуле (ВГ 24.10); Кухня или Кафе — по выбранной кухне
                 { id: 'dept_account', href: 'kitchen/account.html' }
             ]},
@@ -283,6 +285,7 @@ const pagePermissions = {
     'kitchen/products.html': 'view_products',
     'kitchen/prices.html': ['view_prices', 'edit_prices', 'edit_archived_prices'],
     'kitchen/cost.html': ['view_prices', 'edit_prices', 'edit_archived_prices'],
+    'kitchen/data-check.html': ['view_prices', 'edit_prices', 'edit_archived_prices'],
     'kitchen/dictionaries.html': 'view_kitchen_dictionaries',
 
     // Stock
@@ -676,7 +679,7 @@ async function loadTranslations(retried = false) {
 
     // Проверка на наличие новых переводов (для автоинвалидации устаревшего кэша)
     // Добавляйте сюда ключи новых обязательных переводов
-    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe', 'nav_prices', 'prices_title', 'nav_cost', 'cost_title', 'rental_add_retreat', 'timeline_whole_room'];
+    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe', 'nav_prices', 'prices_title', 'nav_cost', 'cost_title', 'rental_add_retreat', 'timeline_whole_room', 'nav_data_check'];
     const hasAllKeys = requiredKeys.every(key => data.some(row => row.key === key));
 
     if (!hasAllKeys && !retried) {

@@ -444,11 +444,8 @@ function renderQuality() {
     if (noMenuFuture) reasons.push(link(`${tr('cost_q_menu_future', 'меню ещё не заведено на предстоящие приёмы пищи')}: ${noMenuFuture}`, 'data-action="open-no-menu"'));
     const monthName = ym => DateUtils.parseDate(ym + '-01').toLocaleDateString(locale(), { month: 'long', year: 'numeric' }).replace(' г.', '');
     if (w.payrollEstimated.length) reasons.push(link(`${tr('cost_q_payroll', 'зарплата предварительная, ещё не начислена')}: ${w.payrollEstimated.map(monthName).join(', ')}`, 'data-action="tab" data-tab="overhead"'));
-    // ингредиент в 3+ раза тяжелее готового блюда — почти наверняка г ↔ кг; каждый рецепт — ссылкой на правку
-    for (const [id, s] of w.suspiciousAmounts) {
-        const what = [...s.items].map(([p, r]) => `${p} ×${Math.round(r)}`).join(', ');
-        reasons.push(`${e(tr('cost_q_suspicious', 'похоже, ошибка в количестве (больше выхода блюда)'))}: ${link(`${s.name} — ${what}`, `href="recipe-edit.html?id=${encodeURIComponent(id)}"`)}`);
-    }
+    // ингредиент тяжелее готового блюда, повар ещё не подтвердил — подробно на странице «Проверка данных»
+    if (w.suspiciousAmounts.size) reasons.push(link(`${tr('cost_q_suspicious2', 'в рецептах ингредиента больше, чем выходит блюда, не проверено')}: ${w.suspiciousAmounts.size}`, 'href="data-check.html#amounts"'));
     const unmarked = unmarkedVolunteers();
     if (unmarked.length) reasons.push(link(`${tr('cost_q_unmarked', 'волонтёры ретрита без отмеченных ретритов')}: ${unmarked.length}`, 'data-action="tab" data-tab="problems"'));
     const box = Layout.$('#qualityBanner');
@@ -1832,10 +1829,15 @@ function renderWarnings() {
     }
     parts.push(nonEmpty(tr('cost_w_units', 'Не удалось перевести единицы (рецепт и продукт в несовместимых единицах), ингредиент не учтён'),
         [...w.unresolvedUnits.keys()].map(k => { const [p, a, b] = k.split('|'); return `${p}: ${a} → ${b}`; })));
-    if (w.suspiciousAmounts.size) parts.push(`<div class="alert alert-error items-start text-sm"><div>
-        <div class="font-semibold">${e(tr('cost_w_suspicious', 'Ингредиента в рецепте в 3 раза и больше, чем выходит готового блюда — похоже, перепутаны граммы и килограммы, себестоимость завышена'))}: ${w.suspiciousAmounts.size}</div>
-        <ul class="list-disc ml-5 mt-1">${[...w.suspiciousAmounts].map(([id, s]) => `<li><a class="link" href="recipe-edit.html?id=${encodeURIComponent(id)}">${e(s.name)}</a> — ${e([...s.items].map(([p, r]) => `${p} ×${Math.round(r)}`).join(', '))}</li>`).join('')}</ul>
+    if (w.suspiciousAmounts.size) {
+        const items = [...w.suspiciousAmounts];
+        const bad = items.some(([, x]) => [...x.items.values()].some(r => r >= KitchenCost.AMOUNT_ERROR_RATIO));
+        parts.push(`<div class="alert ${bad ? 'alert-error' : 'alert-warning'} items-start text-sm"><div>
+        <div class="font-semibold">${e(tr('cost_w_suspicious2', 'Ингредиента в рецепте больше, чем выходит готового блюда, и повар это не подтвердил — проверьте: от 3 раз почти наверняка перепутаны граммы и килограммы'))}: ${items.length}
+            <a class="link ml-1" href="data-check.html#amounts">${e(tr('nav_data_check', 'Проверка данных'))} →</a></div>
+        <ul class="list-disc ml-5 mt-1">${items.map(([id, x]) => `<li><a class="link" href="recipe-edit.html?id=${encodeURIComponent(id)}">${e(x.name)}</a> — ${e([...x.items].map(([p, r]) => `${p} ×${r >= 10 ? Math.round(r) : r.toFixed(1).replace('.', ',')}`).join(', '))}</li>`).join('')}</ul>
     </div></div>`);
+    }
     if (w.recipesNoOutput.size) parts.push(warningBox(`${tr('cost_w_output', 'У рецептов не указан выход, масштаб не посчитан')}: ${w.recipesNoOutput.size}`, []));
     parts.push(nonEmpty(tr('cost_w_nomenu', 'Вкушающие есть, а приёма пищи в меню нет'),
         w.noMenu.map(s => { const [d, m] = s.split(' '); return `${fmtDay(d)} · ${MEAL_LABELS[m]()}`; }), 'alert-info'));
