@@ -57,7 +57,8 @@
         .метка.недогружен, .метка.неСтавили { background: #fbefc9; color: #7a4f00; }
         [data-theme="dark"] .метка.перегружен { background: #5c1f19; color: #ffb4a8; }
         [data-theme="dark"] .метка.недогружен, [data-theme="dark"] .метка.неСтавили { background: #4a3a10; color: #ffd98a; }
-        .метка.норма { background: oklch(var(--b2)); color: oklch(var(--bc) / .7); }
+        .метка.норма { background: #dcf3e4; color: #17643a; }
+        [data-theme="dark"] .метка.норма { background: #173d26; color: #9ee6b8; }
         .метка.отъезд { background: oklch(var(--b2)); color: oklch(var(--bc) / .6); }
         /* зебра: глазу не сбиться со строки, когда ведёт по дням к итогу */
         #загрузка .строкаЗагрузки.человек { border-radius: .6rem; padding-inline: .6rem; margin-inline: -.6rem; }
@@ -150,7 +151,7 @@
     <script src="../js/layout.js?v=129"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=18"></script>
-    <script src="../js/pages/worship-load.js?v=19"></script>
+    <script src="../js/pages/worship-load.js?v=20"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
