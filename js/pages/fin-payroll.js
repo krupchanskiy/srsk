@@ -206,7 +206,11 @@ async function copyInvite(paymentId) {
     const res = await FinUtils.rpc('fin_payroll_invite_token', { payment_id: paymentId });
     if (!res?.ok) { FinUtils.handleResult(res); return; }
     const link = `https://t.me/SRSKteambot?start=${res.result.token}`;
-    const text = t('fin_payroll_invite_text').replace('{link}', link);
+    // Без оклада — приглашение без слова «зарплата», только зачем бот (776)
+    const pay = payments.find(x => x.id === paymentId);
+    const g = pay && groupByPosition(pay.position_id);
+    const key = !g || tracksBalance(g) ? 'fin_payroll_invite_text' : 'fin_payroll_invite_text_gift';
+    const text = t(key).replace('{link}', link);
     try {
         await navigator.clipboard.writeText(text);
         Layout.showNotification(t('fin_payroll_invite_copied'), 'success');
@@ -401,10 +405,10 @@ async function init() {
 
     // Кэш переводов в браузере живёт долго и не знает про новые ключи: вместо
     // «fin_payroll_range_all_short» на экране — один раз сбрасываем и перечитываем
-    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text', 'fin_payroll_tg_off_short', 'fin_payroll_tab_hired'].some(k => t(k) === k)
-        && !sessionStorage.getItem('payrollTrReload4')) {
-        sessionStorage.setItem('payrollTrReload4', '1');
-        Cache.invalidate('translations_v83');
+    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text', 'fin_payroll_tg_off_short', 'fin_payroll_tab_hired', 'fin_payroll_invite_text_gift'].some(k => t(k) === k)
+        && !sessionStorage.getItem('payrollTrReload5')) {
+        sessionStorage.setItem('payrollTrReload5', '1');
+        Cache.invalidate('translations_v85');
         location.reload();
         return;
     }
