@@ -168,7 +168,7 @@ function confirmHtml(p) {
         return ` <span class="badge badge-success badge-xs whitespace-nowrap">${t('fin_payroll_confirmed')} ${DateUtils.formatShort(new Date(p.confirmed_at))}</span>`;
     }
     if (p.recipient_linked) {
-        return ` <span class="badge badge-warning badge-xs whitespace-nowrap">${t('fin_payroll_wait_confirm')}</span>`;
+        return ` <span class="badge badge-warning badge-xs whitespace-nowrap">${t('fin_payroll_wait_confirm_tg')}</span>`;
     }
     return ` <span class="badge badge-warning badge-xs whitespace-nowrap">${t('fin_payroll_not_linked')}</span>
         <button type="button" class="btn btn-outline btn-xs ml-1" data-invite="${p.id}">${t('fin_payroll_copy_invite')}</button>`;
@@ -185,7 +185,7 @@ function renderConfirmWarning() {
             <ul class="mt-1 text-sm">${list.map(p => {
                 const g = groupByPosition(p.position_id);
                 return `<li><button type="button" class="hover:underline text-left" data-open-pos="${p.position_id}">
-                    • ${e(g?.employee_name || '')} (${e(g?.department_name || '')}) — ${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}, ${FinUtils.fmtMoney(p.amount, p.currency_code)} — ${t(p.recipient_linked ? 'fin_payroll_wait_confirm' : 'fin_payroll_not_linked')}
+                    • ${e(g?.employee_name || '')} (${e(g?.department_name || '')}) — ${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}, ${FinUtils.fmtMoney(p.amount, p.currency_code)} — ${t(p.recipient_linked ? 'fin_payroll_wait_confirm_tg' : 'fin_payroll_not_linked')}
                 </button></li>`;
             }).join('')}</ul>
         </div>
@@ -405,9 +405,9 @@ async function init() {
 
     // Кэш переводов в браузере живёт долго и не знает про новые ключи: вместо
     // «fin_payroll_range_all_short» на экране — один раз сбрасываем и перечитываем
-    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text', 'fin_payroll_tg_off_short', 'fin_payroll_tab_hired', 'fin_payroll_invite_text_gift'].some(k => t(k) === k)
-        && !sessionStorage.getItem('payrollTrReload5')) {
-        sessionStorage.setItem('payrollTrReload5', '1');
+    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text', 'fin_payroll_tg_off_short', 'fin_payroll_tab_hired', 'fin_payroll_invite_text_gift', 'fin_payroll_wait_confirm_tg'].some(k => t(k) === k)
+        && !sessionStorage.getItem('payrollTrReload6')) {
+        sessionStorage.setItem('payrollTrReload6', '1');
         Cache.invalidate('translations_v85');
         location.reload();
         return;
