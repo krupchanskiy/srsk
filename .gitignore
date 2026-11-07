@@ -11,3 +11,4 @@ supabase/.temp/
 .claude/worktrees/
 .mcp.json
 .claude/memory-bank/
+supabase/functions/prasad-dept-recalc/_lib/

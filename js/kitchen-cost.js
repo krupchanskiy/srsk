@@ -664,6 +664,178 @@ function summarizeRetreat(result, detail, retreatId, span) {
     };
 }
 
+// ---------- питание по департаментам (ВГ 04.11) ----------
+// Каждый приём пищи человека стоит ТОЧНО столько, сколько стоил этот приём: прямые затраты
+// этого приёма ÷ евшие + посуда на евшего + накладные дня (сумма ставок строк накладных,
+// покрывающих день и событие человека). Не средняя за период — поэтому месяцы складываются в год.
+// Департамент: место в шахматке (residents.department_id) → история служения на дату → «без департамента».
+// На департамент ложатся команда и волонтёры в дни вне ретритов; гость без события — только если
+// у его места указан департамент («за счёт департамента»). Дни ретрита — себестоимость ретрита.
+const DEPT_SHRSK = 'shrsk';          // «Волонтёры ШРСК» вне ретритов — общий расход (697)
+const DEPT_UNMARKED = 'unmarked';    // «Волонтёр ретрита» без отмеченных ретритов
+const DEPT_NONE = 'none';            // команда/волонтёры без департамента
+
+// Цена одного человеко-приёма: direct[date|meal] — прямые на евшего; overhead(date, ev) — накладные
+function mealRates(result) {
+    const direct = {};
+    for (const r of result.mealRecords || []) {
+        if (r.unallocated || !r.eaters) continue;
+        const k = `${r.date}|${r.meal}`;
+        direct[k] = (direct[k] || 0) + (r.food + r.external) / r.eaters + r.dishwarePerEater;
+    }
+    // накладные по дням: общие (все события), «на период ретритов» (все, кроме «без события»), «на ретрит» (свой ретрит)
+    const days = {};
+    const day = d => days[d] || (days[d] = { gen: 0, period: 0, ev: {} });
+    for (const l of result.overheadLines || []) {
+        if (l.unallocated || !(l.rate > 0)) continue;
+        for (let d = l.from; d <= l.to; d = isoAdd(d, 1)) {
+            const x = day(d);
+            if (l.group !== 'retreat') x.gen += l.rate;
+            else if (l.kind === 'retreat_event') x.ev[l.retreatId] = (x.ev[l.retreatId] || 0) + l.rate;
+            else x.period += l.rate;
+        }
+    }
+    const overhead = (d, retreatId) => {
+        const x = days[d];
+        if (!x) return 0;
+        return retreatId ? x.gen + x.period + (x.ev[retreatId] || 0) : x.gen;
+    };
+    return { direct, overhead };
+}
+
+// Откуда брать департамент: места (residents.department_id) и история служения людей
+async function loadDeptSources(db, detail) {
+    const residentIds = [...new Set(detail.filter(x => x.kind === 'resident').map(x => x.ref_id))];
+    const personIds = [...new Set(detail.map(x => x.vaishnava_id).filter(Boolean))];
+    const chunked = async (ids, make) => {
+        const out = [];
+        for (let i = 0; i < ids.length; i += 200) out.push(...await fetchAll(() => make(ids.slice(i, i + 200))));
+        return out;
+    };
+    const [places, hist] = await Promise.all([
+        chunked(residentIds, ids => db.from('residents').select('id, department_id').in('id', ids)),
+        chunked(personIds, ids => db.from('vaishnava_departments').select('vaishnava_id, department_id, date_from, date_to').in('vaishnava_id', ids))
+    ]);
+    const place = new Map(places.filter(p => p.department_id).map(p => [p.id, p.department_id]));
+    const history = new Map();
+    hist.forEach(h => (history.get(h.vaishnava_id) || history.set(h.vaishnava_id, []).get(h.vaishnava_id))
+        .push({ dep: h.department_id, from: h.date_from, to: h.date_to }));
+    return { place, history };
+}
+
+// Строка детализации → ключ строки «по департаментам» или null (не на департамент)
+function deptKeyOf(x, src) {
+    if (x.share === 'retreat_volunteer_unmarked') return DEPT_UNMARKED;
+    if (x.retreat_id) return null;
+    if (x.share === 'shrsk_volunteer') return DEPT_SHRSK;
+    const place = x.kind === 'resident' ? src.place.get(x.ref_id) : null;
+    if (place) return place;
+    if (x.bucket !== 'team' && x.bucket !== 'volunteers') return null;
+    const h = (x.vaishnava_id && src.history.get(x.vaishnava_id)) || [];
+    return h.find(p => (!p.from || p.from <= x.d) && (!p.to || p.to >= x.d))?.dep || DEPT_NONE;
+}
+
+// Итог по департаментам: { [key]: { key, people: { [personKey]: { ..., byDay: { date: [завтраков, обедов, ₹] } } } } }
+// people — человек (или бронь без карточки, группа) с разбивкой по дням: любой период режется точно.
+// Сумма по всем строкам детализации (без фильтра) = себестоимости периода — проверка detailTotal.
+function byDepartment(result, detail, src) {
+    const { direct, overhead } = mealRates(result);
+    const out = {};
+    for (const x of detail) {
+        if (!(x.breakfast || x.lunch)) continue;
+        const key = deptKeyOf(x, src);
+        if (!key) continue;
+        const n = (x.kind === 'group' ? (Number(x.people) || 1) : 1) * (Number(x.w) || 1);
+        const ov = overhead(x.d, x.retreat_id);
+        const bf = x.breakfast ? n : 0, ln = x.lunch ? n : 0;
+        const cost = bf * ((direct[`${x.d}|breakfast`] || 0) + ov) + ln * ((direct[`${x.d}|lunch`] || 0) + ov);
+        const g = out[key] || (out[key] = { key, people: {} });
+        const pk = x.vaishnava_id || x.ref_id;
+        const p = g.people[pk] || (g.people[pk] = { vaishnavaId: x.vaishnava_id || null, refId: x.ref_id, kind: x.kind,
+                                                   bucket: x.bucket, n: x.kind === 'group' ? (Number(x.people) || 1) : 1, byDay: {} });
+        const d = p.byDay[x.d] || (p.byDay[x.d] = [0, 0, 0]);
+        d[0] += bf; d[1] += ln; d[2] += cost;
+    }
+    return out;
+}
+
+// Имена для списка людей: карточка → имя в брони без карточки → название группы питания
+async function loadDeptNames(db, dep) {
+    const people = Object.values(dep).flatMap(g => Object.values(g.people));
+    const vIds = [...new Set(people.map(p => p.vaishnavaId).filter(Boolean))];
+    const rIds = [...new Set(people.filter(p => !p.vaishnavaId && p.kind === 'resident').map(p => p.refId))];
+    const gIds = [...new Set(people.filter(p => p.kind === 'group').map(p => p.refId))];
+    const chunked = async (ids, make) => {
+        const out = [];
+        for (let i = 0; i < ids.length; i += 200) out.push(...await fetchAll(() => make(ids.slice(i, i + 200))));
+        return out;
+    };
+    const [vs, rs, gs] = await Promise.all([
+        chunked(vIds, ids => db.from('vaishnavas').select('id, spiritual_name, first_name, last_name').in('id', ids)),
+        chunked(rIds, ids => db.from('residents').select('id, guest_name, group_name').in('id', ids)),
+        chunked(gIds, ids => db.from('meal_groups').select('id, name').in('id', ids))]);
+    const names = new Map();
+    vs.forEach(v => names.set(v.id, v.spiritual_name || `${v.first_name || ''} ${v.last_name || ''}`.trim()));
+    rs.forEach(r => names.set(r.id, r.guest_name || r.group_name || ''));
+    gs.forEach(g => names.set(g.id, g.name || ''));
+    return names;
+}
+
+// Итог по департаментам → строки для базы (одна форма у живого расчёта и снимка по месяцам):
+// [{ key, people: [{ id, ref, kind, bucket, n, name, days: { date: [завтраков, обедов, ₹] } }] }]
+function deptSummary(dep, names) {
+    const r2 = v => Math.round(v * 100) / 100;
+    return Object.values(dep).map(g => ({
+        key: g.key,
+        people: Object.values(g.people).map(p => ({ id: p.vaishnavaId, ref: p.refId, kind: p.kind, bucket: p.bucket, n: p.n,
+            name: names?.get(p.vaishnavaId || p.refId) || '',
+            days: Object.fromEntries(Object.entries(p.byDay).sort().map(([d, v]) => [d, [r2(v[0]), r2(v[1]), r2(v[2])]])) })),
+        cost: r2(Object.values(g.people).reduce((s, p) => s + Object.values(p.byDay).reduce((a, v) => a + v[2], 0), 0)),
+        pm: r2(Object.values(g.people).reduce((s, p) => s + Object.values(p.byDay).reduce((a, v) => a + v[0] + v[1], 0), 0))
+    }));
+}
+
+// Строки (живой расчёт или месяцы из базы) → итоги за период [from, to]: месяцы склеиваются,
+// дни вне периода отрезаются. На строку и на человека: дни питания, завтраки, обеды, приёмы пищи, ₹;
+// byDay — люди, приёмы пищи и ₹ за каждый день (график).
+function deptPeriod(lists, from, to) {
+    const out = new Map();
+    for (const list of lists) for (const g of list) {
+        const m = out.get(g.key) || out.set(g.key, { key: g.key, people: new Map(), byDay: {} }).get(g.key);
+        for (const p of g.people) {
+            const k = p.id || p.ref;
+            const q = m.people.get(k) || m.people.set(k, { id: p.id, ref: p.ref, kind: p.kind, bucket: p.bucket, n: p.n || 1,
+                name: p.name, days: 0, bf: 0, ln: 0, pm: 0, cost: 0, dates: [] }).get(k);
+            if (!q.name) q.name = p.name;
+            for (const [d, [bf, ln, cost]] of Object.entries(p.days)) {
+                if ((from && d < from) || (to && d > to)) continue;
+                q.days++; q.dates.push(d); q.bf += bf; q.ln += ln; q.pm += bf + ln; q.cost += cost;
+                const day = m.byDay[d] || (m.byDay[d] = { people: 0, pm: 0, cost: 0 });
+                day.people += p.n || 1; day.pm += bf + ln; day.cost += cost;
+            }
+        }
+    }
+    return [...out.values()].map(m => {
+        const people = [...m.people.values()].filter(p => p.days);
+        const sum = k => people.reduce((s, p) => s + p[k], 0);
+        return { key: m.key, people, byDay: m.byDay, people_n: people.reduce((s, p) => s + p.n, 0),
+                 days: sum('days'), bf: sum('bf'), ln: sum('ln'), pm: sum('pm'), cost: sum('cost') };
+    }).filter(g => g.people.length);
+}
+
+// Полная себестоимость каждой строки детализации — для проверки «сумма = себестоимость периода»
+function detailTotal(result, detail) {
+    const { direct, overhead } = mealRates(result);
+    let s = 0;
+    for (const x of detail) {
+        const n = (x.kind === 'group' ? (Number(x.people) || 1) : 1) * (Number(x.w) || 1);
+        const ov = overhead(x.d, x.retreat_id);
+        if (x.breakfast) s += n * ((direct[`${x.d}|breakfast`] || 0) + ov);
+        if (x.lunch) s += n * ((direct[`${x.d}|lunch`] || 0) + ov);
+    }
+    return s;
+}
+
 // Настройка «внутренний ретрит» → что входит в стоимость ретрита (sum.settings, sum.included)
 function applySettings(sum, settings) {
     const internal = !!settings?.is_internal;
@@ -701,7 +873,9 @@ async function saveRetreatCost(db, retreatId, summary) {
 }
 
 const api = { computeCosts, calculate, priceOn, convert, dishCost, amountVsOutput, amountChecked, AMOUNT_ERROR_RATIO, loadDishRates, BUCKETS, COMPONENTS, retreatSpan, loadDetail, summarizeRetreat, applySettings, saveRetreatCost,
-              loadIncome, incomeSummary, overheadComponent };
+              loadIncome, incomeSummary, overheadComponent,
+              byDepartment, loadDeptSources, loadDeptNames, deptSummary, deptPeriod, detailTotal,
+              DEPT_SHRSK, DEPT_UNMARKED, DEPT_NONE };
 if (typeof module !== 'undefined') module.exports = api;
 return api;
 

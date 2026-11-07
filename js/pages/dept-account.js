@@ -456,7 +456,7 @@ function analyticsData() {
     const today = DateUtils.toISO(new Date());
     const live = anRows.filter(r => !isStorno(r));
     const rev = live.filter(r => r.kind === 'revenue');
-    const cost = live.filter(r => r.kind === 'cost');
+    const cost = live.filter(r => r.kind === 'cost').concat(prasadRows());
     const dates = [...rev, ...cost].map(r => r.occurred_on).sort();
     const from = $('daccFrom').value || dates[0] || today;
     let to = $('daccTo').value || dates[dates.length - 1] || today;
@@ -483,7 +483,8 @@ function analyticsData() {
     const costs = side(cost,
         // себестоимость линии другого департамента — одной строкой «Изготовление мурти» (ВГ 19.10):
         // её статьи (аренда, такси…) — дело производителя, у продавца они только в раскрытии
-        r => r.source
+        r => r.calc ? { key: `p:${r.category_id}`, label: r.category_name, calc: true }
+            : r.source
             ? (r.line
                 ? { key: `x:${r.line}:${r.source}`, label: `${tr('dacc_an_make', 'Изготовление')} «${r.line}»`, src: r.source, line: r.line, mixed: true }
                 : { key: `x:${r.category_id}:${r.source}`, label: r.category_name, src: r.source, line: r.line })
@@ -525,6 +526,43 @@ function opsListHtml(list, withCat) {
             ${r.currency_code !== 'INR' ? `<span class="font-mono whitespace-nowrap text-xs opacity-50">≈ ${money(Math.abs(Number(r.amount_base)), 'INR')}</span>` : ''}
         </div>`;
     }).join('')}</div>`;
+}
+
+// ---------- Питание (прасад): расчёт по департаментам, js/pages/dept-prasad.js (ВГ 04.11) ----------
+// Кухня видит все департаменты; остальные — свой. В «Аналитике» — расчётная строка без проводок.
+let prasadList = null;     // строки DeptPrasad за выбранный период
+let prasadKey = '';        // период, за который загружены строки
+const isKitchenDept = () => cfg.department === 'kitchen';
+const calcBadge = g => g.calc ? ` <span class="badge badge-ghost badge-xs" title="${e(tr('dprasad_calc_hint', 'Расчёт по меню и вкушающим, без проводок'))}">${e(tr('dprasad_calc', 'расчёт'))}</span>` : '';
+
+// период — как у остальных вкладок; загрузилось — перерисовать то, что сейчас открыто
+function ensurePrasad() {
+    if (typeof DeptPrasad === 'undefined') return false;
+    const key = `${$('daccFrom').value}|${$('daccTo').value}`;
+    if (prasadKey === key) return !!prasadList;
+    prasadKey = key; prasadList = null;
+    DeptPrasad.load(isKitchenDept() ? null : cfg.department, $('daccFrom').value, $('daccTo').value)
+        .then(list => { if (prasadKey !== key) return; prasadList = list; if (view === 'prasad' || view === 'analytics') render(); })
+        .catch(err => { console.error('Питание по департаментам:', err); prasadList = []; });
+    return false;
+}
+
+function prasadRows() {
+    if (!ensurePrasad()) return [];
+    return DeptPrasad.analyticsRows(prasadList, cfg.department, $('daccFrom').value, $('daccTo').value);
+}
+
+function renderPrasad() {
+    const box = $('daccPrasad');
+    if (!ensurePrasad()) {
+        box.innerHTML = `<div class="text-center py-8"><span class="loading loading-spinner loading-md"></span>
+            <div class="text-sm opacity-60 mt-2">${e(tr('dprasad_loading', 'Считаем питание по приёмам пищи…'))}</div></div>`;
+        return;
+    }
+    const own = DeptPrasad.findDept(cfg.department);
+    const list = isKitchenDept() ? prasadList : prasadList.filter(g => g.key === own?.id);
+    list.computedAt = prasadList.computedAt;
+    DeptPrasad.render(box, list, { all: isKitchenDept(), from: $('daccFrom').value, to: $('daccTo').value });
 }
 
 function renderAnalytics() {
@@ -583,7 +621,7 @@ function renderAnalytics() {
             return `<div class="px-2 py-1.5 rounded-lg cursor-pointer hover:bg-base-200 ${open ? 'bg-base-200' : ''}" data-dacc-an-open="${e(g.key)}">
                 <div class="flex items-baseline gap-2 text-sm">
                     <span class="opacity-50 w-3">${open ? '▾' : '▸'}</span>
-                    <span class="truncate flex-1 ${open ? 'font-semibold' : ''}">${e(g.label)} <span class="opacity-50 text-xs">· ${g.rows.length}</span>${g.src ? ` <span class="badge badge-ghost badge-xs" title="${e(`${tr('dacc_an_from_other', 'траты других департаментов на')} «${g.obj}»`)}">${e(g.src)}</span>` : ''}</span>
+                    <span class="truncate flex-1 ${open ? 'font-semibold' : ''}">${e(g.label)} <span class="opacity-50 text-xs">· ${g.rows.length}</span>${calcBadge(g)}${g.src ? ` <span class="badge badge-ghost badge-xs" title="${e(`${tr('dacc_an_from_other', 'траты других департаментов на')} «${g.obj}»`)}">${e(g.src)}</span>` : ''}</span>
                     <span class="opacity-50 text-xs">${Math.round(share * 100)}%</span>
                     <span class="font-mono whitespace-nowrap">${inr(g.sum)}</span>
                 </div>
@@ -680,7 +718,7 @@ function renderAnalytics() {
                 <td class="text-right font-mono whitespace-nowrap ${color}">${fmt(s.sum)}</td>
                 <td class="text-right font-mono whitespace-nowrap opacity-70">${fmt(s.sum / n)}</td></tr>`
             + (s.groups.map(g => `<tr>
-                <td class="sticky left-0 bg-base-100 max-w-[18rem] cursor-pointer hover:bg-base-200" data-dacc-an-cell="${e(g.key)}|all"><div class="truncate" title="${e(g.label)}"><span class="opacity-50">${anTableOpen.get(g.key) === 'all' ? '▾' : '▸'}</span> ${e(g.label)} <span class="opacity-50 text-xs">· ${g.rows.length}</span>${g.src ? ` <span class="badge badge-ghost badge-xs">${e(g.src)}</span>` : ''}</div></td>
+                <td class="sticky left-0 bg-base-100 max-w-[18rem] cursor-pointer hover:bg-base-200" data-dacc-an-cell="${e(g.key)}|all"><div class="truncate" title="${e(g.label)}"><span class="opacity-50">${anTableOpen.get(g.key) === 'all' ? '▾' : '▸'}</span> ${e(g.label)} <span class="opacity-50 text-xs">· ${g.rows.length}</span>${calcBadge(g)}${g.src ? ` <span class="badge badge-ghost badge-xs">${e(g.src)}</span>` : ''}</div></td>
                 ${g.cells.map((_, i) => cell(g, i, kind)).join('')}
                 <td class="text-right font-mono whitespace-nowrap font-semibold">${fmt(g.sum)}</td>
                 <td class="text-right font-mono whitespace-nowrap opacity-70">${fmt(g.sum / n)}</td></tr>${openedRow(g)}`).join('')
@@ -775,9 +813,10 @@ function setView(v) {
     document.querySelectorAll('[data-dacc-view]').forEach(t => t.classList.toggle('tab-active', t.dataset.daccView === v));
     $('daccOps').classList.toggle('hidden', v !== 'ops' && v !== 'box');
     $('daccAnalytics').classList.toggle('hidden', v !== 'analytics');
+    $('daccPrasad')?.classList.toggle('hidden', v !== 'prasad');
     $('daccRevenue').classList.toggle('hidden', v !== 'revenue');
     // выручка — все валюты сразу и свои итоги: вкладки валют и плашки ленты ей не нужны
-    ['daccTabs', 'daccTotals', 'daccPeriodLine'].forEach(id => $(id).classList.toggle('hidden', v === 'revenue' || v === 'analytics'));
+    ['daccTabs', 'daccTotals', 'daccPeriodLine'].forEach(id => $(id).classList.toggle('hidden', v === 'revenue' || v === 'analytics' || v === 'prasad'));
     try { localStorage.setItem('dept_account_view', v); } catch { /* нет хранилища */ }
     if (was !== ledgerKind()) setLedger(); else render();
 }
@@ -876,6 +915,7 @@ function renderTable(list) {
 function render() {
     if (view === 'revenue') { renderRevenue(); return; }
     if (view === 'analytics') { renderAnalytics(); return; }
+    if (view === 'prasad') { renderPrasad(); return; }
     const list = filtered();
     renderTotals(list);
     renderSummary();
@@ -902,6 +942,11 @@ async function init(options) {
     accounts = await loadAccounts();
     if (accounts === null) { $('daccNoAccess').classList.remove('hidden'); return; }
     $('daccContent').classList.remove('hidden');
+    // «Питание» — у всех департаментов, если подключён расчёт (dept-prasad.js)
+    if (typeof DeptPrasad !== 'undefined') {
+        $('daccViewTabs').insertAdjacentHTML('beforeend', `<a role="tab" class="tab" data-dacc-view="prasad">${e(tr('dprasad_tab', 'Питание'))}</a>`);
+        $('daccAnalytics').insertAdjacentHTML('afterend', '<div id="daccPrasad" class="hidden"></div>');
+    }
     const [inc, an, mo] = await Promise.all([loadIncome(),
         Layout.db.rpc('fin_department_analytics', { p_department: cfg.department }),
         cfg.department === 'kitchen' ? Layout.db.rpc('fin_kitchen_meals_open') : Promise.resolve({ data: [] })]);
@@ -1020,7 +1065,7 @@ async function init(options) {
     if (!['month', 'quarter', 'year'].includes(step)) step = 'month';
     if (!['summary', 'table', 'charts'].includes(anSection)) anSection = 'summary';
     // сохранённая вкладка — только если она есть у этого департамента; без счетов — сразу выручка
-    const available = v => v === 'ops' || v === 'analytics' || (v === 'revenue' && incomeRows.length) || (v === 'box' && hasBox);
+    const available = v => v === 'ops' || v === 'analytics' || (v === 'prasad' && typeof DeptPrasad !== 'undefined') || (v === 'revenue' && incomeRows.length) || (v === 'box' && hasBox);
     if (!curs.length) saved = 'revenue';
     else if (!available(saved)) saved = 'ops';
     if (saved !== 'ops') setView(saved);

@@ -466,6 +466,22 @@ function cellsRow(cells, ev, buckets) {
     return a;
 }
 
+// Питание команды и волонтёров по департаментам — тот же блок, что у Кухни (js/pages/dept-prasad.js, ВГ 04.11)
+async function fillDeptPrasad(from, to) {
+    const box = document.getElementById('deptPrasadBox');
+    if (!box || typeof DeptPrasad === 'undefined' || !await canViewKitchenCost()) return;
+    box.innerHTML = `<div class="text-center py-4"><span class="loading loading-spinner loading-sm"></span></div>`;
+    try {
+        const list = await DeptPrasad.load(null, from, to);
+        if (!document.getElementById('deptPrasadBox')) return;
+        box.innerHTML = `<h2 class="text-lg font-semibold mb-2">${e(tr('dprasad_fin_title', 'Питание по департаментам'))}</h2><div id="deptPrasadBody"></div>`;
+        DeptPrasad.render(document.getElementById('deptPrasadBody'), list, { all: true, from, to });
+    } catch (err) {
+        console.error('Питание по департаментам:', err);
+        box.innerHTML = '';
+    }
+}
+
 async function fillDeptPrasadCost(from, to) {
     const box = document.getElementById('deptPrasadCostBox');
     if (!box || typeof KitchenCost === 'undefined') return;
@@ -1787,8 +1803,10 @@ function renderDeptReport() {
             </div>
             ${активные.map(d => deptRow(d, maxSpent)).join('')}
         </div></div>
-        ${активные.some(d => d.department_id === kitchenDeptId) ? '<div id="deptPrasadCostBox"></div>' : ''}`;
+        ${активные.some(d => d.department_id === kitchenDeptId) ? '<div id="deptPrasadCostBox"></div>' : ''}
+        <div id="deptPrasadBox" class="mt-4"></div>`;
     if (активные.some(d => d.department_id === kitchenDeptId)) fillDeptPrasadCost(deptData.from, deptData.to);
+    fillDeptPrasad(deptData.from, deptData.to);
 }
 
 // Шапка отчёта: за какой период он построен и сколько департаментов в нём учтено.
