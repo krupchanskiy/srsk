@@ -31,7 +31,12 @@ const WorshipLoad = (() => {
     const загруженные = new Set();                  // понедельники загруженных недель
     let поId = new Map(), службаПоId = new Map(), отклонениеПоId = new Map();
 
-    let неделя = понедельник(DateUtils.nowAshram());
+    // в воскресенье неделя уже прожита — смотрят на предстоящую (просьба Адриана 08.11.2026)
+    const стартоваяНеделя = () => {
+        const сейчас = DateUtils.nowAshram();
+        return сейчас.getDay() === 0 ? сдвиг(понедельник(сейчас), 7) : понедельник(сейчас);
+    };
+    let неделя = стартоваяНеделя();
     let состав = (() => {
         try { return localStorage.getItem('worship_load_kind') || 'все'; }
         catch { return 'все'; }
@@ -241,7 +246,9 @@ const WorshipLoad = (() => {
         const максДня = Math.max(поВремени ? 60 : 1, ...строки.flatMap(ч => ч.поДням.map(мераДня)));
 
         $('#подписьНедели').textContent = неделя === понедельник(DateUtils.nowAshram())
-            ? `Эта неделя · ${подписьНедели(неделя)}` : подписьНедели(неделя);
+            ? `Эта неделя · ${подписьНедели(неделя)}`
+            : неделя === сдвиг(понедельник(DateUtils.nowAshram()), 7)
+                ? `Следующая неделя · ${подписьНедели(неделя)}` : подписьНедели(неделя);
         document.querySelectorAll('[data-состав]').forEach(б =>
             б.classList.toggle('btn-active', б.dataset.состав === состав));
 
@@ -388,7 +395,7 @@ const WorshipLoad = (() => {
             const н = ev.target.closest('[data-неделя]');
             if (н) {
                 const шаг = Number(н.dataset.неделя);
-                return перейти(шаг ? сдвиг(неделя, шаг * 7) : понедельник(DateUtils.nowAshram()));
+                return перейти(шаг ? сдвиг(неделя, шаг * 7) : стартоваяНеделя());
             }
             const с = ev.target.closest('[data-состав]');
             if (!с) return;

@@ -102,7 +102,7 @@
                              stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
                     </button>
                     <button class="btn btn-sm join-item tabular-nums min-w-36 flex-1 sm:flex-none" data-неделя="0" id="подписьНедели"
-                            title="Вернуться к текущей неделе">—</button>
+                            title="Вернуться к текущей неделе (в воскресенье — к следующей)">—</button>
                     <button class="btn btn-sm join-item" data-неделя="1" aria-label="Следующая неделя">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                              stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
@@ -151,7 +151,7 @@
     <script src="../js/layout.js?v=129"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=18"></script>
-    <script src="../js/pages/worship-load.js?v=20"></script>
+    <script src="../js/pages/worship-load.js?v=21"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });
