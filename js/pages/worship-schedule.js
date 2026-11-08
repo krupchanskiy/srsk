@@ -241,13 +241,17 @@ const WorshipSchedule = (() => {
         (overrideId ? н.override_id === overrideId : н.service_id === serviceId));
 
     // ---------- отрисовка недели ----------
+    const иконка = d => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}"/></svg>`;
+    const ИКОНКА_ПЕЧАТЬ = иконка('M6.72 13.83a42.4 42.4 0 0 1 10.56 0M6.72 13.83 6.34 18m10.94-4.17L17.66 18m0 0 .23 2.52a1.13 1.13 0 0 1-1.12 1.23H7.23a1.13 1.13 0 0 1-1.12-1.23L6.34 18m11.32 0h1.09A2.25 2.25 0 0 0 21 15.75V9.46c0-1.08-.77-2.02-1.84-2.18a48 48 0 0 0-1.91-.25M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.46c0-1.08.77-2.02 1.84-2.18a48 48 0 0 1 1.91-.25m10.5 0a48.5 48.5 0 0 0-10.5 0m10.5 0V3.38c0-.62-.5-1.13-1.13-1.13H7.88c-.62 0-1.13.5-1.13 1.13v3.65M18 10.5h.01M15 10.5h.01');
+    // таблица со стрелкой вниз — «скачать таблицу»
+    const ИКОНКА_EXCEL = иконка('M3.75 4.5h16.5v9M3.75 4.5v15h9M3.75 9.75h16.5M3.75 15h9M9 4.5v15M18 16.5v5.25m0 0-2.25-2.25M18 21.75l2.25-2.25');
+
     function рисоватьШапку() {
         // Главное действие у каждого своё: старший пришёл расписать неделю,
         // пуджари — посмотреть свои службы и, если заболел, отметиться.
-        // Остальное — обслуживание, ему место под «ещё».
+        // Остальное — обслуживание: печать и Excel иконками, прочее под «ещё».
         const редкие = [];
-        редкие.push('<li><button id="печать">Распечатать неделю</button></li>');
-        редкие.push(`<li><button id="вExcel">Скачать в Excel — ${НЕДЕЛЬ_В_ФАЙЛЕ} недели</button></li>`);
         if (яЧеловек && можноВести()) редкие.push(`<li><button id="яНеСмогу">${поЯзыку({ ru: 'Меня не будет', en: 'I will be away', hi: 'मैं नहीं रहूँगा' })}</button></li>`);
 
         $('#actions').innerHTML = `
@@ -260,7 +264,12 @@ const WorshipSchedule = (() => {
                 : яЧеловек
                     ? `<button class="btn btn-sm btn-outline" id="яНеСмогу">${поЯзыку({ ru: 'Меня не будет', en: 'I will be away', hi: 'मैं नहीं रहूँगा' })}</button>`
                     : ''}
-            <div class="dropdown dropdown-end">
+            <!-- печать и Excel под «ещё» не находили — иконками на виду -->
+            <button class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" id="печать"
+                    title="Распечатать неделю" aria-label="Распечатать неделю">${ИКОНКА_ПЕЧАТЬ}</button>
+            <button class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" id="вExcel"
+                    title="Скачать в Excel — ${НЕДЕЛЬ_В_ФАЙЛЕ} недели" aria-label="Скачать в Excel — ${НЕДЕЛЬ_В_ФАЙЛЕ} недели">${ИКОНКА_EXCEL}</button>
+            ${редкие.length ? `<div class="dropdown dropdown-end">
                 <button tabindex="0" class="btn btn-sm px-2 bg-base-100 border-base-300 hover:bg-base-200" aria-label="Ещё действия">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <circle cx="12" cy="5" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle>
@@ -270,7 +279,7 @@ const WorshipSchedule = (() => {
                 <ul tabindex="0" class="dropdown-content z-30 menu menu-sm p-2 shadow bg-base-100 rounded-box w-56">
                     ${редкие.join('')}
                 </ul>
-            </div>`;
+            </div>` : ''}`;
 
         // неделя, которую не вели, и неделя, которую не закрыли, — разные вещи:
         // пустая шахматка в прошлом не должна читаться как обвинение
@@ -1336,7 +1345,12 @@ const WorshipSchedule = (() => {
                 return рисовать();
             }
             if (b.id === 'печать') return print();
-            if (b.id === 'вExcel') return разом(b, скачатьExcel);
+            if (b.id === 'вExcel') {
+                // файл собирается несколько секунд: вместо иконки — крутилка
+                if (b.disabled) return;
+                b.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+                try { return await разом(b, скачатьExcel); } finally { b.innerHTML = ИКОНКА_EXCEL; }
+            }
             if (b.id === 'вестиСлужбы') { рисоватьСлужбы(); return $('#службыМодал').showModal(); }
             if (b.id === 'сДобавить') return разом(b, добавитьСлужбу);
             if (b.id === 'разовая') return открытьОтклонение('разовая');
