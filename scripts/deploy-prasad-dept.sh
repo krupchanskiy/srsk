@@ -26,4 +26,5 @@ cp js/date-utils.js "$LIB/date-utils.js"
 } > "$LIB/version.js"
 
 set -a; source .env.local; set +a
-supabase functions deploy prasad-dept-recalc --project-ref mymrijdfqeevoaocbzfy --no-verify-jwt
+SB=supabase; command -v supabase >/dev/null || SB="npx -y supabase@2.75.0"
+$SB functions deploy prasad-dept-recalc --project-ref mymrijdfqeevoaocbzfy --no-verify-jwt
