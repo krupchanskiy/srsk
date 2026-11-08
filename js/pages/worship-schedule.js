@@ -89,7 +89,7 @@ const WorshipSchedule = (() => {
                 .select('id, person_id, date_from, date_to, reason')
                 .lte('date_from', до),
             всё ? Layout.db.from('worship_services')
-                .select('id, name_ru, name_en, name_hi, time_of_day, duration_minutes, sort_order, article_id, is_active')
+                .select('id, name_ru, name_en, name_hi, time_of_day, duration_minutes, sort_order, article_id, is_active, deleted_at')
                 .order('sort_order').order('time_of_day') : null,
             // люди сразу с именами: отдельный поход в vaishnavas стоил лишнего
             // круга по сети, а пуджари без прав на карточки видел «без имени»
@@ -276,7 +276,7 @@ const WorshipSchedule = (() => {
         // шахматке — жёлтые клетки и строка «закрыто за день» внизу
         const поле = $('#подзаголовок');
         поле.className = 'text-sm opacity-70 mt-1';
-        if (!службы.length) {
+        if (!видимыеСлужбы().length) {
             поле.textContent = можноСлужбы()
                 ? 'Служб пока нет — заведите их кнопкой «Службы»'
                 : 'Служб пока нет: их заводит старший пуджари';
@@ -899,8 +899,12 @@ const WorshipSchedule = (() => {
     }
 
     // ---------- службы ----------
+    // удалённая служба из списка уходит, но строка с ней живёт ради истории назначений
+    const видимыеСлужбы = () => службы.filter(с => !с.deleted_at);
+
     function рисоватьСлужбы() {
-        $('#службыСписок').innerHTML = службы.map((с, i) => `
+        const список = видимыеСлужбы();
+        $('#службыСписок').innerHTML = список.map((с, i) => `
             <li class="flex flex-wrap items-center gap-2 border-b border-base-200 last:border-0 py-2
                        ${с.is_active ? '' : 'opacity-50'}">
                 <input class="input input-bordered input-sm flex-1 min-w-40" value="${e(с.name_ru)}"
@@ -922,9 +926,10 @@ const WorshipSchedule = (() => {
                 <button class="btn btn-ghost btn-xs" data-служба-двигать="-1" data-id="${с.id}"
                         ${i === 0 ? 'disabled' : ''}>↑</button>
                 <button class="btn btn-ghost btn-xs" data-служба-двигать="1" data-id="${с.id}"
-                        ${i === службы.length - 1 ? 'disabled' : ''}>↓</button>
+                        ${i === список.length - 1 ? 'disabled' : ''}>↓</button>
                 <button class="btn btn-ghost btn-xs" data-служба-включение="${с.id}">${
                     с.is_active ? 'отключить' : 'включить'}</button>
+                <button class="btn btn-ghost btn-xs text-error" data-служба-удалить="${с.id}">удалить</button>
             </li>`).join('') || '<li class="py-2 text-sm opacity-60">Служб пока нет</li>';
     }
 
@@ -1155,12 +1160,13 @@ const WorshipSchedule = (() => {
 
             const дв = ev.target.closest('[data-служба-двигать]');
             if (дв) {
-                const i = службы.findIndex(с => с.id === дв.dataset.id);
+                const список = видимыеСлужбы();
+                const i = список.findIndex(с => с.id === дв.dataset.id);
                 const j = i + Number(дв.getAttribute('data-служба-двигать'));
-                if (i < 0 || j < 0 || j >= службы.length) return;
+                if (i < 0 || j < 0 || j >= список.length) return;
                 // меняем местами позиции в списке и записываем номера заново:
                 // обмен значениями бессилен, когда у двух служб номер совпал
-                const порядок = службы.map(с => с.id);
+                const порядок = список.map(с => с.id);
                 [порядок[i], порядок[j]] = [порядок[j], порядок[i]];
                 for (const [номер, id] of порядок.entries()) {
                     const было = службы.find(с => с.id === id)?.sort_order;
@@ -1171,6 +1177,23 @@ const WorshipSchedule = (() => {
                 }
                 await перечитать();
                 return рисоватьСлужбы();
+            }
+
+            const удл = ev.target.closest('[data-служба-удалить]');
+            if (удл) {
+                const с = службы.find(x => x.id === удл.getAttribute('data-служба-удалить'));
+                if (!с) return перечитать();
+                if (!await спросить(`Удалить службу «${с.name_ru}»?`,
+                    'Она исчезнет из списка и из расписания. Прошлые назначения останутся в истории людей. '
+                    + 'Если служба может понадобиться снова — лучше отключить.')) return;
+                const ок = await записать(Layout.db.from('worship_services')
+                    .update({ is_active: false, deleted_at: new Date().toISOString(),
+                              updated_at: new Date().toISOString(), updated_by: window.currentUser?.id || null })
+                    .eq('id', с.id), 'Служба');
+                if (!ок) return;
+                await перечитать();
+                рисоватьСлужбы();
+                return Layout.showNotification('Служба удалена', 'success');
             }
 
             const вкл = ev.target.closest('[data-служба-включение]');
