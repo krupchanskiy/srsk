@@ -19,6 +19,7 @@ const WorshipSchedule = (() => {
     const можноСлужбы = можноВести;
 
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
+    const НЕДЕЛЬ_В_ФАЙЛЕ = 4;    // сколько недель вперёд уходит в Excel
     // своя роль словами: «вы — помощник» понятнее серой плашки «помощник»
     const МОЯ_РОЛЬ = поЯзыку({
         ru: { pujari: 'ведёте', kirtan: 'киртания', helper: 'помощник' },
@@ -246,6 +247,7 @@ const WorshipSchedule = (() => {
         // Остальное — обслуживание, ему место под «ещё».
         const редкие = [];
         редкие.push('<li><button id="печать">Распечатать неделю</button></li>');
+        редкие.push(`<li><button id="вExcel">Скачать в Excel — ${НЕДЕЛЬ_В_ФАЙЛЕ} недели</button></li>`);
         if (яЧеловек && можноВести()) редкие.push(`<li><button id="яНеСмогу">${поЯзыку({ ru: 'Меня не будет', en: 'I will be away', hi: 'मैं नहीं रहूँगा' })}</button></li>`);
 
         $('#actions').innerHTML = `
@@ -1096,6 +1098,97 @@ const WorshipSchedule = (() => {
     }
 
     /** Кнопка занята, пока идёт её дело: второй щелчок не создаёт дубль. */
+    // ---------- выгрузка в Excel ----------
+    // Запас на случай сбоя или без интернета: открытая неделя и следующие,
+    // лист на неделю. Считаем по тем же данным и правилам, что и шахматка:
+    // отмены, сдвиги времени, разовые, отъезды.
+    const XLSX_JS = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    const ДНИ_КОРОТКО = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    const дм = iso => { const д = DateUtils.parseDate(iso);
+        return `${String(д.getDate()).padStart(2, '0')}.${String(д.getMonth() + 1).padStart(2, '0')}`; };
+
+    function загрузитьXlsx() {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        return new Promise((готово, сбой) => {
+            const тег = document.createElement('script');
+            тег.src = XLSX_JS;
+            тег.onload = () => готово(window.XLSX);
+            тег.onerror = () => сбой(new Error('Не загрузилась библиотека Excel — нет интернета?'));
+            document.head.appendChild(тег);
+        });
+    }
+
+    /** Текст клетки: кто стоит, с ролью и пометкой, если не придёт. */
+    function клеткаExcel(день, служба, разовая) {
+        if (разовая && разовая.duty_date !== день) return '';
+        if (служба && отменена(служба.id, день)) {
+            const о = особый(служба.id, день);
+            return 'не проводится' + (о?.reason ? ` (${о.reason})` : '');
+        }
+        const сдв = служба && сдвиг(служба.id, день);
+        const кто = вКлетке(день, служба?.id, разовая?.id)
+            .sort((a, b) => Number(b.role === 'pujari') - Number(a.role === 'pujari'))
+            .map(н => {
+                const ч = человек(н.person_id);
+                let т = ч?.имя || 'кто-то';
+                if (н.role !== 'pujari') т += ` (${РОЛИ[н.role] || н.role})`;
+                if (!кто_придёт(н, день)) т += вОтъезде(н.person_id, день) ? ' — в отъезде' : ' — не в отделе';
+                return т;
+            });
+        const время = сдв ? `в ${сдв.time_of_day.slice(0, 5)}: ` : '';
+        return время + (кто.join(', ') || 'не назначено');
+    }
+
+    function листНедели(XLSX, выгружено) {
+        const список = дни();
+        const ряды = [
+            ...службы.filter(с => с.is_active).map(с => ({ время: с.time_of_day, служба: с, разовая: null })),
+            ...отклонения.filter(о => о.title).map(о => ({ время: о.time_of_day, служба: null, разовая: о })),
+        ].sort((a, b) => (a.время || '').localeCompare(b.время || ''));
+        const таблица = [
+            [`Расписание поклонения: ${дм(список[0])} — ${дм(список[6])}.${DateUtils.parseDate(список[6]).getFullYear()}`
+                + ` · выгружено ${выгружено}`],
+            [],
+            ['Время', 'Служба', ...список.map(д => `${ДНИ_КОРОТКО[DateUtils.parseDate(д).getDay()]} ${дм(д)}`)],
+            ...ряды.map(({ служба: с, разовая: о }) => [
+                (с ? с.time_of_day : о.time_of_day || '').slice(0, 5),
+                с ? Layout.getName(с) : `${о.title} (разовая)`,
+                ...список.map(д => клеткаExcel(д, с, о)),
+            ]),
+        ];
+        const лист = XLSX.utils.aoa_to_sheet(таблица);
+        лист['!cols'] = [{ wch: 7 }, { wch: 36 }, ...список.map(() => ({ wch: 28 }))];
+        return [лист, `${дм(список[0])}–${дм(список[6])}`];
+    }
+
+    async function скачатьExcel() {
+        const было = new Date(началоНедели);
+        const сейчас = DateUtils.nowAshram();
+        const выгружено = `${дм(DateUtils.toISO(сейчас))} в ${String(сейчас.getHours()).padStart(2, '0')}:${
+            String(сейчас.getMinutes()).padStart(2, '0')}`;
+        try {
+            const XLSX = await загрузитьXlsx();
+            const книга = XLSX.utils.book_new();
+            for (let i = 0; i < НЕДЕЛЬ_В_ФАЙЛЕ; i++) {
+                const д = new Date(было);
+                д.setDate(д.getDate() + 7 * i);
+                началоНедели = д;
+                if (!await загрузить(false)) return;
+                const [лист, имя] = листНедели(XLSX, выгружено);
+                XLSX.utils.book_append_sheet(книга, лист, имя);
+            }
+            const конец = new Date(было);
+            конец.setDate(конец.getDate() + 7 * НЕДЕЛЬ_В_ФАЙЛЕ - 1);
+            XLSX.writeFile(книга, `Расписание поклонения ${дм(DateUtils.toISO(было))}–${дм(DateUtils.toISO(конец))}.xlsx`);
+        } catch (ошибка) {
+            Layout.handleError(ошибка, 'Выгрузка в Excel');
+        } finally {
+            // на экране — снова та неделя, что была открыта
+            началоНедели = было;
+            await перечитать(false);
+        }
+    }
+
     async function разом(кнопка, дело) {
         if (кнопка.disabled) return;
         кнопка.disabled = true;
@@ -1243,6 +1336,7 @@ const WorshipSchedule = (() => {
                 return рисовать();
             }
             if (b.id === 'печать') return print();
+            if (b.id === 'вExcel') return разом(b, скачатьExcel);
             if (b.id === 'вестиСлужбы') { рисоватьСлужбы(); return $('#службыМодал').showModal(); }
             if (b.id === 'сДобавить') return разом(b, добавитьСлужбу);
             if (b.id === 'разовая') return открытьОтклонение('разовая');
