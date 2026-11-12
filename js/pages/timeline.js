@@ -4893,10 +4893,15 @@ async function loadUncoveredNights() {
     const banner = document.getElementById('uncoveredBanner');
     if (!banner) return;
 
+    // Заранее это вопрос менеджера CRM (ему ставится задача), ресепшену — только
+    // последние 14 дней до начала ретрита, как страховка
+    const soon = new Date();
+    soon.setDate(soon.getDate() + 14);
     const { data, error } = await Layout.db
         .from('v_placement_uncovered')
         .select('deal_id, guest_name, retreat_name, arrival_date, departure_date, check_in, check_out, nights_before, nights_after')
         .gte('retreat_end', formatDateYMD(new Date()))
+        .lte('retreat_start', formatDateYMD(soon))
         .order('nights_before', { ascending: false })
         .order('nights_after', { ascending: false });
 
