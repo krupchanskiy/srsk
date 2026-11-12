@@ -4680,6 +4680,8 @@ function renderSelfGroupHtml(kind) {
         const sp = span(res.check_in, res.check_out);
         if (!sp) return '';
         const [startCol, width] = sp;
+        // Снятые приёмы пищи — крестики, как на полосах в номерах
+        const awayHtml = awayHatchHtml(res, startCol, Math.round((width + 2) / CELL_WIDTH));
         const name = selfSeatName(res);
         const cat = res.resident_categories || categories.find(c => c.id === res.category_id);
         const catColor = Utils.isValidColor(cat?.color) ? cat.color : '#3b82f6';
@@ -4695,7 +4697,7 @@ function renderSelfGroupHtml(kind) {
             booked ? t('timeline_booking') : '', res.fromCrm ? crmHint : '', note].filter(Boolean).join(' · ');
         const badge = res.fromCrm ? '' : balanceBadge(res, debtorsSet.has(finKey(res)), creditorsSet.has(finKey(res)));
         const inner = `${badge}${tag && !seatLabel ? `<span class="retreat-tag">${e(tag.tag)}</span>` : ''}${e(name)}${dept ? `<span class="opacity-80"> · ${e(dept)}</span>` : ''}${note ? NOTE_ICON : ''}${kidsBadge(res)}&nbsp;<span class="opacity-70">(${e(meals.toLowerCase())})</span>`
-            + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '');
+            + (res.fromCrm ? '<span class="self-crm">CRM</span>' : '') + awayHtml;
         const cls = `guest-bar self-stay${mealsCls(res.has_meals)}${booked ? ' self-booked' : ''}`;
         const style = `width: ${width}px; --cat-color: ${catColor};`;
         // Своя запись — клик открывает окно проживания или брони (даты, заезд, «Не приехал»,
