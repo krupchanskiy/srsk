@@ -17,7 +17,7 @@ const ShopShift = (() => {
     // размен (мигр. 783): сколько казначей выдал и ещё никто не принял, последний акт приёма
     let ждётРазмен = 0, последнийАкт = null, отказРазмена = false;
     // несданные закрытые смены с их пересчётом и последний возврат пакета казначеем (мигр. 784)
-    let несданные = [], возврат = null;
+    let несданные = [], возврат = null, выручкаСмен = {};
 
     const $ = s => document.querySelector(s);
     // новый перевод мог ещё не попасть в закэшированный словарь — тогда русский текст, а не ключ
@@ -85,9 +85,21 @@ const ShopShift = (() => {
         // история нужна, чтобы спорный день можно было поднять через неделю:
         // экран «последней смены» показывает только сегодня
         const { data: прошлые } = await Layout.db.from('shop_shifts')
-            .select('id, opened_at, closed_at, status, float_amount, handover_id, shop_handovers(status, accepted_at)')
+            .select('id, opened_at, closed_at, status, float_amount, handover_id, shop_handovers(status, accepted_at), shop_cash_counts(currency_code, actual)')
             .order('opened_at', { ascending: false }).limit(11);
         история = (прошлые || []).filter(с => с.id !== смена?.id).slice(0, 10);
+        // выручка смены по валютам: чеки минус выданная рупиями сдача за валюту
+        выручкаСмен = {};
+        if (история.length) {
+            const { data: чеки } = await Layout.db.from('shop_sales')
+                .select('shift_id, currency_code, paid_amount, change_inr')
+                .in('shift_id', история.map(с => с.id)).eq('status', 'posted');
+            (чеки || []).forEach(ч => {
+                const в = выручкаСмен[ч.shift_id] ||= {};
+                в[ч.currency_code] = (в[ч.currency_code] || 0) + Number(ч.paid_amount);
+                if (Number(ч.change_inr)) в.INR = (в.INR || 0) - Number(ч.change_inr);
+            });
+        }
 
         return true;
     }
@@ -376,6 +388,12 @@ const ShopShift = (() => {
             : '';
     }
 
+    // суммы по валютам одной строкой: рупии с долларами не складываем
+    const поВалютам = суммы => {
+        const ст = Object.entries(суммы || {}).filter(([, с]) => с);
+        return ст.length ? ст.map(([в, с]) => деньги(с, в)).join(' · ') : '<span class="opacity-40">—</span>';
+    };
+
     function рисоватьИсторию() {
         $('#histTbl').tBodies[0].innerHTML = история.map(с => {
             const сдача = с.shop_handovers;
@@ -392,10 +410,13 @@ const ShopShift = (() => {
                     <span class="opacity-60">${DateUtils.formatTime(открыта)}</span></td>
                 <td data-label="${t('shop_closed_col')}" class="nums opacity-70">${с.closed_at
                     ? DateUtils.formatTime(new Date(с.closed_at)) : '—'}</td>
+                <td data-label="Выручка" class="text-right nums">${поВалютам(выручкаСмен[с.id])}</td>
                 <td data-label="${t('shop_float_word')}" class="text-right nums opacity-70">${деньги(с.float_amount)}</td>
+                <td data-label="Сдано" class="text-right nums font-semibold">${поВалютам(Object.fromEntries(
+                    (с.shop_cash_counts || []).map(к => [к.currency_code, Number(к.actual)])))}</td>
                 <td data-label="${t('shop_handover_col')}">${статус}</td>
             </tr>`;
-        }).join('') || `<tr><td colspan="4" class="text-center opacity-60 py-6">${t('shop_no_past_shifts')}</td></tr>`;
+        }).join('') || `<tr><td colspan="6" class="text-center opacity-60 py-6">${t('shop_no_past_shifts')}</td></tr>`;
     }
 
     async function перерисовать() {
