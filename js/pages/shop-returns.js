@@ -15,17 +15,47 @@ const ShopReturns = (() => {
     const { деньги, штук, ЗНАК } = ShopUtils;
     const $ = s => document.querySelector(s);
 
-    let последние = [], чек = null, позиции = [], занято = false;
+    let последние = [], чек = null, позиции = [], занято = false, запрос = '', таймерПоиска = null;
+    // новый перевод мог ещё не попасть в закэшированный словарь — тогда русский текст, а не ключ
+    const тр = (ключ, ru) => { const v = t(ключ); return v === ключ ? ru : v; };
+    const ПОЛЯ_ЧЕКА = 'id, number, sold_at, currency_code, paid_amount, donation_amount, status, '
+        + 'shop_sale_items(qty, shop_items(name_ru, name_en, name_hi))';
     const можно = () => !!window.hasPermission?.('shop_manage');
 
+    // Журнал продаж (ВГ 15.11): без запроса — последние 50 чеков; запрос — номер чека
+    // или часть названия товара, ищем по всем чекам, а не только по видимым
     async function загрузить() {
-        const ответ = await Layout.db.from('shop_sales')
-            .select('id, number, sold_at, currency_code, paid_amount, donation_amount, status')
-            .eq('status', 'posted').order('sold_at', { ascending: false }).limit(20);
+        const q = запрос.trim();
+        let ответ;
+        if (!q) {
+            ответ = await Layout.db.from('shop_sales').select(ПОЛЯ_ЧЕКА)
+                .eq('status', 'posted').order('sold_at', { ascending: false }).limit(50);
+        } else {
+            const ищем = q.replace(/[%_,()]/g, ' ').trim();
+            const { data: позицииСТоваром, error } = await Layout.db.from('shop_sale_items')
+                .select('sale_id, shop_items!inner(name_ru)')
+                .or(`name_ru.ilike.%${ищем}%,name_en.ilike.%${ищем}%,name_hi.ilike.%${ищем}%`, { referencedTable: 'shop_items' })
+                .limit(1000);
+            if (ShopUtils.ошибка({ error }, t('shop_err_recent'))) return false;
+            const ids = [...new Set((позицииСТоваром || []).map(п => п.sale_id))].slice(0, 300);
+            let запросЧеков = Layout.db.from('shop_sales').select(ПОЛЯ_ЧЕКА).eq('status', 'posted');
+            const номер = /^\d+$/.test(q) ? Number(q) : null;
+            if (номер && ids.length) запросЧеков = запросЧеков.or(`number.eq.${номер},id.in.(${ids.join(',')})`);
+            else if (номер) запросЧеков = запросЧеков.eq('number', номер);
+            else if (ids.length) запросЧеков = запросЧеков.in('id', ids);
+            else { последние = []; return true; }
+            ответ = await запросЧеков.order('sold_at', { ascending: false }).limit(100);
+        }
         if (ShopUtils.ошибка(ответ, t('shop_err_recent'))) return false;
         последние = ответ.data || [];
         return true;
     }
+
+    const товарыЧека = ч => (ч.shop_sale_items || []).reduce((итог, п) => {
+        const имя = Layout.getName(п.shop_items || {}) || t('shop_item');
+        итог[имя] = (итог[имя] || 0) + Number(п.qty);
+        return итог;
+    }, {});
 
     function рисоватьПоследние() {
         $('#lastTbl').tBodies[0].innerHTML = последние.map(ч => `
@@ -33,11 +63,18 @@ const ShopReturns = (() => {
                 <td data-label="${t('shop_receipt')}" class="nums">№${ч.number}</td>
                 <td data-label="${t('shop_when_col')}" class="nums opacity-70">
                     ${DateUtils.formatShort(new Date(ч.sold_at))} ${DateUtils.formatTime(new Date(ч.sold_at))}</td>
+                <td data-label="${тр('shop_goods_col', 'Товары')}" class="text-sm">${Object.entries(товарыЧека(ч))
+                    .map(([имя, к]) => e(имя) + (к > 1 ? ` <span class="opacity-60">×${к}</span>` : '')).join(', ')
+                    || `<span class="opacity-60">${t('shop_donation')}</span>`}</td>
                 <td data-label="${t('shop_amount_word')}" class="text-right nums">${деньги(ч.paid_amount, ч.currency_code)}</td>
                 <td data-label="" class="text-right">
                     <button class="btn btn-ghost btn-xs" data-open="${ч.id}">${t('shop_open_btn')}</button></td>
             </tr>`).join('')
-            || `<tr><td colspan="4" class="text-center opacity-60 py-6">${t('shop_no_posted_receipts')}</td></tr>`;
+            || `<tr><td colspan="5" class="text-center opacity-60 py-6">${запрос.trim()
+                ? тр('shop_nothing_found', 'Ничего не нашлось') : t('shop_no_posted_receipts')}</td></tr>`;
+        $('#lastCount').textContent = запрос.trim()
+            ? `${тр('shop_found_word', 'найдено')}: ${последние.length}`
+            : тр('shop_last_fifty', 'последние пятьдесят');
     }
 
     async function открыть(saleId) {
@@ -147,6 +184,8 @@ const ShopReturns = (() => {
     }
 
     async function найтиПоНомеру() {
+        // текст — это поиск по товару: список уже отфильтрован, открывать нечего
+        if (!/^\d+$/.test($('#findNum').value.trim())) return искать();
         const номер = Number($('#findNum').value);
         if (!номер) return Layout.showNotification(t('shop_enter_receipt_number'), 'warning');
         const ответ = await Layout.db.from('shop_sales')
@@ -160,6 +199,11 @@ const ShopReturns = (() => {
         await открыть(найден.id);
     }
 
+    async function искать() {
+        запрос = $('#findNum').value;
+        if (await загрузить()) рисоватьПоследние();
+    }
+
     function слушать() {
         document.addEventListener('click', ev => {
             const b = ev.target.closest('button');
@@ -170,6 +214,10 @@ const ShopReturns = (() => {
         });
         document.addEventListener('input', ev => {
             if (ev.target.dataset.ret !== undefined) обновитьИтог();
+        });
+        $('#findNum').addEventListener('input', () => {
+            clearTimeout(таймерПоиска);
+            таймерПоиска = setTimeout(искать, 350);
         });
         $('#findNum').addEventListener('keydown', ev => {
             if (ev.key === 'Enter') найтиПоНомеру();

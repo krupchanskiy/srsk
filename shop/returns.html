@@ -43,13 +43,13 @@
             <div class="card-body py-4">
                 <div class="flex flex-wrap items-end gap-3">
                     <label class="form-control">
-                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_receipt_number">Номер чека</span></div>
-                        <input type="number" class="input input-bordered input-sm w-36 nums" id="findNum"
-                               placeholder="например 42">
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_receipt_or_item">Номер чека или товар</span></div>
+                        <input type="search" class="input input-bordered input-sm w-64" id="findNum" autocomplete="off"
+                               placeholder="42 или «тилак»">
                     </label>
                     <button class="btn btn-sm" id="findGo"
                             style="background: var(--current-color); color: #fff;" data-i18n="shop_find">Найти</button>
-                    <span class="text-sm opacity-60" data-i18n="shop_find_hint">Номер есть у покупателя на руках, либо возьмите чек из списка ниже</span>
+                    <span class="text-sm opacity-60" data-i18n="shop_find_hint2">Номер — открыть чек; название товара — список ниже покажет все чеки с ним</span>
                 </div>
             </div>
         </div>
@@ -89,12 +89,13 @@
         <div class="card bg-base-100 shadow">
             <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
                 <h2 class="card-title text-base" data-i18n="shop_recent_receipts_title">Последние чеки</h2>
-                <span class="text-sm opacity-60" data-i18n="shop_twenty_posted">двадцать проведённых</span>
+                <span class="text-sm opacity-60" id="lastCount">последние пятьдесят</span>
             </div>
             <div class="overflow-x-auto">
                 <table class="table table-sm stack" id="lastTbl">
                     <thead>
                         <tr><th data-i18n="shop_receipt">Чек</th><th data-i18n="shop_when_col">Когда</th>
+                            <th data-i18n="shop_goods_col">Товары</th>
                             <th class="text-right" data-i18n="shop_amount_word">Сумма</th><th></th></tr>
                     </thead>
                     <tbody></tbody>
@@ -112,7 +113,7 @@
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=18"></script>
     <script src="../js/shop-utils.js?v=2"></script>
-    <script src="../js/pages/shop-returns.js?v=2"></script>
+    <script src="../js/pages/shop-returns.js?v=3"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_sales', itemId: 'shop_returns' });
