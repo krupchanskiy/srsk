@@ -24,8 +24,8 @@
         input[type="number"]::-webkit-outer-spin-button,
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-        .till-grid { display: grid; grid-template-columns: 1fr 352px; gap: 16px; align-items: start; }
-        @media (max-width: 900px) { .till-grid { grid-template-columns: 1fr; padding-bottom: 86px; } }
+        .till-grid { display: grid; grid-template-columns: minmax(0, 1fr) 352px; gap: 16px; align-items: start; }
+        @media (max-width: 900px) { .till-grid { grid-template-columns: minmax(0, 1fr); padding-bottom: 86px; } }
 
         .goods { display: grid; grid-template-columns: repeat(auto-fill, minmax(152px, 1fr)); gap: 10px; }
         @media (max-width: 430px) { .goods { grid-template-columns: repeat(2, 1fr); gap: 9px; } }
