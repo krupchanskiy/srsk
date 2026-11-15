@@ -222,8 +222,7 @@
             </div>
 
             <footer class="кНиз">
-                <button class="btn btn-sm btn-ghost text-error" id="кИсключить"
-                        data-permission="worship_approve">В резерв</button>
+                <button class="btn btn-sm btn-ghost text-error" id="кИсключить" hidden>В резерв</button>
                 <button class="btn btn-sm btn-ghost text-error" id="кУбрать" hidden>Убрать из резерва</button>
                 <span class="flex-1"></span>
                 <button class="btn btn-sm btn-outline" id="кВернуть" hidden>Вернуть в отдел</button>
@@ -332,7 +331,7 @@
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=18"></script>
     <script src="../js/worship-initiation.js?v=1"></script>
-    <script src="../js/pages/worship-people.js?v=31"></script>
+    <script src="../js/pages/worship-people.js?v=32"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'worship', menuId: 'worship_main', itemId: 'worship_schedule' });

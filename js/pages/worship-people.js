@@ -15,6 +15,8 @@ const WorshipPeople = (() => {
     const можноВести = () => !!window.hasPermission?.('worship_approve');
     // отъезды за других отмечает и тот, кто ведёт расписание
     const можноОтъезды = () => можноВести() || !!window.hasPermission?.('worship_schedule');
+    // в резерв и обратно — тоже он (мигр. 301); убрать совсем — только старший
+    const можноРезерв = () => можноВести() || !!window.hasPermission?.('worship_schedule');
 
     const РОЛИ = { pujari: 'пуджари', kirtan: 'киртания', helper: 'помощник' };
 
@@ -151,11 +153,11 @@ const WorshipPeople = (() => {
                             ? `<span class="opacity-70"> · ${часыКоротко(с.минут)}${с.безДлительности ? ' +?' : ''}</span>` : ''}</span>`;
                 })()}
             </button>
-            ${вРезерве && можноВести() ? `
+            ${вРезерве && можноРезерв() ? `
             <span class="flex gap-1 pr-3 shrink-0">
                 <button class="btn btn-sm btn-outline" data-вернуть="${ч.id}">Вернуть</button>
-                <button class="btn btn-sm btn-ghost text-error" data-убрать="${ч.id}"
-                        title="Убрать из резерва">Убрать</button>
+                ${можноВести() ? `<button class="btn btn-sm btn-ghost text-error" data-убрать="${ч.id}"
+                        title="Убрать из резерва">Убрать</button>` : ''}
             </span>` : ''}
         </li>`;
     }
@@ -238,8 +240,8 @@ const WorshipPeople = (() => {
         window.applyPermissions?.();
         // в отделе — «В резерв»; в резерве — «Вернуть» и «Убрать из резерва»
         const вРезерве = открытый.is_active === false;
-        if (вРезерве) $('#кИсключить').hidden = true;
-        $('#кВернуть').hidden = !(вРезерве && можноВести());
+        $('#кИсключить').hidden = вРезерве || !можноРезерв();
+        $('#кВернуть').hidden = !(вРезерве && можноРезерв());
         $('#кУбрать').hidden = !(вРезерве && можноВести());
         // свои отметки человек ставит сам, чужие — старший
         $('#кДобавитьОтметку').hidden = !(можноОтъезды() || открытый.мой);
@@ -535,12 +537,9 @@ const WorshipPeople = (() => {
     async function вернуть(id) {
         const ч = люди.find(x => x.id === id);
         if (!ч) return;
-        const правка = { is_active: true, updated_at: new Date().toISOString(),
-                         updated_by: window.currentUser?.id || null };
-        if (ч.active_to && ч.active_to < DateUtils.todayAshramISO()) правка.active_to = null;
-        const { data, error } = await Layout.db.from('worship_people').update(правка).eq('id', id).select('id');
+        // истёкший срок функция снимает сама
+        const { error } = await Layout.db.rpc('worship_person_set_reserve', { p_person: id, p_reserve: false });
         if (error) return Layout.handleError(error, 'Человек');
-        if (!data?.length) return Layout.showNotification('Не сохранилось: состав ведёт старший', 'error');
         $('#карточка').open && $('#карточка').close();
         await перечитать();
         Layout.showNotification(`${ч.имя} снова в отделе`, 'success');
@@ -567,7 +566,7 @@ const WorshipPeople = (() => {
         // функция отвечает отказом, а не цифрами, если прав не хватает:
         // «последствий нет» тут было бы опасной неправдой
         if (data?.ok === false) {
-            return Layout.showNotification('Выводить людей из отдела может старший пуджари', 'warning');
+            return Layout.showNotification('В резерв выводит старший пуджари или тот, кто ведёт расписание', 'warning');
         }
 
         const впереди = data?.['назначений_впереди'] || 0;
@@ -577,7 +576,8 @@ const WorshipPeople = (() => {
                 : 'Назначений впереди нет',
             `Черновиков: ${data?.['черновиков'] || 0}`,
             `Папок со снимками: ${data?.['наборов'] || 0}`,
-            `Заметок о человеке: ${data?.['заметок'] || 0}`,
+            // число заметок приходит только старшему — сами заметки видит лишь он
+            ...(data?.['заметок'] != null ? [`Заметок о человеке: ${data['заметок']}`] : []),
             '',
             впереди
                 ? 'Клетки не очистятся сами — они станут видимо пустыми, и их придётся закрыть кем-то другим.'
@@ -585,12 +585,8 @@ const WorshipPeople = (() => {
         ];
         if (!await спросить(`В резерв: ${открытый.имя}?`, строки.join('\n'))) return;
 
-        const { data: строка, error: ош } = await Layout.db.from('worship_people')
-            .update({ is_active: false, updated_at: new Date().toISOString(),
-                      updated_by: window.currentUser?.id || null })
-            .eq('id', открытый.id).select('id');
+        const { error: ош } = await Layout.db.rpc('worship_person_set_reserve', { p_person: открытый.id, p_reserve: true });
         if (ош) return Layout.handleError(ош, 'Человек');
-        if (!строка?.length) return Layout.showNotification('Не сохранилось: состав ведёт старший', 'error');
 
         $('#карточка').close();
         await перечитать();
