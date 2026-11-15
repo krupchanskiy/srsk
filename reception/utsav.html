@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=9"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Шад Госвами Утсав — регистрации на прасад — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=30">
+    <style>
+        /* Список регистраций на прасад с rupaseva.com/utsav (миграция 781).
+           На печати остаётся только таблица: № · имя · телефон · пустой квадрат для отметки на раздаче. */
+        .ut-box { display: inline-block; width: 18px; height: 18px; border: 1.5px solid currentColor; border-radius: 3px; opacity: .5; }
+        .print-only { display: none; }
+        @media print {
+            @page { size: A4; margin: 12mm 10mm; }
+            #header-placeholder, #footer-placeholder, .no-print { display: none !important; }
+            .print-only { display: block; }
+            body { background: #fff !important; }
+            main { padding: 0 !important; max-width: none !important; }
+            .ut-card { box-shadow: none !important; border: 0 !important; overflow: visible !important; }
+            table { font-size: 13pt; }
+            th, td { padding: 5px 8px !important; border-bottom: 1px solid #999 !important; }
+            tr { break-inside: avoid; }
+            thead { display: table-header-group; }
+            .ut-box { opacity: 1; width: 16px; height: 16px; }
+        }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1">
+        <div class="print-only mb-3">
+            <div style="font-size:16pt;font-weight:700">Шад Госвами Утсав · 17 ноября 2026 · прасад</div>
+            <div style="font-size:11pt" id="printMeta"></div>
+        </div>
+
+        <div class="no-print flex flex-wrap items-end justify-between gap-3 mb-5">
+            <div>
+                <h1 class="text-2xl font-bold">Шад Госвами Утсав — прасад</h1>
+                <p class="text-sm opacity-60 mt-1">Регистрации с сайта rupaseva.com/utsav · закрываются 16 ноября в 18:00 (IST)</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button class="btn btn-sm" id="refreshBtn" type="button">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M5.6 15a7 7 0 0 0 12.3 2.3M18.4 9A7 7 0 0 0 6.1 6.7"/></svg>
+                    Обновить
+                </button>
+                <button class="btn btn-sm btn-primary" id="printBtn" type="button">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2M6 14h12v7H6z"/></svg>
+                    Распечатать
+                </button>
+            </div>
+        </div>
+
+        <div class="no-print flex flex-wrap items-center gap-3 mb-4">
+            <div class="bg-base-100 rounded-lg px-4 py-2">
+                <div class="text-2xl font-bold" id="statTotal">—</div>
+                <div class="text-xs opacity-60">человек</div>
+            </div>
+            <input type="search" id="search" class="input input-bordered input-sm w-64" placeholder="Поиск по имени или телефону">
+            <div class="join">
+                <button type="button" class="btn btn-sm join-item btn-active" data-sort="name">По имени</button>
+                <button type="button" class="btn btn-sm join-item" data-sort="time">По времени</button>
+            </div>
+        </div>
+
+        <div class="ut-card bg-base-100 rounded-lg shadow overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th class="w-10">№</th>
+                        <th>Имя</th>
+                        <th>Телефон</th>
+                        <th class="no-print">Записан</th>
+                        <th class="w-16 text-center">Прасад</th>
+                        <th class="no-print w-10"></th>
+                    </tr>
+                </thead>
+                <tbody id="rows">
+                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                    <tr><td colspan="6"><div class="skeleton h-6 w-full my-1"></div></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=18"></script>
+    <script src="../js/cache.js?v=2"></script>
+    <script src="../js/utils.js?v=23"></script>
+    <script src="../js/date-utils.js?v=5"></script>
+    <script src="../js/layout.js?v=129"></script>
+    <script>
+        const e = str => Layout.escapeHtml(str);
+        const EVENT = 'shad-gosvami-2026';
+        let all = [], sort = 'name';
+
+        // время записи — по часам браузера (created_at — настоящий timestamp, new Date безопасен)
+        const fmtTime = ts => { const d = new Date(ts); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+
+        async function load() {
+            const rows = []; const step = 1000;
+            for (let from = 0; ; from += step) {
+                const { data, error } = await Layout.db.from('utsav_registrations')
+                    .select('id, name, phone, lang, created_at').eq('event', EVENT)
+                    .order('created_at').range(from, from + step - 1);
+                if (error) { Layout.handleError(error, 'Загрузка регистраций'); return; }
+                rows.push(...data); if (data.length < step) break;
+            }
+            all = rows; render();
+        }
+
+        function render() {
+            const q = document.getElementById('search').value.trim().toLowerCase(), qd = q.replace(/\D/g, '');
+            let list = all.filter(r => !q || r.name.toLowerCase().includes(q) || (qd && r.phone.replace(/\D/g, '').includes(qd)));
+            if (sort === 'name') list = [...list].sort((a, b) => a.name.localeCompare(b.name, 'ru', { sensitivity: 'base', numeric: true }));
+            document.getElementById('statTotal').textContent = all.length;
+            const now = new Date();
+            document.getElementById('printMeta').textContent = 'Всего: ' + list.length + ' · распечатано ' + fmtTime(now).replace(' ', '.' + now.getFullYear() + ' ');
+            const body = document.getElementById('rows');
+            if (!list.length) { body.innerHTML = '<tr><td colspan="6" class="text-center opacity-60 py-6">' + (all.length ? 'Никого не нашли' : 'Пока никто не зарегистрировался') + '</td></tr>'; return; }
+            body.innerHTML = list.map((r, i) => '<tr>'
+                + '<td class="opacity-60">' + (i + 1) + '</td>'
+                + '<td class="font-medium">' + e(r.name) + (r.lang === 'en' ? ' <span class="badge badge-ghost badge-sm no-print">EN</span>' : '') + '</td>'
+                + '<td class="whitespace-nowrap">' + e(r.phone) + '</td>'
+                + '<td class="no-print whitespace-nowrap opacity-60">' + fmtTime(r.created_at) + '</td>'
+                + '<td class="text-center"><span class="ut-box"></span></td>'
+                + '<td class="no-print"><button type="button" class="btn btn-ghost btn-xs" data-action="delete" data-id="' + e(r.id) + '" title="Удалить запись">✕</button></td>'
+                + '</tr>').join('');
+        }
+
+        document.addEventListener('click', async ev => {
+            const s = ev.target.closest('[data-sort]');
+            if (s) { sort = s.dataset.sort; document.querySelectorAll('[data-sort]').forEach(b => b.classList.toggle('btn-active', b === s)); render(); return; }
+            const d = ev.target.closest('[data-action="delete"]');
+            if (d) {
+                const r = all.find(x => x.id === d.dataset.id); if (!r) return;
+                if (!confirm('Удалить запись «' + r.name + '» (' + r.phone + ')? Например, если это дубль.')) return;
+                const { error } = await Layout.db.from('utsav_registrations').delete().eq('id', r.id);
+                if (error) { Layout.handleError(error, 'Удаление'); return; }
+                all = all.filter(x => x.id !== r.id); render(); Layout.showNotification('Запись удалена', 'success');
+            }
+        });
+        document.getElementById('search').addEventListener('input', () => render());
+        document.getElementById('refreshBtn').addEventListener('click', () => load());
+        document.getElementById('printBtn').addEventListener('click', () => { document.getElementById('search').value = ''; render(); window.print(); });
+
+        async function init() {
+            await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'prasad' });
+            Layout.showLoader();
+            await load();
+            Layout.hideLoader();
+        }
+        init();
+    </script>
+</body>
+</html>
