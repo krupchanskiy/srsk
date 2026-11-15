@@ -53,6 +53,7 @@ const ShopReceive = (() => {
               || `<option value="">${t('shop_no_owners')}</option>`;
 
         document.querySelectorAll('.cost-col').forEach(el => { el.hidden = вид === 'own'; });
+        $('#ownerWarn').hidden = вид === 'own';
         // заводить владельцев может заведующий (то же право проверяет shop_upsert_owner)
         $('#newOwnerBtn').hidden = вид === 'own' || !window.hasPermission?.('shop_manage');
     }
@@ -169,6 +170,20 @@ const ShopReceive = (() => {
         if (вид !== 'own' && !$('#ownerSel').value) {
             Layout.showNotification(t('shop_pick_owner'), 'warning');
             return;
+        }
+        // чужой товар: прямо спрашиваем, чей он, — купленное на деньги ашрама сюда не заводят
+        if (вид !== 'own') {
+            const владелец = владельцы.find(в => в.id === $('#ownerSel').value)?.имя || '';
+            const долг = годные.reduce((с, x) => с + (parseFloat(x.qty) || 0) * (parseFloat(x.cost) || 0), 0);
+            const я = (window.currentUser?.spiritual_name || '').toLowerCase().split(/[\s-]+/)[0];
+            const себя = я && владелец.toLowerCase().split(/[\s-]+/)[0] === я;
+            const тр = (k, ru) => { const v = t(k); return v === k ? ru : v; };
+            const вопрос = (себя
+                ? тр('shop_owner_self_q', 'Вы указали владельцем себя. Это ваш собственный товар, а не купленный на деньги ашрама?') + '\n\n'
+                : '')
+                + тр('shop_owner_confirm_q', 'Товар будет числиться за «%o». При продаже магазин заплатит ему %s. Это точно его товар, а не закупка ашрама?')
+                    .replace('%o', владелец).replace('%s', ShopUtils.деньги(долг));
+            if (!confirm(вопрос)) return;
         }
         if (занято) return;
         занято = true;

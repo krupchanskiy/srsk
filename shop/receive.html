@@ -49,6 +49,15 @@
                     </div>
                 </div>
 
+                <!-- Предупреждение о владельце (ВГ 15.11): купленное на деньги ашрама — не чужой товар -->
+                <div role="alert" class="alert alert-warning text-sm items-start" id="ownerWarn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>
+                    <span data-i18n="shop_owner_warning"><b>Владелец — тот, кому магазин заплатит за каждую проданную штуку.</b>
+                        Указывайте только настоящего хозяина, который сдал товар на реализацию.
+                        Товар, купленный на деньги ашрама или на выданные на закупку, — не чужой:
+                        не ставьте владельцем себя или того, кто покупал, иначе магазин заплатит за него второй раз.
+                        Такой товар пока не заводите — скажите казначею.</span>
+                </div>
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <label class="form-control">
                         <div class="label py-1"><span class="label-text text-sm" id="ownerLabel" data-i18n="shop_owner">Владелец</span>
@@ -151,7 +160,7 @@
     <script src="../js/auth-check.js?v=18"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/shop-utils.js?v=2"></script>
-    <script src="../js/pages/shop-receive.js?v=5"></script>
+    <script src="../js/pages/shop-receive.js?v=6"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_receive' });
