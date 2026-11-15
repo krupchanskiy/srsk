@@ -78,6 +78,35 @@ const ShopItems = (() => {
         }).join('') || `<tr><td colspan="7" class="text-center opacity-60 py-6">${t('shop_nothing_found')}</td></tr>`;
     }
 
+    // ---------- фото ----------
+    let новоеФото = null;          // правленый снимок, ждёт «Сохранить»
+    let адресНового = null;
+
+    function рисоватьФото() {
+        if (адресНового) { URL.revokeObjectURL(адресНового); адресНового = null; }
+        const адрес = новоеФото ? (адресНового = URL.createObjectURL(новоеФото)) : правка?.photo_url;
+        $('#fPhotoPrev').innerHTML = адрес
+            ? `<img src="${e(адрес)}" alt="">`
+            : `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                   <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A1.5 1.5 0 0 0 21.75 19.5V4.5A1.5 1.5 0 0 0 20.25 3H3.75A1.5 1.5 0 0 0 2.25 4.5v15A1.5 1.5 0 0 0 3.75 21Zm9-12.75h.008v.008h-.008V8.25Z" /></svg>`;
+        $('#fPhotoPick').textContent = адрес
+            ? поЯзыку({ ru: 'Заменить фото', en: 'Replace photo', hi: 'चित्र बदलें' })
+            : поЯзыку({ ru: 'Выбрать фото', en: 'Choose photo', hi: 'चित्र चुनें' });
+        $('#fPhotoEditLabel').textContent = поЯзыку({ ru: 'Править', en: 'Edit', hi: 'संपादित करें' });
+        $('#fPhotoEdit').hidden = !адрес;
+        // само превью тоже открывает правку, а пустое — выбор снимка
+        $('#fPhotoPrev').title = адрес ? поЯзыку({ ru: 'Повернуть, обрезать, поправить свет',
+            en: 'Rotate, crop, adjust light', hi: 'घुमाएँ, काटें, रोशनी ठीक करें' }) : '';
+    }
+
+    /** Правка: нового снимка, если он уже выбран, иначе того, что лежит в каталоге. */
+    async function править(источник) {
+        const снимок = await PhotoEditor.open(источник, { соотношение: 1.5 });
+        if (!снимок) return;
+        новоеФото = снимок;
+        рисоватьФото();
+    }
+
     function открыть(id) {
         правка = id ? товары.find(и => и.id === id) : null;
         $('#modalTitle').textContent = правка ? t('shop_item') : t('shop_new_item');
@@ -87,6 +116,8 @@ const ShopItems = (() => {
         $('#fSource').value = правка?.source || 'consignment';
         $('#fActive').checked = правка ? правка.is_active : true;
         $('#fPhoto').value = '';
+        новоеФото = null;
+        рисоватьФото();
         $('#fCat').innerHTML = категории.map(к =>
             `<option value="${к.id}" ${к.id === правка?.category_id ? 'selected' : ''}>
                 ${e(Layout.getName(к))}</option>`).join('');
@@ -132,9 +163,10 @@ const ShopItems = (() => {
             id = data.id;
         }
 
-        const файл = $('#fPhoto').files?.[0];
+        const файл = новоеФото;
         if (файл) {
-            const имяФайла = `${id}_${Date.now()}.${(файл.name.split('.').pop() || 'jpg').toLowerCase()}`;
+            const имяФайла = `${id}_${Date.now()}.${файл.type === 'image/jpeg' ? 'jpg'
+                : (файл.name?.split('.').pop() || 'jpg').toLowerCase()}`;
             const { error: ош } = await Layout.db.storage.from('shop-photos')
                 .upload(имяФайла, файл, { contentType: файл.type, cacheControl: '3600' });
             if (ош) {
@@ -158,6 +190,17 @@ const ShopItems = (() => {
             if (b.dataset.edit) return открыть(b.dataset.edit);
             if (b.id === 'newItem') return открыть(null);
             if (b.id === 'saveItem') return сохранить();
+            if (b.id === 'fPhotoEdit') return править(новоеФото || правка?.photo_url);
+            if (b.id === 'fPhotoPrev') {
+                if (новоеФото || правка?.photo_url) return править(новоеФото || правка.photo_url);
+                return $('#fPhoto').click();
+            }
+        });
+        // выбрали снимок — сразу в редактор: повернуть и обрезать удобнее до сохранения
+        $('#fPhoto').addEventListener('change', async ev => {
+            const файл = ev.target.files?.[0];
+            ev.target.value = '';            // тот же файл можно выбрать ещё раз
+            if (файл) await править(файл);
         });
         $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисовать(); });
         $('#catFilter').addEventListener('change', ev => { фильтр.кат = ev.target.value; рисовать(); });
