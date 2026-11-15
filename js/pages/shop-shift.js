@@ -215,7 +215,7 @@ const ShopShift = (() => {
                 части.push(`<div class="flex flex-wrap gap-2">
                     <button class="btn btn-sm" id="floatOk" style="background: var(--current-color); color:#fff;">
                         ${тр('shop_float_got', 'Принял')} ${деньги(ждётРазмен)}</button>
-                    <button class="btn btn-sm btn-outline" id="floatBad">${тр('shop_float_mismatch', 'Не сходится')}</button>
+                    <button class="btn btn-sm btn-outline btn-error" id="floatBad">${тр('shop_float_mismatch', 'Не сходится')}</button>
                 </div>
                 <div class="grid gap-2 md:grid-cols-[10rem_1fr_auto] items-end ${отказРазмена ? '' : 'hidden'}" id="floatBadForm">
                     <label class="form-control"><div class="label py-1"><span class="label-text text-sm">${
