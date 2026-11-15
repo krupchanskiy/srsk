@@ -606,6 +606,7 @@ async function onAdvanceAction(ev) {
 
 async function init() {
     await Layout.init({ module: 'finance', menuId: 'fin_main', itemId: 'fin_main' });
+    ShopTreasurerBanner.show('shopHandoverBanner');
     await loadDashboard();
     loadSignals();
     loadAdvanceDecisions();
