@@ -16,6 +16,8 @@ const ShopShift = (() => {
     let история = [], занято = false;
     // размен (мигр. 783): сколько казначей выдал и ещё никто не принял, последний акт приёма
     let ждётРазмен = 0, последнийАкт = null, отказРазмена = false;
+    // несданные закрытые смены с их пересчётом и последний возврат пакета казначеем (мигр. 784)
+    let несданные = [], возврат = null;
 
     const $ = s => document.querySelector(s);
     // новый перевод мог ещё не попасть в закэшированный словарь — тогда русский текст, а не ключ
@@ -61,9 +63,16 @@ const ShopShift = (() => {
         пакет = пакеты?.[0] || null;
         строкиПакета = пакет?.shop_handover_lines || [];
 
-        const { count } = await Layout.db.from('shop_shifts')
-            .select('id', { count: 'exact', head: true }).eq('status', 'closed').is('handover_id', null);
-        естьЗакрытыеНесданные = (count || 0) > 0;
+        const [{ data: закрытые }, { data: последнийПакет }] = await Promise.all([
+            Layout.db.from('shop_shifts')
+                .select('id, opened_at, closed_at, shop_cash_counts(currency_code, expected, actual, reason)')
+                .eq('status', 'closed').is('handover_id', null).order('opened_at'),
+            Layout.db.from('shop_handovers').select('status, return_reason, returned_at')
+                .order('created_at', { ascending: false }).limit(1),
+        ]);
+        несданные = закрытые || [];
+        естьЗакрытыеНесданные = несданные.length > 0;
+        возврат = последнийПакет?.[0]?.status === 'returned' ? последнийПакет[0] : null;
 
         if (админФинансов()) {
             // напрямую fin_accounts закрыта даже для казначея — финмодуль отдаёт счета своим представлением
@@ -264,8 +273,23 @@ const ShopShift = (() => {
                     </select>
                 </label>`).join('') : '';
 
+            // итог — крупно над слагаемыми, по валютам: рупии с долларами не складываем
+            const итогиВалют = {};
+            строкиПакета.forEach(л => {
+                итогиВалют[л.currency_code] = (итогиВалют[л.currency_code] || 0)
+                    + Number(л.goods_amount) + Number(л.murti_amount) + Number(л.donation_amount)
+                    + (Number(л.discrepancy) || 0);
+            });
+            if (размен > 0) итогиВалют.INR = (итогиВалют.INR || 0) + размен;
+            const итогСтрокой = Object.entries(итогиВалют).map(([в, с]) => деньги(с, в)).join(' · ') || деньги(0);
+
             $('#handoverNote').textContent = t('shop_handover_pending');
             тело.innerHTML = `
+                <div>
+                    <div class="text-xs opacity-60 font-semibold uppercase tracking-wide">Итого принять в кассу</div>
+                    <div class="text-3xl font-bold nums">${итогСтрокой}</div>
+                    <div class="text-xs opacity-60 mt-1">Из чего сложилось — ниже${размен > 0 ? ', вместе с разменом' : ''}</div>
+                </div>
                 <div class="overflow-x-auto" tabindex="0">
                     <table class="table table-sm stack">
                         <thead><tr><th>${t('shop_currency')}</th><th class="text-right">${t('shop_goods_line')}</th>
@@ -279,8 +303,10 @@ const ShopShift = (() => {
                     <b class="nums">${деньги(размен)}</b></div>` : ''}
                 ${админФинансов() ? `
                     <div class="grid gap-3 md:grid-cols-3">${выборСчетов}</div>
-                    <div><button class="btn btn-sm" id="acceptHandover"
-                        style="background: var(--current-color); color:#fff;">${t('shop_accept_revenue')}</button></div>`
+                    <div class="flex flex-wrap gap-2">
+                        <button class="btn btn-sm btn-success" id="acceptHandover">${t('shop_accept_revenue')}</button>
+                        <button class="btn btn-sm btn-outline btn-error" id="returnHandover">Вернуть продавцу</button>
+                    </div>`
                 : `<div class="text-sm opacity-60">${t('shop_treasurer_note')}</div>`}`;
             return;
         }
@@ -288,10 +314,34 @@ const ShopShift = (() => {
         $('#handoverNote').textContent = естьЗакрытыеНесданные
             ? t('shop_handover_has_closed')
             : t('shop_handover_none');
-        тело.innerHTML = естьЗакрытыеНесданные
-            ? `<div><button class="btn btn-sm btn-outline" id="prepareHandover" data-permission="shop_settle">${
-                   t('shop_prepare_handover')}</button></div>`
-            : `<div class="text-sm opacity-60">${t('shop_handover_nothing')}</div>`;
+        if (!естьЗакрытыеНесданные) {
+            тело.innerHTML = `<div class="text-sm opacity-60">${t('shop_handover_nothing')}</div>`;
+            return;
+        }
+        const продавец = window.hasPermission?.('shop_sell');
+        // пересчёт закрытой несданной смены можно поправить до сдачи — каждая правка в журнал
+        const сменыСПересчётом = несданные.filter(с => (с.shop_cash_counts || []).length).map(с => `
+            <div class="border border-base-200 rounded-lg p-3" data-recount-shift="${с.id}">
+                <div class="text-sm font-semibold mb-2">${t('shop_shift')} ${DateUtils.formatShort(new Date(с.opened_at))}
+                    <span class="opacity-60 font-normal">· закрыта ${DateUtils.formatTime(new Date(с.closed_at))}</span></div>
+                <div class="grid gap-3 md:grid-cols-3">${с.shop_cash_counts.map(к => `
+                    <label class="form-control">
+                        <div class="label py-1"><span class="label-text text-sm">${ЗНАК[к.currency_code] || к.currency_code} · ${t('shop_must_be')}
+                            <b class="nums">${деньги(к.expected, к.currency_code)}</b></span></div>
+                        <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums"
+                               data-recount="${к.currency_code}" value="${e(к.actual)}" ${продавец ? '' : 'disabled'}>
+                        <input class="input input-bordered input-sm mt-1" data-recount-why="${к.currency_code}"
+                               value="${e(к.reason || '')}" placeholder="${t('shop_discrepancy_reason')}" ${продавец ? '' : 'disabled'}>
+                    </label>`).join('')}</div>
+                ${продавец ? `<button class="btn btn-xs btn-outline mt-2" data-recount-save="${с.id}">Сохранить пересчёт</button>` : ''}
+            </div>`).join('');
+        тело.innerHTML = `
+            ${возврат ? `<div class="alert alert-error text-sm"><span>Казначей вернул пакет${
+                возврат.returned_at ? ' ' + DateUtils.formatShort(new Date(возврат.returned_at)) : ''}: <b>${
+                e(возврат.return_reason)}</b>. Исправьте пересчёт и сдайте заново.</span></div>` : ''}
+            ${сменыСПересчётом}
+            <div><button class="btn btn-sm btn-outline" id="prepareHandover" data-permission="shop_settle">${
+                t('shop_prepare_handover')}</button></div>`;
     }
 
     // ---------- операции ----------
@@ -444,6 +494,33 @@ const ShopShift = (() => {
                 });
             }
 
+            if (b.id === 'returnHandover') {
+                const причина = prompt('Что не так? Продавец увидит это и исправит пересчёт');
+                if (!причина || !причина.trim()) return;
+                return разово(b, async () => {
+                    const { error } = await Layout.db.rpc('shop_return_handover',
+                        { p_handover: пакет.id, p_reason: причина.trim() });
+                    if (error) return Layout.handleError(error, 'Возврат пакета');
+                    Layout.showNotification('Пакет возвращён продавцу — в учёт ничего не попало', 'success');
+                    await перерисовать();
+                });
+            }
+            if (b.dataset.recountSave) {
+                const блок = b.closest('[data-recount-shift]');
+                const counts = [...блок.querySelectorAll('[data-recount]')].map(i => ({
+                    currency_code: i.dataset.recount,
+                    actual: parseFloat(i.value.replace(',', '.').replace(/[^\d.]/g, '')),
+                    reason: блок.querySelector(`[data-recount-why="${i.dataset.recount}"]`).value.trim() || null,
+                }));
+                if (counts.some(c => !(c.actual >= 0))) return Layout.showNotification('Укажите, сколько насчитали', 'warning');
+                return разово(b, async () => {
+                    const { error } = await Layout.db.rpc('shop_recount_shift',
+                        { payload: { shift_id: b.dataset.recountSave, counts } });
+                    if (error) return Layout.handleError(error, 'Исправление пересчёта');
+                    Layout.showNotification('Пересчёт исправлен', 'success');
+                    await перерисовать();
+                });
+            }
             if (b.id === 'floatOk') {
                 if (!confirm(`${тр('shop_float_got', 'Принял')} ${деньги(ждётРазмен)}?`)) return;
                 return разово(b, async () => {
