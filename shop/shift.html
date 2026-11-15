@@ -42,15 +42,19 @@
             <div class="px-4 md:px-6 pt-4 pb-3 flex flex-wrap items-center gap-3">
                 <h2 class="card-title text-base" id="shiftTitle">Смена</h2>
                 <span class="text-sm opacity-60" id="shiftMeta"></span>
-                <label class="ml-auto flex items-center gap-2 text-sm">
-                    <span class="opacity-60" data-i18n="shop_float">Размен, ₹</span>
-                    <input type="number" class="input input-bordered input-sm w-28 nums" id="floatAmount"
-                           data-permission="shop_sell">
-                </label>
-                <button class="btn btn-sm" id="openShift" hidden data-permission="shop_sell"
+                <button class="btn btn-sm ml-auto" id="openShift" hidden data-permission="shop_sell"
                         style="background: var(--current-color); color: #fff;" data-i18n="shop_open_shift">Открыть смену</button>
             </div>
             <div class="stat-grid" id="shiftStats"></div>
+        </div>
+
+        <!-- Размен: казначей выдаёт, кассир подтверждает «Принял» (мигр. 783) -->
+        <div class="card bg-base-100 shadow mb-4" id="floatCard">
+            <div class="px-4 md:px-6 pt-4 pb-2 flex flex-wrap items-center gap-3">
+                <h2 class="card-title text-base" data-i18n="shop_float_word">Размен</h2>
+                <span class="text-sm opacity-60" id="floatNote"></span>
+            </div>
+            <div class="card-body pt-2 gap-3" id="floatBody"></div>
         </div>
 
         <div class="card bg-base-100 shadow mb-4" id="countCard">
@@ -120,7 +124,7 @@
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=18"></script>
     <script src="../js/shop-utils.js?v=2"></script>
-    <script src="../js/pages/shop-shift.js?v=5"></script>
+    <script src="../js/pages/shop-shift.js?v=7"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_sales', itemId: 'shop_shift' });

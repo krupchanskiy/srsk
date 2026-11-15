@@ -72,6 +72,20 @@ const ShopTill = (() => {
 
     // «12,5» на русской раскладке Android: parseFloat дал бы 12
     const число = v => parseFloat(String(v ?? '').replace(/\s/g, '').replace(',', '.'));
+    // новый перевод мог ещё не попасть в закэшированный словарь — тогда русский текст, а не ключ
+    const тр = (ключ, ru) => { const v = t(ключ); return v === ключ ? ru : v; };
+
+    // Оплата валютой (ВГ 15.11, мигр. 783): всё полученное остаётся в ящике в валюте,
+    // сдача — рупиями по общему курсу казначея, округлённая ВНИЗ до 50 ₹.
+    // Тот же расчёт делает сервер; здесь — только чтобы продавец видел, сколько отдать.
+    function сдачаРупиями() {
+        const вал = состояние.валюта;
+        if (вал === 'INR' || !состояние.получено) return null;
+        const курс = курсы[вал] || 1;
+        const разница = Math.round(((число(состояние.получено) || 0) * курс
+            - (итогРупии() + состояние.дар * курс)) * 100) / 100;
+        return разница < 0 ? разница : Math.floor(разница / 50) * 50;
+    }
 
     // ---------- загрузка ----------
     async function загрузить() {
@@ -306,7 +320,12 @@ const ShopTill = (() => {
             ? t('shop_donation_only') : t('shop_tap_to_add')}</div>`;
 
         const получено = число(состояние.получено || '0');
-        const сдача = получено ? получено - всего : null;
+        const сдачаР = сдачаРупиями();
+        // в валюте сдача рупиями; «не хватает» показываем в валюте, округлив вверх до шага
+        const сдача = вал !== 'INR'
+            ? (сдачаР === null ? null : сдачаР < 0
+                ? -Math.ceil(-сдачаР / (курсы[вал] || 1) / (ШАГ[вал] || 1)) * (ШАГ[вал] || 1) : сдачаР)
+            : получено ? получено - всего : null;
         const целиКнопки = цели.map(ц => `
             <button type="button" class="btn btn-xs ${ц.id === состояние.цель ? '' : 'btn-outline'}" data-goal="${ц.id}"
                 ${ц.id === состояние.цель ? 'style="background: var(--current-color); color:#fff; border-color: var(--current-color);"' : ''}>
@@ -391,10 +410,11 @@ const ShopTill = (() => {
             <div class="flex gap-1">${(НОМИНАЛЫ[вал] || []).map(н =>
                 `<button class="btn btn-sm btn-outline flex-1" data-note="${н}">${н}</button>`).join('')}</div>
             ${сдача !== null ? `<div class="flex items-center justify-between">
-                <span class="text-sm opacity-60">${t('shop_change')}</span>
-                <span class="font-bold nums ${сдача < 0 ? 'text-error' : ''}">${сдача < 0
-                    ? t('shop_not_enough') + ' ' + деньги(-сдача, вал) : деньги(сдача, вал)}</span></div>` : ''}
-            ${сдача > 0 ? `<button class="btn btn-sm btn-outline btn-secondary w-full" id="tipRest">
+                <span class="text-sm opacity-60">${вал !== 'INR' && сдача >= 0 ? тр('shop_change_inr', 'Сдача рупиями') : t('shop_change')}</span>
+                <span class="font-bold nums ${сдача < 0 ? 'text-error' : вал !== 'INR' ? 'text-lg' : ''}">${сдача < 0
+                    ? t('shop_not_enough') + ' ' + деньги(-сдача, вал)
+                    : деньги(сдача, вал !== 'INR' ? 'INR' : вал)}</span></div>` : ''}
+            ${сдача > 0 && вал === 'INR' ? `<button class="btn btn-sm btn-outline btn-secondary w-full" id="tipRest">
                 ${t('shop_change')} ${деньги(сдача, вал)} — ${t('shop_change_to_donation')}</button>` : ''}
 
             <button class="btn btn-block" id="sell" ${сдача !== null && сдача < 0 ? 'disabled' : ''}
@@ -444,7 +464,13 @@ const ShopTill = (() => {
         if (состояние.дар) payload.donation = { amount: состояние.дар, goal_id: состояние.цель };
 
         const всего = кОплате(), вал = состояние.валюта;
-        const сдача = (число(состояние.получено) || 0) - всего;
+        // валюта: сервер должен знать, сколько дали, — сдачу рупиями он считает сам.
+        // «Получено» не ввели — значит, дали ровно к оплате; сдачу считаем и от этого
+        if (вал !== 'INR' && !состояние.получено) состояние.получено = String(всего);
+        if (вал !== 'INR') payload.tendered = число(состояние.получено) || всего;
+        const сдачаР = вал !== 'INR' ? Math.max(сдачаРупиями() ?? 0, 0) : 0;
+        const сдача = вал !== 'INR' ? сдачаР : (число(состояние.получено) || 0) - всего;
+        const валСдачи = вал !== 'INR' ? 'INR' : вал;
 
         запомнитьЧастые();
         // снимок нужен, чтобы вернуть чек на экран, если сервер его не принял
@@ -461,7 +487,7 @@ const ShopTill = (() => {
         try {
             const id = await отправить(payload);
             последняя = { id, payload };
-            тост(сдача > 0 ? `${t('shop_sold')}. ${t('shop_change')} ${деньги(сдача, вал)}`
+            тост(сдача > 0 ? `${t('shop_sold')}. ${t('shop_change')} ${деньги(сдача, валСдачи)}`
                 : естьТовары ? `${t('shop_sold')} · ${деньги(всего, вал)}`
                 : `${t('shop_donation_accepted')} · ${деньги(всего, вал)}`, true);
         } catch (err) {
