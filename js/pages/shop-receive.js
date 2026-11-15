@@ -53,6 +53,40 @@ const ShopReceive = (() => {
               || `<option value="">${t('shop_no_owners')}</option>`;
 
         document.querySelectorAll('.cost-col').forEach(el => { el.hidden = вид === 'own'; });
+        // заводить владельцев может заведующий (то же право проверяет shop_upsert_owner)
+        $('#newOwnerBtn').hidden = вид === 'own' || !window.hasPermission?.('shop_manage');
+    }
+
+    function открытьНовогоВладельца() {
+        $('#ownName').value = '';
+        $('#ownPolicy').value = 'compensate';
+        $('#ownContact').value = '';
+        $('#ownerModal').showModal();
+        $('#ownName').focus();
+    }
+
+    /** Новый владелец — сразу выбран в поступлении, чтобы не искать его в списке. */
+    async function сохранитьВладельца() {
+        const имя = $('#ownName').value.trim();
+        if (!имя) return Layout.showNotification(t('shop_enter_owner_name'), 'warning');
+        if (занято) return;
+        занято = true;
+        $('#ownGo').disabled = true;
+        try {
+            const { data, error } = await Layout.db.rpc('shop_upsert_owner', {
+                payload: { name: имя, loss_policy: $('#ownPolicy').value,
+                           contact_info: $('#ownContact').value.trim() || null },
+            });
+            if (error) return Layout.handleError(error, t('shop_err_owner_card'));
+            $('#ownerModal').close();
+            Layout.showNotification(data?.сообщение || t('shop_owner_added'), 'success');
+            if (!await загрузить()) return;
+            рисоватьШапку();
+            if (data?.owner_id) $('#ownerSel').value = data.owner_id;
+        } finally {
+            занято = false;
+            $('#ownGo').disabled = false;
+        }
     }
 
     function рисоватьСтроки() {
@@ -204,6 +238,8 @@ const ShopReceive = (() => {
             }
             if (b.id === 'addRow') { строки.push(пустаяСтрока()); return рисоватьСтроки(); }
             if (b.id === 'saveRec') return принять();
+            if (b.id === 'newOwnerBtn') return открытьНовогоВладельца();
+            if (b.id === 'ownGo') return сохранитьВладельца();
         });
 
         document.addEventListener('input', ev => {
