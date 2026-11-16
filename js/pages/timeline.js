@@ -656,11 +656,17 @@ async function loadTimelineData() {
                         }
                     }
 
-                    // Если не нашли место, добавляем в первое (будет визуальное наложение)
+                    // Если чисто свободного места нет — на кровать с наименьшим пересечением (в полуднях).
+                    // Раньше клали всех на первую: при смене жильцов в один день (старые выезжают
+                    // после 14:00, новые заезжают днём) новые плашки ложились друг на друга и
+                    // пропадали из вида (ГД №1 и №22, 16.11.2026)
                     if (!placed && beds.length > 0) {
-                        beds[0].guests.push(guest);
+                        const rS = guest.startDay * 2 + guest.startHalf, rE = guest.endDay * 2 + guest.endHalf;
+                        const пересечение = bed => bed.guests.reduce((sum, g) => g.isCleaning ? sum
+                            : sum + Math.max(0, Math.min(rE, g.endDay * 2 + g.endHalf) - Math.max(rS, g.startDay * 2 + g.startHalf) + 1), 0);
+                        placedBed = beds.reduce((best, bed) => пересечение(bed) < пересечение(best) ? bed : best, beds[0]);
+                        placedBed.guests.push(guest);
                         guestsMap.set(guest.id, { ...guest, buildingName: Layout.getName(building), roomName: room.number });
-                        placedBed = beds[0];
                     }
 
                     // Добавляем автоуборку в cleaningsMap (не в beds!)
