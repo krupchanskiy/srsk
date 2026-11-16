@@ -78,7 +78,8 @@ const modules = {
                 { id: 'prasad', href: 'reception/prasad.html' },
                 { id: 'floor_plans', href: 'reception/floor-plan.html' },
                 { id: 'bookings', href: 'placement/bookings.html' },
-                { id: 'cleaning', href: 'reception/cleaning.html' }
+                { id: 'cleaning', href: 'reception/cleaning.html' },
+                { id: 'form3', href: 'reception/form3.html' }
             ]},
             { id: 'settings', items: [
                 { id: 'buildings', href: 'reception/buildings.html' },
@@ -320,6 +321,7 @@ const pagePermissions = {
     'reception/rooms.html': 'view_rooms',
     'reception/buildings.html': 'view_buildings',
     'reception/dictionaries.html': 'view_housing_dictionaries',
+    'reception/form3.html': 'superuser_only_form3', // права ни у кого нет → видят только суперпользователи (ВГ 16.11)
 
     // Ashram
     'ashram/retreats.html': 'view_retreats',
@@ -679,7 +681,7 @@ async function loadTranslations(retried = false) {
 
     // Проверка на наличие новых переводов (для автоинвалидации устаревшего кэша)
     // Добавляйте сюда ключи новых обязательных переводов
-    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe', 'nav_prices', 'prices_title', 'nav_cost', 'cost_title', 'rental_add_retreat', 'timeline_whole_room', 'nav_data_check'];
+    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe', 'nav_prices', 'prices_title', 'nav_cost', 'cost_title', 'rental_add_retreat', 'timeline_whole_room', 'nav_data_check', 'nav_form3'];
     const hasAllKeys = requiredKeys.every(key => data.some(row => row.key === key));
 
     if (!hasAllKeys && !retried) {

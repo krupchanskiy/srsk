@@ -89,9 +89,90 @@ async function loadPerson(personId) {
     }
 
     person = data;
+    await Promise.all([loadPassport(), loadForm3()]);
     renderPerson();
     applyEditPermissions();
 }
+
+// Номер паспорта — в vaishnava_documents, видят только суперпользователи (Form III, ВГ 16.11)
+let passportNumber = null;
+async function loadPassport() {
+    passportNumber = null;
+    if (!window.currentUser?.is_superuser) return;
+    const { data } = await Layout.db.from('vaishnava_documents')
+        .select('passport_number').eq('vaishnava_id', person.id).maybeSingle();
+    passportNumber = data?.passport_number || null;
+}
+
+// Анкеты Form III человека: номер, заезд, подача, выезд (только суперпользователи)
+let form3Entries = [];
+async function loadForm3() {
+    form3Entries = [];
+    if (!window.currentUser?.is_superuser) return;
+    const { data, error } = await Layout.db.from('form3_entries')
+        .select('id, form3_id, arrival_date, expected_checkout, submitted_at, checkout_marked_at')
+        .eq('vaishnava_id', person.id).order('arrival_date', { ascending: false });
+    if (error) { Layout.handleError(error, 'Form III'); return; }
+    form3Entries = data || [];
+}
+
+function renderForm3() {
+    const block = document.getElementById('form3Block');
+    block.classList.toggle('hidden', !window.currentUser?.is_superuser);
+    if (!window.currentUser?.is_superuser) return;
+    const fmt = iso => iso ? DateUtils.parseDate(iso.slice(0, 10)).toLocaleDateString('ru-RU') : '—';
+    const rows = form3Entries.map(en => `<div class="flex flex-wrap items-center gap-2">
+        ${en.form3_id
+            ? `<span class="font-mono font-semibold">${Layout.escapeHtml(en.form3_id)}</span>`
+            : '<span class="opacity-60">не подана</span>'}
+        <span class="opacity-70">заезд ${fmt(en.arrival_date)}${en.expected_checkout ? ' → ' + fmt(en.expected_checkout) : ''}</span>
+        ${en.checkout_marked_at ? '<span class="badge badge-sm">выезд отмечен</span>' : (en.form3_id ? '<span class="badge badge-sm badge-warning">выезд не отмечен</span>' : '')}
+        <button type="button" class="btn btn-xs btn-ghost" data-form3-edit="${en.id}">${en.form3_id ? 'изменить' : 'вписать номер'}</button>
+    </div>`).join('');
+    document.getElementById('form3List').innerHTML = (rows || '<div class="opacity-60">анкет нет</div>') +
+        `<div class="flex gap-2 mt-1"><button type="button" class="btn btn-xs btn-outline" data-form3-add>+ Добавить анкету</button>
+         <a class="btn btn-xs btn-ghost" href="../reception/form3.html">Раздел Form III</a></div>`;
+}
+
+function askForm3Id(current) {
+    const id = prompt('Номер анкеты Form III с портала (например 161126HACGQH):', current || '');
+    if (id == null) return null;
+    const v = id.trim().toUpperCase();
+    if (v && !/^[0-9A-Z]{8,20}$/.test(v)) { Layout.showNotification('Номер анкеты выглядит неверно', 'error'); return null; }
+    return v;
+}
+
+document.addEventListener('click', async (ev) => {
+    const edit = ev.target.closest('[data-form3-edit]');
+    const add = ev.target.closest('[data-form3-add]');
+    if (!edit && !add) return;
+    let error;
+    if (edit) {
+        const en = form3Entries.find(x => x.id === edit.dataset.form3Edit);
+        const id = askForm3Id(en?.form3_id);
+        if (id == null) return;
+        ({ error } = await Layout.db.from('form3_entries').update({
+            form3_id: id || null,
+            submitted_at: id ? (en.submitted_at || new Date().toISOString()) : null,
+            submitted_by: id ? window.currentUser.vaishnava_id : null,
+            updated_at: new Date().toISOString()
+        }).eq('id', en.id));
+    } else {
+        const id = askForm3Id('');
+        if (!id) return;
+        const arr = prompt('Дата заезда по анкете (ДД.ММ.ГГГГ):');
+        const m = arr && arr.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+        if (!m) { Layout.showNotification('Дата нужна в виде ДД.ММ.ГГГГ', 'error'); return; }
+        const iso = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+        ({ error } = await Layout.db.from('form3_entries').insert({
+            vaishnava_id: person.id, form3_id: id, arrival_date: iso,
+            submitted_at: new Date().toISOString(), submitted_by: window.currentUser.vaishnava_id
+        }));
+    }
+    if (error) { Layout.handleError(error, 'Form III'); return; }
+    await loadForm3();
+    renderForm3();
+});
 
 // Проверка прав на редактирование профиля
 function canEditProfile() {
@@ -396,8 +477,10 @@ function renderPerson() {
     document.getElementById('editSenior').value = person.senior_id || '';
     populateSeniorsSelect(); // Обновляем список старших
     if (person.senior_id) document.getElementById('editSenior').value = person.senior_id;
-    document.getElementById('viewPassport').textContent = person.passport || '—';
-    document.getElementById('editPassport').value = person.passport || '';
+    document.getElementById('passportBlock').classList.toggle('hidden', !window.currentUser?.is_superuser);
+    document.getElementById('viewPassport').textContent = passportNumber || '—';
+    document.getElementById('editPassport').value = passportNumber || '';
+    renderForm3();
 
     // Виза
     const visaTypes = { tourist: t('person_visa_tourist'), business: t('person_visa_business'), volunteer: t('person_visa_volunteer'), religious: t('person_visa_religious'), other: t('person_visa_other') };
@@ -491,7 +574,9 @@ function toggleTeamSections() {
     document.getElementById('teamSection').style.display = serving || canAssign ? 'block' : 'none';
     document.getElementById('statusPickerWrap').style.display = canAssign ? '' : 'none';
     document.getElementById('serviceFields').style.display = serving ? '' : 'none';
-    document.getElementById('docsSection').style.display = serving ? 'block' : 'none';
+    // Суперпользователю — и у гостя-иностранца: паспорт и Form III (ВГ 16.11)
+    const foreignForSuper = window.currentUser?.is_superuser && person?.citizenship !== 'IND';
+    document.getElementById('docsSection').style.display = serving || foreignForSuper ? 'block' : 'none';
 }
 
 function renderViewPhone() {
@@ -888,7 +973,6 @@ async function savePerson() {
         department_id: document.getElementById('editDepartment').value || null,
         service: document.getElementById('editService').value || null,
         senior_id: document.getElementById('editSenior').value || null,
-        passport: document.getElementById('editPassport').value || null,
         visa_type: document.getElementById('editVisaType').value || null,
         visa_expiry: document.getElementById('editVisaExpiry').value || null,
         indian_phone: document.getElementById('editIndianPhone').value || null,
@@ -951,6 +1035,18 @@ async function savePerson() {
         console.error('Error saving:', error);
         Layout.showNotification(t('error_saving'), 'error');
         return;
+    }
+
+    if (window.currentUser?.is_superuser) {
+        const newPassport = document.getElementById('editPassport').value.trim().toUpperCase().replace(/\s/g, '') || null;
+        if (newPassport !== passportNumber) {
+            const { error: docError } = await Layout.db.from('vaishnava_documents').upsert({
+                vaishnava_id: person.id, passport_number: newPassport,
+                updated_at: new Date().toISOString(), updated_by: window.currentUser.vaishnava_id || null
+            });
+            if (docError) Layout.handleError(docError, t('passport'));
+            else passportNumber = newPassport;
+        }
     }
 
     person = data;
