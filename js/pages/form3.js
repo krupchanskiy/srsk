@@ -394,6 +394,7 @@ const Form3 = (() => {
         const days = Math.round((DateUtils.parseDate(co) - DateUtils.parseDate(arr)) / (24 * HOUR));
         return {
             srsk_form3: 1,
+            vid: v.id,
             who: nameOf(v),
             given_name: doc.passport_given_name, surname: doc.passport_surname,
             gender: v.gender === 'male' ? 'Male' : v.gender === 'female' ? 'Female' : '',
@@ -512,10 +513,16 @@ const Form3 = (() => {
         if (raw == null) return;
         const form3Id = raw.trim().toUpperCase() || null;
         if (form3Id && !/^[0-9A-Z]{8,20}$/.test(form3Id)) { Layout.showNotification('Номер анкеты выглядит неверно', 'error'); return; }
+        if (await setSubmitted(p, form3Id, 'Подана на портале раньше — отмечено кнопкой «Уже подана»'))
+            Layout.showNotification('Отмечено: анкета уже подана', 'success');
+    }
+
+    // Отметить анкету поданной (создаёт запись заезда, если её нет)
+    async function setSubmitted(p, form3Id, note) {
         const row = {
             form3_id: form3Id, submitted_at: new Date().toISOString(),
             submitted_by: window.currentUser?.vaishnava_id || null,
-            notes: [p.entry?.notes, 'Подана на портале раньше — отмечено кнопкой «Уже подана»'].filter(Boolean).join('\n'),
+            notes: [p.entry?.notes, note].filter(Boolean).join('\n') || null,
             updated_at: new Date().toISOString()
         };
         const { error } = p.entry
@@ -523,10 +530,32 @@ const Form3 = (() => {
             : await Layout.db.from('form3_entries').insert({
                 ...row, vaishnava_id: p.v.id, resident_id: p.stay.rows[0].id,
                 arrival_date: p.stay.check_in, expected_checkout: p.stay.check_out });
-        if (error) { Layout.handleError(error, 'Анкета'); return; }
-        Layout.showNotification('Отмечено: анкета уже подана', 'success');
+        if (error) { Layout.handleError(error, 'Анкета'); return false; }
         document.getElementById('personModal').close();
         await load();
+        return true;
+    }
+
+    // Номер анкеты пришёл с портала закладкой «ШРСК ← номер анкеты»: #submitted=ID&v=<id контакта>
+    async function takeSubmittedFromHash() {
+        const h = new URLSearchParams(location.hash.slice(1));
+        const form3Id = (h.get('submitted') || '').toUpperCase();
+        const vid = h.get('v');
+        if (!form3Id) return;
+        history.replaceState(null, '', location.pathname + location.search);
+        if (!/^[0-9A-Z]{8,20}$/.test(form3Id)) { Layout.showNotification('С портала пришёл странный номер анкеты: ' + form3Id, 'error'); return; }
+        const all = [...people, ...submitted];
+        const p = vid ? (people.find(x => x.v.id === vid) || all.find(x => x.v.id === vid)) : null;
+        if (!p) {
+            Layout.showNotification(`Номер ${form3Id} пришёл с портала, но человек не найден среди живущих. Впишите его в карточке кнопкой «Анкета подана…».`, 'warning');
+            return;
+        }
+        if (p.entry?.form3_id === form3Id) { Layout.showNotification(`${nameOf(p.v)}: анкета ${form3Id} уже отмечена`, 'info'); return; }
+        const msg = `${nameOf(p.v)}: отметить анкету ${form3Id} как поданную?` +
+            (p.entry?.form3_id ? `\n\nСейчас в ШРСК записан другой номер: ${p.entry.form3_id} — он будет заменён.` : '') +
+            '\n\nОтмечайте только после Submit на портале (после Next номер уже есть, но это ещё черновик).';
+        if (!confirm(msg)) return;
+        if (await setSubmitted(p, form3Id, null)) Layout.showNotification(`${nameOf(p.v)}: анкета ${form3Id} отмечена поданной`, 'success');
     }
 
     // ==================== НОВЫЙ ИНОСТРАНЕЦ ====================
@@ -650,6 +679,8 @@ const Form3 = (() => {
             let d;
             try { d = JSON.parse(txt); } catch (err) { d = null; }
             if (!d || !d.srsk_form3) { alert('Это не данные ШРСК. В ШРСК нажмите «Скопировать для портала».'); return; }
+            // кого заполняли — для закладки «ШРСК ← номер анкеты»
+            try { localStorage.setItem('srsk_form3_last', JSON.stringify({ vid: d.vid, who: d.who, passport: d.passport, at: Date.now() })); } catch (err) { /* без памяти */ }
             const done = [], manual = [], changed = [];
             const el = n => document.querySelector('[formcontrolname="' + n + '"]');
             const ddmmyyyy = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '';
@@ -736,6 +767,33 @@ const Form3 = (() => {
         })();
     }
 
+    // На портале после Submit (или в просмотре анкеты): находит номер анкеты и открывает ШРСК, где его отметят.
+    function bmTakeId() {
+        let last = null;
+        try { last = JSON.parse(localStorage.getItem('srsk_form3_last') || 'null'); } catch (err) { last = null; }
+        const re = /\b\d{6}[A-Z]{6}\b/g;
+        const dlg = document.querySelector('mat-dialog-container');
+        let ids = Array.from(new Set(((dlg || document.body).innerText.match(re)) || []));
+        // в таблице «Pending for checkout» — строка с паспортом того, кого заполняли
+        if (ids.length > 1 && last && last.passport) {
+            const row = Array.from(document.querySelectorAll('tr, mat-row, .mat-row, .mat-mdc-row'))
+                .find(r => r.innerText.indexOf(last.passport) >= 0 && /\b\d{6}[A-Z]{6}\b/.test(r.innerText));
+            if (row) ids = Array.from(new Set(row.innerText.match(re) || []));
+        }
+        if (!ids.length) { alert('Номер анкеты на странице не найден. Откройте подтверждение после Submit или просмотр анкеты (значок глаза).'); return; }
+        let id = ids[0];
+        if (ids.length > 1) {
+            id = (prompt('На странице несколько номеров анкет:\n' + ids.join('\n') + '\n\nКакой отметить?', ids[0]) || '').trim().toUpperCase();
+            if (!id) return;
+        }
+        if (!last || !last.vid || Date.now() - last.at > 6 * 3600 * 1000) {
+            alert('Номер ' + id + ' найден, но непонятно, чей он: закладкой «ШРСК → Form III» сегодня никого не заполняли. Впишите номер в ШРСК вручную («Анкета подана…»).');
+            return;
+        }
+        if (!confirm('Отметить в ШРСК: ' + last.who + ' — анкета ' + id + '?')) return;
+        window.open('__SRSK_ORIGIN__/reception/form3.html#submitted=' + encodeURIComponent(id) + '&v=' + encodeURIComponent(last.vid), '_blank');
+    }
+
     function bmPrint() {
         const dlg = document.querySelector('mat-dialog-container');
         if (!dlg) { alert('Откройте просмотр анкеты (значок глаза) и нажмите закладку ещё раз.'); return; }
@@ -752,12 +810,13 @@ const Form3 = (() => {
     }
 
     function renderBookmarks() {
-        const href = fn => 'javascript:' + encodeURIComponent('(' + fn.toString() + ')()');
+        const href = fn => 'javascript:' + encodeURIComponent('(' + fn.toString().replace('__SRSK_ORIGIN__', location.origin) + ')()');
         document.getElementById('bookmarksPane').innerHTML = `
             <div class="bg-base-100 rounded-lg p-4 space-y-4 max-w-3xl">
                 <p>Перетащите кнопки на панель закладок браузера (один раз). Нажимаются на портале FRRO после входа.</p>
                 <div class="flex flex-wrap gap-3">
                     <a class="btn btn-primary f3-bm" href="${href(bmFill)}" title="Перетащите на панель закладок">ШРСК → Form III</a>
+                    <a class="btn f3-bm" href="${href(bmTakeId)}" title="Перетащите на панель закладок">ШРСК ← номер анкеты</a>
                     <a class="btn f3-bm" href="${href(bmPrint)}" title="Перетащите на панель закладок">ШРСК → печать анкеты</a>
                 </div>
                 <ol class="list-decimal ml-5 text-sm space-y-1">
@@ -766,7 +825,7 @@ const Form3 = (() => {
                     <li>Нажмите закладку <b>«ШРСК → Form III»</b>. Она заполнит поля, в том числе номера паспорта и визы, и покажет, что проверить вручную (даты и время — всегда).</li>
                     <li>После <b>Next</b> нажмите закладку ещё раз — заполнит следующий шаг.</li>
                     <li>Фото закладка берёт из карточки контакта и сама кладёт в анкету (на шаге, где есть «Upload Photo»). Если не получилось — «Скачать фото» в карточке и загрузить вручную. Submit — вы.</li>
-                    <li>Номер анкеты впишите в ШРСК кнопкой <b>«Анкета подана…»</b>.</li>
+                    <li>После <b>Submit</b> нажмите закладку <b>«ШРСК ← номер анкеты»</b>: она найдёт номер на странице и откроет ШРСК — подтвердите, и анкета отмечена поданной. Не нашла — впишите номер кнопкой <b>«Анкета подана…»</b>.</li>
                     <li>Для печати: на портале откройте просмотр анкеты (значок глаза) → закладка <b>«ШРСК → печать анкеты»</b> → «Сохранить как PDF» в Загрузки.</li>
                 </ol>
                 <div class="alert text-sm">Первая версия: на портале её ещё не пробовали. Первый раз заполняйте вместе с Claude — поправим, что не сработает.</div>
@@ -839,6 +898,8 @@ const Form3 = (() => {
         }, 200));
         renderBookmarks();
         await load();
+        await takeSubmittedFromHash();
+        window.addEventListener('hashchange', takeSubmittedFromHash);
     }
 
     return { init, reload: load };
