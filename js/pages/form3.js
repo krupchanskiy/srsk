@@ -410,7 +410,8 @@ const Form3 = (() => {
             arrived_from: p.entry?.arrived_from, arrival_date: arr, arrival_time: p.arrival.time,
             purpose: purposeOf(p), previous_place: p.entry?.previous_place,
             duration_days: days, expected_checkout: co,
-            photo_url: v.photo_url || null
+            photo_url: v.photo_url || null,
+            room: placeOf(p.stay)
         };
     }
 
@@ -736,6 +737,10 @@ const Form3 = (() => {
             lsSet('srsk_form3_current', d.vid);
             // кого заполняли — для закладки «ШРСК ← номер анкеты»
             lsSet('srsk_form3_last', { vid: d.vid, who: d.who, passport: d.passport, at: Date.now() });
+            // для печати: комната, срок, дата рождения — по номеру паспорта
+            const ppl = lsGet('srsk_form3_people') || {};
+            queue.items.forEach(x => { if (x.passport) ppl[x.passport] = { room: x.room, arr: x.arrival_date, co: x.expected_checkout, dob: x.dob }; });
+            lsSet('srsk_form3_people', ppl);
             const done = [], manual = [], changed = [];
             const el = n => document.querySelector('[formcontrolname="' + n + '"]');
             const ddmmyyyy = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '';
@@ -859,6 +864,40 @@ const Form3 = (() => {
     function bmPrint() {
         const dlg = document.querySelector('mat-dialog-container');
         if (!dlg) { alert('Откройте просмотр анкеты (значок глаза) и нажмите закладку ещё раз.'); return; }
+        // Данные ШРСК внизу: ищем человека по номеру паспорта в анкете
+        let ppl = {};
+        try { ppl = JSON.parse(localStorage.getItem('srsk_form3_people') || '{}') || {}; } catch (err) { ppl = {}; }
+        const text = dlg.innerText;
+        const key = Object.keys(ppl).find(k => k && text.indexOf(k) >= 0);
+        let x = key ? ppl[key] : null;
+        if (!x) {
+            // запасной путь: очередь, сохранённая закладкой заполнения
+            try {
+                const q = JSON.parse(localStorage.getItem('srsk_form3_queue') || 'null');
+                const it = q && (q.items || []).find(i => i.passport && text.indexOf(i.passport) >= 0);
+                if (it) x = { room: it.room, arr: it.arrival_date, co: it.expected_checkout, dob: it.dob };
+            } catch (err) { x = null; }
+        }
+        const dmy = iso => iso ? iso.slice(8, 10) + '.' + iso.slice(5, 7) + '.' + iso.slice(0, 4) : '—';
+        const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return (m === 1 && h !== 11) ? a : (m >= 2 && m <= 4 && (h < 12 || h > 14)) ? b : c; };
+        let foot = '';
+        if (x) {
+            const lines = [];
+            if (x.room) lines.push('Комната: ' + x.room);
+            if (x.arr) {
+                const days = x.co ? Math.round((new Date(x.co + 'T00:00:00') - new Date(x.arr + 'T00:00:00')) / 864e5) : null;
+                lines.push('Срок пребывания по анкете: ' + dmy(x.arr) + ' — ' + dmy(x.co) + (days != null ? ' (' + days + ' ' + plural(days, 'день', 'дня', 'дней') + ')' : ''));
+            }
+            if (x.dob) {
+                const b = new Date(x.dob + 'T00:00:00'), t = new Date();
+                let age = t.getFullYear() - b.getFullYear();
+                if (t.getMonth() < b.getMonth() || (t.getMonth() === b.getMonth() && t.getDate() < b.getDate())) age--;
+                lines.push('Возраст: ' + age + ' ' + plural(age, 'год', 'года', 'лет') + ' (дата рождения ' + dmy(x.dob) + ')');
+            }
+            foot = '<div style="margin-top:6mm;font-size:10px;line-height:1.5">' + lines.join('<br>') + '</div>';
+        } else if (!confirm('Нет данных ШРСК для этой анкеты (комната, срок, возраст) — её заполняли не закладкой. Печатать без них?')) {
+            return;
+        }
         const w = window.open('', '_blank');
         if (!w) { alert('Браузер заблокировал окно — разрешите всплывающие окна для портала.'); return; }
         w.document.write('<html><head><title>Form III</title><style>' +
@@ -866,7 +905,7 @@ const Form3 = (() => {
             'button,mat-icon,.mat-dialog-actions,.mat-mdc-dialog-actions{display:none!important}' +
             'table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:4px;color:#000}' +
             'img{max-width:35mm}*{color:#000!important;opacity:1!important}' +
-            '</style></head><body>' + dlg.innerHTML + '</body></html>');
+            '</style></head><body>' + dlg.innerHTML + foot + '</body></html>');
         w.document.close();
         setTimeout(() => w.print(), 600);
     }
