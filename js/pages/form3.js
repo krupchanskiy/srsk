@@ -771,13 +771,13 @@ const Form3 = (() => {
     function bmTakeId() {
         let last = null;
         try { last = JSON.parse(localStorage.getItem('srsk_form3_last') || 'null'); } catch (err) { last = null; }
-        const re = /\b\d{6}[A-Z]{6}\b/g;
+        const re = /\b\d{6}(?=[A-Z0-9]{0,5}[A-Z])[A-Z0-9]{6}\b/g;
         const dlg = document.querySelector('mat-dialog-container');
         let ids = Array.from(new Set(((dlg || document.body).innerText.match(re)) || []));
         // в таблице «Pending for checkout» — строка с паспортом того, кого заполняли
         if (ids.length > 1 && last && last.passport) {
             const row = Array.from(document.querySelectorAll('tr, mat-row, .mat-row, .mat-mdc-row'))
-                .find(r => r.innerText.indexOf(last.passport) >= 0 && /\b\d{6}[A-Z]{6}\b/.test(r.innerText));
+                .find(r => r.innerText.indexOf(last.passport) >= 0 && /\b\d{6}(?=[A-Z0-9]{0,5}[A-Z])[A-Z0-9]{6}\b/.test(r.innerText));
             if (row) ids = Array.from(new Set(row.innerText.match(re) || []));
         }
         if (!ids.length) { alert('Номер анкеты на странице не найден. Откройте подтверждение после Submit или просмотр анкеты (значок глаза).'); return; }
