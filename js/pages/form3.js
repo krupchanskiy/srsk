@@ -800,23 +800,37 @@ const Form3 = (() => {
             setInput('previousPlaceStay', d.previous_place, 'Previous Place Of Stay');
             setInput('durationofstay', d.duration_days, 'Duration Of Stay');
             if (el('expectedCheckoutDate')) manual.push('проверьте Expected Checkout Date: ' + ddmmyyyy(d.expected_checkout));
-            // Фото: берём из карточки контакта и кладём в поле загрузки портала
-            const photoInput = document.querySelector('#imageUpload, input[type=file]');
-            if (photoInput && d.photo_url) {
+            // Фото (шаг 3 «Photo Upload»): портал ждёт файл в input#imageUpload → обрезка (image-cropper) → Next.
+            // Только JPEG, после обрезки 5 КБ – 1 МБ. Уже есть фото на портале (повторный гость) — не трогаем.
+            const photoCard = document.querySelector('app-photo-upload, .photo-upload-wrap');
+            const photoInput = document.querySelector('input#imageUpload');
+            const hasPhoto = photoCard && photoCard.querySelector('img[src^="data:image"]');
+            if (photoCard && hasPhoto) {
+                done.push('Photo (уже было на портале — не менял)');
+            } else if (photoCard && !photoInput) {
+                manual.push('Photo: не нашёл кнопку «Upload Photo» — загрузите вручную');
+            } else if (photoInput && !d.photo_url) {
+                manual.push('Photo: в карточке ШРСК нет фото — загрузите вручную');
+            } else if (photoInput) {
                 try {
-                    const blob = await (await fetch(d.photo_url)).blob();
+                    const res = await fetch(d.photo_url, { cache: 'no-store' });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const blob = await res.blob();
                     const dt = new DataTransfer();
-                    dt.items.add(new File([blob], (d.surname || 'photo') + '.jpg', { type: 'image/jpeg' }));
+                    dt.items.add(new File([blob], (d.surname || 'photo') + '.jpeg', { type: 'image/jpeg' }));
                     photoInput.files = dt.files;
                     photoInput.dispatchEvent(new Event('change', { bubbles: true }));
-                    photoInput.dispatchEvent(new Event('input', { bubbles: true }));
-                    await sleep(800);
-                    manual.push('проверьте, что фото появилось на анкете');
+                    // ждём, пока портал покажет обрезку и превью
+                    let ok = false;
+                    for (let k = 0; k < 20 && !ok; k++) {
+                        await sleep(300);
+                        ok = !!(photoCard || document).querySelector('image-cropper img, .crop-panel img[src^="data:image"]');
+                    }
+                    if (ok) done.push('Photo (проверьте рамку обрезки и превью)');
+                    else manual.push('Photo: портал не показал фото — загрузите вручную («Скачать фото» в ШРСК)');
                 } catch (err) {
-                    manual.push('Photo: загрузите вручную (в ШРСК — «Скачать фото»)');
+                    manual.push('Photo: не удалось взять фото из ШРСК (' + (err && err.message || err) + ') — загрузите вручную');
                 }
-            } else if (photoInput) {
-                manual.push('Photo: в карточке контакта нет фото — загрузите вручную');
             }
             if (!done.length && !manual.length) { alert('На этой странице нет полей анкеты Form III. Откройте New Entry.'); return; }
             alert('ШРСК → Form III: ' + d.who +
@@ -925,7 +939,7 @@ const Form3 = (() => {
                     <li>На портале: Form III Details → New Entry → поиск по паспорту → анкета.</li>
                     <li>Нажмите закладку <b>«ШРСК → Form III»</b>. Она заполнит поля, в том числе номера паспорта и визы, и покажет, что проверить вручную (даты и время — всегда).</li>
                     <li>После <b>Next</b> нажмите закладку ещё раз — заполнит следующий шаг.</li>
-                    <li>Фото закладка берёт из карточки контакта и сама кладёт в анкету (на шаге, где есть «Upload Photo»). Если не получилось — «Скачать фото» в карточке и загрузить вручную. Submit — вы.</li>
+                    <li><b>Фото:</b> на шаге 3 «Photo Upload» нажмите закладку ещё раз — она возьмёт фото из карточки ШРСК и положит в анкету; проверьте рамку обрезки и нажмите Next. Если на портале фото уже есть (гость приезжал раньше) — закладка его не трогает. Не вышло — «Скачать фото» в карточке и загрузить вручную. Submit — вы.</li>
                     <li>После <b>Submit</b> нажмите закладку <b>«ШРСК ← номер анкеты»</b>: она найдёт номер на странице и откроет ШРСК — подтвердите, и анкета отмечена поданной. Не нашла — впишите номер кнопкой <b>«Анкета подана…»</b>.</li>
                     <li>Для печати: на портале откройте просмотр анкеты (значок глаза) → закладка <b>«ШРСК → печать анкеты»</b> → «Сохранить как PDF» в Загрузки.</li>
                 </ol>
