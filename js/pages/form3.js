@@ -216,8 +216,13 @@ const Form3 = (() => {
             document.getElementById('cntUnknown').textContent = `(${cntQ(unknown)} из ${unknown.length})`;
             document.getElementById('cntSubmitted').textContent = `(${cntQ(submitted)} из ${submitted.length})`;
         }
-        document.getElementById('listSubmit').innerHTML = people.length ? (cntQ(people) ? table(people, 'submit') : nothingFound)
-            : '<div class="opacity-60 p-4">Нет иностранцев без анкеты.</div>';
+        const ready = people.filter(p => !p.issues.length).length;
+        const queueBar = people.length ? `<div class="flex flex-wrap items-center gap-2 mb-3">
+            <button class="btn btn-sm btn-primary" data-act="queue" ${ready ? '' : 'disabled'}>Скопировать всех готовых для портала (${ready})</button>
+            <span class="text-sm opacity-70">${ready ? 'На портале закладка «ШРСК → Form III» будет предлагать их по очереди.' : 'Готовых к подаче нет — сначала разберите ⚠.'}</span>
+            </div>` : '';
+        document.getElementById('listSubmit').innerHTML = queueBar + (people.length ? (cntQ(people) ? table(people, 'submit') : nothingFound)
+            : '<div class="opacity-60 p-4">Нет иностранцев без анкеты.</div>');
         document.getElementById('listUnknown').innerHTML = unknown.length ? (cntQ(unknown) ? unknownTable() : nothingFound)
             : '<div class="opacity-60 p-4">У всех живущих гражданство указано.</div>';
         document.getElementById('listSubmitted').innerHTML = submitted.length ? (cntQ(submitted) ? table(submitted, 'submitted') : nothingFound)
@@ -414,6 +419,19 @@ const Form3 = (() => {
         try {
             await navigator.clipboard.writeText(json);
             Layout.showNotification('Скопировано. На портале откройте новую анкету и нажмите закладку «ШРСК → Form III».', 'success');
+        } catch {
+            prompt('Скопируйте вручную (Cmd+C):', json);
+        }
+    }
+
+    // Очередь: все готовые к подаче одним копированием; на портале закладка предлагает их по одному
+    async function copyQueue() {
+        const items = people.filter(p => !p.issues.length).map(portalData);
+        if (!items.length) return;
+        const json = JSON.stringify({ srsk_form3_queue: 1, qid: String(Date.now()), items });
+        try {
+            await navigator.clipboard.writeText(json);
+            Layout.showNotification(`Скопировано: ${items.length} чел. На портале: New Entry → поиск по паспорту → закладка «ШРСК → Form III» — она спросит, кого заполнять.`, 'success');
         } catch {
             prompt('Скопируйте вручную (Cmd+C):', json);
         }
@@ -673,14 +691,51 @@ const Form3 = (() => {
         (async () => {
             const sleep = ms => new Promise(r => setTimeout(r, ms));
             const norm = s => (s || '').replace(/\s+/g, ' ').trim().toUpperCase();
+            const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (err) { return null; } };
+            const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (err) { /* без памяти */ } };
             let txt = '';
             try { txt = await navigator.clipboard.readText(); } catch (err) { /* нет доступа к буферу */ }
-            if (!txt || txt.indexOf('srsk_form3') < 0) txt = prompt('Вставьте данные из ШРСК (Cmd+V):') || '';
-            let d;
-            try { d = JSON.parse(txt); } catch (err) { d = null; }
-            if (!d || !d.srsk_form3) { alert('Это не данные ШРСК. В ШРСК нажмите «Скопировать для портала».'); return; }
+            let fresh = null;
+            if (txt && txt.indexOf('srsk_form3') >= 0) { try { fresh = JSON.parse(txt); } catch (err) { fresh = null; } }
+            // Очередь живёт на портале (localStorage): из буфера берём новую, иначе продолжаем сохранённую
+            let queue = lsGet('srsk_form3_queue');
+            if (queue && Date.now() - queue.at > 12 * 3600 * 1000) queue = null;
+            if (fresh && (fresh.srsk_form3_queue || fresh.srsk_form3)) {
+                const fq = fresh.srsk_form3_queue
+                    ? { qid: fresh.qid, items: fresh.items }
+                    : { qid: 'one-' + fresh.vid + '-' + fresh.arrival_date, items: [fresh] };
+                if (!queue || queue.qid !== fq.qid) {
+                    queue = { qid: fq.qid, items: fq.items, at: Date.now() };
+                    lsSet('srsk_form3_queue', queue);
+                    lsSet('srsk_form3_done', []);
+                    lsSet('srsk_form3_current', null);
+                }
+            }
+            if (!queue) {
+                txt = prompt('Вставьте данные из ШРСК (Cmd+V):') || '';
+                try { fresh = JSON.parse(txt); } catch (err) { fresh = null; }
+                if (!fresh || !(fresh.srsk_form3 || fresh.srsk_form3_queue)) { alert('Это не данные ШРСК. В ШРСК нажмите «Скопировать для портала» или «Скопировать всех готовых».'); return; }
+                queue = { qid: fresh.qid || ('one-' + fresh.vid), items: fresh.items || [fresh], at: Date.now() };
+                lsSet('srsk_form3_queue', queue); lsSet('srsk_form3_done', []); lsSet('srsk_form3_current', null);
+            }
+            const qDone = lsGet('srsk_form3_done') || [];
+            const left = queue.items.filter(x => qDone.indexOf(x.vid) < 0);
+            if (!left.length) { alert('Все из очереди ШРСК поданы (' + queue.items.length + '). Чтобы начать новую — в ШРСК снова «Скопировать всех готовых».'); return; }
+            let d = left[0];
+            const cur = lsGet('srsk_form3_current');
+            if (left.length > 1) {
+                const def = Math.max(0, left.findIndex(x => x.vid === cur)) + 1;
+                const ans = prompt('Кого заполнять? Осталось ' + left.length + ' из ' + queue.items.length + ':\n' +
+                    left.map((x, i) => (i + 1) + '. ' + x.who + (x.vid === cur ? '  ← сейчас' : '')).join('\n') +
+                    '\n\nНомер (Enter — ' + def + '):', String(def));
+                if (ans == null) return;
+                const n = parseInt(ans, 10);
+                if (!(n >= 1 && n <= left.length)) { alert('Нет такого номера'); return; }
+                d = left[n - 1];
+            }
+            lsSet('srsk_form3_current', d.vid);
             // кого заполняли — для закладки «ШРСК ← номер анкеты»
-            try { localStorage.setItem('srsk_form3_last', JSON.stringify({ vid: d.vid, who: d.who, passport: d.passport, at: Date.now() })); } catch (err) { /* без памяти */ }
+            lsSet('srsk_form3_last', { vid: d.vid, who: d.who, passport: d.passport, at: Date.now() });
             const done = [], manual = [], changed = [];
             const el = n => document.querySelector('[formcontrolname="' + n + '"]');
             const ddmmyyyy = iso => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '';
@@ -763,6 +818,7 @@ const Form3 = (() => {
                 '\n\nЗаполнено: ' + (done.join(', ') || '—') +
                 (changed.length ? '\n\nБыло на портале иначе (заменено):\n• ' + changed.join('\n• ') : '') +
                 (manual.length ? '\n\nПроверьте / сделайте вручную:\n• ' + manual.join('\n• ') : '') +
+                (left.length > 1 ? '\n\nВ очереди ещё ' + (left.length - 1) + '.' : '') +
                 '\n\nПосле «Next» нажмите закладку ещё раз — заполнит следующий шаг. Submit — вы.');
         })();
     }
@@ -791,6 +847,12 @@ const Form3 = (() => {
             return;
         }
         if (!confirm('Отметить в ШРСК: ' + last.who + ' — анкета ' + id + '?')) return;
+        try {
+            const qd = JSON.parse(localStorage.getItem('srsk_form3_done') || '[]');
+            if (qd.indexOf(last.vid) < 0) qd.push(last.vid);
+            localStorage.setItem('srsk_form3_done', JSON.stringify(qd));
+            localStorage.setItem('srsk_form3_current', 'null');
+        } catch (err) { /* без очереди */ }
         window.open('__SRSK_ORIGIN__/reception/form3.html#submitted=' + encodeURIComponent(id) + '&v=' + encodeURIComponent(last.vid), '_blank');
     }
 
@@ -853,6 +915,7 @@ const Form3 = (() => {
             switch (a.dataset.act) {
                 case 'save': save(); break;
                 case 'copy': copyForPortal(); break;
+                case 'queue': copyQueue(); break;
                 case 'photo': downloadPhoto(); break;
                 case 'upload': pickPhoto(); break;
                 case 'submitted': markSubmitted(); break;
