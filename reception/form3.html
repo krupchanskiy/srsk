@@ -29,7 +29,10 @@
     <div id="header-placeholder"></div>
 
     <main class="container mx-auto px-4 py-6 flex-1">
-        <h1 class="text-2xl font-bold mb-1">Form III</h1>
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+            <h1 class="text-2xl font-bold">Form III</h1>
+            <button class="btn btn-primary btn-sm" data-act="new">+ Новый иностранец</button>
+        </div>
         <p class="text-sm opacity-70 mb-4">Регистрация иностранцев в FRRO: подать в течение 24 часов после приезда, отметить выезд в течение суток после отъезда.</p>
 
         <!-- Сводка упущений (⚠ сверху) -->
@@ -60,6 +63,15 @@
         <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
 
+    <!-- Новый иностранец: контакт сразу с паспортными данными -->
+    <dialog id="newModal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button></form>
+            <div id="newModalBody"></div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
     <div id="footer-placeholder"></div>
 
     <script src="../js/config.js?v=5"></script>
@@ -68,7 +80,7 @@
     <script src="../js/utils.js?v=23"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/layout.js?v=132"></script>
-    <script src="../js/pages/form3.js?v=2"></script>
+    <script src="../js/pages/form3.js?v=4"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'form3' });

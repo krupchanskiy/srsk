@@ -218,11 +218,12 @@ const Form3 = (() => {
                 <td><div class="font-medium">${e(nameOf(p.v))}</div><div class="text-xs opacity-70">${e(p.v.citizenship || '')} · ${e(placeOf(p.stay))}</div></td>
                 <td class="whitespace-nowrap">${fmtDate(p.stay.check_in)}${p.arrival.time ? ' ' + e(p.arrival.time) : ''} → ${fmtDate(expectedCheckout(p))}</td>
                 <td>${kind === 'submit' ? deadlineBadge(p) : ''}</td>
+                ${kind === 'submit' ? `<td><button class="btn btn-xs btn-ghost whitespace-nowrap" data-already="${i}" title="Анкета уже подана на портале раньше — убрать из списка">Уже подана</button></td>` : '<td></td>'}
                 <td>${status}</td>
             </tr>`;
         }).join('');
         return `<div class="overflow-x-auto bg-base-100 rounded-lg"><table class="table table-sm">
-            <thead><tr><th>Человек</th><th>Заезд → выезд</th><th>${kind === 'submit' ? 'Срок' : ''}</th><th>${kind === 'submit' ? 'Что не хватает' : 'Анкета'}</th></tr></thead>
+            <thead><tr><th>Человек</th><th>Заезд → выезд</th><th>${kind === 'submit' ? 'Срок' : ''}</th><th>${kind === 'submit' ? 'Что не хватает' : 'Анкета'}</th><th></th></tr></thead>
             <tbody>${rows}</tbody></table></div>`;
     }
 
@@ -315,7 +316,8 @@ const Form3 = (() => {
                 <button class="btn btn-sm" data-act="copy" ${issues.length ? 'disabled title="Сначала разберите все ⚠ и сохраните"' : ''}>Скопировать для портала</button>
                 <button class="btn btn-sm btn-ghost" data-act="upload">Загрузить фото</button>
                 ${v.photo_url ? '<button class="btn btn-sm btn-ghost" data-act="photo">Скачать фото</button>' : ''}
-                ${!p.entry?.submitted_at ? `<button class="btn btn-sm btn-success" data-act="submitted" ${issues.length ? 'disabled' : ''}>Анкета подана…</button>` : ''}
+                ${!p.entry?.submitted_at ? `<button class="btn btn-sm btn-success" data-act="submitted" ${issues.length ? 'disabled' : ''}>Анкета подана…</button>
+                <button class="btn btn-sm btn-outline" data-act="already" title="Подана на портале раньше, до раздела — без проверки полей">Уже подана ранее</button>` : ''}
             </div>`;
         document.getElementById('personModal').showModal();
     }
@@ -484,6 +486,126 @@ const Form3 = (() => {
         await load();
     }
 
+    // Анкета подана на портале раньше (до раздела в ШРСК): убрать из «Подать» без проверки полей.
+    // Номер — по желанию (пригодится для выписки).
+    async function markAlready(p) {
+        const raw = prompt(`${nameOf(p.v)}: анкета уже подана на портале.\nНомер анкеты Form III, если знаете (можно оставить пустым):`, p.entry?.form3_id || '');
+        if (raw == null) return;
+        const form3Id = raw.trim().toUpperCase() || null;
+        if (form3Id && !/^[0-9A-Z]{8,20}$/.test(form3Id)) { Layout.showNotification('Номер анкеты выглядит неверно', 'error'); return; }
+        const row = {
+            form3_id: form3Id, submitted_at: new Date().toISOString(),
+            submitted_by: window.currentUser?.vaishnava_id || null,
+            notes: [p.entry?.notes, 'Подана на портале раньше — отмечено кнопкой «Уже подана»'].filter(Boolean).join('\n'),
+            updated_at: new Date().toISOString()
+        };
+        const { error } = p.entry
+            ? await Layout.db.from('form3_entries').update(row).eq('id', p.entry.id)
+            : await Layout.db.from('form3_entries').insert({
+                ...row, vaishnava_id: p.v.id, resident_id: p.stay.rows[0].id,
+                arrival_date: p.stay.check_in, expected_checkout: p.stay.check_out });
+        if (error) { Layout.handleError(error, 'Анкета'); return; }
+        Layout.showNotification('Отмечено: анкета уже подана', 'success');
+        document.getElementById('personModal').close();
+        await load();
+    }
+
+    // ==================== НОВЫЙ ИНОСТРАНЕЦ ====================
+    // Контакт сразу с паспортными данными; потом его заселяют в шахматке — и он появляется в «Подать».
+    const titleCase = s => (s || '').toLowerCase().replace(/(^|[\s-])\S/g, m => m.toUpperCase());
+
+    function openNew() {
+        const inp = (id, label, extra = '') => `<div><div class="f3-label">${label}</div>
+            <input id="${id}" class="input input-bordered input-sm w-full" ${extra}></div>`;
+        document.getElementById('newModalBody').innerHTML = `
+            <h3 class="text-lg font-bold mb-1">Новый иностранец</h3>
+            <p class="text-sm opacity-70 mb-3">Создаёт контакт с паспортными данными. Потом заселите его в шахматке — и он появится в «Подать».</p>
+            <div class="grid grid-cols-2 gap-3">
+                ${inp('nSurname', 'Фамилия латиницей, как в паспорте *', 'style="text-transform:uppercase"')}
+                ${inp('nGiven', 'Имя латиницей, как в паспорте *', 'style="text-transform:uppercase"')}
+                ${inp('nLast', 'Фамилия в карточке', 'placeholder="как в паспорте или по-русски"')}
+                ${inp('nFirst', 'Имя в карточке', 'placeholder="как в паспорте или по-русски"')}
+                ${inp('nSpiritual', 'Духовное имя (если есть)')}
+                ${inp('nCitizenship', 'Гражданство, код из паспорта *', 'maxlength="3" placeholder="RUS" style="text-transform:uppercase"')}
+                ${inp('nBirth', 'Дата рождения', 'type="date"')}
+                <div><div class="f3-label">Пол</div><select id="nGender" class="select select-bordered select-sm w-full">
+                    <option value="">—</option><option value="male">Мужской</option><option value="female">Женский</option></select></div>
+                ${inp('nPassport', 'Номер паспорта', 'style="text-transform:uppercase"')}
+                ${inp('nPassExp', 'Паспорт действует до', 'type="date"')}
+                ${inp('nPhone', 'Телефон')}
+                ${inp('nEmail', 'Почта', 'type="email"')}
+            </div>
+            <div id="nDupes" class="mt-3"></div>
+            <div class="flex gap-2 mt-4">
+                <button class="btn btn-primary btn-sm" data-act="new-save">Создать контакт</button>
+            </div>`;
+        // имя в карточке по умолчанию — из латиницы паспорта
+        ['Surname', 'Given'].forEach(k => {
+            const src = document.getElementById('n' + k), dst = document.getElementById(k === 'Surname' ? 'nLast' : 'nFirst');
+            src.addEventListener('input', () => { if (!dst.dataset.touched) dst.value = titleCase(src.value); });
+            dst.addEventListener('input', () => { dst.dataset.touched = '1'; });
+        });
+        document.getElementById('newModal').showModal();
+    }
+
+    async function saveNew(force) {
+        const nv = id => { const x = document.getElementById(id).value.trim(); return x === '' ? null : x; };
+        const surname = nv('nSurname')?.toUpperCase(), given = nv('nGiven')?.toUpperCase();
+        const cit = nv('nCitizenship')?.toUpperCase();
+        const passport = nv('nPassport')?.toUpperCase().replace(/\s/g, '') || null;
+        if (!surname || !given) { Layout.showNotification('Нужны фамилия и имя латиницей', 'warning'); return; }
+        if (!cit || !/^[A-Z]{3}$/.test(cit)) { Layout.showNotification('Гражданство — код из трёх латинских букв (RUS, UKR…)', 'warning'); return; }
+        if (cit === 'IND') { Layout.showNotification('Гражданин Индии — Form III не нужен', 'warning'); return; }
+        const first = nv('nFirst') || titleCase(given), last = nv('nLast') || titleCase(surname);
+
+        // Похожие контакты: тот же паспорт, та же латиница, то же имя в карточке
+        if (!force) {
+            const found = new Map();
+            if (passport) {
+                const { data } = await Layout.db.from('vaishnava_documents').select('vaishnava_id').eq('passport_number', passport);
+                (data || []).forEach(d => found.set(d.vaishnava_id, 'тот же номер паспорта'));
+            }
+            const { data: byLatin } = await Layout.db.from('vaishnava_documents').select('vaishnava_id')
+                .eq('passport_surname', surname).eq('passport_given_name', given);
+            (byLatin || []).forEach(d => found.has(d.vaishnava_id) || found.set(d.vaishnava_id, 'та же фамилия и имя по паспорту'));
+            const { data: byName } = await Layout.db.from('vaishnavas').select('id')
+                .ilike('last_name', last).ilike('first_name', first).limit(10);
+            (byName || []).forEach(d => found.has(d.id) || found.set(d.id, 'то же имя в карточке'));
+            if (found.size) {
+                const { data: vs } = await Layout.db.from('vaishnavas')
+                    .select('id, spiritual_name, first_name, last_name, birth_date').in('id', [...found.keys()]);
+                document.getElementById('nDupes').innerHTML = `<div class="alert alert-warning text-sm"><div>
+                    <b>⚠ Похоже, такой человек уже есть:</b>
+                    <ul class="list-disc ml-5">${(vs || []).map(v => `<li><a class="link" target="_blank" href="../vaishnavas/person.html?id=${e(v.id)}">${e(nameOf(v))}</a>
+                        ${v.birth_date ? ', ' + fmtDate(v.birth_date) : ''} — ${e(found.get(v.id))}</li>`).join('')}</ul>
+                    <div class="mt-1">Если это он — откройте его карточку и не создавайте новый контакт.</div>
+                    <button class="btn btn-xs btn-outline mt-2" data-act="new-force">Это другой человек — создать</button></div></div>`;
+                return;
+            }
+        }
+
+        const { data: created, error } = await Layout.db.from('vaishnavas').insert({
+            first_name: first, last_name: last, spiritual_name: nv('nSpiritual'),
+            citizenship: cit, birth_date: nv('nBirth'), gender: nv('nGender'),
+            phone: nv('nPhone'), email: nv('nEmail')
+        }).select('id').single();
+        if (error) { Layout.handleError(error, 'Новый контакт'); return; }
+        const { error: dErr } = await Layout.db.from('vaishnava_documents').insert({
+            vaishnava_id: created.id, passport_number: passport,
+            passport_surname: surname, passport_given_name: given, passport_expiry: nv('nPassExp'),
+            updated_by: window.currentUser?.vaishnava_id || null
+        });
+        if (dErr) Layout.handleError(dErr, 'Паспорт');
+
+        document.getElementById('newModalBody').innerHTML = `
+            <h3 class="text-lg font-bold mb-2">Контакт создан</h3>
+            <p class="mb-3">${e(first)} ${e(last)} (${e(cit)}). Чтобы он появился в «Подать», заселите его в шахматке.</p>
+            <div class="flex flex-wrap gap-2">
+                <a class="btn btn-primary btn-sm" href="../placement/timeline.html" target="_blank">Открыть шахматку</a>
+                <a class="btn btn-sm" href="../vaishnavas/person.html?id=${e(created.id)}" target="_blank">Карточка контакта</a>
+            </div>`;
+    }
+
     async function setCitizenship(i, code) {
         const p = unknown[i];
         if (code === 'ask') {
@@ -638,6 +760,8 @@ const Form3 = (() => {
         document.addEventListener('click', ev => {
             const g = ev.target.closest('[data-goto]');
             if (g) { showTab(g.dataset.goto); return; }
+            const al = ev.target.closest('[data-already]');
+            if (al) { markAlready(people[+al.dataset.already]); return; }
             const row = ev.target.closest('[data-open]');
             if (row) {
                 const [kind, i] = row.dataset.open.split(':');
@@ -654,6 +778,10 @@ const Form3 = (() => {
                 case 'photo': downloadPhoto(); break;
                 case 'upload': pickPhoto(); break;
                 case 'submitted': markSubmitted(); break;
+                case 'already': markAlready(current); break;
+                case 'new': openNew(); break;
+                case 'new-save': saveNew(false); break;
+                case 'new-force': saveNew(true); break;
             }
         });
     }
