@@ -184,6 +184,18 @@ const Form3 = (() => {
         return [b, r.rooms?.number].filter(Boolean).join(', ');
     }
 
+    // ==================== ПОИСК ====================
+    // По имени (духовное, в карточке, латиница паспорта), гражданству, зданию/комнате, номеру анкеты
+    let query = '';
+    function matches(p) {
+        if (!query) return true;
+        const hay = [nameOf(p.v), p.v.spiritual_name, p.v.first_name, p.v.last_name,
+            p.doc?.passport_surname, p.doc?.passport_given_name, p.v.citizenship,
+            placeOf(p.stay), p.entry?.form3_id].filter(Boolean).join(' ').toLowerCase();
+        return query.split(/\s+/).every(w => hay.includes(w));
+    }
+    const nothingFound = '<div class="opacity-60 p-4">По поиску никого не нашлось.</div>';
+
     // ==================== РЕНДЕР ====================
     function render() {
         document.getElementById('cntSubmit').textContent = people.length ? `(${people.length})` : '';
@@ -198,16 +210,23 @@ const Form3 = (() => {
             ? `<div class="alert ${overdue ? 'alert-error' : 'alert-warning'}"><span>⚠ ${parts.join('; ')}</span></div>`
             : `<div class="alert alert-success"><span>Все иностранцы, которые сейчас живут, поданы.</span></div>`;
 
-        document.getElementById('listSubmit').innerHTML = people.length ? table(people, 'submit')
+        const cntQ = list => list.filter(matches).length;
+        if (query) {
+            document.getElementById('cntSubmit').textContent = `(${cntQ(people)} из ${people.length})`;
+            document.getElementById('cntUnknown').textContent = `(${cntQ(unknown)} из ${unknown.length})`;
+            document.getElementById('cntSubmitted').textContent = `(${cntQ(submitted)} из ${submitted.length})`;
+        }
+        document.getElementById('listSubmit').innerHTML = people.length ? (cntQ(people) ? table(people, 'submit') : nothingFound)
             : '<div class="opacity-60 p-4">Нет иностранцев без анкеты.</div>';
-        document.getElementById('listUnknown').innerHTML = unknown.length ? unknownTable()
+        document.getElementById('listUnknown').innerHTML = unknown.length ? (cntQ(unknown) ? unknownTable() : nothingFound)
             : '<div class="opacity-60 p-4">У всех живущих гражданство указано.</div>';
-        document.getElementById('listSubmitted').innerHTML = submitted.length ? table(submitted, 'submitted')
+        document.getElementById('listSubmitted').innerHTML = submitted.length ? (cntQ(submitted) ? table(submitted, 'submitted') : nothingFound)
             : '<div class="opacity-60 p-4">Пока нет поданных анкет.</div>';
     }
 
     function table(list, kind) {
         const rows = list.map((p, i) => {
+            if (!matches(p)) return '';
             const issues = p.issues;
             const status = kind === 'submit'
                 ? (issues.length
@@ -228,7 +247,7 @@ const Form3 = (() => {
     }
 
     function unknownTable() {
-        const rows = unknown.map((p, i) => `<tr>
+        const rows = unknown.map((p, i) => !matches(p) ? '' : `<tr>
             <td><a class="link" href="../vaishnavas/person.html?id=${e(p.v.id)}" target="_blank">${e(nameOf(p.v))}</a>
                 <div class="text-xs opacity-70">${e(placeOf(p.stay))}</div></td>
             <td class="whitespace-nowrap">${fmtDate(p.stay.check_in)} → ${fmtDate(p.stay.check_out)}</td>
@@ -814,6 +833,10 @@ const Form3 = (() => {
     async function init() {
         bind();
         bindDrop();
+        document.getElementById('f3Search').addEventListener('input', Layout.debounce(ev => {
+            query = ev.target.value.trim().toLowerCase();
+            render();
+        }, 200));
         renderBookmarks();
         await load();
     }

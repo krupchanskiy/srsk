@@ -38,6 +38,10 @@
         <!-- Сводка упущений (⚠ сверху) -->
         <div id="f3Summary" class="mb-4"></div>
 
+        <div class="mb-3">
+            <input type="search" id="f3Search" class="input input-bordered input-sm w-full max-w-md"
+                   placeholder="Поиск: имя, фамилия по паспорту, страна, комната, номер анкеты">
+        </div>
         <div role="tablist" class="tabs tabs-boxed bg-base-100 mb-4 inline-flex flex-wrap">
             <a role="tab" class="tab tab-active" data-tab="submit">Подать <span id="cntSubmit" class="ml-1"></span></a>
             <a role="tab" class="tab" data-tab="unknown">Гражданство не указано <span id="cntUnknown" class="ml-1"></span></a>
@@ -80,7 +84,7 @@
     <script src="../js/utils.js?v=23"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/layout.js?v=132"></script>
-    <script src="../js/pages/form3.js?v=4"></script>
+    <script src="../js/pages/form3.js?v=5"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'form3' });
