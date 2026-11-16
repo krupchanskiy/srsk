@@ -2744,6 +2744,15 @@ function openResidentModal(guestData, buildingName, roomName) {
             </button>`;
         }
         if (isBooking) {
+            // Даты прошли, а «Заселить» не нажали — жил, но не отметили (ВГ 16.11)
+            if (res.check_out && res.check_out < DateUtils.todayAshramISO()) {
+                actionsHtml += `<button class="btn btn-warning" data-action="past-stay-checkout">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                ${e(tf('timeline_past_stay_checkout', 'Жил — выселить'))}
+            </button>`;
+            }
             // Действия для бронирования
             actionsHtml += `<button class="btn btn-primary" data-action="convert-to-checkin">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2877,6 +2886,25 @@ function formatDateYMD(date) {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+// «Жил — выселить»: бронь прошла, а «Заселить» не нажали. Заезд — день заезда 12:00,
+// сразу «выселен»; даты остаются как в шахматке
+async function pastStayCheckout() {
+    if (!currentResident || !canEditTimeline()) return;
+    const res = currentResident.rawData;
+    const q = tf('timeline_past_stay_confirm', '%s: %d. Отметить «заселён» и «выселен»?')
+        .replace('%s', currentResident.name)
+        .replace('%d', DateUtils.formatRange(res.check_in, res.check_out));
+    if (!confirm(q)) return;
+    const { error } = await Layout.db.from('residents')
+        .update({ status: 'checked_out', arrived_at: new Date(res.check_in + 'T12:00:00').toISOString() })
+        .eq('id', res.id)
+        .is('arrived_at', null);
+    if (error) { Layout.handleError(error, tf('timeline_past_stay_checkout', 'Жил — выселить')); return; }
+    document.getElementById('residentModal').close();
+    await loadTimelineData();
+    renderTable();
 }
 
 // Выселить резидента — читает дату и поздний выезд из формы checkoutScreen
@@ -4550,6 +4578,7 @@ function setupTimelineDelegation() {
                 case 'group-booking': openGroupBooking(btn.dataset.id); break;
                 case 'show-move-screen': showMoveScreen(); break;
                 case 'no-show': showNoShowScreen(); break;
+                case 'past-stay-checkout': pastStayCheckout(); break;
                 case 'checkout-resident': showCheckoutScreen(); break;
                 case 'show-edit-dates-screen': showEditDatesScreen(); break;
                 case 'meal-days': showMealDaysScreen(); break;
