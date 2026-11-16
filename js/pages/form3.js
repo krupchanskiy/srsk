@@ -255,7 +255,9 @@ const Form3 = (() => {
 
         document.getElementById('personModalBody').innerHTML = `
             <div class="flex items-start gap-4 mb-3">
-                ${v.photo_url ? `<img src="${e(v.photo_url)}" class="w-20 h-24 object-cover rounded" alt="">` : '<div class="w-20 h-24 bg-base-200 rounded flex items-center justify-center text-xs opacity-60">нет фото</div>'}
+                <div id="f3PhotoDrop" data-act="upload" class="w-20 h-24 rounded cursor-pointer border-2 border-dashed border-transparent hover:border-primary" title="Нажмите или перетащите файл, чтобы загрузить фото">
+                ${v.photo_url ? `<img src="${e(v.photo_url)}" class="w-20 h-24 object-cover rounded" alt="">` : '<div class="w-full h-full bg-base-200 rounded flex items-center justify-center text-xs text-center opacity-60">нет фото —<br>перетащите</div>'}
+                </div>
                 <div class="flex-1">
                     <h3 class="text-lg font-bold">${e(nameOf(v))}</h3>
                     <div class="text-sm opacity-70">${e(placeOf(p.stay))} · ${fmtDate(p.stay.check_in)} → ${fmtDate(p.stay.check_out)}</div>
@@ -311,6 +313,7 @@ const Form3 = (() => {
             <div class="flex flex-wrap gap-2 mt-5">
                 <button class="btn btn-primary btn-sm" data-act="save">Сохранить</button>
                 <button class="btn btn-sm" data-act="copy" ${issues.length ? 'disabled title="Сначала разберите все ⚠ и сохраните"' : ''}>Скопировать для портала</button>
+                <button class="btn btn-sm btn-ghost" data-act="upload">Загрузить фото</button>
                 ${v.photo_url ? '<button class="btn btn-sm btn-ghost" data-act="photo">Скачать фото</button>' : ''}
                 ${!p.entry?.submitted_at ? `<button class="btn btn-sm btn-success" data-act="submitted" ${issues.length ? 'disabled' : ''}>Анкета подана…</button>` : ''}
             </div>`;
@@ -379,7 +382,8 @@ const Form3 = (() => {
             visa_type: doc.portal_visa_type, visa_subtype: doc.portal_visa_subtype,
             arrived_from: p.entry?.arrived_from, arrival_date: arr, arrival_time: p.arrival.time,
             purpose: purposeOf(p), previous_place: p.entry?.previous_place,
-            duration_days: days, expected_checkout: co
+            duration_days: days, expected_checkout: co,
+            photo_url: v.photo_url || null
         };
     }
 
@@ -403,6 +407,63 @@ const Form3 = (() => {
             a.click();
             setTimeout(() => URL.revokeObjectURL(a.href), 5000);
         } catch (err) { Layout.handleError(err, 'Фото'); }
+    }
+
+    // Фото человека → фото контакта (vaishnava-photos, как аватар в карточке), под входом пользователя.
+    // Пропорции сохраняем (для портала нужен портрет), длинная сторона до 1000 px.
+    async function uploadPhoto(file) {
+        const p = current;
+        if (!p || !file) return;
+        if (!/^image\//.test(file.type)) { Layout.showNotification('Нужна картинка (JPEG, PNG, HEIC не подходит)', 'error'); return; }
+        try {
+            const img = await new Promise((resolve, reject) => {
+                const i = new Image();
+                i.onload = () => resolve(i);
+                i.onerror = () => reject(new Error('Не удалось открыть картинку'));
+                i.src = URL.createObjectURL(file);
+            });
+            const k = Math.min(1, 1000 / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * k);
+            canvas.height = Math.round(img.height * k);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            URL.revokeObjectURL(img.src);
+            const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9));
+
+            const fileName = `${p.v.id}_${Date.now()}.jpg`;
+            const { error: upErr } = await Layout.db.storage.from('vaishnava-photos')
+                .upload(fileName, blob, { contentType: 'image/jpeg', cacheControl: '3600', upsert: true });
+            if (upErr) throw upErr;
+            const { data: { publicUrl } } = Layout.db.storage.from('vaishnava-photos').getPublicUrl(fileName);
+            const { error } = await Layout.db.from('vaishnavas').update({ photo_url: publicUrl }).eq('id', p.v.id);
+            if (error) throw error;
+            // старое фото из нашего хранилища удаляем, как в карточке контакта
+            if (p.v.photo_url && p.v.photo_url.includes('/vaishnava-photos/')) {
+                const oldPath = p.v.photo_url.split('/vaishnava-photos/')[1];
+                if (oldPath) await Layout.db.storage.from('vaishnava-photos').remove([oldPath]);
+            }
+            Layout.showNotification('Фото загружено в карточку контакта', 'success');
+            const vid = p.v.id, cin = p.stay.check_in;
+            await load();
+            const again = [...people, ...submitted].find(x => x.v.id === vid && x.stay.check_in === cin);
+            if (again) openPerson(again);
+        } catch (err) {
+            Layout.handleError(err, 'Фото');
+        }
+    }
+
+    function pickPhoto() {
+        let input = document.getElementById('f3PhotoInput');
+        if (!input) {
+            input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/jpeg,image/png,image/webp';
+            input.id = 'f3PhotoInput';
+            input.className = 'hidden';
+            input.addEventListener('change', () => { uploadPhoto(input.files[0]); input.value = ''; });
+            document.body.appendChild(input);
+        }
+        input.click();
     }
 
     async function markSubmitted() {
@@ -507,12 +568,30 @@ const Form3 = (() => {
             setInput('previousPlaceStay', d.previous_place, 'Previous Place Of Stay');
             setInput('durationofstay', d.duration_days, 'Duration Of Stay');
             if (el('expectedCheckoutDate')) manual.push('проверьте Expected Checkout Date: ' + ddmmyyyy(d.expected_checkout));
+            // Фото: берём из карточки контакта и кладём в поле загрузки портала
+            const photoInput = document.querySelector('#imageUpload, input[type=file]');
+            if (photoInput && d.photo_url) {
+                try {
+                    const blob = await (await fetch(d.photo_url)).blob();
+                    const dt = new DataTransfer();
+                    dt.items.add(new File([blob], (d.surname || 'photo') + '.jpg', { type: 'image/jpeg' }));
+                    photoInput.files = dt.files;
+                    photoInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    photoInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    await sleep(800);
+                    manual.push('проверьте, что фото появилось на анкете');
+                } catch (err) {
+                    manual.push('Photo: загрузите вручную (в ШРСК — «Скачать фото»)');
+                }
+            } else if (photoInput) {
+                manual.push('Photo: в карточке контакта нет фото — загрузите вручную');
+            }
             if (!done.length && !manual.length) { alert('На этой странице нет полей анкеты Form III. Откройте New Entry.'); return; }
             alert('ШРСК → Form III: ' + d.who +
                 '\n\nЗаполнено: ' + (done.join(', ') || '—') +
                 (changed.length ? '\n\nБыло на портале иначе (заменено):\n• ' + changed.join('\n• ') : '') +
                 (manual.length ? '\n\nПроверьте / сделайте вручную:\n• ' + manual.join('\n• ') : '') +
-                '\n\nПосле «Next» нажмите закладку ещё раз — заполнит следующий шаг. Фото и Submit — вы.');
+                '\n\nПосле «Next» нажмите закладку ещё раз — заполнит следующий шаг. Submit — вы.');
         })();
     }
 
@@ -545,7 +624,7 @@ const Form3 = (() => {
                     <li>На портале: Form III Details → New Entry → поиск по паспорту → анкета.</li>
                     <li>Нажмите закладку <b>«ШРСК → Form III»</b>. Она заполнит поля, в том числе номера паспорта и визы, и покажет, что проверить вручную (даты и время — всегда).</li>
                     <li>После <b>Next</b> нажмите закладку ещё раз — заполнит следующий шаг.</li>
-                    <li>Фото загружаете вы (кнопка «Скачать фото» в карточке), Submit — вы.</li>
+                    <li>Фото закладка берёт из карточки контакта и сама кладёт в анкету (на шаге, где есть «Upload Photo»). Если не получилось — «Скачать фото» в карточке и загрузить вручную. Submit — вы.</li>
                     <li>Номер анкеты впишите в ШРСК кнопкой <b>«Анкета подана…»</b>.</li>
                     <li>Для печати: на портале откройте просмотр анкеты (значок глаза) → закладка <b>«ШРСК → печать анкеты»</b> → «Сохранить как PDF» в Загрузки.</li>
                 </ol>
@@ -573,8 +652,29 @@ const Form3 = (() => {
                 case 'save': save(); break;
                 case 'copy': copyForPortal(); break;
                 case 'photo': downloadPhoto(); break;
+                case 'upload': pickPhoto(); break;
                 case 'submitted': markSubmitted(); break;
             }
+        });
+    }
+
+    // Перетаскивание фото на рамку в карточке
+    function bindDrop() {
+        const modal = document.getElementById('personModal');
+        modal.addEventListener('dragover', ev => {
+            if (!ev.target.closest('#f3PhotoDrop')) return;
+            ev.preventDefault();
+            ev.target.closest('#f3PhotoDrop').classList.add('border-primary');
+        });
+        modal.addEventListener('dragleave', ev => {
+            ev.target.closest('#f3PhotoDrop')?.classList.remove('border-primary');
+        });
+        modal.addEventListener('drop', ev => {
+            const box = ev.target.closest('#f3PhotoDrop');
+            if (!box) return;
+            ev.preventDefault();
+            box.classList.remove('border-primary');
+            uploadPhoto(ev.dataTransfer.files[0]);
         });
     }
 
@@ -585,6 +685,7 @@ const Form3 = (() => {
 
     async function init() {
         bind();
+        bindDrop();
         renderBookmarks();
         await load();
     }
