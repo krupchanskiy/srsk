@@ -236,7 +236,8 @@ const Form3 = (() => {
             const status = kind === 'submit'
                 ? (issues.length
                     ? `<span class="text-warning font-medium">⚠ ${issues.length}</span> <span class="text-xs opacity-80">${e(issues.slice(0, 3).join('; '))}${issues.length > 3 ? '…' : ''}</span>`
-                    : '<span class="badge badge-success">Готово к подаче</span>')
+                    : `<div class="flex items-center gap-2"><span class="badge badge-success whitespace-nowrap">Готово к подаче</span>
+                        <button class="btn btn-xs btn-primary whitespace-nowrap" data-copy="${i}" title="Скопировать данные для закладки «ШРСК → Form III» на портале">Скопировать для портала</button></div>`)
                 : `<span class="font-mono">${e(p.entry.form3_id || '—')}</span> <span class="text-xs opacity-70">${fmtDate(DateUtils.toISO(new Date(p.entry.submitted_at)))}</span>`;
             return `<tr class="f3-row" data-open="${kind}:${i}">
                 <td><div class="font-medium">${e(nameOf(p.v))}</div><div class="text-xs opacity-70">${e(p.v.citizenship || '')} · ${e(placeOf(p.stay))}</div></td>
@@ -415,11 +416,11 @@ const Form3 = (() => {
         };
     }
 
-    async function copyForPortal() {
-        const json = JSON.stringify(portalData(current));
+    async function copyForPortal(p = current) {
+        const json = JSON.stringify(portalData(p));
         try {
             await navigator.clipboard.writeText(json);
-            Layout.showNotification('Скопировано. На портале откройте новую анкету и нажмите закладку «ШРСК → Form III».', 'success');
+            Layout.showNotification(`${nameOf(p.v)}: скопировано. На портале New Entry → закладка «ШРСК → Form III».`, 'success');
         } catch {
             prompt('Скопируйте вручную (Cmd+C):', json);
         }
@@ -778,6 +779,21 @@ const Form3 = (() => {
                 manual.push(label + ': выбрать «' + wanted + '»');
                 await sleep(400);
             };
+            // Шаг 0 — «Search Existing Form III»: паспорт и гражданство из ШРСК → Search → сразу заполняем анкету
+            if (el('getPptnotosearch')) {
+                if (!d.passport || !d.nationality) { alert(d.who + ': в ШРСК нет номера паспорта или гражданства — поиск заполните вручную.'); return; }
+                setInput('getPptnotosearch', d.passport, 'Passport Number');
+                await pick('getNationalitytosearch', d.nationality, 'Nationality');
+                await pick('gender', d.gender, 'Gender');
+                if (manual.length) { alert('ШРСК → Form III: ' + d.who + '\n\nНе получилось:\n• ' + manual.join('\n• ') + '\n\nВыберите вручную, нажмите Search, потом закладку ещё раз.'); return; }
+                const btn = Array.from(document.querySelectorAll('button')).find(b => norm(b.textContent) === 'SEARCH');
+                if (!btn) { alert('Паспорт и гражданство вписаны, кнопку Search не нашёл — нажмите её и потом закладку ещё раз.'); return; }
+                btn.click();
+                for (let k = 0; k < 40 && !el('given_name'); k++) await sleep(500);
+                if (!el('given_name')) { alert('Search нажат, но анкета не открылась. Когда откроется — нажмите закладку ещё раз.'); return; }
+                await sleep(2000); // портал подставляет данные прошлой анкеты (повторный гость)
+                done.length = 0;
+            }
             // Шаг 1 — личные данные и документы
             setInput('given_name', d.given_name, 'Given Name');
             if (el('surname')) { setInput('surname', d.surname, 'Surname'); await sleep(2500); }
@@ -936,8 +952,8 @@ const Form3 = (() => {
                 </div>
                 <ol class="list-decimal ml-5 text-sm space-y-1">
                     <li>В ШРСК у человека без ⚠ нажмите <b>«Скопировать для портала»</b>.</li>
-                    <li>На портале: Form III Details → New Entry → поиск по паспорту → анкета.</li>
-                    <li>Нажмите закладку <b>«ШРСК → Form III»</b>. Она заполнит поля, в том числе номера паспорта и визы, и покажет, что проверить вручную (даты и время — всегда).</li>
+                    <li>На портале: Form III Details → New Entry (страница «Search Existing Form III»).</li>
+                    <li>Нажмите закладку <b>«ШРСК → Form III»</b>. Она впишет паспорт, гражданство и пол, нажмёт Search и сразу заполнит открывшуюся анкету, в том числе номера паспорта и визы, и покажет, что проверить вручную (даты и время — всегда).</li>
                     <li>После <b>Next</b> нажмите закладку ещё раз — заполнит следующий шаг.</li>
                     <li><b>Фото:</b> на шаге 3 «Photo Upload» нажмите закладку ещё раз — она возьмёт фото из карточки ШРСК и положит в анкету; проверьте рамку обрезки и нажмите Next. Если на портале фото уже есть (гость приезжал раньше) — закладка его не трогает. Не вышло — «Скачать фото» в карточке и загрузить вручную. Submit — вы.</li>
                     <li>После <b>Submit</b> нажмите закладку <b>«ШРСК ← номер анкеты»</b>: она найдёт номер на странице и откроет ШРСК — подтвердите, и анкета отмечена поданной. Не нашла — впишите номер кнопкой <b>«Анкета подана…»</b>.</li>
@@ -955,6 +971,8 @@ const Form3 = (() => {
             if (g) { showTab(g.dataset.goto); return; }
             const al = ev.target.closest('[data-already]');
             if (al) { markAlready(people[+al.dataset.already]); return; }
+            const cp = ev.target.closest('[data-copy]');
+            if (cp) { copyForPortal(people[+cp.dataset.copy]); return; }
             const row = ev.target.closest('[data-open]');
             if (row) {
                 const [kind, i] = row.dataset.open.split(':');
