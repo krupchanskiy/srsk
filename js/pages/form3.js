@@ -24,7 +24,7 @@ const Form3 = (() => {
         POL: 'POLAND', NLD: 'NETHERLANDS', CHE: 'SWITZERLAND', SWE: 'SWEDEN', DNK: 'DENMARK', ITA: 'ITALY',
         FRA: 'FRANCE', ESP: 'SPAIN', SVK: 'SLOVAKIA', CZE: 'CZECH REPUBLIC', ARE: 'UNITED ARAB EMIRATES',
         UZB: 'UZBEKISTAN', KGZ: 'KYRGYZSTAN', GEO: 'GEORGIA', ARM: 'ARMENIA', AZE: 'AZERBAIJAN', MDA: 'MOLDOVA',
-        CAN: 'CANADA', AUS: 'AUSTRALIA', NZL: 'NEW ZEALAND', NPL: 'NEPAL', BGD: 'BANGLADESH', LKA: 'SRI LANKA'
+        CAN: 'CANADA', AUS: 'AUSTRALIA', NZL: 'NEW ZEALAND', NPL: 'NEPAL', BGD: 'BANGLADESH', LKA: 'SRI LANKA', ZAF: 'SOUTH AFRICA'
     };
 
     let people = [];      // [{ v, doc, entry, stay, issues, deadline, ... }]
