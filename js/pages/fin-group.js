@@ -91,7 +91,11 @@ function расчёт(l) {
     const проживание = round2(l.nights * заНочь + доплата);
     const питание = round2(завтраков * l.bPrice + обедов * l.lPrice);
     const доп = round2(Number(l.extra) || 0);
-    return { заНочь, завтраков, обедов, поздний, доплатаРасчёт, доплата, проживание, питание, доп, итого: round2(проживание + питание + доп) };
+    // выезд после 19:00 — целые сутки: показываем «19 суток», а не «18 + доплата» (ВГ 18.11).
+    // В листе и на сервере по-прежнему ночи + late_fee; договорная доплата — с плюсом, как была
+    const полные = поздний === 1 && !l.ag?.late_fee;
+    const суток = l.nights + (полные ? 1 : 0);
+    return { заНочь, завтраков, обедов, поздний, доплатаРасчёт, доплата, проживание, питание, доп, полные, суток, итого: round2(проживание + питание + доп) };
 }
 
 // ==================== ДОГОВОРЁННОСТЬ (731) ====================
@@ -135,6 +139,49 @@ function питаниеДняВыезда(l) {
         const m = (list || []).find(x => x.d === d);
         if (m) { m.b = b; m.l = lu; }
     }
+}
+
+// Время приезда поменяли — приёмы дня заезда как у кухни: до 9:00 успел на завтрак, до 14:00 — на обед
+function питаниеДняЗаезда(l) {
+    const d = l.place?.check_in;
+    if (!d) return;
+    const h = l.arrTime ? parseInt(l.arrTime, 10) : null;
+    const b = h !== null && h < ArrivalTime.BH, lu = h === null || h < ArrivalTime.LH;
+    for (const list of [l.meals, l.base, l.fresh.meals]) {
+        const m = (list || []).find(x => x.d === d);
+        if (m) { m.b = b; m.l = lu; }
+    }
+}
+
+// Общее время приезда/выезда группы (ВГ 18.11): ставится тем, у кого дата заезда / выезда —
+// общая дата группы (самая частая). Кто приехал раньше или уезжает позже — не меняется
+const частаяДата = arr => {
+    const n = new Map();
+    arr.filter(Boolean).forEach(d => n.set(d, (n.get(d) || 0) + 1));
+    return [...n.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+};
+function общиеДаты() {
+    const места = цели().filter(l => l.place);
+    const заезд = частаяДата(места.map(l => l.place.check_in));
+    const выезд = частаяДата(места.map(l => l.place.check_out));
+    return { заезд, выезд,
+        приезжают: места.filter(l => l.place.check_in === заезд),
+        уезжают: места.filter(l => l.place.check_out === выезд) };
+}
+function applyBulkTimes() {
+    const arr = document.getElementById('grArr').value, dep = document.getElementById('grDep').value;
+    if (!arr && !dep) { Layout.showNotification('Впишите время приезда или выезда', 'warning'); return; }
+    if (arr && ArrivalTime.isNight(arr)) {
+        Layout.showNotification('Ночной приезд (до 6:00) — заезд накануне: поменяйте дату в шахматке', 'warning'); return;
+    }
+    const о = общиеДаты();
+    // выезд в 01:00 ночью — это уже следующий день: при выезде 30-го он считается утром 30-го, без доплаты
+    if (dep && ArrivalTime.isNight(dep) && !confirm(`Выезд до 6:00 считается ночью ${о.выезд ? дата(о.выезд) : 'дня выезда'} — без доплаты и без питания в этот день.\n\n`
+        + 'Если уезжают в ночь на следующий день — впишите 23:30 (доплата — сутки) или передвиньте выезд в шахматке на день позже.\n\nВсё равно поставить?')) return;
+    if (arr) for (const l of о.приезжают) { l.arrTime = arr; питаниеДняЗаезда(l); }
+    if (dep) for (const l of о.уезжают) { l.depTime = dep; питаниеДняВыезда(l); }
+    dirty = true;
+    render();
 }
 
 // Время выезда/приезда и «номер целиком» мест из шахматки (в данных события их нет);
@@ -337,10 +384,11 @@ async function buildLines(data) {
         l.ag = ag[l.resident_id] || {};
         const мв = вр.get(l.resident_id) || {};
         l.depTimeSaved = мв.departure_time ? мв.departure_time.slice(0, 5) : '';
-        l.arrTime = мв.arrival_time ? мв.arrival_time.slice(0, 5) : '';
+        l.arrTimeSaved = мв.arrival_time ? мв.arrival_time.slice(0, 5) : '';
         l.wholeRoom = !!мв.whole_room;
         const s = saved.get(l.key);
         l.depTime = s && 'departure_time' in s ? (s.departure_time || '') : l.depTimeSaved;
+        l.arrTime = s && 'arrival_time' in s ? (s.arrival_time || '') : l.arrTimeSaved;
         if (l.ag.people) l.people = Number(l.ag.people.value);
     }
     removed = [...saved.keys()].filter(k => !ключи.has(k)).length;
@@ -491,7 +539,10 @@ function headRow(g) {
     const tri = (n, all) => n === 0 ? '' : n === all ? 'checked' : 'data-mixed="1"';
     const имя = имяГруппы(p, l0.label);
     const п = периодГруппы(g.lines);
-    const даты = p ? `${текстПериода(п)} · ${p.room_id ? `${Math.max(днейМежду(п.from, п.to || п.from), 0)} ноч.` : 'только питание'}`
+    // у всех мест комнаты выезд после 19:00 — сутки, а не ночи
+    const ночей = Math.max(днейМежду(п.from, п.to || п.from), 0);
+    const сутки = p?.room_id && g.lines.every(l => расчёт(l).полные);
+    const даты = p ? `${текстПериода(п)} · ${p.room_id ? (сутки ? `${ночей + 1} сут.` : `${ночей} ноч.`) : 'только питание'}`
         : текстПериода(п);
     return `<tr class="bg-base-200 border-t-2 border-base-300">
         <td><input type="checkbox" class="checkbox checkbox-xs" data-gr-markroom="${g.k}" ${tri(отм, g.lines.length)} title="Отметить комнату — для правок «сразу»"></td>
@@ -521,13 +572,14 @@ function placeRow(l, i) {
             ${строкаОрганизатора() === l ? '<span class="badge badge-success badge-xs">организатор</span>' : ''}
             ${l.mealsOn ? '<span class="badge badge-info badge-xs" title="Питание включено здесь — при сохранении включится и в шахматке">питание вкл.</span>' : ''}</td>
         <td class="whitespace-nowrap text-xs">${p ? `${дата(p.check_in)}–${p.check_out ? дата(p.check_out) : '…'}` : `${дата(l.eater.start_date)}–${дата(l.eater.end_date)}`}</td>
-        <td>${h ? числа('nights', l.nights, 'w-12') : p ? '<span class="text-[11px] opacity-60 whitespace-nowrap">без номера</span>' : ''}</td>
+        <td>${h ? (r.полные ? числа('nightsFull', r.суток, 'w-12', 1, 'Суток: ночи + сутки за выезд после 19:00') : числа('nights', l.nights, 'w-12')) : p ? '<span class="text-[11px] opacity-60 whitespace-nowrap">без номера</span>' : ''}</td>
         <td class="whitespace-nowrap">${!h ? '' : l.extraBed
             ? `<span class="text-xs">доп. кровать</span> ${числа('extraBedPrice', l.extraBedPrice, 'w-16', 50, 'Цена доп. кровати за сутки')}`
             : `${числа('roomPrice', l.roomPrice, 'w-16', 50, 'Цена номера за сутки')} ÷ ${числа('people', l.people, 'w-10', 1, 'Сколько человек делят номер')}${замок(l, i, 'people')}`}
             ${h && p.check_out ? `<div class="flex items-center gap-1 text-[11px] mt-0.5 whitespace-nowrap" title="Поздний выезд: до 14:00 — без доплаты, 14:00–19:00 — ½ суток, после 19:00 — сутки">
+                приезд ~<input type="time" step="900" class="input input-bordered input-xs w-[5.5rem] px-1" data-gr-f="${i}" data-k="arrTime" value="${e(l.arrTime || '')}" ${выкл ? 'disabled' : ''}>
                 выезд ~<input type="time" step="900" class="input input-bordered input-xs w-[5.5rem] px-1" data-gr-f="${i}" data-k="depTime" value="${e(l.depTime || '')}" ${выкл ? 'disabled' : ''}>
-                ${r.доплатаРасчёт > 0 || l.ag?.late_fee ? `+ ${числа('lateFee', r.доплата, 'w-16', 50, `Поздний выезд: ${FinAgreement.lateLabel(r.поздний)}`)}${замок(l, i, 'lateFee')}` : ''}</div>` : ''}
+                ${(r.доплатаРасчёт > 0 || l.ag?.late_fee) && !r.полные ? `+ ${числа('lateFee', r.доплата, 'w-16', 50, `Поздний выезд: ${FinAgreement.lateLabel(r.поздний)}`)}${замок(l, i, 'lateFee')}` : ''}</div>` : ''}
             ${h && l.roomType?.price == null && !l.extraBed ? `<div class="text-[11px] text-warning" title="Задайте цену в «Тарифах» или впишите здесь">цена не задана</div>` : ''}
             ${h && l.roomType && Number(p.capacity) > Number(l.roomType.capacity) ? `<label class="flex items-center gap-1 text-[11px] cursor-pointer opacity-80" title="${p?.capacity}-местный = ${l.roomType?.capacity}-местный + доп. кровать: галочка — это место на доп. кровати">
                 <input type="checkbox" class="checkbox checkbox-xs" data-gr-extrabed="${i}" ${l.extraBed ? 'checked' : ''} ${выкл ? 'disabled' : ''}> доп. кровать</label>` : ''}</td>
@@ -624,6 +676,10 @@ function renderBulk() {
         <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-day="${d}" data-m="l" ${состояние(d, 'l')}> обед</label>
     </div>`).join('');
     document.querySelectorAll('#grBulkDays [data-mixed]').forEach(el => { el.indeterminate = true; });
+    const о = общиеДаты();
+    document.getElementById('grTimeHint').textContent = о.заезд
+        ? `приезд — у заехавших ${дата(о.заезд)} (${о.приезжают.length})${о.выезд ? `, выезд — у уезжающих ${дата(о.выезд)} (${о.уезжают.length})` : ''}; кто приехал раньше или уезжает позже — не меняется`
+        : '';
 }
 
 // Договорные цены группы (ВГ, 02.10): сохранённые в листе, иначе — самые частые в строках
@@ -755,6 +811,7 @@ function toLine(l) {
     };
     if (l.mealsOn) o.has_meals = true;
     if (l.place && l.depTime !== l.depTimeSaved) o.departure_time = l.depTime || null;
+    if (l.place && l.arrTime !== l.arrTimeSaved) o.arrival_time = l.arrTime || null;
     if (l.place) {
         Object.assign(o, { resident_id: l.resident_id, check_in: l.place.check_in, check_out: l.place.check_out });
         // пропущенные приёмы → кухня (края проживания сервер отбросит: это ранний заезд / поздний выезд)
@@ -859,7 +916,7 @@ async function summaryData() {
     for (const l of группа.filter(x => x.place?.room_id)) {
         const k = l.extraBed ? 'extra' : String(типМест(l));
         const t = типы.get(k) || { k, cap: l.extraBed ? null : типМест(l), номера: new Set(), гостей: 0, ночи: new Set(), сумма: 0, цены: new Set() };
-        t.номера.add(l.place.room_id); t.гостей += 1; t.ночи.add(l.nights); t.сумма += расчёт(l).проживание;
+        t.номера.add(l.place.room_id); t.гостей += 1; t.ночи.add(расчёт(l).суток); t.сумма += расчёт(l).проживание;
         t.цены.add(l.extraBed ? l.extraBedPrice : l.roomPrice);
         типы.set(k, t);
     }
@@ -992,6 +1049,7 @@ const ОКНО_ШАБЛОНЫ = [
     [/^(\d+)-местный = (\d+)-местный \+ доп\. кровать: галочка — это место на доп\. кровати$/, ['$1-bed = $2-bed + extra bed: tick — this place is the extra bed', '$1 बिस्तर = $2 बिस्तर + अतिरिक्त बिस्तर: निशान — यह स्थान अतिरिक्त बिस्तर है']],
     [/^(\d+)-мест\.$/, ['$1-bed', '$1 बिस्तर']],
     [/(\d+) ноч\./g, ['$1 nights', '$1 रातें']],
+    [/(\d+) сут\./g, ['$1 days', '$1 दिन']],
     [/мест (\d+)/g, ['$1 places', '$1 स्थान']],
     [/начисляем (\d+)/g, ['charging $1', '$1 पर शुल्क']],
     [/(\d+) чел\./g, ['$1 guests', '$1 लोग']],
@@ -1158,7 +1216,7 @@ function кратко(d) {
     const строка = l => {
         const r = расчёт(l), h = !!l.place?.room_id;
         return `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
-            <td ${R}>${h ? `${l.nights} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
+            <td ${R}>${h ? `${r.суток} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
             <td ${R}>${r.завтраков ? `${r.завтраков} × ${деньги(l.bPrice)}` : ''}</td><td ${R}>${r.завтраков ? деньги(round2(r.завтраков * l.bPrice)) : ''}</td>
             <td ${R}>${r.обедов ? `${r.обедов} × ${деньги(l.lPrice)}` : ''}</td><td ${R}>${r.обедов ? деньги(round2(r.обедов * l.lPrice)) : ''}</td>
             <td ${R}>${r.питание ? деньги(r.питание) : ''}</td>${естьДоп ? `<td ${R}>${r.доп ? деньги(r.доп) : ''}</td>` : ''}
@@ -1185,7 +1243,7 @@ function подробно(d) {
     const строка = l => {
         const r = расчёт(l), h = !!l.place?.room_id;
         return `<tr class="${l.included ? '' : 'off'}"><td class="pl">${e(имяГостя(l))}${пометкаГостя(l)}</td>
-            <td ${R}>${h ? `${l.nights} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
+            <td ${R}>${h ? `${r.суток} × ${деньги(r.заНочь)}` : ''}</td><td ${R}>${h ? деньги(r.проживание) : ''}</td>
             ${колДни.map(x => `<td class="c">${вСетке(l) ? приёмыДня(l, x) : ''}</td>`).join('')}
             <td ${R}>${r.завтраков ? `${r.завтраков} × ${деньги(l.bPrice)}` : ''}</td><td ${R}>${r.обедов ? `${r.обедов} × ${деньги(l.lPrice)}` : ''}</td>
             <td ${R}>${r.питание ? деньги(r.питание) : ''}</td>${естьДоп ? `<td ${R}>${r.доп ? деньги(r.доп) : ''}</td>` : ''}
@@ -1288,7 +1346,7 @@ function summaryText(d) {
         out.push('', `${имяКомнаты(g.l0)} · ${периодКомнаты(g)}${g.сумма ? ` — ${деньги(round2(g.сумма))}` : ''}`);
         g.люди.forEach(l => {
             const r = расчёт(l), части = [];
-            if (l.place?.room_id) части.push(`${T.stay.toLowerCase()} ${l.nights} × ${деньги(r.заНочь)} = ${деньги(r.проживание)}`);
+            if (l.place?.room_id) части.push(`${T.stay.toLowerCase()} ${r.суток} × ${деньги(r.заНочь)} = ${деньги(r.проживание)}`);
             if (r.завтраков) части.push(`${T.breakfasts.toLowerCase()} ${r.завтраков} × ${деньги(l.bPrice)} = ${деньги(round2(r.завтраков * l.bPrice))}`);
             if (r.обедов) части.push(`${T.lunches.toLowerCase()} ${r.обедов} × ${деньги(l.lPrice)} = ${деньги(round2(r.обедов * l.lPrice))}`);
             if (r.завтраков && r.обедов) части.push(`${T.meals.toLowerCase()} ${деньги(r.питание)}`);
@@ -1419,12 +1477,18 @@ function init() {
             const l = lines[Number(el.dataset.grF)];
             const k = el.dataset.k;
             if (ПОЛЯ[k] && l.place) { const x = Number(el.value) || 0; договорённость(l, k, k === 'people' ? Math.max(x, 1) : x); return; }
+            if (k === 'nightsFull') { l.nights = Math.max((Number(el.value) || 0) - 1, 0); dirty = true; render(); return; }
             if (k === 'depTime') { l.depTime = el.value; питаниеДняВыезда(l); dirty = true; render(); return; }
+            if (k === 'arrTime') {
+                if (ArrivalTime.isNight(el.value)) { Layout.showNotification('Ночной приезд (до 6:00) — заезд накануне: поменяйте дату в шахматке', 'warning'); render(); return; }
+                l.arrTime = el.value; питаниеДняЗаезда(l); dirty = true; render(); return;
+            }
             l[k] = k === 'label' || k === 'excludeReason' ? el.value : Math.max(Number(el.value) || 0, k === 'people' ? 1 : 0);
             dirty = true; render();
         }
     });
     document.getElementById('grBulkApply').addEventListener('click', applyBulkPrices);
+    document.getElementById('grBulkTimes').addEventListener('click', applyBulkTimes);
     // язык сводки: Русский / English / हिन्दी
     document.getElementById('groupSummaryModal')?.addEventListener('click', ev => {
         const b = ev.target.closest('[data-gr-lang]');

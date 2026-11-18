@@ -481,6 +481,12 @@
                 <button type="button" id="grBulkApply" class="btn btn-xs">Применить цены</button>
                 <button type="button" id="grBulkFresh" class="btn btn-ghost btn-xs ml-auto" title="Ночи, жильцы и питание — заново из шахматки; цены остаются">Вернуть по шахматке</button>
             </div>
+            <div class="flex flex-wrap items-center gap-1 mb-2">
+                Общее время: приезд ~<input type="time" id="grArr" step="900" class="input input-bordered input-xs w-[5.5rem]">
+                выезд ~<input type="time" id="grDep" step="900" class="input input-bordered input-xs w-[5.5rem]">
+                <button type="button" id="grBulkTimes" class="btn btn-xs">Применить время</button>
+                <span id="grTimeHint" class="text-xs opacity-60"></span>
+            </div>
             <div class="text-xs opacity-60 mb-1">Питание по дням — снимите день, если группа не ела:</div>
             <div id="grBulkDays" class="flex flex-wrap gap-1"></div>
         </div>
@@ -576,7 +582,7 @@
 <script src="../js/arrival-time.js?v=2"></script>
 <script src="../js/fin-agreement.js?v=2"></script>
 <script src="../js/pages/fin-guests.js?v=16"></script>
-<script src="../js/pages/fin-group.js?v=31"></script>
+<script src="../js/pages/fin-group.js?v=32"></script>
 
 </body>
 </html>
