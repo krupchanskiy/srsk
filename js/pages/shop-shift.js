@@ -320,6 +320,13 @@ const ShopShift = (() => {
                 ${размен > 0 ? `<div class="text-sm">${тр('shop_float_returns', 'Размен вернётся в кассу')}:
                     <b class="nums">${деньги(размен)}</b></div>` : ''}
                 ${админФинансов() ? `
+                    <div class="grid gap-3 md:grid-cols-3">${Object.entries(итогиВалют).map(([в, с]) => `
+                        <label class="form-control">
+                            <div class="label py-1"><span class="label-text text-sm">${тр('shop_take_counted', 'Пересчитал')}, ${ЗНАК[в] || в}</span></div>
+                            <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums"
+                                   data-take-check="${в}" data-expected="${с}" data-cash-calc="${в}" placeholder="${деньги(с, в)}">
+                            <span data-take-diff="${в}"></span>
+                        </label>`).join('')}</div>
                     <div class="grid gap-3 md:grid-cols-3">${выборСчетов}</div>
                     <div class="flex flex-wrap gap-2">
                         <button class="btn btn-sm btn-success" id="acceptHandover">${t('shop_accept_revenue')}</button>
@@ -347,7 +354,7 @@ const ShopShift = (() => {
                         <div class="label py-1"><span class="label-text text-sm">${ЗНАК[к.currency_code] || к.currency_code} · ${t('shop_must_be')}
                             <b class="nums">${деньги(к.expected, к.currency_code)}</b></span></div>
                         <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums"
-                               data-recount="${к.currency_code}" value="${e(к.actual)}" ${продавец ? '' : 'disabled'}>
+                               data-recount="${к.currency_code}" data-cash-calc="${к.currency_code}" value="${e(к.actual)}" ${продавец ? '' : 'disabled'}>
                         <input class="input input-bordered input-sm mt-1" data-recount-why="${к.currency_code}"
                                value="${e(к.reason || '')}" placeholder="${t('shop_discrepancy_reason')}" ${продавец ? '' : 'disabled'}>
                     </label>`).join('')}</div>
@@ -616,6 +623,19 @@ const ShopShift = (() => {
 
         document.addEventListener('input', ev => {
             const el = ev.target;
+            // казначей пересчитывает принятые деньги: только подсказка, нигде не хранится
+            if (el.dataset.takeCheck !== undefined) {
+                const ждём = Number(el.dataset.expected) || 0;
+                const есть = Number(el.value.replace(',', '.').replace(/[^\d.]/g, ''));
+                const метка = document.querySelector(`[data-take-diff="${el.dataset.takeCheck}"]`);
+                if (!метка) return;
+                const р = Math.round((есть - ждём) * 100) / 100;
+                метка.className = `text-xs mt-1 ${el.value === '' ? '' : р === 0 ? 'text-success' : 'text-error'}`;
+                метка.textContent = el.value === '' ? ''
+                    : р === 0 ? t('shop_matches')
+                    : `${t('shop_discrepancy')} ${р > 0 ? '+' : ''}${деньги(р, el.dataset.takeCheck)} — пусть продавец поправит пересчёт`;
+                return;
+            }
             if (el.dataset.count !== undefined) {
                 // поле текстовое: у type=number браузер не отдаёт позицию курсора, и после
                 // перерисовки цифры вставали в начало — сумма набиралась задом наперёд
