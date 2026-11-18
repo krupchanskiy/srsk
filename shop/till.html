@@ -64,6 +64,9 @@
             /* открытая шторка не выше экрана: на 375×667 со скидкой, даром
                и купюрами верх с «← Добавить ещё» и строками чека уходил за край */
             .ticket.open { max-height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
+            /* шапка сайта липкая с z-50: высокая шторка уходила под неё,
+               и первая строка чека (название и цена) оказывалась закрыта */
+            .ticket.open { z-index: 51; }
         }
         .lines { max-height: 40vh; overflow-y: auto; }
         .offline-chip { position: fixed; z-index: 40; left: 50%; transform: translateX(-50%);
