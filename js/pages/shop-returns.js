@@ -16,11 +16,51 @@ const ShopReturns = (() => {
     const $ = s => document.querySelector(s);
 
     let последние = [], чек = null, позиции = [], занято = false, запрос = '', таймерПоиска = null;
+    let смены = [], выбранаСмена = '', выбранДень = '';
     // новый перевод мог ещё не попасть в закэшированный словарь — тогда русский текст, а не ключ
     const тр = (ключ, ru) => { const v = t(ключ); return v === ключ ? ru : v; };
     const ПОЛЯ_ЧЕКА = 'id, number, sold_at, currency_code, paid_amount, donation_amount, status, '
         + 'shop_sale_items(qty, shop_items(name_ru, name_en, name_hi))';
     const можно = () => !!window.hasPermission?.('shop_manage');
+
+    // Смена или день (жалоба продавца 18.11: последние 50 — это только вчерашняя
+    // смена, проверить чеки предыдущей было нельзя). Поиск работает внутри выбора.
+    const выбрано = () => !!(выбранаСмена || выбранДень);
+    function сВыбором(запросЧеков) {
+        if (выбранаСмена) return запросЧеков.eq('shift_id', выбранаСмена);
+        if (выбранДень) {
+            // sold_at — настоящая метка времени: границы суток по часам устройства
+            const с = DateUtils.parseDate(выбранДень);
+            const по = new Date(с); по.setDate(по.getDate() + 1);
+            return запросЧеков.gte('sold_at', с.toISOString()).lt('sold_at', по.toISOString());
+        }
+        return запросЧеков;
+    }
+
+    const подписьСмены = с => {
+        const от = new Date(с.opened_at), до = с.closed_at ? new Date(с.closed_at) : null;
+        const конец = !до ? тр('shop_shift_now_open', 'открыта сейчас')
+            : DateUtils.toISO(до) === DateUtils.toISO(от) ? DateUtils.formatTime(до)
+            : `${DateUtils.formatShort(до)} ${DateUtils.formatTime(до)}`;
+        return `${DateUtils.formatShort(от)} ${DateUtils.formatTime(от)} – ${конец} · ${с.чеков} ${тр('shop_receipts_short', 'чек.')}`;
+    };
+
+    // смены с чеками — пустые в списке только мешают
+    async function загрузитьСмены() {
+        const { data, error } = await Layout.db.from('shop_shifts')
+            .select('id, opened_at, closed_at').order('opened_at', { ascending: false }).limit(60);
+        if (ShopUtils.ошибка({ error }, t('shop_err_recent'))) return;
+        const ids = (data || []).map(с => с.id);
+        const счёт = {};
+        if (ids.length) {
+            const { data: чеки } = await Layout.db.from('shop_sales').select('shift_id')
+                .in('shift_id', ids).eq('status', 'posted').limit(10000);
+            (чеки || []).forEach(ч => { счёт[ч.shift_id] = (счёт[ч.shift_id] || 0) + 1; });
+        }
+        смены = (data || []).filter(с => счёт[с.id]).map(с => ({ ...с, чеков: счёт[с.id] }));
+        $('#pickShift').insertAdjacentHTML('beforeend',
+            смены.map(с => `<option value="${с.id}">${e(подписьСмены(с))}</option>`).join(''));
+    }
 
     // Журнал продаж (ВГ 15.11): без запроса — последние 50 чеков; запрос — номер чека
     // или часть названия товара, ищем по всем чекам, а не только по видимым
@@ -28,8 +68,8 @@ const ShopReturns = (() => {
         const q = запрос.trim();
         let ответ;
         if (!q) {
-            ответ = await Layout.db.from('shop_sales').select(ПОЛЯ_ЧЕКА)
-                .eq('status', 'posted').order('sold_at', { ascending: false }).limit(50);
+            ответ = await сВыбором(Layout.db.from('shop_sales').select(ПОЛЯ_ЧЕКА).eq('status', 'posted'))
+                .order('sold_at', { ascending: false }).limit(выбрано() ? 1000 : 50);
         } else {
             const ищем = q.replace(/[%_,()]/g, ' ').trim();
             const { data: позицииСТоваром, error } = await Layout.db.from('shop_sale_items')
@@ -38,7 +78,7 @@ const ShopReturns = (() => {
                 .limit(1000);
             if (ShopUtils.ошибка({ error }, t('shop_err_recent'))) return false;
             const ids = [...new Set((позицииСТоваром || []).map(п => п.sale_id))].slice(0, 300);
-            let запросЧеков = Layout.db.from('shop_sales').select(ПОЛЯ_ЧЕКА).eq('status', 'posted');
+            let запросЧеков = сВыбором(Layout.db.from('shop_sales').select(ПОЛЯ_ЧЕКА).eq('status', 'posted'));
             const номер = /^\d+$/.test(q) ? Number(q) : null;
             if (номер && ids.length) запросЧеков = запросЧеков.or(`number.eq.${номер},id.in.(${ids.join(',')})`);
             else if (номер) запросЧеков = запросЧеков.eq('number', номер);
@@ -74,6 +114,7 @@ const ShopReturns = (() => {
                 ? тр('shop_nothing_found', 'Ничего не нашлось') : t('shop_no_posted_receipts')}</td></tr>`;
         $('#lastCount').textContent = запрос.trim()
             ? `${тр('shop_found_word', 'найдено')}: ${последние.length}`
+            : выбрано() ? `${тр('shop_receipts_count', 'чеков')}: ${последние.length}`
             : тр('shop_last_fifty', 'последние пятьдесят');
     }
 
@@ -219,6 +260,17 @@ const ShopReturns = (() => {
             clearTimeout(таймерПоиска);
             таймерПоиска = setTimeout(искать, 350);
         });
+        // смена и день взаимоисключают друг друга: выбрал одно — другое сбрасывается
+        $('#pickShift').addEventListener('change', () => {
+            выбранаСмена = $('#pickShift').value;
+            if (выбранаСмена) { выбранДень = ''; $('#pickDay').value = ''; }
+            искать();
+        });
+        $('#pickDay').addEventListener('change', () => {
+            выбранДень = $('#pickDay').value;
+            if (выбранДень) { выбранаСмена = ''; $('#pickShift').value = ''; }
+            искать();
+        });
         $('#findNum').addEventListener('keydown', ev => {
             if (ev.key === 'Enter') найтиПоНомеру();
         });
@@ -226,6 +278,7 @@ const ShopReturns = (() => {
 
     async function init() {
         слушать();
+        загрузитьСмены();
         if (!await загрузить()) return;
         рисоватьПоследние();
         ShopUtils.права();

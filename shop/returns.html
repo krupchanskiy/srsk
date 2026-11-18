@@ -51,6 +51,19 @@
                             style="background: var(--current-color); color: #fff;" data-i18n="shop_find">Найти</button>
                     <span class="text-sm opacity-60" data-i18n="shop_find_hint2">Номер — открыть чек; название товара — список ниже покажет все чеки с ним</span>
                 </div>
+                <!-- чеки прошлых смен и за день (жалоба продавца 18.11): без выбора — последние пятьдесят -->
+                <div class="flex flex-wrap items-end gap-3">
+                    <label class="form-control w-full sm:w-auto">
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_shift_word">Смена</span></div>
+                        <select class="select select-bordered select-sm w-full sm:w-96" id="pickShift">
+                            <option value="" data-i18n="shop_last_fifty_opt">Последние 50 чеков</option>
+                        </select>
+                    </label>
+                    <label class="form-control w-full sm:w-auto">
+                        <div class="label py-1"><span class="label-text text-sm" data-i18n="shop_or_day">или день</span></div>
+                        <input type="date" class="input input-bordered input-sm w-full sm:w-44" id="pickDay">
+                    </label>
+                </div>
             </div>
         </div>
 
@@ -113,7 +126,7 @@
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/auth-check.js?v=18"></script>
     <script src="../js/shop-utils.js?v=2"></script>
-    <script src="../js/pages/shop-returns.js?v=3"></script>
+    <script src="../js/pages/shop-returns.js?v=4"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_sales', itemId: 'shop_returns' });
