@@ -47,6 +47,7 @@
         </div>
 
         <div id="payrollConfirmWarn"></div>
+        <div id="payrollPayablesWarn"></div>
         <div id="payrollBody"></div>
     </section>
 
@@ -72,9 +73,16 @@
         <form id="payForm">
             <input type="hidden" id="payPositionId">
             <div class="form-control mb-2">
-                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_amount">Сумма</span></label>
-                <input type="number" id="payAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
+                <label class="label py-0"><span class="label-text" id="payAmountLabel" data-i18n="fin_payroll_amount">Сумма</span></label>
+                <input type="number" id="payAmount" class="input input-bordered input-sm" min="0" step="0.01" required>
             </div>
+            <!-- Удержание в счёт долга человека (790): показывается, только если долг есть -->
+            <div class="form-control mb-2 hidden" id="payWithholdWrap">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_withhold">Удержать за прасад семьи</span></label>
+                <input type="number" id="payWithhold" class="input input-bordered input-sm" min="0" step="0.01">
+                <div class="text-xs opacity-70 mt-1" id="payWithholdHint"></div>
+            </div>
+            <div class="text-sm mb-2 hidden" id="paySummary"></div>
             <div class="form-control mb-2">
                 <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_date">Дата</span></label>
                 <input type="date" id="payDate" class="input input-bordered input-sm" required>
@@ -85,6 +93,163 @@
             </div>
             <div class="modal-action">
                 <button type="button" class="btn" onclick="document.getElementById('payModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Оплата жилья из пакета (790): расход «Жильё за пределами ШРСК» -->
+<dialog id="housingModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" id="housingModalTitle"></h3>
+        <form id="housingForm">
+            <input type="hidden" id="housingPositionId">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_amount">Сумма</span></label>
+                <input type="number" id="housingAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_paid_to">Кому отдали</span></label>
+                <select id="housingPaidTo" class="select select-bordered select-sm" required>
+                    <option value="landlord" data-i18n="fin_payroll_paid_to_landlord">Хозяину</option>
+                    <option value="employee" data-i18n="fin_payroll_paid_to_employee">Сотруднику</option>
+                    <option value="reimburse" data-i18n="fin_payroll_paid_to_reimburse">Вернуть тому, кто заплатил</option>
+                </select>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_payee">Кому (имя)</span></label>
+                <input type="text" id="housingPayee" class="input input-bordered input-sm">
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_for_month_label">За какой месяц</span></label>
+                <select id="housingPeriod" class="select select-bordered select-sm"></select>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_date">Дата</span></label>
+                <input type="date" id="housingDate" class="input input-bordered input-sm" required>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_comment">Комментарий</span></label>
+                <input type="text" id="housingComment" class="input input-bordered input-sm">
+            </div>
+            <p class="text-xs opacity-60" data-i18n="fin_payroll_housing_hint">Из кассы, расход «Жильё за пределами ШРСК». До оплаты жильё копится долгом по месяцам.</p>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('housingModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Уехал (796) -->
+<dialog id="departModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" id="departTitle"></h3>
+        <form id="departForm">
+            <input type="hidden" id="departPositionId">
+            <div class="form-control mb-2 gap-1">
+                <label class="label cursor-pointer justify-start gap-2 py-0"><input type="radio" name="departKind" value="left" class="radio radio-sm" checked><span class="label-text" data-i18n="fin_payroll_depart_left">Надолго — закрыть позицию</span></label>
+                <label class="label cursor-pointer justify-start gap-2 py-0"><input type="radio" name="departKind" value="unpaid" class="radio radio-sm"><span class="label-text" data-i18n="fin_payroll_depart_unpaid">Временно, без оплаты</span></label>
+                <label class="label cursor-pointer justify-start gap-2 py-0"><input type="radio" name="departKind" value="paid" class="radio radio-sm"><span class="label-text" data-i18n="fin_payroll_depart_paid">Временно, оплата идёт</span></label>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text text-xs" id="departFromLabel"></span></label>
+                    <input type="date" id="departFrom" class="input input-bordered input-sm" required>
+                </div>
+                <div class="form-control" id="departToWrap">
+                    <label class="label py-0"><span class="label-text text-xs" id="departToLabel"></span></label>
+                    <input type="date" id="departTo" class="input input-bordered input-sm">
+                </div>
+            </div>
+            <label class="label cursor-pointer justify-start gap-2 mb-2" id="departHousingWrap">
+                <input type="checkbox" id="departStopHousing" class="checkbox checkbox-sm" checked>
+                <span class="label-text" data-i18n="fin_payroll_depart_stop_housing">Жильё за эти дни тоже не начислять</span>
+            </label>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_depart_reason">Причина</span></label>
+                <input type="text" id="departReason" class="input input-bordered input-sm">
+            </div>
+            <p class="text-xs opacity-60" data-i18n="fin_payroll_depart_hint">Надолго: последний месяц оклада и жилья — по дням, дальше не начисляется; вернётся — «Вернулся». Ручные начисления не пересчитываются.</p>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('departModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Вернулся (796) -->
+<dialog id="returnModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" id="returnTitle"></h3>
+        <form id="returnForm">
+            <input type="hidden" id="returnPositionId">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_return_date">Дата возвращения</span></label>
+                <input type="date" id="returnDate" class="input input-bordered input-sm" required>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('returnModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Кому платим за жильё (795) -->
+<dialog id="housingPayeeModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" id="housingPayeeTitle"></h3>
+        <form id="housingPayeeForm">
+            <input type="hidden" id="housingPayeePositionId">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_housing_payee">Кому платим</span></label>
+                <select id="housingPayeeTo" class="select select-bordered select-sm">
+                    <option value="" data-i18n="fin_payroll_not_clarified">Не выяснено</option>
+                    <option value="landlord" data-i18n="fin_payroll_paid_to_landlord">Хозяину</option>
+                    <option value="employee" data-i18n="fin_payroll_paid_to_employee">Сотруднику</option>
+                    <option value="reimburse" data-i18n="fin_payroll_paid_to_reimburse">Вернуть тому, кто заплатил</option>
+                </select>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_payee">Кому (имя)</span></label>
+                <input type="text" id="housingPayeeName" class="input input-bordered input-sm">
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('housingPayeeModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Ручная строка к жилью: свет по чеку (790) -->
+<dialog id="housingLineModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" id="housingLineTitle"></h3>
+        <form id="housingLineForm">
+            <input type="hidden" id="housingLinePositionId">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_period">Месяц</span></label>
+                <select id="housingLinePeriod" class="select select-bordered select-sm" required></select>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_amount">Сумма</span></label>
+                <input type="number" id="housingLineAmount" class="input input-bordered input-sm" min="0.01" step="0.01" required>
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_comment">Комментарий</span></label>
+                <input type="text" id="housingLineComment" class="input input-bordered input-sm" required>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('housingLineModal').close()" data-i18n="cancel">Отмена</button>
                 <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
             </div>
         </form>
@@ -171,7 +336,7 @@
 <script src="../js/layout.js?v=132"></script>
 <script src="../js/date-utils.js?v=5"></script>
 <script src="../js/fin-utils.js?v=25"></script>
-<script src="../js/pages/fin-payroll.js?v=18"></script>
+<script src="../js/pages/fin-payroll.js?v=19"></script>
 <script src="../js/pages/fin-hired.js?v=2"></script>
 
 </body>

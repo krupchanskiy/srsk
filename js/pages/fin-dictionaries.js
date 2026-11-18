@@ -641,6 +641,8 @@ function resetEmployeeForm() {
     if (title) title.value = '';
     const salary = document.getElementById('f_emp_salary');
     if (salary) salary.value = '';
+    const housing = document.getElementById('f_emp_housing');
+    if (housing) housing.value = '';
     const from = document.getElementById('f_emp_from');
     if (from) from.value = FinUtils.todayISO();
     const btn = document.querySelector('[data-add-employee]');
@@ -656,6 +658,7 @@ function fillEmployeeForm(p) {
     document.getElementById('f_emp_vaishnava').value = p.vaishnava_id;
     document.getElementById('f_emp_title').value = p.position_title || '';
     document.getElementById('f_emp_salary').value = p.salary_amount ?? '';
+    document.getElementById('f_emp_housing').value = p.housing_amount ?? '';
     document.getElementById('f_emp_from').value = p.effective_from;
     const btn = document.querySelector('[data-add-employee]');
     if (btn) btn.textContent = t('save');
@@ -691,6 +694,7 @@ function fillReturnForm(deptId, positionId) {
     document.getElementById('f_emp_vaishnava').value = p.vaishnava_id;
     document.getElementById('f_emp_title').value = p.position_title || '';
     document.getElementById('f_emp_salary').value = p.salary_amount ?? '';
+    document.getElementById('f_emp_housing').value = p.housing_amount ?? '';
     const from = document.getElementById('f_emp_from');
     from.value = FinUtils.todayISO();
     const btn = document.querySelector('[data-add-employee]');
@@ -714,7 +718,9 @@ function deptEmployeesHtml(deptId) {
                 <div>${e(p.employee_name)} <span class="opacity-60">— ${e(p.position_title)}</span></div>
                 <div class="opacity-60 text-xs">${p.salary_amount != null
                     ? `${FinUtils.fmtMoney(p.salary_amount, p.currency_code)} / ${t('fin_payroll_month')}`
-                    : t('fin_payroll_no_salary')}</div>
+                    : t('fin_payroll_no_salary')}${p.housing_amount != null
+                    ? ` + ${tr('fin_payroll_housing_short', 'жильё')} ${FinUtils.fmtMoney(p.housing_amount, p.currency_code)}`
+                    : ''}</div>
             </div>
             <div class="flex gap-1 shrink-0">
                 <button type="button" class="btn btn-ghost btn-xs" data-edit-employee="${p.id}" title="${t('edit')}">${editIcon}</button>
@@ -737,6 +743,7 @@ function deptEmployeesHtml(deptId) {
             <div class="flex gap-1">
                 <input type="text" id="f_emp_title" class="input input-bordered input-xs flex-1" placeholder="${t('fin_payroll_position_placeholder')}">
                 <input type="number" id="f_emp_salary" class="input input-bordered input-xs w-28" min="0.01" step="0.01" placeholder="${t('fin_payroll_salary_placeholder')}">
+                <input type="number" id="f_emp_housing" class="input input-bordered input-xs w-24" min="0.01" step="0.01" placeholder="${tr('fin_payroll_housing_short', 'жильё')}" title="${tr('fin_payroll_housing_field_hint', 'Жильё в пакете, в месяц: не выдаётся на руки, оплачивается отдельно')}">
             </div>
             <div class="flex gap-1 items-center">
                 <label class="text-xs opacity-60 shrink-0" for="f_emp_from">${t('fin_payroll_effective_from')}</label>
@@ -771,6 +778,7 @@ async function saveEmployee(deptId) {
     const vaishnavaId = document.getElementById('f_emp_vaishnava').value;
     const title = document.getElementById('f_emp_title').value.trim();
     const salary = document.getElementById('f_emp_salary').value;
+    const housing = document.getElementById('f_emp_housing').value;
     if (!editingEmployeeId && !vaishnavaId) {
         Layout.showNotification(t('fin_payroll_find_person'), 'error');
         return;
@@ -788,6 +796,7 @@ async function saveEmployee(deptId) {
         department_id: deptId,
         position_title: title,
         salary_amount: salary || null,
+        housing_amount: housing || null,
         currency_code: current?.currency_code || 'INR',
         effective_from: document.getElementById('f_emp_from').value || FinUtils.todayISO()
     });

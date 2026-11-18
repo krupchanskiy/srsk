@@ -1,0 +1,26 @@
+-- 792. Подписи пакета оклада в ведомости (790)
+INSERT INTO translations (key, ru, en, hi) VALUES
+  ('fin_payroll_housing', 'Жильё', 'Housing', 'आवास'),
+  ('fin_payroll_housing_short', 'жильё', 'housing', 'आवास'),
+  ('fin_payroll_housing_field_hint', 'Жильё в пакете, в месяц: не выдаётся на руки, оплачивается отдельно', 'Housing in the package, per month: not paid in cash, paid separately', 'पैकेज में आवास, प्रति माह: हाथ में नहीं दिया जाता, अलग से भुगतान'),
+  ('fin_payroll_housing_due', 'Жильё к оплате', 'Housing due', 'आवास देय'),
+  ('fin_payroll_housing_ahead', 'Жильё оплачено вперёд', 'Housing paid ahead', 'आवास अग्रिम भुगतान'),
+  ('fin_payroll_person_debt', 'Долг за прасад', 'Prasad debt', 'प्रसाद बकाया'),
+  ('fin_payroll_withhold', 'Удержать за прасад семьи', 'Withhold for family prasad', 'परिवार के प्रसाद हेतु कटौती'),
+  ('fin_payroll_withhold_hint', 'Долг: {debt}. Удержание — приход «Оплата от участника» без кассы, гасит долг.', 'Debt: {debt}. Withholding is a "Participant payment" without cash, it settles the debt.', 'बकाया: {debt}। कटौती — बिना नकद के "प्रतिभागी भुगतान", बकाया चुकाती है।'),
+  ('fin_payroll_withhold_over', 'Удержание больше долга', 'Withholding exceeds the debt', 'कटौती बकाया से अधिक है'),
+  ('fin_payroll_on_hand', 'на руки', 'in hand', 'हाथ में'),
+  ('fin_payroll_on_hand_label', 'На руки', 'In hand', 'हाथ में'),
+  ('fin_payroll_withheld', 'удержано', 'withheld', 'कटौती'),
+  ('fin_payroll_pay_housing', 'Оплатить жильё', 'Pay housing', 'आवास भुगतान'),
+  ('fin_payroll_paid_to', 'Кому отдали', 'Paid to', 'किसे दिया'),
+  ('fin_payroll_paid_to_landlord', 'Хозяину', 'Landlord', 'मकान मालिक'),
+  ('fin_payroll_paid_to_employee', 'Сотруднику', 'Employee', 'कर्मचारी'),
+  ('fin_payroll_paid_to_reimburse', 'Вернуть тому, кто заплатил', 'Reimburse whoever paid', 'जिसने भुगतान किया उसे लौटाएँ'),
+  ('fin_payroll_payee', 'Кому (имя)', 'Name', 'नाम'),
+  ('fin_payroll_not_specified', 'не указано', 'not specified', 'निर्दिष्ट नहीं'),
+  ('fin_payroll_housing_hint', 'Из кассы, расход «Жильё за пределами ШРСК». До оплаты жильё копится долгом по месяцам.', 'From the cash desk, expense "Housing outside SRSK". Until paid, housing accumulates as a monthly debt.', 'नकद से, व्यय "SRSK के बाहर आवास"। भुगतान तक आवास मासिक बकाया के रूप में जमा होता है।'),
+  ('fin_payroll_housing_line', 'строка к жилью (свет по чеку)', 'housing line (electricity bill)', 'आवास पंक्ति (बिजली बिल)'),
+  ('fin_payroll_housing_line_default', 'Свет по чеку', 'Electricity bill', 'बिजली बिल'),
+  ('fin_payroll_housing_line_delete', 'Удалить эту строку жилья?', 'Delete this housing line?', 'यह आवास पंक्ति हटाएँ?')
+ON CONFLICT (key) DO UPDATE SET ru = EXCLUDED.ru, en = EXCLUDED.en, hi = EXCLUDED.hi;

@@ -30,6 +30,7 @@ let sort = { key: 'date', dir: 'desc' };
 let incomeRows = [];
 // Кухня: питание, не вошедшее в выручку по дате оплаты, — зачтённое без даты и долг (мигр. 753)
 let mealsOpen = [];
+let payables = [];        // начислено, не оплачено (795): жильё сотрудников из зарплатной ведомости
 const ledgerKind = () => view === 'box' ? 'box' : 'own';
 
 const money = (v, cur) => FinUtils.fmtMoney(v, cur);
@@ -243,6 +244,26 @@ function renderTotals(list) {
     if (!box && passed) parts.push(`${e(tr('dacc_passed_on', 'передано на другие счета'))}: ${money(passed, cur)}`);
     if (rev) parts.push(`<span title="${e(tr('dacc_storno_hint', 'Отменённые операции и их отмены — вместе дают ноль, в «Пришло» и «Ушло» не входят'))}" class="cursor-help">${e(tr('fin_totals_reversed', 'Сторнировано'))}: ${money(rev, cur)}</span>`);
     $('daccPeriodLine').innerHTML = parts.join(' · ');
+    renderPayables(cur);
+}
+
+// «Начислено, не оплачено» — не расход и не проводка: касса не тронута; станет
+// расходом «Жильё за пределами ШРСК», когда оплатят в зарплатной ведомости (ВГ 18.11)
+function renderPayables(cur) {
+    const box = $('daccPayables');
+    if (!box) return;
+    const list = payables.filter(p => p.currency_code === cur);
+    if (!list.length) { box.innerHTML = ''; return; }
+    const total = list.reduce((s, p) => s + Number(p.amount), 0);
+    const who = p => p.paid_to
+        ? `${tr(`fin_payroll_paid_to_${p.paid_to}`, p.paid_to)}${p.payee ? `: ${p.payee}` : ''}`
+        : tr('fin_payroll_payee_unknown', 'кому — не выяснено');
+    box.innerHTML = `<div class="alert alert-warning mb-4 items-start text-sm">
+        <div class="w-full">
+            <div class="font-semibold cursor-help" title="${e(tr('dacc_payables_hint', 'Не расход и не проводка: касса не тронута. Расходом станет при оплате в зарплатной ведомости.'))}">⚠ ${e(tr('dacc_payables', 'Начислено, не оплачено'))}: ${money(total, cur)}</div>
+            <ul class="mt-1">${list.map(p => `<li>• ${e(tr('dacc_payables_housing', 'жильё'))} — ${e(p.person_name)}: ${money(p.amount, cur)} <span class="opacity-70">(${e(who(p))})</span></li>`).join('')}</ul>
+        </div>
+    </div>`;
 }
 
 // Сводка «Пришло — откуда / Ушло — на что» за период (ВГ 18.10): по статьям, переводы — по другому счёту.
@@ -952,6 +973,10 @@ async function init(options) {
         cfg.department === 'kitchen' ? Layout.db.rpc('fin_kitchen_meals_open') : Promise.resolve({ data: [] })]);
     incomeRows = inc;
     mealsOpen = mo.error ? [] : (mo.data || []);
+    // начислено, не оплачено — под плашками итогов; нет прав или функции — просто пусто
+    const pay = await Layout.db.rpc('fin_department_payables', { p_department: cfg.department });
+    payables = pay.error ? [] : (pay.data || []);
+    $('daccPeriodLine')?.insertAdjacentHTML('afterend', '<div id="daccPayables"></div>');
     anRows = an.error ? [] : (an.data || []);
     // вкладки видов: «Выручка» — если у департамента есть приходы по его статьям, «Касса ДДС» — если касса у него хранится
     const hasBox = accounts.some(a => a.purpose === 'cashbox');

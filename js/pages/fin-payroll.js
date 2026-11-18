@@ -16,10 +16,14 @@
 
 const t = key => Layout.t(key);
 const e = str => Layout.escapeHtml(str);
+// Кэш переводов может не знать новых ключей — запасной текст по-русски
+const tr = (key, fallback) => { const v = t(key); return v === key ? fallback : v; };
 
 let positions = [];
 let accruals = [];
 let payments = [];
+let housing = [];   // жильё из пакета (790): начисления и оплаты
+let absences = [];  // отъезды (796)
 let groups = [];
 const detailOpen = new Set();
 
@@ -88,6 +92,15 @@ function buildGroups() {
         g.total_accrued_all = g.positions.reduce((s, p) => s + Number(p.total_accrued || 0), 0);
         g.accruals = accruals.filter(a => ids.has(a.position_id));
         g.payments = payments.filter(p => ids.has(p.position_id));
+        // Пакет (790): жильё не выдаётся на руки — копит долг «Жильё к оплате»;
+        // долг человека (прасад семьи) — то, что можно удержать при выплате
+        g.housing_amount = shown.housing_amount;
+        g.housing = housing.filter(h => ids.has(h.position_id));
+        g.housing_balance = g.positions.reduce((s, p) => s + Number(p.housing_balance || 0), 0);
+        g.person_debt = Number(shown.person_debt || 0);
+        g.housing_paid_to = shown.housing_paid_to || null;
+        g.housing_payee = shown.housing_payee || null;
+        g.absences = absences.filter(a => a.vaishnava_id === g.vaishnava_id && a.department_id === g.department_id);
         g.accrued = g.accruals.filter(a => inRange(DateUtils.toISO(new Date(a.created_at)), r)).reduce((s, a) => s + Number(a.amount), 0);
         g.paid = g.payments.filter(p => !p.is_reversed && inRange(p.occurred_on, r)).reduce((s, p) => s + Number(p.amount), 0);
         // платёж кладём на действующую позицию, а если её нет (остался долг за
@@ -109,6 +122,31 @@ function balanceBadge(g) {
     if (bal > 0) return `<span class="badge badge-warning badge-sm">${t('fin_payroll_debt')}: ${FinUtils.fmtMoney(bal, g.currency_code)}</span>`;
     if (bal < 0) return `<span class="badge badge-info badge-sm">${t('fin_payroll_advance')}: ${FinUtils.fmtMoney(-bal, g.currency_code)}</span>`;
     return `<span class="badge badge-success badge-sm">${t('fin_payroll_settled')}</span>`;
+}
+
+const round2 = x => Math.round(Number(x || 0) * 100) / 100;
+const fmtD = iso => DateUtils.formatShort(DateUtils.parseDate(iso));
+
+// Временный отъезд, который идёт сейчас (или будет): «в отъезде до 20.12»
+function awayBadge(g) {
+    if (!g.is_current) return '';
+    const today = DateUtils.toISO(new Date());
+    const a = g.absences.find(x => x.kind !== 'left' && (!x.d_to || x.d_to >= today));
+    if (!a) return '';
+    const txt = a.d_to ? `${tr('fin_payroll_away_until', 'в отъезде до')} ${fmtD(a.d_to)}` : tr('fin_payroll_away', 'в отъезде');
+    return ` <span class="badge badge-info badge-xs whitespace-nowrap" title="${e(a.reason || '')}">${e(txt)}</span>`;
+}
+const hasHousingDue = g => round2(g.housing_balance) !== 0;
+
+// Жильё к оплате и долг человека (прасад семьи) — рядом с балансом оклада
+function extraBadges(g) {
+    const out = [];
+    const hb = round2(g.housing_balance);
+    if (hb > 0) out.push(`<span class="badge badge-warning badge-sm h-auto text-left">${e(tr('fin_payroll_housing_due', 'Жильё к оплате'))}: ${FinUtils.fmtMoney(hb, g.currency_code)}</span>`);
+    else if (hb < 0) out.push(`<span class="badge badge-info badge-sm h-auto text-left">${e(tr('fin_payroll_housing_ahead', 'Жильё оплачено вперёд'))}: ${FinUtils.fmtMoney(-hb, g.currency_code)}</span>`);
+    const debt = round2(g.person_debt);
+    if (debt > 0) out.push(`<span class="badge badge-error badge-outline badge-sm h-auto text-left">${e(tr('fin_payroll_person_debt', 'Долг за прасад'))}: ${FinUtils.fmtMoney(debt, g.currency_code)}</span>`);
+    return out.join('');
 }
 
 // Телеграм у человека (684): выключен — ни строки в чат, ни лички, ни ожидания «Получил»
@@ -138,16 +176,22 @@ function rowHtml(g) {
             </button>
             ${telegramToggleHtml(g)}
             ${!g.is_current ? ` <span class="badge badge-ghost badge-xs">${t('fin_payroll_ended_on')} ${DateUtils.formatShort(DateUtils.parseDate(g.ended_on))}</span>` : ''}
+            ${awayBadge(g)}
         </td>
         <td>${e(g.position_title)}</td>
-        <td class="font-mono">${hasSalary ? FinUtils.fmtMoney(g.salary_amount, g.currency_code) : `<span class="opacity-50">${t('fin_payroll_no_salary')}</span>`}</td>
+        <td class="font-mono">${hasSalary ? FinUtils.fmtMoney(g.salary_amount, g.currency_code) : `<span class="opacity-50">${t('fin_payroll_no_salary')}</span>`}${g.housing_amount != null
+            ? `<div class="text-xs opacity-70">+ ${e(tr('fin_payroll_housing_short', 'жильё'))} ${FinUtils.fmtMoney(g.housing_amount, g.currency_code)}</div>` : ''}</td>
         <td class="font-mono">${tracks ? FinUtils.fmtMoney(g.accrued, g.currency_code) : '—'}</td>
         <td class="font-mono">${FinUtils.fmtMoney(g.paid, g.currency_code)}</td>
-        <td>${balanceBadge(g)}</td>
+        <td><div class="flex flex-col items-start gap-1">${balanceBadge(g)}${extraBadges(g)}</div></td>
         <td class="text-right">
             <div class="flex flex-wrap justify-end gap-1">
                 ${g.is_current ? `<button type="button" class="btn btn-outline btn-xs" data-accrue="${g.current.id}">${t('fin_payroll_accrue')}</button>` : ''}
+                ${g.is_current
+                    ? `<button type="button" class="btn btn-ghost btn-xs" data-depart="${g.current.id}">${e(tr('fin_payroll_depart', 'Уехал'))}</button>`
+                    : `<button type="button" class="btn btn-outline btn-xs" data-return="${g.payPositionId}">${e(tr('fin_payroll_return', 'Вернулся'))}</button>`}
                 <button type="button" class="btn btn-primary btn-xs" data-pay="${g.payPositionId}">${t(tracks ? 'fin_payroll_pay' : 'fin_payroll_adhoc_pay')}</button>
+                ${g.housing_amount != null || hasHousingDue(g) ? `<button type="button" class="btn btn-outline btn-xs" data-pay-housing="${g.payPositionId}">${e(tr('fin_payroll_pay_housing', 'Оплатить жильё'))}</button>` : ''}
             </div>
         </td>
     </tr>
@@ -192,6 +236,123 @@ function renderConfirmWarning() {
     </div>`;
 }
 
+// ⚠ Жильё к оплате (795): всё начисленное и не оплаченное; у кого получатель не
+// выяснен — отдельной пометкой. Клик раскрывает строку человека
+function renderPayablesWarning() {
+    const box = document.getElementById('payrollPayablesWarn');
+    const list = groups.filter(g => round2(g.housing_balance) > 0)
+        .sort((a, b) => a.employee_name.localeCompare(b.employee_name));
+    if (!list.length) { box.innerHTML = ''; return; }
+    const unknown = list.filter(g => !g.housing_paid_to).length;
+    const totals = {};
+    for (const g of list) totals[g.currency_code] = (totals[g.currency_code] || 0) + round2(g.housing_balance);
+    box.innerHTML = `<div class="alert alert-warning mb-4 items-start">
+        <div class="w-full">
+            <div class="font-semibold">⚠ ${e(tr('fin_payroll_payables_title', 'Жильё к оплате'))}: ${Object.entries(totals).map(([c, v]) => FinUtils.fmtMoney(v, c)).join(' + ')}${unknown ? ` · ${unknown} — ${e(tr('fin_payroll_payee_unknown_count', 'получатель не выяснен'))}` : ''}</div>
+            <ul class="mt-1 text-sm">${list.map(g => `<li><button type="button" class="hover:underline text-left" data-open-pos="${g.payPositionId}">
+                • ${e(g.employee_name)} (${e(g.department_name)}) — ${FinUtils.fmtMoney(round2(g.housing_balance), g.currency_code)} — ${g.housing_paid_to
+                    ? e(paidToLabel(g.housing_paid_to) + (g.housing_payee ? `: ${g.housing_payee}` : ''))
+                    : `<b>${e(tr('fin_payroll_payee_unknown', 'кому — не выяснено'))}</b>`}
+            </button></li>`).join('')}</ul>
+        </div>
+    </div>`;
+}
+
+function departKind() {
+    return document.querySelector('input[name="departKind"]:checked')?.value || 'left';
+}
+
+function syncDepartForm() {
+    const k = departKind();
+    document.getElementById('departFromLabel').textContent = k === 'left' ? tr('fin_payroll_depart_last_day', 'Последний оплачиваемый день')
+        : k === 'unpaid' ? tr('fin_payroll_depart_from', 'Без оплаты с') : tr('fin_payroll_depart_paid_from', 'Уехал');
+    document.getElementById('departToLabel').textContent = k === 'unpaid' ? tr('fin_payroll_depart_to', 'по (включительно)') : tr('fin_payroll_depart_paid_to', 'Вернётся (примерно)');
+    document.getElementById('departToWrap').classList.toggle('hidden', k === 'left');
+    document.getElementById('departTo').required = k === 'unpaid';
+    document.getElementById('departHousingWrap').classList.toggle('hidden', k !== 'unpaid');
+}
+
+function openDepartModal(positionId) {
+    const g = groupByPosition(positionId);
+    if (!g) return;
+    document.getElementById('departPositionId').value = positionId;
+    document.getElementById('departTitle').textContent = `${tr('fin_payroll_depart', 'Уехал')} — ${g.employee_name}`;
+    document.querySelector('input[name="departKind"][value="left"]').checked = true;
+    document.getElementById('departFrom').value = FinUtils.todayISO();
+    document.getElementById('departTo').value = '';
+    document.getElementById('departStopHousing').checked = true;
+    document.getElementById('departReason').value = '';
+    syncDepartForm();
+    document.getElementById('departModal').showModal();
+}
+
+async function submitDepart(ev) {
+    ev.preventDefault();
+    const k = departKind();
+    const res = await FinUtils.rpc('fin_payroll_depart', {
+        position_id: document.getElementById('departPositionId').value,
+        kind: k,
+        d_from: document.getElementById('departFrom').value,
+        d_to: k === 'left' ? null : (document.getElementById('departTo').value || null),
+        stop_housing: k === 'unpaid' && document.getElementById('departStopHousing').checked,
+        reason: document.getElementById('departReason').value || null
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('departModal').close();
+        await load();
+    }
+}
+
+function openReturnModal(positionId) {
+    const g = groupByPosition(positionId);
+    if (!g) return;
+    document.getElementById('returnPositionId').value = positionId;
+    document.getElementById('returnTitle').textContent = `${tr('fin_payroll_return', 'Вернулся')} — ${g.employee_name}`;
+    document.getElementById('returnDate').value = FinUtils.todayISO();
+    document.getElementById('returnModal').showModal();
+}
+
+async function submitReturn(ev) {
+    ev.preventDefault();
+    const res = await FinUtils.rpc('fin_payroll_return', {
+        position_id: document.getElementById('returnPositionId').value,
+        d_from: document.getElementById('returnDate').value
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('returnModal').close();
+        await load();
+    }
+}
+
+async function cancelAbsence(id) {
+    if (!confirm(tr('fin_payroll_absence_cancel', 'Отменить этот отъезд? Дни вернутся в начисление.'))) return;
+    const res = await FinUtils.rpc('fin_payroll_absence_cancel', { id });
+    if (FinUtils.handleResult(res)) await load();
+}
+
+function openPayeeModal(positionId) {
+    const g = groupByPosition(positionId);
+    if (!g) return;
+    document.getElementById('housingPayeePositionId').value = positionId;
+    document.getElementById('housingPayeeTitle').textContent = `${tr('fin_payroll_housing_payee', 'Кому платим')} — ${g.employee_name}`;
+    document.getElementById('housingPayeeTo').value = g.housing_paid_to || '';
+    document.getElementById('housingPayeeName').value = g.housing_payee || '';
+    document.getElementById('housingPayeeModal').showModal();
+}
+
+async function submitPayee(ev) {
+    ev.preventDefault();
+    const res = await FinUtils.rpc('fin_payroll_set_housing_payee', {
+        position_id: document.getElementById('housingPayeePositionId').value,
+        paid_to: document.getElementById('housingPayeeTo').value || null,
+        payee: document.getElementById('housingPayeeName').value || null
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('housingPayeeModal').close();
+        await load();
+    }
+}
+
 function openPosition(positionId) {
     const g = groupByPosition(positionId);
     if (!g) return;
@@ -228,12 +389,41 @@ function detailBodyHtml(g) {
         ? accr.map(a => `<div class="flex justify-between gap-4"><span>${periodLabel(a.period)}${a.is_manual ? ` (${t('fin_payroll_manual')})` : ''}${a.days_worked != null && a.days_worked < a.days_in_month ? ` (${a.days_worked}/${a.days_in_month} ${t('fin_payroll_days')})` : ''}</span><span class="font-mono">${FinUtils.fmtMoney(a.amount, a.currency_code)}</span></div>`).join('')
         : `<div class="opacity-60">${t('fin_payroll_no_accruals')}</div>`;
     const payHtml = pays.length
-        ? pays.map(p => `<div class="flex justify-between gap-4 ${p.is_reversed ? 'opacity-50 line-through' : ''}"><span>${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}${p.comment ? ` — ${e(p.comment)}` : ''}${confirmHtml(p)}</span><span class="font-mono">${FinUtils.fmtMoney(p.amount, p.currency_code)}</span></div>`).join('')
+        ? pays.map(p => `<div class="flex justify-between gap-4 ${p.is_reversed ? 'opacity-50 line-through' : ''}"><span>${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}${p.comment ? ` — ${e(p.comment)}` : ''}${confirmHtml(p)}</span><span class="font-mono text-right">${FinUtils.fmtMoney(p.amount, p.currency_code)}${Number(p.withheld_amount) > 0
+            ? `<div class="font-sans opacity-70 whitespace-nowrap">${e(tr('fin_payroll_on_hand', 'на руки'))} ${FinUtils.fmtMoney(p.on_hand, p.currency_code)} · ${e(tr('fin_payroll_withheld', 'удержано'))} ${FinUtils.fmtMoney(p.withheld_amount, p.currency_code)}</div>` : ''}</span></div>`).join('')
         : `<div class="opacity-60">${t('fin_payroll_no_payments')}</div>`;
-    return `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    const showHousing = g.housing_amount != null || g.housing.length;
+    const kindLabel = { left: tr('fin_payroll_depart_left', 'Надолго'), unpaid: tr('fin_payroll_depart_unpaid', 'Временно, без оплаты'), paid: tr('fin_payroll_depart_paid', 'Временно, оплата идёт') };
+    const absHtml = g.absences.length ? `<div class="mt-3"><div class="font-semibold mb-1">${e(tr('fin_payroll_absences', 'Отъезды'))}</div>${
+        [...g.absences].sort((a, b) => a.d_from.localeCompare(b.d_from)).map(a => `<div>${fmtD(a.d_from)}${a.d_to ? ` — ${fmtD(a.d_to)}` : ''}: ${e(kindLabel[a.kind])}${a.kind === 'unpaid' && a.stop_housing ? ` (+ ${e(tr('fin_payroll_housing_short', 'жильё'))})` : ''}${a.reason ? ` — ${e(a.reason)}` : ''}${a.kind !== 'left' ? ` <button type="button" class="link link-error" data-absence-cancel="${a.id}" title="${e(t('delete'))}">✕</button>` : ''}</div>`).join('')
+    }</div>` : '';
+    return `<div class="grid grid-cols-1 ${showHousing ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4">
         <div><div class="font-semibold mb-1">${t('fin_payroll_accrued')} — ${t('fin_payroll_range_all_short')}</div>${accHtml}</div>
         <div><div class="font-semibold mb-1">${t('fin_payroll_paid')} — ${t('fin_payroll_range_all_short')}</div>${payHtml}</div>
-    </div>`;
+        ${showHousing ? `<div>${housingDetailHtml(g)}</div>` : ''}
+    </div>${absHtml}`;
+}
+
+const paidToLabel = v => v ? tr(`fin_payroll_paid_to_${v}`, { landlord: 'хозяину', employee: 'сотруднику', reimburse: 'возврат заплатившему' }[v])
+    : tr('fin_payroll_not_specified', 'не указано');
+
+// Жильё: начисления по месяцам (+ ручные строки — свет) и оплаты, всё за всё время
+function housingDetailHtml(g) {
+    const rows = [...g.housing].sort((a, b) => a.on_date.localeCompare(b.on_date) || a.kind.localeCompare(b.kind));
+    // Снятый месяц (уехал, оплачено вперёд) — зачёркнут с причиной, можно вернуть (793)
+    const accrualRow = h => h.cancelled_reason
+        ? `<div class="flex justify-between gap-4"><span><span class="line-through opacity-50">${periodLabel(h.on_date)}</span> — ${e(tr('fin_payroll_housing_skipped', 'не начислено'))}: ${e(h.cancelled_reason)} <button type="button" class="link link-primary" data-housing-unskip="${h.id}">${e(tr('fin_payroll_housing_unskip', 'вернуть'))}</button></span><span class="font-mono line-through opacity-50">${FinUtils.fmtMoney(h.amount, h.currency_code)}</span></div>`
+        : `<div class="flex justify-between gap-4"><span>${periodLabel(h.on_date)}${h.is_manual ? ` — ${e(h.comment)} <button type="button" class="link link-error" data-housing-del="${h.id}" title="${e(t('delete'))}">✕</button>` : ` <button type="button" class="link opacity-60" data-housing-skip="${h.id}" title="${e(tr('fin_payroll_housing_skip_hint', 'Не начислять жильё за этот месяц (уехал, оплачено вперёд…)'))}">${e(tr('fin_payroll_housing_skip', 'не начислять'))}</button>`}${h.days_worked != null && h.days_worked < h.days_in_month ? ` (${h.days_worked}/${h.days_in_month} ${t('fin_payroll_days')})` : ''}</span><span class="font-mono">${FinUtils.fmtMoney(h.amount, h.currency_code)}</span></div>`;
+    const body = rows.length ? rows.map(h => h.kind === 'accrual'
+        ? accrualRow(h)
+        : `<div class="flex justify-between gap-4 ${h.is_reversed ? 'opacity-50 line-through' : ''}"><span>${DateUtils.formatShort(DateUtils.parseDate(h.on_date))} — ${e(tr('fin_payroll_paid', 'выплачено'))}${h.for_period ? ` ${e(tr('fin_payroll_for_month', 'за'))} ${periodLabel(h.for_period)}` : ''} (${e(paidToLabel(h.paid_to))}${h.payee ? `: ${e(h.payee)}` : ''})${h.comment ? ` <span class="opacity-60">${e(h.comment)}</span>` : ''}</span><span class="font-mono">−${FinUtils.fmtMoney(h.amount, h.currency_code)}</span></div>`
+    ).join('') : `<div class="opacity-60">${t('fin_payroll_no_accruals')}</div>`;
+    const payee = g.housing_paid_to
+        ? e(paidToLabel(g.housing_paid_to) + (g.housing_payee ? `: ${g.housing_payee}` : ''))
+        : `<span class="text-warning font-semibold">${e(tr('fin_payroll_not_clarified', 'Не выяснено'))}</span>`;
+    return `<div class="font-semibold mb-1">${e(tr('fin_payroll_housing', 'Жильё'))}</div>
+        <div class="mb-1">${e(tr('fin_payroll_housing_payee', 'Кому платим'))}: ${payee} <button type="button" class="link link-primary" data-housing-payee="${g.payPositionId}">${e(tr('fin_payroll_housing_payee_set', 'изменить'))}</button></div>${body}
+        <button type="button" class="link link-primary mt-1" data-housing-line="${g.payPositionId}">+ ${e(tr('fin_payroll_housing_line', 'строка к жилью (свет по чеку)'))}</button>`;
 }
 
 // Завершённые периоды без долга в списке не нужны — иначе он зарастает
@@ -246,6 +436,7 @@ function visibleGroups() {
 function render() {
     groups = buildGroups();
     renderConfirmWarning();
+    renderPayablesWarning();
     const range = currentRange();
     const container = document.getElementById('payrollBody');
     const byDept = new Map();
@@ -287,16 +478,20 @@ function render() {
 }
 
 async function load() {
-    const [pos, acc, pay] = await Promise.all([
+    const [pos, acc, pay, hous, abs] = await Promise.all([
         fetchAll('fin_v_payroll_positions', 'employee_name'),
         fetchAll('fin_v_payroll_accruals', 'period'),
-        fetchAll('fin_v_payroll_payments', 'occurred_on')
+        fetchAll('fin_v_payroll_payments', 'occurred_on'),
+        fetchAll('fin_v_payroll_housing', 'on_date'),
+        fetchAll('fin_v_payroll_absences', 'd_from')
     ]);
-    const err = pos.error || acc.error || pay.error;
+    const err = pos.error || acc.error || pay.error || hous.error || abs.error;
     if (err) { Layout.handleError(err, 'Зарплатная ведомость'); return; }
     positions = pos.data;
     accruals = acc.data;
     payments = pay.data;
+    housing = hous.data;
+    absences = abs.data;
     render();
 }
 
@@ -319,10 +514,129 @@ function openPayModal(positionId) {
     // сумму вводят руками. Подсказку всегда можно поправить — это и оставляет
     // неровный остаток на будущее, как задумано (замечание ВГ, 16.09.2026)
     const bal = Math.round(g.balance * 100) / 100;
-    document.getElementById('payAmount').value = bal > 0 ? bal : (g.salary_amount ?? '');
+    const due = bal > 0 ? bal : (g.salary_amount ?? null);
+    // Долг человека (прасад семьи) — удержание подставляется само, можно поправить (790)
+    const debt = round2(g.person_debt);
+    const withhold = debt > 0 && due ? Math.min(debt, due) : 0;
+    payState = { debt, currency: g.currency_code };
+    document.getElementById('payWithholdWrap').classList.toggle('hidden', !(debt > 0));
+    document.getElementById('payWithhold').value = debt > 0 ? withhold : '';
+    document.getElementById('payWithholdHint').textContent = debt > 0
+        ? tr('fin_payroll_withhold_hint', 'Долг: {debt}. Удержание — приход «Оплата от участника» без кассы, гасит долг.').replace('{debt}', FinUtils.fmtMoney(debt, g.currency_code))
+        : '';
+    document.getElementById('payAmountLabel').textContent = debt > 0 ? tr('fin_payroll_on_hand_label', 'На руки') : t('fin_payroll_amount');
+    document.getElementById('payAmount').value = due != null ? round2(due - withhold) : '';
+    updatePaySummary();
     document.getElementById('payDate').value = FinUtils.todayISO();
     document.getElementById('payComment').value = '';
     document.getElementById('payModal').showModal();
+}
+
+let payState = { debt: 0, currency: 'INR' };
+
+// «Оклад 35 000 = на руки 17 000 + удержано 18 000» — видно, что уйдёт из кассы
+function updatePaySummary() {
+    const box = document.getElementById('paySummary');
+    const hand = Number(document.getElementById('payAmount').value || 0);
+    const wh = payState.debt > 0 ? Number(document.getElementById('payWithhold').value || 0) : 0;
+    if (!(wh > 0)) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    const c = payState.currency;
+    box.classList.remove('hidden');
+    box.innerHTML = `${e(tr('fin_payroll_salary', 'Оклад'))} <b>${FinUtils.fmtMoney(hand + wh, c)}</b> = ${e(tr('fin_payroll_on_hand', 'на руки'))} ${FinUtils.fmtMoney(hand, c)} + ${e(tr('fin_payroll_withheld', 'удержано'))} ${FinUtils.fmtMoney(wh, c)}`
+        + (wh > payState.debt + 0.005 ? `<div class="text-error">⚠ ${e(tr('fin_payroll_withhold_over', 'Удержание больше долга'))}</div>` : '');
+}
+
+// Оплата жилья: сумма к оплате подставляется, кому отдали — обязательно
+function openHousingModal(positionId) {
+    const g = groupByPosition(positionId);
+    if (!g) return;
+    document.getElementById('housingPositionId').value = positionId;
+    document.getElementById('housingModalTitle').textContent = `${tr('fin_payroll_pay_housing', 'Оплатить жильё')} — ${g.employee_name}`;
+    const hb = round2(g.housing_balance);
+    document.getElementById('housingAmount').value = hb > 0 ? hb : (g.housing_amount ?? '');
+    document.getElementById('housingPaidTo').value = g.housing_paid_to || 'landlord';
+    document.getElementById('housingPayee').value = g.housing_payee || '';
+    document.getElementById('housingDate').value = FinUtils.todayISO();
+    document.getElementById('housingComment').value = '';
+    // «За какой месяц» — необязательно; по умолчанию первый неоплаченный не угадываем
+    document.getElementById('housingPeriod').innerHTML = `<option value="">—</option>` + monthOptions(g.positions[0].effective_from);
+    document.getElementById('housingModal').showModal();
+}
+
+async function submitHousing(ev) {
+    ev.preventDefault();
+    const res = await FinUtils.rpc('fin_pay_payroll_housing', {
+        position_id: document.getElementById('housingPositionId').value,
+        amount: document.getElementById('housingAmount').value,
+        occurred_on: document.getElementById('housingDate').value,
+        paid_to: document.getElementById('housingPaidTo').value,
+        payee: document.getElementById('housingPayee').value || null,
+        period: document.getElementById('housingPeriod').value ? document.getElementById('housingPeriod').value + '-01' : null,
+        comment: document.getElementById('housingComment').value || null
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('housingModal').close();
+        await load();
+    }
+}
+
+function monthOptions(fromISO) {
+    const lang = DateUtils.getLang();
+    const names = DateUtils.monthNames[lang] || DateUtils.monthNames.ru;
+    const start = DateUtils.parseDate(fromISO);
+    const now = new Date();
+    const opts = [];
+    for (let d = new Date(now.getFullYear(), now.getMonth(), 1);
+         d >= new Date(start.getFullYear(), start.getMonth(), 1) && opts.length < 36;
+         d = new Date(d.getFullYear(), d.getMonth() - 1, 1)) {
+        const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        opts.push(`<option value="${v}">${names[d.getMonth()]} ${d.getFullYear()}</option>`);
+    }
+    return opts.join('');
+}
+
+// Ручная строка к жилью — свет и т.п. по чеку
+function openHousingLineModal(positionId) {
+    const g = groupByPosition(positionId);
+    if (!g) return;
+    document.getElementById('housingLinePositionId').value = positionId;
+    document.getElementById('housingLineTitle').textContent = `${tr('fin_payroll_housing_line', 'строка к жилью (свет по чеку)')} — ${g.employee_name}`;
+    document.getElementById('housingLinePeriod').innerHTML = monthOptions(g.positions[0].effective_from);
+    document.getElementById('housingLineAmount').value = '';
+    document.getElementById('housingLineComment').value = tr('fin_payroll_housing_line_default', 'Свет по чеку');
+    document.getElementById('housingLineModal').showModal();
+}
+
+async function submitHousingLine(ev) {
+    ev.preventDefault();
+    const res = await FinUtils.rpc('fin_payroll_housing_line', {
+        position_id: document.getElementById('housingLinePositionId').value,
+        period: document.getElementById('housingLinePeriod').value + '-01',
+        amount: document.getElementById('housingLineAmount').value,
+        comment: document.getElementById('housingLineComment').value
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('housingLineModal').close();
+        await load();
+    }
+}
+
+async function skipHousingMonth(id) {
+    const reason = prompt(tr('fin_payroll_housing_skip_reason', 'Почему жильё за этот месяц не начисляем? (например: уехал, оплачено вперёд)'));
+    if (!reason || !reason.trim()) return;
+    const res = await FinUtils.rpc('fin_payroll_housing_line', { skip_id: id, reason: reason.trim() });
+    if (FinUtils.handleResult(res)) await load();
+}
+
+async function unskipHousingMonth(id) {
+    const res = await FinUtils.rpc('fin_payroll_housing_line', { unskip_id: id });
+    if (FinUtils.handleResult(res)) await load();
+}
+
+async function deleteHousingLine(id) {
+    if (!confirm(tr('fin_payroll_housing_line_delete', 'Удалить эту строку жилья?'))) return;
+    const res = await FinUtils.rpc('fin_payroll_housing_line', { delete_id: id });
+    if (FinUtils.handleResult(res)) await load();
 }
 
 // Ручное начисление за месяц — для тех, у кого сумму каждый месяц называет
@@ -369,9 +683,11 @@ async function submitAccrue(ev) {
 
 async function submitPay(ev) {
     ev.preventDefault();
+    const withhold = payState.debt > 0 ? (document.getElementById('payWithhold').value || null) : null;
     const res = await FinUtils.rpc('fin_pay_payroll', {
         position_id: document.getElementById('payPositionId').value,
         amount: document.getElementById('payAmount').value,
+        withhold_amount: withhold,
         occurred_on: document.getElementById('payDate').value,
         comment: document.getElementById('payComment').value || null
     });
@@ -405,10 +721,10 @@ async function init() {
 
     // Кэш переводов в браузере живёт долго и не знает про новые ключи: вместо
     // «fin_payroll_range_all_short» на экране — один раз сбрасываем и перечитываем
-    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text', 'fin_payroll_tg_off_short', 'fin_payroll_tab_hired', 'fin_payroll_invite_text_gift', 'fin_payroll_wait_confirm_tg'].some(k => t(k) === k)
-        && !sessionStorage.getItem('payrollTrReload6')) {
-        sessionStorage.setItem('payrollTrReload6', '1');
-        Cache.invalidate('translations_v85');
+    if (['fin_payroll_range_all_short', 'fin_payroll_ended_on', 'fin_payroll_invite_text', 'fin_payroll_tg_off_short', 'fin_payroll_tab_hired', 'fin_payroll_invite_text_gift', 'fin_payroll_wait_confirm_tg', 'fin_payroll_housing_due', 'fin_payroll_paid_to_landlord'].some(k => t(k) === k)
+        && !sessionStorage.getItem('payrollTrReload7')) {
+        sessionStorage.setItem('payrollTrReload7', '1');
+        Cache.invalidate('translations_v87');
         location.reload();
         return;
     }
@@ -419,18 +735,44 @@ async function init() {
         const accrueBtn = ev.target.closest('[data-accrue]');
         const inviteBtn = ev.target.closest('[data-invite]');
         const tgBtn = ev.target.closest('[data-tg-toggle]');
-        if (tgBtn) toggleTelegram(tgBtn.dataset.tgToggle, tgBtn.dataset.tgEnabled !== '1');
+        const housingBtn = ev.target.closest('[data-pay-housing]');
+        const lineBtn = ev.target.closest('[data-housing-line]');
+        const delBtn = ev.target.closest('[data-housing-del]');
+        const skipBtn = ev.target.closest('[data-housing-skip]');
+        const unskipBtn = ev.target.closest('[data-housing-unskip]');
+        const payeeBtn = ev.target.closest('[data-housing-payee]');
+        const departBtn = ev.target.closest('[data-depart]');
+        const returnBtn = ev.target.closest('[data-return]');
+        const absBtn = ev.target.closest('[data-absence-cancel]');
+        if (departBtn) openDepartModal(departBtn.dataset.depart);
+        else if (returnBtn) openReturnModal(returnBtn.dataset.return);
+        else if (absBtn) cancelAbsence(absBtn.dataset.absenceCancel);
+        else if (payeeBtn) openPayeeModal(payeeBtn.dataset.housingPayee);
+        else if (skipBtn) skipHousingMonth(skipBtn.dataset.housingSkip);
+        else if (unskipBtn) unskipHousingMonth(unskipBtn.dataset.housingUnskip);
+        else if (housingBtn) openHousingModal(housingBtn.dataset.payHousing);
+        else if (lineBtn) openHousingLineModal(lineBtn.dataset.housingLine);
+        else if (delBtn) deleteHousingLine(delBtn.dataset.housingDel);
+        else if (tgBtn) toggleTelegram(tgBtn.dataset.tgToggle, tgBtn.dataset.tgEnabled !== '1');
         else if (inviteBtn) copyInvite(inviteBtn.dataset.invite);
         else if (payBtn) openPayModal(payBtn.dataset.pay);
         else if (accrueBtn) openAccrueModal(accrueBtn.dataset.accrue);
         else if (toggleBtn) toggleDetail(toggleBtn.dataset.toggle);
     });
-    document.getElementById('payrollConfirmWarn').addEventListener('click', ev => {
+    ['payrollConfirmWarn', 'payrollPayablesWarn'].forEach(id => document.getElementById(id).addEventListener('click', ev => {
         const btn = ev.target.closest('[data-open-pos]');
         if (btn) openPosition(btn.dataset.openPos);
-    });
+    }));
+    document.getElementById('housingPayeeForm').addEventListener('submit', FinUtils.lockedSubmit(submitPayee));
+    document.getElementById('departForm').addEventListener('submit', FinUtils.lockedSubmit(submitDepart));
+    document.getElementById('returnForm').addEventListener('submit', FinUtils.lockedSubmit(submitReturn));
+    document.querySelectorAll('input[name="departKind"]').forEach(r => r.addEventListener('change', syncDepartForm));
     document.getElementById('payForm').addEventListener('submit', FinUtils.lockedSubmit(submitPay));
     document.getElementById('accrueForm').addEventListener('submit', FinUtils.lockedSubmit(submitAccrue));
+    document.getElementById('housingForm').addEventListener('submit', FinUtils.lockedSubmit(submitHousing));
+    document.getElementById('housingLineForm').addEventListener('submit', FinUtils.lockedSubmit(submitHousingLine));
+    document.getElementById('payAmount').addEventListener('input', updatePaySummary);
+    document.getElementById('payWithhold').addEventListener('input', updatePaySummary);
     document.getElementById('runAccrualBtn').addEventListener('click', runAccrualNow);
     document.getElementById('showEnded').addEventListener('change', render);
     document.getElementById('payrollRange').addEventListener('change', render);
