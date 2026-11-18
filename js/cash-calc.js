@@ -5,15 +5,40 @@
 // Подключение: у поля суммы атрибут data-cash-calc (значение — код валюты, можно пустым).
 // Рядом с полем сам появляется значок калькулятора. Валюту по счёту страница может
 // подсказать сама: CashCalc.currencyOf = input => 'INR'. В окне валюту можно сменить.
+// Номиналы — из справочника fin_denominations (мигр. 796): новая валюта со своими
+// купюрами появляется в калькуляторе сама. Без связи — запасной список ниже.
 (function () {
-    // Номиналы в обращении. ₹2000 Резервный банк изъял — не показываем.
-    const DENOMS = {
+    // ₹2000 Резервный банк изъял — в калькуляторе не показываем (в Сверке остаётся)
+    const HIDDEN = { INR: [2000] };
+    let DENOMS = {
         INR: [500, 200, 100, 50, 20, 10],
         USD: [100, 50, 20, 10, 5, 2, 1],
         EUR: [500, 200, 100, 50, 20, 10, 5],
         RUB: [5000, 2000, 1000, 500, 200, 100, 50]
     };
     const SIGN = { INR: '₹', USD: '$', EUR: '€', RUB: '₽' };
+    const sign = c => SIGN[c] || c;
+
+    let loaded = null;
+    function loadDenoms() {
+        loaded = loaded || (async () => {
+            try {
+                const { data, error } = await window.Layout.db.from('fin_v_denominations').select('currency_code, value');
+                if (error || !data?.length) return;
+                const map = {};
+                data.forEach(d => {
+                    const v = Number(d.value);
+                    if ((HIDDEN[d.currency_code] || []).includes(v)) return;
+                    (map[d.currency_code] = map[d.currency_code] || []).push(v);
+                });
+                Object.values(map).forEach(list => list.sort((a, b) => b - a));
+                // рупии первыми, остальные — как в справочнике
+                DENOMS = Object.fromEntries(Object.keys(map)
+                    .sort((a, b) => (a === 'INR' ? -1 : b === 'INR' ? 1 : 0)).map(c => [c, map[c]]));
+            } catch { /* нет связи — запасной список */ }
+        })();
+        return loaded;
+    }
 
     const TEXTS = {
         ru: { title: 'Посчитать по купюрам', total: 'Итого', other: 'Монеты и прочее', insert: 'Вставить сумму', cancel: 'Отмена', clear: 'Очистить', btn: 'Посчитать по купюрам' },
@@ -54,7 +79,7 @@
                 <div class="text-2xl font-bold font-mono" data-cc="total">0</div>
             </div>
             <div class="join mb-3" data-cc="currencies">
-                ${Object.keys(DENOMS).map(c => `<button type="button" class="btn btn-sm join-item" data-cc-cur="${c}">${SIGN[c]} ${c}</button>`).join('')}
+                ${Object.keys(DENOMS).map(c => `<button type="button" class="btn btn-sm join-item" data-cc-cur="${c}">${sign(c)} ${c}</button>`).join('')}
             </div>
             <div class="flex flex-col gap-1" data-cc="rows"></div>
             <div class="flex items-center gap-2 mt-2">
@@ -109,7 +134,7 @@
         dlg.querySelectorAll('[data-cc-cur]').forEach(b => b.classList.toggle('btn-primary', b.dataset.ccCur === currency));
         dlg.querySelector('[data-cc="rows"]').innerHTML = DENOMS[currency].map(d => `
             <div class="flex items-center gap-2">
-                <span class="font-mono w-20 text-right">${SIGN[currency]} ${fmt(d)}</span>
+                <span class="font-mono w-20 text-right">${sign(currency)} ${fmt(d)}</span>
                 <span class="opacity-60">×</span>
                 <input type="text" inputmode="numeric" autocomplete="off" class="input input-bordered input-sm w-20 text-right font-mono"
                        data-cc-qty="${d}" value="${draft.counts[d] ?? ''}">
@@ -130,7 +155,7 @@
         return Math.round((s + num(dlg.querySelector('[data-cc="other"]').value)) * 100) / 100;
     }
     function recalc() {
-        dlg.querySelector('[data-cc="total"]').textContent = `${SIGN[currency]} ${fmt(total())}`;
+        dlg.querySelector('[data-cc="total"]').textContent = `${sign(currency)} ${fmt(total())}`;
     }
 
     function insert() {
@@ -146,7 +171,8 @@
         (target?.isConnected ? target : null)?.focus();
     }
 
-    function open(input) {
+    async function open(input) {
+        await loadDenoms();
         if (!dlg) buildDialog();
         target = input;
         const draft = drafts.get(input);

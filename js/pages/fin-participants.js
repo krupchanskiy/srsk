@@ -1872,6 +1872,13 @@ function ribbonRows(row, reason) {
 // Валюта платежа задаётся явно и первой: человек вносит «560 долларов», а не
 // «платёж на долларовый счёт». Счета фильтруются по выбранной валюте — принять
 // евро на рупиевую кассу всё равно нельзя (ВГ, 08.08).
+// Калькулятор купюр: валюта — выбранная в строке оплаты, у возврата — по счёту возврата
+window.CashCalc = Object.assign(window.CashCalc || {}, {
+    currencyOf: input => input.id === 'refundAmount'
+        ? FinUtils.refs.accounts.find(a => a.account_id === document.getElementById('refundAccount')?.value)?.currency_code
+        : input.closest('.pay-row')?.querySelector('.pay-currency')?.value
+});
+
 function payCurrencyOptions(selected) {
     const active = FinUtils.refs.currencies.filter(c => c.is_active !== false);
     const list = active.length ? active : [{ code: 'INR' }];
@@ -1913,7 +1920,7 @@ function payRowHtml(idx) {
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_amount')}</span></label>
-                <input type="number" class="input input-bordered input-sm pay-amount" min="0.01" step="0.01" required>
+                <input type="number" data-cash-calc class="input input-bordered input-sm pay-amount" min="0.01" step="0.01" required>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_channel')}</span></label>
@@ -2831,7 +2838,7 @@ function syncReceivedRows() {
             wrap.insertAdjacentHTML('beforeend', `
                 <label class="rcv-line flex items-center gap-1" data-cur="${e(cur)}">
                     <span class="text-sm opacity-70">${e(FinUtils.symbol(cur))}</span>
-                    <input type="number" class="input input-bordered input-sm w-28 rcv-amount" min="0" step="0.01">
+                    <input type="number" data-cash-calc="${e(cur)}" class="input input-bordered input-sm w-28 rcv-amount" min="0" step="0.01">
                 </label>`);
             line = wrap.lastElementChild;
             line.querySelector('.rcv-amount').addEventListener('input', ev => {

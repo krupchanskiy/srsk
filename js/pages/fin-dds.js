@@ -812,7 +812,7 @@ function expenseRowHtml(idx) {
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_amount')}</span></label>
-                <input type="number" class="input input-bordered input-sm exp-amount" min="0.01" step="0.01" required>
+                <input type="number" data-cash-calc class="input input-bordered input-sm exp-amount" min="0.01" step="0.01" required>
             </div>
             <div class="form-control">
                 <label class="label py-0"><span class="label-text text-xs">${t('fin_category')}</span></label>
@@ -1028,7 +1028,7 @@ function addIncomeRow(preset) {
     row.innerHTML = `
         <select class="select select-bordered select-sm w-full min-w-0 inc-account" required aria-label="${e(t('fin_account'))}">
             ${счетаПоКаналу('cash', preset?.account_id)}</select>
-        <input type="number" class="input input-bordered input-sm inc-amount" min="0.01" step="0.01" required
+        <input type="number" data-cash-calc class="input input-bordered input-sm inc-amount" min="0.01" step="0.01" required
                aria-label="${e(t('fin_amount'))}" value="${preset?.amount ?? ''}">
         <select class="select select-bordered select-sm inc-channel" aria-label="${e(t('fin_channel'))}"></select>
         <button type="button" class="btn btn-ghost btn-sm btn-square text-error" aria-label="${e(t('fin_remove_row'))}">${FinUtils.ICONS.x}</button>`;
@@ -1755,10 +1755,14 @@ async function init() {
     }
 }
 
-// Калькулятор купюр: валюта — по счёту прихода, у перевода (выдача, сдача) — по счёту-источнику
+// Калькулятор купюр: валюта — по счёту строки; у перевода — источник, у суммы получения — получатель
 window.CashCalc = Object.assign(window.CashCalc || {}, {
-    currencyOf: input => FinUtils.refs.accounts
-        .find(a => a.account_id === document.getElementById(input.id === 'trAmount' ? 'trSource' : 'incAccount')?.value)?.currency_code
+    currencyOf(input) {
+        const sel = input.closest('.inc-row')?.querySelector('.inc-account')
+            || input.closest('.exp-row')?.querySelector('.exp-account')
+            || document.getElementById({ trAmount: 'trSource', trTargetAmount: 'trTarget' }[input.id] || 'incAccount');
+        return FinUtils.refs.accounts.find(a => a.account_id === sel?.value)?.currency_code;
+    }
 });
 
 window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, addIncomeRow,addPayeeRow, openReversal, openRealloc, addReallocRow, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };
