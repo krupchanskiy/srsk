@@ -1755,10 +1755,10 @@ async function init() {
     }
 }
 
-// Калькулятор купюр у точек кафе: валюта — по счёту прихода
+// Калькулятор купюр: валюта — по счёту прихода, у перевода (выдача, сдача) — по счёту-источнику
 window.CashCalc = Object.assign(window.CashCalc || {}, {
-    currencyOf: () => FinUtils.refs.accounts
-        .find(a => a.account_id === document.getElementById('incAccount')?.value)?.currency_code
+    currencyOf: input => FinUtils.refs.accounts
+        .find(a => a.account_id === document.getElementById(input.id === 'trAmount' ? 'trSource' : 'incAccount')?.value)?.currency_code
 });
 
 window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, addIncomeRow,addPayeeRow, openReversal, openRealloc, addReallocRow, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };

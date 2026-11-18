@@ -241,7 +241,7 @@ const ShopShift = (() => {
             части.push(`<div class="border-t border-base-200 pt-3 grid gap-2 md:grid-cols-[10rem_1fr_auto] items-end">
                 <label class="form-control"><div class="label py-1"><span class="label-text text-sm">${
                     тр('shop_float_issue', 'Выдать на сдачу')}, ₹</span></div>
-                    <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums" id="floatIssueAmount"></label>
+                    <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums" id="floatIssueAmount" data-cash-calc="INR"></label>
                 <label class="form-control"><div class="label py-1"><span class="label-text text-sm">Из кассы</span></div>
                     <select class="select select-bordered select-sm" id="floatIssueAccount">${
                         кассыР.map(с => `<option value="${с.id}">${e(с.name)}</option>`).join('')}</select></label>
