@@ -389,8 +389,8 @@ function detailBodyHtml(g) {
         ? accr.map(a => `<div class="flex justify-between gap-4"><span>${periodLabel(a.period)}${a.is_manual ? ` (${t('fin_payroll_manual')})` : ''}${a.days_worked != null && a.days_worked < a.days_in_month ? ` (${a.days_worked}/${a.days_in_month} ${t('fin_payroll_days')})` : ''}</span><span class="font-mono">${FinUtils.fmtMoney(a.amount, a.currency_code)}</span></div>`).join('')
         : `<div class="opacity-60">${t('fin_payroll_no_accruals')}</div>`;
     const payHtml = pays.length
-        ? pays.map(p => `<div class="flex justify-between gap-4 ${p.is_reversed ? 'opacity-50 line-through' : ''}"><span>${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}${p.comment ? ` — ${e(p.comment)}` : ''}${confirmHtml(p)}</span><span class="font-mono text-right">${FinUtils.fmtMoney(p.amount, p.currency_code)}${Number(p.withheld_amount) > 0
-            ? `<div class="font-sans opacity-70 whitespace-nowrap">${e(tr('fin_payroll_on_hand', 'на руки'))} ${FinUtils.fmtMoney(p.on_hand, p.currency_code)} · ${e(tr('fin_payroll_withheld', 'удержано'))} ${FinUtils.fmtMoney(p.withheld_amount, p.currency_code)}</div>` : ''}</span></div>`).join('')
+        ? pays.map(p => `<div class="flex justify-between gap-4 ${p.is_reversed ? 'opacity-50 line-through' : ''}"><span class="min-w-0">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}${p.comment ? ` — ${e(p.comment)}` : ''}${Number(p.withheld_amount) > 0
+            ? `<div class="opacity-70">${e(tr('fin_payroll_on_hand', 'на руки'))} <span class="whitespace-nowrap">${FinUtils.fmtMoney(p.on_hand, p.currency_code)}</span> · ${e(tr('fin_payroll_withheld', 'удержано'))} <span class="whitespace-nowrap">${FinUtils.fmtMoney(p.withheld_amount, p.currency_code)}</span></div>` : ''}${confirmHtml(p)}</span><span class="font-mono text-right whitespace-nowrap">${FinUtils.fmtMoney(p.amount, p.currency_code)}</span></div>`).join('')
         : `<div class="opacity-60">${t('fin_payroll_no_payments')}</div>`;
     const showHousing = g.housing_amount != null || g.housing.length;
     const kindLabel = { left: tr('fin_payroll_depart_left', 'Надолго'), unpaid: tr('fin_payroll_depart_unpaid', 'Временно, без оплаты'), paid: tr('fin_payroll_depart_paid', 'Временно, оплата идёт') };
@@ -398,9 +398,9 @@ function detailBodyHtml(g) {
         [...g.absences].sort((a, b) => a.d_from.localeCompare(b.d_from)).map(a => `<div>${fmtD(a.d_from)}${a.d_to ? ` — ${fmtD(a.d_to)}` : ''}: ${e(kindLabel[a.kind])}${a.kind === 'unpaid' && a.stop_housing ? ` (+ ${e(tr('fin_payroll_housing_short', 'жильё'))})` : ''}${a.reason ? ` — ${e(a.reason)}` : ''}${a.kind !== 'left' ? ` <button type="button" class="link link-error" data-absence-cancel="${a.id}" title="${e(t('delete'))}">✕</button>` : ''}</div>`).join('')
     }</div>` : '';
     return `<div class="grid grid-cols-1 ${showHousing ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4">
-        <div><div class="font-semibold mb-1">${t('fin_payroll_accrued')} — ${t('fin_payroll_range_all_short')}</div>${accHtml}</div>
-        <div><div class="font-semibold mb-1">${t('fin_payroll_paid')} — ${t('fin_payroll_range_all_short')}</div>${payHtml}</div>
-        ${showHousing ? `<div>${housingDetailHtml(g)}</div>` : ''}
+        <div class="min-w-0"><div class="font-semibold mb-1">${t('fin_payroll_accrued')} — ${t('fin_payroll_range_all_short')}</div>${accHtml}</div>
+        <div class="min-w-0"><div class="font-semibold mb-1">${t('fin_payroll_paid')} — ${t('fin_payroll_range_all_short')}</div>${payHtml}</div>
+        ${showHousing ? `<div class="min-w-0">${housingDetailHtml(g)}</div>` : ''}
     </div>${absHtml}`;
 }
 
