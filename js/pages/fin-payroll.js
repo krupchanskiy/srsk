@@ -119,9 +119,9 @@ function tracksBalance(g) {
 function balanceBadge(g) {
     if (!tracksBalance(g)) return '';
     const bal = Math.round(g.balance * 100) / 100;
-    if (bal > 0) return `<span class="badge badge-warning badge-sm">${t('fin_payroll_debt')}: ${FinUtils.fmtMoney(bal, g.currency_code)}</span>`;
-    if (bal < 0) return `<span class="badge badge-info badge-sm">${t('fin_payroll_advance')}: ${FinUtils.fmtMoney(-bal, g.currency_code)}</span>`;
-    return `<span class="badge badge-success badge-sm">${t('fin_payroll_settled')}</span>`;
+    if (bal > 0) return `<span class="badge badge-warning badge-sm payroll-badge">${t('fin_payroll_debt')}: <span class="whitespace-nowrap">${FinUtils.fmtMoney(bal, g.currency_code)}</span></span>`;
+    if (bal < 0) return `<span class="badge badge-info badge-sm payroll-badge">${t('fin_payroll_advance')}: <span class="whitespace-nowrap">${FinUtils.fmtMoney(-bal, g.currency_code)}</span></span>`;
+    return `<span class="badge badge-success badge-sm payroll-badge">${t('fin_payroll_settled')}</span>`;
 }
 
 const round2 = x => Math.round(Number(x || 0) * 100) / 100;
@@ -142,10 +142,10 @@ const hasHousingDue = g => round2(g.housing_balance) !== 0;
 function extraBadges(g) {
     const out = [];
     const hb = round2(g.housing_balance);
-    if (hb > 0) out.push(`<span class="badge badge-warning badge-sm h-auto text-left">${e(tr('fin_payroll_housing_due', 'Жильё к оплате'))}: ${FinUtils.fmtMoney(hb, g.currency_code)}</span>`);
-    else if (hb < 0) out.push(`<span class="badge badge-info badge-sm h-auto text-left">${e(tr('fin_payroll_housing_ahead', 'Жильё оплачено вперёд'))}: ${FinUtils.fmtMoney(-hb, g.currency_code)}</span>`);
+    if (hb > 0) out.push(`<span class="badge badge-warning badge-sm payroll-badge">${e(tr('fin_payroll_housing_due', 'Жильё к оплате'))}: <span class="whitespace-nowrap">${FinUtils.fmtMoney(hb, g.currency_code)}</span></span>`);
+    else if (hb < 0) out.push(`<span class="badge badge-info badge-sm payroll-badge">${e(tr('fin_payroll_housing_ahead', 'Жильё оплачено вперёд'))}: <span class="whitespace-nowrap">${FinUtils.fmtMoney(-hb, g.currency_code)}</span></span>`);
     const debt = round2(g.person_debt);
-    if (debt > 0) out.push(`<span class="badge badge-error badge-outline badge-sm h-auto text-left">${e(tr('fin_payroll_person_debt', 'Долг за прасад'))}: ${FinUtils.fmtMoney(debt, g.currency_code)}</span>`);
+    if (debt > 0) out.push(`<span class="badge badge-error badge-outline badge-sm payroll-badge">${e(tr('fin_payroll_person_debt', 'Долг за прасад'))}: <span class="whitespace-nowrap">${FinUtils.fmtMoney(debt, g.currency_code)}</span></span>`);
     return out.join('');
 }
 
@@ -180,18 +180,18 @@ function rowHtml(g) {
         </td>
         <td>${e(g.position_title)}</td>
         <td class="font-mono">${hasSalary ? FinUtils.fmtMoney(g.salary_amount, g.currency_code) : `<span class="opacity-50">${t('fin_payroll_no_salary')}</span>`}${g.housing_amount != null
-            ? `<div class="text-xs opacity-70">+ ${e(tr('fin_payroll_housing_short', 'жильё'))} ${FinUtils.fmtMoney(g.housing_amount, g.currency_code)}</div>` : ''}</td>
+            ? `<div class="text-xs opacity-70 whitespace-nowrap">+ ${e(tr('fin_payroll_housing_short', 'жильё'))} ${FinUtils.fmtMoney(g.housing_amount, g.currency_code)}</div>` : ''}</td>
         <td class="font-mono">${tracks ? FinUtils.fmtMoney(g.accrued, g.currency_code) : '—'}</td>
         <td class="font-mono">${FinUtils.fmtMoney(g.paid, g.currency_code)}</td>
         <td><div class="flex flex-col items-start gap-1">${balanceBadge(g)}${extraBadges(g)}</div></td>
         <td class="text-right">
-            <div class="flex flex-wrap justify-end gap-1">
-                ${g.is_current ? `<button type="button" class="btn btn-outline btn-xs" data-accrue="${g.current.id}">${t('fin_payroll_accrue')}</button>` : ''}
-                ${g.is_current
-                    ? `<button type="button" class="btn btn-ghost btn-xs" data-depart="${g.current.id}">${e(tr('fin_payroll_depart', 'Уехал'))}</button>`
-                    : `<button type="button" class="btn btn-outline btn-xs" data-return="${g.payPositionId}">${e(tr('fin_payroll_return', 'Вернулся'))}</button>`}
+            <div class="payroll-actions">
                 <button type="button" class="btn btn-primary btn-xs" data-pay="${g.payPositionId}">${t(tracks ? 'fin_payroll_pay' : 'fin_payroll_adhoc_pay')}</button>
-                ${g.housing_amount != null || hasHousingDue(g) ? `<button type="button" class="btn btn-outline btn-xs" data-pay-housing="${g.payPositionId}">${e(tr('fin_payroll_pay_housing', 'Оплатить жильё'))}</button>` : ''}
+                ${g.housing_amount != null || hasHousingDue(g) ? `<button type="button" class="btn btn-outline btn-xs" data-pay-housing="${g.payPositionId}">${e(tr('fin_payroll_pay_housing', 'Оплатить жильё'))}</button>` : '<span></span>'}
+                ${g.is_current ? `<button type="button" class="btn btn-outline btn-xs" data-accrue="${g.current.id}">${t('fin_payroll_accrue')}</button>` : '<span></span>'}
+                ${g.is_current
+                    ? `<button type="button" class="btn btn-outline btn-xs" data-depart="${g.current.id}">${e(tr('fin_payroll_depart', 'Уехал'))}</button>`
+                    : `<button type="button" class="btn btn-outline btn-xs" data-return="${g.payPositionId}">${e(tr('fin_payroll_return', 'Вернулся'))}</button>`}
             </div>
         </td>
     </tr>
@@ -214,8 +214,8 @@ function confirmHtml(p) {
     if (p.recipient_linked) {
         return ` <span class="badge badge-warning badge-xs whitespace-nowrap">${t('fin_payroll_wait_confirm_tg')}</span>`;
     }
-    return ` <span class="badge badge-warning badge-xs whitespace-nowrap">${t('fin_payroll_not_linked')}</span>
-        <button type="button" class="btn btn-outline btn-xs ml-1" data-invite="${p.id}">${t('fin_payroll_copy_invite')}</button>`;
+    return ` <span class="inline-flex flex-wrap items-center gap-1 mt-0.5"><span class="badge badge-warning badge-xs whitespace-nowrap">${t('fin_payroll_not_linked')}</span>
+        <button type="button" class="btn btn-outline btn-xs whitespace-nowrap" data-invite="${p.id}">${t('fin_payroll_copy_invite')}</button></span>`;
 }
 
 // ⚠ сверху: сколько выплат без подтверждения и чьи — клик раскрывает строку
