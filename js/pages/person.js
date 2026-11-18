@@ -287,7 +287,7 @@ async function loadRegistrations(personId) {
 // их итог: стадия, условия, деньги, отказ, ссылка на переписку
 async function loadPersonDeals(personId) {
     const { data } = await Layout.db.from('crm_deals')
-        .select('id, retreat_id, status, cancellation_reason, cancellation_note, reason:cancellation_reason_id(name_ru, name_en, name_hi), checklist_accommodation, checklist_meals, manager:manager_id(spiritual_name, first_name, last_name), retreats(id, name_ru, name_en, name_hi, start_date, end_date), crm_communications(count), promises:crm_communications(summary, due_date, created_at, type)')
+        .select('id, retreat_id, status, cancellation_reason, cancellation_note, reason:cancellation_reason_id(name_ru, name_en, name_hi), checklist_accommodation, checklist_meals, manager:manager_id(spiritual_name, first_name, last_name), retreats!crm_deals_retreat_id_fkey(id, name_ru, name_en, name_hi, start_date, end_date), crm_communications(count), promises:crm_communications(summary, due_date, created_at, type)')
         .eq('vaishnava_id', personId)
         .eq('promises.type', 'payment_promise')
         .order('created_at', { ascending: false });

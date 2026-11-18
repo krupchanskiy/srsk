@@ -2636,7 +2636,7 @@ async function loadAdvanceCard() {
     const [{ data: rows }, { data: list }, { data: rts }] = await Promise.all([
         Layout.db.rpc('crm_deals_after_departure', { p_deal_ids: [dealId] }),
         Layout.db.from('crm_advance_decisions')
-            .select('id, amount, currency, lines, note, created_at, created_by:vaishnavas(spiritual_name, first_name)')
+            .select('id, amount, currency, lines, note, created_at, created_by:vaishnavas!crm_advance_decisions_created_by_fkey(spiritual_name, first_name)')
             .eq('deal_id', dealId).order('created_at', { ascending: false }),
         Layout.db.from('retreats').select('id, name_ru, name_en, start_date')
             .gte('end_date', today).eq('is_system', false).order('start_date')

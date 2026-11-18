@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     // 3. Без контакта >24ч — АЛЕРТ
     const { data: staleDeals } = await db
       .from('crm_deals')
-      .select('id, created_at, vaishnavas!inner(spiritual_name, first_name, last_name)')
+      .select('id, created_at, vaishnavas!crm_deals_vaishnava_id_fkey!inner(spiritual_name, first_name, last_name)')
       .eq('status', 'lead')
       .lt('created_at', yesterday)
       .limit(10)
