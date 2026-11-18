@@ -170,7 +170,7 @@ const ShopShift = (() => {
                 <div class="label py-1"><span class="label-text text-sm">
                     ${ЗНАК[ж.currency_code]} · ${t('shop_must_be')}
                     <b class="nums">${деньги(ж.expected, ж.currency_code)}</b></span></div>
-                <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums" data-count="${ж.currency_code}"
+                <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums" data-count="${ж.currency_code}" data-cash-calc="${ж.currency_code}"
                        value="${введено ? e(факт) : ''}" placeholder="${t('shop_counted_placeholder')}">
                 ${разница === null ? ''
                   : разница === 0

@@ -1755,6 +1755,12 @@ async function init() {
     }
 }
 
+// Калькулятор купюр у точек кафе: валюта — по счёту прихода
+window.CashCalc = Object.assign(window.CashCalc || {}, {
+    currencyOf: () => FinUtils.refs.accounts
+        .find(a => a.account_id === document.getElementById('incAccount')?.value)?.currency_code
+});
+
 window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, addIncomeRow,addPayeeRow, openReversal, openRealloc, addReallocRow, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };
 init();
 })();
