@@ -189,9 +189,6 @@ function rowHtml(g) {
                 <button type="button" class="btn btn-primary btn-xs" data-pay="${g.payPositionId}">${t(tracks ? 'fin_payroll_pay' : 'fin_payroll_adhoc_pay')}</button>
                 ${g.housing_amount != null || hasHousingDue(g) ? `<button type="button" class="btn btn-outline btn-xs" data-pay-housing="${g.payPositionId}">${e(tr('fin_payroll_pay_housing', 'Оплатить жильё'))}</button>` : '<span></span>'}
                 ${g.is_current ? `<button type="button" class="btn btn-outline btn-xs" data-accrue="${g.current.id}">${t('fin_payroll_accrue')}</button>` : '<span></span>'}
-                ${g.is_current
-                    ? `<button type="button" class="btn btn-outline btn-xs" data-depart="${g.current.id}">${e(tr('fin_payroll_depart', 'Уехал'))}</button>`
-                    : `<button type="button" class="btn btn-outline btn-xs" data-return="${g.payPositionId}">${e(tr('fin_payroll_return', 'Вернулся'))}</button>`}
             </div>
         </td>
     </tr>
@@ -256,72 +253,6 @@ function renderPayablesWarning() {
             </button></li>`).join('')}</ul>
         </div>
     </div>`;
-}
-
-function departKind() {
-    return document.querySelector('input[name="departKind"]:checked')?.value || 'left';
-}
-
-function syncDepartForm() {
-    const k = departKind();
-    document.getElementById('departFromLabel').textContent = k === 'left' ? tr('fin_payroll_depart_last_day', 'Последний оплачиваемый день')
-        : k === 'unpaid' ? tr('fin_payroll_depart_from', 'Без оплаты с') : tr('fin_payroll_depart_paid_from', 'Уехал');
-    document.getElementById('departToLabel').textContent = k === 'unpaid' ? tr('fin_payroll_depart_to', 'по (включительно)') : tr('fin_payroll_depart_paid_to', 'Вернётся (примерно)');
-    document.getElementById('departToWrap').classList.toggle('hidden', k === 'left');
-    document.getElementById('departTo').required = k === 'unpaid';
-    document.getElementById('departHousingWrap').classList.toggle('hidden', k !== 'unpaid');
-}
-
-function openDepartModal(positionId) {
-    const g = groupByPosition(positionId);
-    if (!g) return;
-    document.getElementById('departPositionId').value = positionId;
-    document.getElementById('departTitle').textContent = `${tr('fin_payroll_depart', 'Уехал')} — ${g.employee_name}`;
-    document.querySelector('input[name="departKind"][value="left"]').checked = true;
-    document.getElementById('departFrom').value = FinUtils.todayISO();
-    document.getElementById('departTo').value = '';
-    document.getElementById('departStopHousing').checked = true;
-    document.getElementById('departReason').value = '';
-    syncDepartForm();
-    document.getElementById('departModal').showModal();
-}
-
-async function submitDepart(ev) {
-    ev.preventDefault();
-    const k = departKind();
-    const res = await FinUtils.rpc('fin_payroll_depart', {
-        position_id: document.getElementById('departPositionId').value,
-        kind: k,
-        d_from: document.getElementById('departFrom').value,
-        d_to: k === 'left' ? null : (document.getElementById('departTo').value || null),
-        stop_housing: k === 'unpaid' && document.getElementById('departStopHousing').checked,
-        reason: document.getElementById('departReason').value || null
-    });
-    if (FinUtils.handleResult(res)) {
-        document.getElementById('departModal').close();
-        await load();
-    }
-}
-
-function openReturnModal(positionId) {
-    const g = groupByPosition(positionId);
-    if (!g) return;
-    document.getElementById('returnPositionId').value = positionId;
-    document.getElementById('returnTitle').textContent = `${tr('fin_payroll_return', 'Вернулся')} — ${g.employee_name}`;
-    document.getElementById('returnDate').value = FinUtils.todayISO();
-    document.getElementById('returnModal').showModal();
-}
-
-async function submitReturn(ev) {
-    ev.preventDefault();
-    const res = await FinUtils.rpc('fin_payroll_return', {
-        position_id: document.getElementById('returnPositionId').value,
-        d_from: document.getElementById('returnDate').value
-    });
-    if (FinUtils.handleResult(res)) {
-        document.getElementById('returnModal').close();
-        await load();
-    }
 }
 
 async function cancelAbsence(id) {
@@ -741,12 +672,8 @@ async function init() {
         const skipBtn = ev.target.closest('[data-housing-skip]');
         const unskipBtn = ev.target.closest('[data-housing-unskip]');
         const payeeBtn = ev.target.closest('[data-housing-payee]');
-        const departBtn = ev.target.closest('[data-depart]');
-        const returnBtn = ev.target.closest('[data-return]');
         const absBtn = ev.target.closest('[data-absence-cancel]');
-        if (departBtn) openDepartModal(departBtn.dataset.depart);
-        else if (returnBtn) openReturnModal(returnBtn.dataset.return);
-        else if (absBtn) cancelAbsence(absBtn.dataset.absenceCancel);
+        if (absBtn) cancelAbsence(absBtn.dataset.absenceCancel);
         else if (payeeBtn) openPayeeModal(payeeBtn.dataset.housingPayee);
         else if (skipBtn) skipHousingMonth(skipBtn.dataset.housingSkip);
         else if (unskipBtn) unskipHousingMonth(unskipBtn.dataset.housingUnskip);
@@ -764,9 +691,6 @@ async function init() {
         if (btn) openPosition(btn.dataset.openPos);
     }));
     document.getElementById('housingPayeeForm').addEventListener('submit', FinUtils.lockedSubmit(submitPayee));
-    document.getElementById('departForm').addEventListener('submit', FinUtils.lockedSubmit(submitDepart));
-    document.getElementById('returnForm').addEventListener('submit', FinUtils.lockedSubmit(submitReturn));
-    document.querySelectorAll('input[name="departKind"]').forEach(r => r.addEventListener('change', syncDepartForm));
     document.getElementById('payForm').addEventListener('submit', FinUtils.lockedSubmit(submitPay));
     document.getElementById('accrueForm').addEventListener('submit', FinUtils.lockedSubmit(submitAccrue));
     document.getElementById('housingForm').addEventListener('submit', FinUtils.lockedSubmit(submitHousing));
