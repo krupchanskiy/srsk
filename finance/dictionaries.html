@@ -67,6 +67,64 @@
 <div id="footer-placeholder"></div>
 
 <!-- Универсальная модалка справочника (контент строится в JS) -->
+<!-- Уехал / Вернулся (796) — те же, что в ведомости -->
+<dialog id="departModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" id="departTitle"></h3>
+        <form id="departForm">
+            <input type="hidden" id="departPositionId">
+            <div class="form-control mb-2 gap-1">
+                <label class="label cursor-pointer justify-start gap-2 py-0"><input type="radio" name="departKind" value="left" class="radio radio-sm" checked><span class="label-text" data-i18n="fin_payroll_depart_left">Надолго — закрыть позицию</span></label>
+                <label class="label cursor-pointer justify-start gap-2 py-0"><input type="radio" name="departKind" value="unpaid" class="radio radio-sm"><span class="label-text" data-i18n="fin_payroll_depart_unpaid">Временно, без оплаты</span></label>
+                <label class="label cursor-pointer justify-start gap-2 py-0"><input type="radio" name="departKind" value="paid" class="radio radio-sm"><span class="label-text" data-i18n="fin_payroll_depart_paid">Временно, оплата идёт</span></label>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <div class="form-control">
+                    <label class="label py-0"><span class="label-text text-xs" id="departFromLabel"></span></label>
+                    <input type="date" id="departFrom" class="input input-bordered input-sm" required>
+                </div>
+                <div class="form-control" id="departToWrap">
+                    <label class="label py-0"><span class="label-text text-xs" id="departToLabel"></span></label>
+                    <input type="date" id="departTo" class="input input-bordered input-sm">
+                </div>
+            </div>
+            <label class="label cursor-pointer justify-start gap-2 mb-2" id="departHousingWrap">
+                <input type="checkbox" id="departStopHousing" class="checkbox checkbox-sm" checked>
+                <span class="label-text" data-i18n="fin_payroll_depart_stop_housing">Жильё за эти дни тоже не начислять</span>
+            </label>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_depart_reason">Причина</span></label>
+                <input type="text" id="departReason" class="input input-bordered input-sm">
+            </div>
+            <p class="text-xs opacity-60" data-i18n="fin_payroll_depart_hint">Надолго: последний месяц оклада и жилья — по дням, дальше не начисляется; вернётся — «Вернулся». Ручные начисления не пересчитываются.</p>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('departModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Вернулся (796) -->
+<dialog id="returnModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-4" id="returnTitle"></h3>
+        <form id="returnForm">
+            <input type="hidden" id="returnPositionId">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text" data-i18n="fin_payroll_return_date">Дата возвращения</span></label>
+                <input type="date" id="returnDate" class="input input-bordered input-sm" required>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('returnModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <dialog id="dictModal" class="modal">
     <div class="modal-box max-w-md">
         <h3 class="font-bold text-lg mb-4" id="dictModalTitle"></h3>
@@ -90,7 +148,7 @@
 <script src="../js/fin-utils.js?v=25"></script>
 <script src="../js/translit.js"></script>
 <script src="../js/auto-translate.js"></script>
-<script src="../js/pages/fin-dictionaries.js?v=28"></script>
+<script src="../js/pages/fin-dictionaries.js?v=29"></script>
 
 </body>
 </html>

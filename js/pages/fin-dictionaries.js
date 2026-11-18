@@ -622,12 +622,16 @@ function deptAccountsHtml(deptId, box = false) {
 // Список грузится по требованию (при открытии формы департамента), а не
 // вместе со справочниками — сотрудники не нужны почти никому, кроме этой формы.
 let deptEmployees = {};   // { department_id: [позиция, …] }
+let deptAbsences = {};    // { department_id: [отъезд, …] } (796)
 let editingEmployeeId = null;
 
 async function loadDeptEmployees(deptId) {
-    const { data } = await Layout.db.from('fin_v_payroll_positions')
-        .select('*').eq('department_id', deptId).order('employee_name');
+    const [{ data }, { data: abs }] = await Promise.all([
+        Layout.db.from('fin_v_payroll_positions').select('*').eq('department_id', deptId).order('employee_name'),
+        Layout.db.from('fin_v_payroll_absences').select('*').eq('department_id', deptId)
+    ]);
     deptEmployees[deptId] = data || [];
+    deptAbsences[deptId] = abs || [];
     return deptEmployees[deptId];
 }
 
@@ -664,6 +668,9 @@ function fillEmployeeForm(p) {
     if (btn) btn.textContent = t('save');
     const cancel = document.getElementById('f_emp_cancel');
     if (cancel) cancel.classList.remove('hidden');
+    const title = document.getElementById('f_emp_title');
+    title.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    title.focus();
 }
 
 // Кэш переводов в браузере может не знать новых ключей — подставляем запасной текст
@@ -682,25 +689,85 @@ function endedPeriods(deptId) {
     return [...latest.values()];
 }
 
-// «Вернуть» — та же операция «добавить сотрудника», только форма уже заполнена
-// прошлой должностью и окладом; создаётся новый период, старый остаётся историей
-function fillReturnForm(deptId, positionId) {
-    const p = (deptEmployees[deptId] || []).find(x => x.id === positionId);
+// Статус в строке: «в отъезде до …» (временный отъезд идёт или впереди)
+function employeeAwayBadge(deptId, p) {
+    const today = FinUtils.todayISO();
+    const a = (deptAbsences[deptId] || []).find(x => x.vaishnava_id === p.vaishnava_id
+        && x.kind !== 'left' && (!x.d_to || x.d_to >= today));
+    if (!a) return '';
+    const txt = a.d_to ? `${tr('fin_payroll_away_until', 'в отъезде до')} ${DateUtils.formatShort(DateUtils.parseDate(a.d_to))}` : tr('fin_payroll_away', 'в отъезде');
+    return ` <span class="badge badge-info badge-xs whitespace-nowrap" title="${e(a.reason || '')}">${e(txt)}</span>`;
+}
+
+// «Уехал» / «Вернулся» — те же операции, что в ведомости (796)
+function findEmployee(positionId) {
+    return (deptEmployees[editingId] || []).find(x => x.id === positionId);
+}
+
+function departKind() {
+    return document.querySelector('input[name="departKind"]:checked')?.value || 'left';
+}
+
+function syncDepartForm() {
+    const k = departKind();
+    document.getElementById('departFromLabel').textContent = k === 'left' ? tr('fin_payroll_depart_last_day', 'Последний оплачиваемый день')
+        : k === 'unpaid' ? tr('fin_payroll_depart_from', 'Без оплаты с') : tr('fin_payroll_depart_paid_from', 'Уехал');
+    document.getElementById('departToLabel').textContent = k === 'unpaid' ? tr('fin_payroll_depart_to', 'по (включительно)') : tr('fin_payroll_depart_paid_to', 'Вернётся (примерно)');
+    document.getElementById('departToWrap').classList.toggle('hidden', k === 'left');
+    document.getElementById('departTo').required = k === 'unpaid';
+    document.getElementById('departHousingWrap').classList.toggle('hidden', k !== 'unpaid');
+}
+
+function openDepartModal(positionId) {
+    const p = findEmployee(positionId);
     if (!p) return;
-    editingEmployeeId = null;
-    const search = document.getElementById('f_emp_search');
-    search.value = p.employee_name;
-    search.disabled = false;
-    document.getElementById('f_emp_vaishnava').value = p.vaishnava_id;
-    document.getElementById('f_emp_title').value = p.position_title || '';
-    document.getElementById('f_emp_salary').value = p.salary_amount ?? '';
-    document.getElementById('f_emp_housing').value = p.housing_amount ?? '';
-    const from = document.getElementById('f_emp_from');
-    from.value = FinUtils.todayISO();
-    const btn = document.querySelector('[data-add-employee]');
-    if (btn) btn.textContent = t('fin_add');
-    document.getElementById('f_emp_cancel')?.classList.remove('hidden');
-    from.focus();
+    document.getElementById('departPositionId').value = positionId;
+    document.getElementById('departTitle').textContent = `${tr('fin_payroll_depart', 'Уехал')} — ${p.employee_name}`;
+    document.querySelector('input[name="departKind"][value="left"]').checked = true;
+    document.getElementById('departFrom').value = FinUtils.todayISO();
+    document.getElementById('departTo').value = '';
+    document.getElementById('departStopHousing').checked = true;
+    document.getElementById('departReason').value = '';
+    syncDepartForm();
+    document.getElementById('departModal').showModal();
+}
+
+async function submitDepart(ev) {
+    ev.preventDefault();
+    const k = departKind();
+    const res = await FinUtils.rpc('fin_payroll_depart', {
+        position_id: document.getElementById('departPositionId').value,
+        kind: k,
+        d_from: document.getElementById('departFrom').value,
+        d_to: k === 'left' ? null : (document.getElementById('departTo').value || null),
+        stop_housing: k === 'unpaid' && document.getElementById('departStopHousing').checked,
+        reason: document.getElementById('departReason').value || null
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('departModal').close();
+        await refreshEmployeesBlock(editingId);
+    }
+}
+
+function openReturnModal(positionId) {
+    const p = findEmployee(positionId);
+    if (!p) return;
+    document.getElementById('returnPositionId').value = positionId;
+    document.getElementById('returnTitle').textContent = `${tr('fin_payroll_return', 'Вернулся')} — ${p.employee_name}`;
+    document.getElementById('returnDate').value = FinUtils.todayISO();
+    document.getElementById('returnModal').showModal();
+}
+
+async function submitReturn(ev) {
+    ev.preventDefault();
+    const res = await FinUtils.rpc('fin_payroll_return', {
+        position_id: document.getElementById('returnPositionId').value,
+        d_from: document.getElementById('returnDate').value
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('returnModal').close();
+        await refreshEmployeesBlock(editingId);
+    }
 }
 
 function deptEmployeesHtml(deptId) {
@@ -709,13 +776,13 @@ function deptEmployeesHtml(deptId) {
     const endedRows = ended.map(p => `<div class="flex justify-between items-center gap-2 text-sm py-1 border-b border-base-200 last:border-0 opacity-60">
             <div class="truncate">
                 <div>${e(p.employee_name)} <span class="opacity-70">— ${e(p.position_title)}</span></div>
-                <div class="text-xs">${tr('fin_payroll_ended_on', 'период до')} ${DateUtils.formatShort(DateUtils.parseDate(p.effective_to))}</div>
+                <div class="text-xs"><span class="badge badge-ghost badge-xs">${e(tr('fin_payroll_left_badge', 'уехал'))} ${DateUtils.formatShort(DateUtils.parseDate(p.effective_to))}</span></div>
             </div>
-            <button type="button" class="btn btn-outline btn-xs shrink-0" data-return-employee="${p.id}">${tr('fin_payroll_return', 'Вернуть')}</button>
+            <button type="button" class="btn btn-outline btn-xs shrink-0" data-return-employee="${p.id}">${e(tr('fin_payroll_return', 'Вернулся'))}</button>
         </div>`).join('');
     const activeRows = current.map(p => `<div class="flex justify-between items-center gap-2 text-sm py-1 border-b border-base-200 last:border-0">
             <div class="truncate">
-                <div>${e(p.employee_name)} <span class="opacity-60">— ${e(p.position_title)}</span></div>
+                <div>${e(p.employee_name)} <span class="opacity-60">— ${e(p.position_title)}</span>${employeeAwayBadge(deptId, p)}</div>
                 <div class="opacity-60 text-xs">${p.salary_amount != null
                     ? `${FinUtils.fmtMoney(p.salary_amount, p.currency_code)} / ${t('fin_payroll_month')}`
                     : t('fin_payroll_no_salary')}${p.housing_amount != null
@@ -724,7 +791,7 @@ function deptEmployeesHtml(deptId) {
             </div>
             <div class="flex gap-1 shrink-0">
                 <button type="button" class="btn btn-ghost btn-xs" data-edit-employee="${p.id}" title="${t('edit')}">${editIcon}</button>
-                <button type="button" class="btn btn-ghost btn-xs text-error" data-end-employee="${p.id}" title="${t('fin_payroll_terminate')}">${FinUtils.ICONS.x}</button>
+                <button type="button" class="btn btn-outline btn-xs" data-depart-employee="${p.id}">${e(tr('fin_payroll_depart', 'Уехал'))}</button>
             </div>
         </div>`).join('');
     const rows = (activeRows || endedRows)
@@ -812,12 +879,6 @@ async function createTechnicalPerson() {
     if (!FinUtils.handleResult(res)) return;
     document.getElementById('f_emp_search').value = res.result.name;
     document.getElementById('f_emp_vaishnava').value = res.result.id;
-}
-
-async function endEmployee(deptId, positionId) {
-    if (!confirm(t('fin_payroll_terminate_confirm'))) return;
-    const res = await FinUtils.rpc('fin_end_payroll_position', { id: positionId, effective_to: null });
-    if (FinUtils.handleResult(res)) await refreshEmployeesBlock(deptId);
 }
 
 async function addDeptAccount(deptId, box = false) {
@@ -1160,17 +1221,20 @@ async function init() {
     document.getElementById('dictForm').addEventListener('click', ev => {
         const add = ev.target.closest('[data-add-employee]');
         const edit = ev.target.closest('[data-edit-employee]');
-        const end = ev.target.closest('[data-end-employee]');
+        const depart = ev.target.closest('[data-depart-employee]');
         const cancel = ev.target.closest('[data-cancel-employee]');
         const createPerson = ev.target.closest('[data-create-person]');
         const ret = ev.target.closest('[data-return-employee]');
         if (add) saveEmployee(add.dataset.addEmployee);
         else if (edit) fillEmployeeForm((deptEmployees[editingId] || []).find(p => p.id === edit.dataset.editEmployee));
-        else if (end) endEmployee(editingId, end.dataset.endEmployee);
+        else if (depart) openDepartModal(depart.dataset.departEmployee);
         else if (cancel) resetEmployeeForm();
         else if (createPerson) createTechnicalPerson();
-        else if (ret) fillReturnForm(editingId, ret.dataset.returnEmployee);
+        else if (ret) openReturnModal(ret.dataset.returnEmployee);
     });
+    document.getElementById('departForm').addEventListener('submit', submitDepart);
+    document.getElementById('returnForm').addEventListener('submit', submitReturn);
+    document.querySelectorAll('input[name="departKind"]').forEach(r => r.addEventListener('change', syncDepartForm));
 
     // ?tab=rates — прямая ссылка из оповещения «общий курс устарел»
     const вкладка = new URLSearchParams(window.location.search).get('tab');
