@@ -176,7 +176,7 @@ const ShopShift = (() => {
                 <div class="label py-1"><span class="label-text text-sm">
                     ${ЗНАК[ж.currency_code]} · ${t('shop_must_be')}
                     <b class="nums">${деньги(ж.expected, ж.currency_code)}</b></span></div>
-                <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums" data-count="${ж.currency_code}" data-cash-calc="${ж.currency_code}"
+                <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums" data-count="${ж.currency_code}" data-cash-calc="${ж.currency_code}" data-cash-expected="${ж.expected}"
                        value="${введено ? e(факт) : ''}" placeholder="${t('shop_counted_placeholder')}">
                 ${разница === null ? ''
                   : разница === 0
@@ -324,7 +324,7 @@ const ShopShift = (() => {
                         <label class="form-control">
                             <div class="label py-1"><span class="label-text text-sm">${тр('shop_take_counted', 'Пересчитал')}, ${ЗНАК[в] || в}</span></div>
                             <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums"
-                                   data-take-check="${в}" data-expected="${с}" data-cash-calc="${в}" placeholder="${деньги(с, в)}">
+                                   data-take-check="${в}" data-expected="${с}" data-cash-calc="${в}" data-cash-expected="${с}" placeholder="${деньги(с, в)}">
                             <span data-take-diff="${в}"></span>
                         </label>`).join('')}</div>
                     <div class="grid gap-3 md:grid-cols-3">${выборСчетов}</div>
@@ -354,7 +354,7 @@ const ShopShift = (() => {
                         <div class="label py-1"><span class="label-text text-sm">${ЗНАК[к.currency_code] || к.currency_code} · ${t('shop_must_be')}
                             <b class="nums">${деньги(к.expected, к.currency_code)}</b></span></div>
                         <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums"
-                               data-recount="${к.currency_code}" data-cash-calc="${к.currency_code}" value="${e(к.actual)}" ${продавец ? '' : 'disabled'}>
+                               data-recount="${к.currency_code}" data-cash-calc="${к.currency_code}" data-cash-expected="${к.expected}" value="${e(к.actual)}" ${продавец ? '' : 'disabled'}>
                         <input class="input input-bordered input-sm mt-1" data-recount-why="${к.currency_code}"
                                value="${e(к.reason || '')}" placeholder="${t('shop_discrepancy_reason')}" ${продавец ? '' : 'disabled'}>
                     </label>`).join('')}</div>

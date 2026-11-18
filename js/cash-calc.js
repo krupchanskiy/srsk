@@ -41,9 +41,9 @@
     }
 
     const TEXTS = {
-        ru: { title: 'Посчитать по купюрам', total: 'Итого', other: 'Монеты и прочее', insert: 'Вставить сумму', cancel: 'Отмена', clear: 'Очистить', btn: 'Посчитать по купюрам' },
-        en: { title: 'Count by banknotes', total: 'Total', other: 'Coins and other', insert: 'Insert amount', cancel: 'Cancel', clear: 'Clear', btn: 'Count by banknotes' },
-        hi: { title: 'नोटों से गिनें', total: 'कुल', other: 'सिक्के और अन्य', insert: 'राशि डालें', cancel: 'रद्द करें', clear: 'साफ़ करें', btn: 'नोटों से गिनें' }
+        ru: { expected: 'Должно быть', diff: 'Разница', match: 'сходится', title: 'Посчитать по купюрам', total: 'Итого', other: 'Монеты и прочее', insert: 'Вставить сумму', cancel: 'Отмена', clear: 'Очистить', btn: 'Посчитать по купюрам' },
+        en: { expected: 'Expected', diff: 'Difference', match: 'matches', title: 'Count by banknotes', total: 'Total', other: 'Coins and other', insert: 'Insert amount', cancel: 'Cancel', clear: 'Clear', btn: 'Count by banknotes' },
+        hi: { expected: 'होना चाहिए', diff: 'अंतर', match: 'मेल खाता है', title: 'नोटों से गिनें', total: 'कुल', other: 'सिक्के और अन्य', insert: 'राशि डालें', cancel: 'रद्द करें', clear: 'साफ़ करें', btn: 'नोटों से गिनें' }
     };
     const tx = key => {
         let lang = 'ru';
@@ -85,6 +85,10 @@
             <div class="flex items-center gap-2 mt-2">
                 <span class="text-sm flex-1">${tx('other')}</span>
                 <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm w-28 text-right font-mono" data-cc="other">
+            </div>
+            <div class="rounded-lg border border-base-300 px-3 py-2 mt-3 text-sm" data-cc="check" hidden>
+                <div class="flex justify-between"><span>${tx('expected')}</span><b class="font-mono" data-cc="expected"></b></div>
+                <div class="flex justify-between mt-1"><span>${tx('diff')}</span><b class="font-mono" data-cc="diff"></b></div>
             </div>
             <div class="modal-action">
                 <button type="button" class="btn btn-ghost btn-sm mr-auto" data-cc="clear">${tx('clear')}</button>
@@ -154,8 +158,20 @@
         });
         return Math.round((s + num(dlg.querySelector('[data-cc="other"]').value)) * 100) / 100;
     }
+    // Поле может сказать, сколько должно быть (data-cash-expected): тогда внизу — сверка и разница
     function recalc() {
-        dlg.querySelector('[data-cc="total"]').textContent = `${sign(currency)} ${fmt(total())}`;
+        const sum = total();
+        dlg.querySelector('[data-cc="total"]').textContent = `${sign(currency)} ${fmt(sum)}`;
+        const raw = target?.dataset.cashExpected;
+        const box = dlg.querySelector('[data-cc="check"]');
+        box.hidden = raw === undefined || raw === '' || currency !== resolveCurrency(target);
+        if (box.hidden) return;
+        const exp = Number(raw) || 0;
+        const d = Math.round((sum - exp) * 100) / 100;
+        dlg.querySelector('[data-cc="expected"]').textContent = `${sign(currency)} ${fmt(exp)}`;
+        const el = dlg.querySelector('[data-cc="diff"]');
+        el.textContent = d === 0 ? tx('match') : `${d > 0 ? '+' : '−'}${sign(currency)} ${fmt(Math.abs(d))}`;
+        el.className = `font-mono ${d === 0 ? 'text-success' : 'text-error'}`;
     }
 
     function insert() {
