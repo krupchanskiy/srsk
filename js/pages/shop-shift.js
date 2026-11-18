@@ -110,6 +110,10 @@ const ShopShift = (() => {
         // утром его кладут в ящик заранее и хотят записать до первой продажи
         const нужноОткрыть = !смена || смена.status !== 'open';
         $('#openShift').hidden = !нужноОткрыть;
+        // пока казначей не принял выручку, последнюю смену можно открыть снова и поправить
+        $('#reopenShift').hidden = !(смена?.status === 'closed'
+            && (!смена.handover_id || смена.handover_id === пакет?.id));
+        $('#reopenShift').textContent = тр('shop_reopen_shift', 'Открыть смену снова');
 
         if (!смена) {
             $('#shiftTitle').textContent = t('shop_shift_none');
@@ -295,7 +299,7 @@ const ShopShift = (() => {
             if (размен > 0) итогиВалют.INR = (итогиВалют.INR || 0) + размен;
             const итогСтрокой = Object.entries(итогиВалют).map(([в, с]) => деньги(с, в)).join(' · ') || деньги(0);
 
-            $('#handoverNote').textContent = t('shop_handover_pending');
+            $('#handoverNote').textContent = тр('shop_handover_accepting', 'Казначей принимает выручку');
             тело.innerHTML = `
                 <div>
                     <div class="text-xs opacity-60 font-semibold uppercase tracking-wide">Итого принять в кассу</div>
@@ -324,7 +328,7 @@ const ShopShift = (() => {
         }
 
         $('#handoverNote').textContent = естьЗакрытыеНесданные
-            ? t('shop_handover_has_closed')
+            ? тр('shop_handover_waiting', 'Закрытые смены ждут казначея')
             : t('shop_handover_none');
         if (!естьЗакрытыеНесданные) {
             тело.innerHTML = `<div class="text-sm opacity-60">${t('shop_handover_nothing')}</div>`;
@@ -352,8 +356,10 @@ const ShopShift = (() => {
                 возврат.returned_at ? ' ' + DateUtils.formatShort(new Date(возврат.returned_at)) : ''}: <b>${
                 e(возврат.return_reason)}</b>. Исправьте пересчёт и сдайте заново.</span></div>` : ''}
             ${сменыСПересчётом}
-            <div><button class="btn btn-sm btn-outline" id="prepareHandover" data-permission="shop_settle">${
-                t('shop_prepare_handover')}</button></div>`;
+            ${админФинансов()
+                ? `<div><button class="btn btn-sm btn-success" id="prepareHandover">${тр('shop_take_revenue', 'Принять выручку')}</button></div>`
+                : `<div class="text-sm opacity-60">${тр('shop_handover_seller_note',
+                    'Отдайте деньги казначею — он примет их здесь же. Пока не принял, пересчёт можно поправить.')}</div>`}`;
     }
 
     // ---------- операции ----------
@@ -440,6 +446,18 @@ const ShopShift = (() => {
             const b = ev.target.closest('button');
             if (!b) return;
 
+            if (b.id === 'reopenShift') {
+                if (!confirm(тр('shop_reopen_confirm',
+                    'Открыть смену снова? Можно будет поправить чеки и пересчёт, потом закрыть заново.'))) return;
+                return разово(b, async () => {
+                    const { error } = await Layout.db.rpc('shop_reopen_shift', { p_shift: смена.id });
+                    if (error) return Layout.handleError(error, тр('shop_reopen_shift', 'Открыть смену снова'));
+                    Layout.showNotification(тр('shop_reopened_msg', 'Смена снова открыта'), 'success');
+                    пересчёт = {}; причины = {};
+                    await перерисовать();
+                });
+            }
+
             if (b.id === 'openShift') {
                 return разово(b, async () => {
                     const { error } = await Layout.db.rpc('shop_open_shift', { p_float: 0 });
@@ -476,7 +494,7 @@ const ShopShift = (() => {
                 return разово(b, async () => {
                     const { error } = await Layout.db.rpc('shop_prepare_handover', { p_note: null });
                     if (error) return Layout.handleError(error, t('shop_err_prepare'));
-                    Layout.showNotification(t('shop_prepared_msg'), 'success');
+                    Layout.showNotification(тр('shop_take_revenue_msg', 'Проверьте суммы и выберите кассу'), 'success');
                     await перерисовать();
                 });
             }
