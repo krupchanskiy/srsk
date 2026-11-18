@@ -261,13 +261,16 @@ function chatDraftCardHtml(d) {
     const isTransfer = d.kind === 'transfer';
     const head = isTransfer
         ? `${t('fin_chat_transfer')} → ${e(d.target_department || '—')}`
-        : t('fin_chat_expense');
+        : t('fin_chat_expense') + (isAccountsChatExpense(d) ? ` → ${e(d.target_department)}` : '');
+    const onDate = d.occurred_on && d.occurred_on !== (d.created_at || '').slice(0, 10)
+        ? `<span class="badge badge-warning badge-sm">${DateUtils.formatShort(DateUtils.parseDate(d.occurred_on))}</span>` : '';
     return `
     <div class="card bg-base-100 shadow-sm border-l-4 border-warning" data-draft="${d.id}">
         <div class="card-body py-4">
             <div class="flex flex-wrap items-center gap-3">
                 <span class="badge badge-ghost badge-sm">${e(d.department)}</span>
-                <span class="font-medium">${e(head)}</span>
+                ${onDate}
+                <span class="font-medium">${head}</span>
                 <span class="font-mono font-semibold">${FinUtils.fmtMoney(d.amount, d.currency)}</span>
                 ${d.category ? `<span class="badge badge-outline badge-sm">${e(d.category)}</span>` : ''}
                 ${d.source_account ? `<span class="badge badge-outline badge-sm">${t('fin_from')}: ${e(d.source_account)}</span>` : ''}
@@ -488,12 +491,17 @@ async function submitReversal(ev) {
     }
 }
 
+// Расход из чата счетов ИП (мигр. 800): у заявки нет своего департамента,
+// департамент, за который платит ИП, выбран в боте (target_department_id)
+const isAccountsChatExpense = d => !!d && d.kind === 'expense' && !d.department_id && !!d.target_department_id;
+
 // Провести заявку из чата: fin-админ создаёт настоящий расход/перевод,
 // на исходное сообщение в чате бот ставит 👍
 // Выдача департаменту, у которого несколько держателей наличных (Зелёные, Кафе), —
 // сначала выбрать, кому именно отданы деньги, иначе в /баланс они «не привязано» (689)
 async function postDraft(id) {
     const draft = chatDrafts.find(d => d.id === id);
+    if (isAccountsChatExpense(draft)) { openSplit(id); return; }
     if (!confirmDraftAmount(draft)) return;
     if (draft?.kind === 'transfer' && draft.target_department_id) {
         const holders = await loadHolders(draft.target_department_id);
@@ -609,14 +617,14 @@ function outCategoryOptions(selected) {
 
 // Департаменты, кроме автора заявки: передавать самому себе нечего, сервер
 // такую строку и не примет.
-function deptOptions() {
+function deptOptions(selected) {
     return `<option value="">${t('fin_split_dept_own')}</option>` + departments
         .filter(d => d.id !== splitDraft?.department_id)
-        .map(d => `<option value="${d.id}">${e(d.name)}</option>`)
+        .map(d => `<option value="${d.id}" ${d.id === selected ? 'selected' : ''}>${e(d.name)}</option>`)
         .join('');
 }
 
-function splitRowHtml(amount, categoryId, objectId) {
+function splitRowHtml(amount, categoryId, objectId, deptId) {
     return `<div class="flex flex-col gap-1 border-b border-base-200 pb-2" data-split-row data-object-auto="1">
         <div class="flex items-center gap-2 min-w-0">
             <input type="number" class="input input-bordered input-sm w-24 shrink-0 font-mono" step="0.01" min="0.01"
@@ -628,7 +636,7 @@ function splitRowHtml(amount, categoryId, objectId) {
         </div>
         <div class="flex items-center gap-2 pl-1 min-w-0">
             <select class="select select-bordered select-sm flex-1 min-w-0" data-split-dept
-                    title="${t('fin_split_dept_hint')}">${deptOptions()}</select>
+                    title="${t('fin_split_dept_hint')}">${deptOptions(deptId)}</select>
             <!-- Галочку показываем всегда: раньше она возникала из ниоткуда при
                  выборе департамента, и о такой возможности не знали (ВГ, 05.08.2026) -->
             <label class="label cursor-pointer gap-2 opacity-40" data-split-expense-box
@@ -727,9 +735,11 @@ function openSplit(id) {
     // Стартуем с одной строки на всю сумму: самый частый случай — просто
     // поправить статью, а не делить.
     document.getElementById('splitRows').innerHTML =
-        splitRowHtml(splitDraft.amount, splitDraft.category_id || null);
+        splitRowHtml(splitDraft.amount, splitDraft.category_id || null, null,
+                     isAccountsChatExpense(splitDraft) ? splitDraft.target_department_id : null);
     document.getElementById('splitNote').value = splitDraft.note || '';
     renderRemainder();
+    document.querySelectorAll('#splitRows [data-split-row]').forEach(syncRowState);
     document.querySelectorAll('#splitRows [data-split-row]').forEach(maybeSuggestSplitObject);
     document.querySelectorAll('#splitRows [data-split-row]').forEach(syncSplitPayrollField);
     document.getElementById('splitModal').showModal();

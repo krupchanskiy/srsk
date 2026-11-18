@@ -25,6 +25,7 @@
 // Бот НИКОГДА не пишет в ядро финмодуля — только в свои таблицы заявок.
 // Проведение — только фин-админ во «Входящих».
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { ipChatInfo, ipHandleCallback, ipHandleMessage } from "./accounts-chat.ts";
 
 // Порядок проверки важен: получение → передача → расход. «Взял» есть и в
 // расходе («взял продукты»), и в получении («взял деньги у Ашиша»), поэтому
@@ -372,6 +373,12 @@ Deno.serve(async (req) => {
     const action = parts[0];
     const msg = cq.message;
 
+    // Чат счетов ИП (800): свои кнопки, свои ответы на нажатие
+    if (action === "ip") {
+      await ipHandleCallback({ supa, tg, esc, parseMoney, looksLikeList }, cq, parts);
+      return new Response("ok");
+    }
+
     if (action === "no") {
       await supa.rpc("tg_set_draft_status", { p_id: parts[1], p_status: "dismissed", p_card_message_id: msg?.message_id });
       // Карточка своё отработала — статус и так виден по реакции на исходном
@@ -548,6 +555,12 @@ Deno.serve(async (req) => {
       p: { chat_id: m.chat.id, title: m.chat.title ?? null, chat_type: m.chat.type,
            bot_status: null, is_forum: m.chat.is_forum ?? false },
     });
+  }
+
+  // ---------- чат счетов ИП (800): свой режим, департаментских правил нет ----------
+  if (m.chat?.type !== "private" && await ipChatInfo(supa, m.chat.id)) {
+    await ipHandleMessage({ supa, tg, esc, parseMoney, looksLikeList }, update, m, text);
+    return new Response("ok");
   }
 
   // ---------- /start <токен> — привязка ----------
