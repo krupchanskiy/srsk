@@ -339,10 +339,14 @@ function chatDraftCardHtml(d) {
         : t('fin_chat_expense') + (isAccountsChatExpense(d) ? ` → ${e(d.target_department)}` : '');
     const onDate = d.occurred_on && d.occurred_on !== (d.created_at || '').slice(0, 10)
         ? `<span class="badge badge-warning badge-sm">${DateUtils.formatShort(DateUtils.parseDate(d.occurred_on))}</span>` : '';
+    // Когда пришло сообщение в чат (created_at — настоящий timestamp, new Date безопасен)
+    const sentAt = d.created_at
+        ? `<span class="whitespace-nowrap opacity-70" title="Когда пришло сообщение">${DateUtils.formatDateTime(new Date(d.created_at))}</span>` : '';
     return `
     <div class="card bg-base-100 shadow-sm border-l-4 border-warning" data-draft="${d.id}">
         <div class="card-body py-4">
             <div class="flex flex-wrap items-center gap-3">
+                ${sentAt}
                 <span class="badge badge-ghost badge-sm">${e(d.department)}</span>
                 ${onDate}
                 <span class="font-medium">${head}</span>
