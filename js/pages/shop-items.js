@@ -70,7 +70,7 @@ const ShopItems = (() => {
                 <td data-label="${t('shop_min_qty_col')}" class="text-right nums opacity-60">${штук(и.min_qty)}</td>
                 <td data-label="${t('shop_source')}">
                     <span class="badge badge-sm ${и.source === 'own' ? 'badge-secondary' : 'badge-ghost'}">
-                        ${и.source === 'own' ? t('shop_ours') : t('shop_consignment')}</span></td>
+                        ${и.source === 'own' ? t('shop_ours') : и.source === 'purchase' ? (t('shop_purchase_kind') === 'shop_purchase_kind' ? 'Закупка ШРСК' : t('shop_purchase_kind')) : t('shop_consignment')}</span></td>
                 <td data-label="" class="text-right">
                     ${можноМенять() ? `<button class="btn btn-ghost btn-xs" data-edit="${и.id}">${t('shop_edit')}</button>` : ''}
                 </td>

@@ -1,8 +1,11 @@
 /**
  * Приём товара в магазин.
  *
- * Два вида поступления на одном экране: приём от владельца (чужой товар, долг
- * появится при продаже) и выпуск Мастерской (наш, себестоимости не ведём).
+ * Три вида поступления на одном экране: приём от владельца (чужой товар, долг
+ * появится при продаже), выпуск Мастерской (наш, себестоимости не ведём) и
+ * закупка ШРСК (наш, куплен на деньги ШРСК: цена закупки и скидка поставщика дают
+ * себестоимость, выручка идёт в магазин, не в мурти). Цена продажи — в каждой строке:
+ * у товара из справочника её можно поменять (доработка, переоценка).
  * Товара, которого ещё нет в справочнике, заводить отдельно не нужно — название
  * вводится прямо в строке, рядом спрашиваем категорию и цену продажи.
  */
@@ -10,6 +13,8 @@ const ShopReceive = (() => {
     const e = str => Layout.escapeHtml(str ?? '');
     const t = key => Layout.t(key);
     const { деньги } = ShopUtils;
+    // новые ключи могут ещё не попасть в кэш переводов — тогда русский текст
+    const тр = (k, ru) => { const v = t(k); return v === k ? ru : v; };
 
     let владельцы = [], товары = [], категории = [], прошлыеЦены = {};
     let занято = false;
@@ -17,7 +22,13 @@ const ShopReceive = (() => {
     let строки = [пустаяСтрока()];
 
     const $ = s => document.querySelector(s);
-    function пустаяСтрока() { return { название: '', item_id: null, qty: '', cost: '', категория: '', цена: '' }; }
+    function пустаяСтрока() { return { название: '', item_id: null, qty: '', cost: '', категория: '', цена: '', закупка: '', скидка: '' }; }
+    /** Себестоимость закупки ШРСК: прайс поставщика минус его скидка. */
+    function себестоимость(с) {
+        const прайс = parseFloat(с.закупка) || 0;
+        const скидка = Math.min(Math.max(parseFloat(с.скидка) || 0, 0), 99);
+        return Math.round(прайс * (1 - скидка / 100) * 100) / 100;
+    }
 
     async function загрузить() {
         const ответы = await Promise.all([
@@ -39,23 +50,26 @@ const ShopReceive = (() => {
     }
 
     function рисоватьШапку() {
-        $('#kindConsign').classList.toggle('btn-outline', вид !== 'consignment');
-        $('#kindOwn').classList.toggle('btn-outline', вид !== 'own');
-        $('#kindConsign').style.cssText = вид === 'consignment' ? 'background: var(--current-color); color:#fff; border-color: var(--current-color);' : '';
-        $('#kindOwn').style.cssText = вид === 'own' ? 'background: var(--current-color); color:#fff; border-color: var(--current-color);' : '';
+        [['#kindConsign', 'consignment'], ['#kindOwn', 'own'], ['#kindPurchase', 'purchase']].forEach(([sel, к]) => {
+            $(sel).classList.toggle('btn-outline', вид !== к);
+            $(sel).style.cssText = вид === к ? 'background: var(--current-color); color:#fff; border-color: var(--current-color);' : '';
+        });
 
-        $('#ownerLabel').textContent = вид === 'own' ? t('shop_source') : t('shop_owner');
-        $('#ownerSel').disabled = вид === 'own';
-        $('#ownerSel').innerHTML = вид === 'own'
-            ? `<option>${t('shop_workshop_own')}</option>`
+        const безВладельца = вид !== 'consignment';
+        $('#ownerLabel').textContent = безВладельца ? t('shop_source') : t('shop_owner');
+        $('#ownerSel').disabled = безВладельца;
+        $('#ownerSel').innerHTML = вид === 'own' ? `<option>${t('shop_workshop_own')}</option>`
+            : вид === 'purchase' ? `<option>${тр('shop_purchase_src', 'Куплено на деньги ШРСК')}</option>`
             : владельцы.map(в => `<option value="${в.id}">${e(в.имя)} · ${t('shop_losses_word')} ${
                 в.loss_policy === 'compensate' ? t('shop_loss_compensate') : t('shop_loss_owner')}</option>`).join('')
               || `<option value="">${t('shop_no_owners')}</option>`;
 
-        document.querySelectorAll('.cost-col').forEach(el => { el.hidden = вид === 'own'; });
-        $('#ownerWarn').hidden = вид === 'own';
+        document.querySelectorAll('thead .cost-col').forEach(el => { el.hidden = вид !== 'consignment'; });
+        document.querySelectorAll('thead .buy-col').forEach(el => { el.hidden = вид !== 'purchase'; });
+        $('#ownerWarn').hidden = безВладельца;
+        $('#purchaseHint').hidden = вид !== 'purchase';
         // заводить владельцев может заведующий (то же право проверяет shop_upsert_owner)
-        $('#newOwnerBtn').hidden = вид === 'own' || !window.hasPermission?.('shop_manage');
+        $('#newOwnerBtn').hidden = безВладельца || !window.hasPermission?.('shop_manage');
     }
 
     function открытьНовогоВладельца() {
@@ -92,6 +106,7 @@ const ShopReceive = (() => {
 
     function рисоватьСтроки() {
         const список = товары.filter(t => вид === 'own' ? t.source === 'own' : t.source !== 'own');
+        const чужой = вид === 'consignment', закупка = вид === 'purchase';
         $('#itemsList').innerHTML = список.map(t => `<option value="${e(t.name_ru)}"></option>`).join('');
 
         $('#rowsTbl').tBodies[0].innerHTML = строки.map((с, i) => {
@@ -111,18 +126,30 @@ const ShopReceive = (() => {
                                 <option value="">${t('shop_category_dots')}</option>
                                 ${категории.map(к => `<option value="${к.id}" ${к.id === с.категория ? 'selected' : ''}>${e(к.name_ru)}</option>`).join('')}
                             </select>
-                            <input class="input input-bordered input-xs w-28 nums" inputmode="numeric"
-                                   data-price="${i}" value="${e(с.цена)}" placeholder="${t('shop_price_small')}">
                         </div>` : ''}
                     </div>
                 </td>
                 <td data-label="${t('shop_qty')}" class="text-right">
                     <input class="input input-bordered input-sm w-24 text-right nums" inputmode="numeric"
                            aria-label="${t('shop_qty')}" data-qty="${i}" value="${e(с.qty)}"></td>
-                <td data-label="${t('shop_cost_col')}" class="text-right cost-col" ${вид === 'own' ? 'hidden' : ''}>
+                <td data-label="${тр('shop_sale_price_col', 'Цена продажи, ₹')}" class="text-right">
+                    <input class="input input-bordered input-sm w-28 text-right nums" inputmode="decimal"
+                           aria-label="${тр('shop_sale_price_col', 'Цена продажи, ₹')}" data-price="${i}" value="${e(с.цена)}"
+                           placeholder="${t('shop_price_small')}"></td>
+                ${закупка ? `
+                <td data-label="${тр('shop_list_price_col', 'Цена закупки, ₹')}" class="text-right">
+                    <input class="input input-bordered input-sm w-28 text-right nums" inputmode="decimal"
+                           aria-label="${тр('shop_list_price_col', 'Цена закупки, ₹')}" data-buy="${i}" value="${e(с.закупка)}"></td>
+                <td data-label="${тр('shop_discount_pct_col', 'Скидка поставщика, %')}" class="text-right">
+                    <input class="input input-bordered input-sm w-20 text-right nums" inputmode="decimal"
+                           aria-label="${тр('shop_discount_pct_col', 'Скидка поставщика, %')}" data-disc="${i}" value="${e(с.скидка)}"
+                           placeholder="0"></td>
+                <td data-label="${тр('shop_net_cost_col', 'Себестоимость, ₹')}" class="text-right nums font-semibold" data-net="${i}">
+                    ${с.закупка ? деньги(себестоимость(с)) : '—'}</td>` : ''}
+                <td data-label="${t('shop_cost_col')}" class="text-right cost-col" ${чужой ? '' : 'hidden'}>
                     <input class="input input-bordered input-sm w-28 text-right nums" inputmode="numeric"
                            aria-label="${t('shop_cost_col')}" data-cost="${i}" value="${e(с.cost)}"></td>
-                <td data-label="${t('shop_last_time')}" class="text-right cost-col opacity-60 nums" ${вид === 'own' ? 'hidden' : ''}>
+                <td data-label="${t('shop_last_time')}" class="text-right cost-col opacity-60 nums" ${чужой ? '' : 'hidden'}>
                     ${прошлая ? деньги(прошлая) : '—'}</td>
                 <td data-label="">
                     <button class="btn btn-ghost btn-sm" data-del="${i}" aria-label="${t('shop_remove_row')}">✕</button></td>
@@ -142,13 +169,16 @@ const ShopReceive = (() => {
 
         const строкиИстории = (data || []).map(п => {
             const позиции = п.shop_receipt_items || [];
-            const сумма = позиции.reduce((s, x) => s + Number(x.qty) * Number(x.cost_price || 0), 0);
+            // обязательство только перед владельцем; закупка ШРСК уже оплачена
+            const сумма = п.kind !== 'consignment' ? 0
+                : позиции.reduce((s, x) => s + Number(x.qty) * Number(x.cost_price || 0), 0);
             const откуда = п.kind === 'own' ? t('shop_workshop_own_short')
+                : п.kind === 'purchase' ? тр('shop_purchase_kind', 'Закупка ШРСК')
                 : (имена[п.owner_id] || t('shop_owner_unknown'));
             return `<tr>
                 <td data-label="№" class="nums">${п.number}</td>
                 <td data-label="${t('shop_date')}" class="nums">${DateUtils.formatShort(DateUtils.parseDate(п.received_on))}</td>
-                <td data-label="${t('shop_from_col')}">${e(откуда)}${п.kind === 'own'
+                <td data-label="${t('shop_from_col')}">${e(откуда)}${п.kind !== 'consignment'
                     ? ` <span class="badge badge-sm">${t('shop_ours')}</span>` : ''}</td>
                 <td data-label="${t('shop_lines_col')}" class="text-right nums">${позиции.length}</td>
                 <td data-label="${t('shop_liability_col')}" class="text-right nums">${сумма ? деньги(сумма) : '—'}</td>
@@ -167,12 +197,16 @@ const ShopReceive = (() => {
             Layout.showNotification(t('shop_add_one_row'), 'warning');
             return;
         }
-        if (вид !== 'own' && !$('#ownerSel').value) {
+        if (вид === 'consignment' && !$('#ownerSel').value) {
             Layout.showNotification(t('shop_pick_owner'), 'warning');
             return;
         }
+        if (вид === 'purchase') {
+            const без = годные.find(с => !(parseFloat(с.закупка) > 0));
+            if (без) return Layout.showNotification(тр('shop_purchase_needs', 'Для «%s» укажите цену закупки').replace('%s', без.название), 'warning');
+        }
         // чужой товар: прямо спрашиваем, чей он, — купленное на деньги ШРСК сюда не заводят
-        if (вид !== 'own') {
+        if (вид === 'consignment') {
             const владелец = владельцы.find(в => в.id === $('#ownerSel').value)?.имя || '';
             const долг = годные.reduce((с, x) => с + (parseFloat(x.qty) || 0) * (parseFloat(x.cost) || 0), 0);
             const я = (window.currentUser?.spiritual_name || '').toLowerCase().split(/[\s-]+/)[0];
@@ -204,7 +238,7 @@ const ShopReceive = (() => {
                 name_ru: с.название.trim(),
                 category_id: с.категория,
                 price: parseFloat(с.цена),
-                source: вид === 'own' ? 'own' : 'consignment',
+                source: вид,
                 translit: window.Translit ? Translit.ru(с.название.trim()).toLowerCase() : null,
             }).select('id').single();
             if (error) { Layout.handleError(error, t('shop_err_create_item')); return; }
@@ -218,16 +252,20 @@ const ShopReceive = (() => {
             items: годные.map(с => ({
                 item_id: с.item_id,
                 qty: parseFloat(с.qty),
-                cost_price: вид === 'own' ? null : parseFloat(с.cost),
+                cost_price: вид === 'consignment' ? parseFloat(с.cost) : null,
+                // новая цена продажи уходит в карточку товара (база меняет её, только если другая)
+                price: parseFloat(с.цена) > 0 ? parseFloat(с.цена) : null,
+                ...(вид === 'purchase' ? { list_price: parseFloat(с.закупка), discount_pct: parseFloat(с.скидка) || 0 } : {}),
             })),
         };
-        if (вид !== 'own') payload.owner_id = $('#ownerSel').value;
+        if (вид === 'consignment') payload.owner_id = $('#ownerSel').value;
 
         const { error } = await Layout.db.rpc('shop_receive_goods', { payload });
         if (error) { Layout.handleError(error, t('shop_err_receive')); return; }
 
-        Layout.showNotification(вид === 'own'
-            ? t('shop_own_received') : t('shop_consign_received'), 'success');
+        Layout.showNotification(вид === 'own' ? t('shop_own_received')
+            : вид === 'purchase' ? тр('shop_purchase_received', 'Закупка принята')
+            : t('shop_consign_received'), 'success');
         строки = [пустаяСтрока()];
         $('#recNote').value = '';
         if (!await загрузить()) return;
@@ -259,7 +297,8 @@ const ShopReceive = (() => {
 
         document.addEventListener('input', ev => {
             const el = ev.target;
-            const i = el.dataset.name ?? el.dataset.qty ?? el.dataset.cost ?? el.dataset.price;
+            const i = el.dataset.name ?? el.dataset.qty ?? el.dataset.cost ?? el.dataset.price
+                ?? el.dataset.buy ?? el.dataset.disc;
             if (i === undefined) return;
             const с = строки[+i];
             if (!с) return;
@@ -267,13 +306,21 @@ const ShopReceive = (() => {
             if (el.dataset.qty !== undefined) { с.qty = el.value; обновитьИтог(); return; }
             if (el.dataset.cost !== undefined) { с.cost = el.value; обновитьИтог(); return; }
             if (el.dataset.price !== undefined) { с.цена = el.value; return; }
+            if (el.dataset.buy !== undefined || el.dataset.disc !== undefined) {
+                if (el.dataset.buy !== undefined) с.закупка = el.value; else с.скидка = el.value;
+                const ячейка = document.querySelector(`[data-net="${i}"]`);
+                if (ячейка) ячейка.textContent = с.закупка ? деньги(себестоимость(с)) : '—';
+                обновитьИтог();
+                return;
+            }
 
             if (el.dataset.name !== undefined) {
                 с.название = el.value;
                 const найден = товары.find(t => t.name_ru.toLowerCase() === el.value.trim().toLowerCase());
-                const былНовый = !с.item_id;
+                const былНовый = !с.item_id, былId = с.item_id;
                 с.item_id = найден?.id || null;
                 if (найден && !с.cost && прошлыеЦены[найден.id]) с.cost = String(прошлыеЦены[найден.id]);
+                if (найден && (найден.id !== былId || !с.цена)) с.цена = String(Number(найден.price) || '');
                 // перерисовываем, только когда меняется вид строки, иначе собьём ввод
                 const сталНовый = !с.item_id && el.value.trim().length > 1;
                 if (!!найден !== !былНовый || сталНовый !== !!document.querySelector(`[data-cat="${i}"]`)) {
@@ -294,8 +341,10 @@ const ShopReceive = (() => {
     function обновитьИтог() {
         const штук = строки.reduce((s, с) => s + (parseFloat(с.qty) || 0), 0);
         const сумма = строки.reduce((s, с) => s + (parseFloat(с.qty) || 0) * (parseFloat(с.cost) || 0), 0);
+        const закуплено = строки.reduce((s, с) => s + (parseFloat(с.qty) || 0) * себестоимость(с), 0);
         $('#recTotal').textContent = !штук ? ''
             : вид === 'own' ? t('shop_own_total_hint').replace('%s', штук)
+            : вид === 'purchase' ? тр('shop_purchase_total_hint', '%s шт · себестоимость %s').replace('%s', штук).replace('%s', деньги(закуплено))
             : t('shop_consign_total_hint').replace('%s', штук).replace('%s', деньги(сумма));
     }
 

@@ -43,9 +43,10 @@
             <div class="card-body gap-4 p-4 md:p-6">
                 <div class="flex flex-wrap items-center gap-3">
                     <h2 class="card-title text-base" data-i18n="shop_new_receipt">Новое поступление</h2>
-                    <div class="join ml-auto">
+                    <div class="join join-vertical w-full sm:join-horizontal sm:w-auto sm:ml-auto">
                         <button class="btn btn-sm join-item" data-kind="consignment" id="kindConsign" data-i18n="shop_from_owner">От владельца</button>
                         <button class="btn btn-sm join-item btn-outline" data-kind="own" id="kindOwn" data-i18n="shop_own_production">Выпуск Мастерской</button>
+                        <button class="btn btn-sm join-item btn-outline" data-kind="purchase" id="kindPurchase" data-i18n="shop_purchase_kind">Закупка ШРСК</button>
                     </div>
                 </div>
 
@@ -57,6 +58,10 @@
                         Товар, купленный на деньги ШРСК или на выданные на закупку, — не чужой:
                         не ставьте владельцем себя или того, кто покупал, иначе магазин заплатит за него второй раз.
                         Такой товар пока не заводите — скажите казначею.</span>
+                </div>
+                <!-- Закупка ШРСК (ВГ 19.11): купленное на деньги ШРСК, в т.ч. доработанное — выручка в магазин, не в мурти -->
+                <div role="alert" class="alert alert-info text-sm items-start" id="purchaseHint" hidden>
+                    <span data-i18n="shop_purchase_hint">Товар куплен на деньги ШРСК (в том числе доработанный): владельца нет, выручка идёт в магазин. Если после доработки цена другая — поправьте её в строке.</span>
                 </div>
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <label class="form-control">
@@ -83,6 +88,10 @@
                             <tr>
                                 <th class="w-2/5" data-i18n="shop_item">Товар</th>
                                 <th class="text-right" data-i18n="shop_qty">Количество</th>
+                                <th class="text-right" data-i18n="shop_sale_price_col">Цена продажи, ₹</th>
+                                <th class="text-right buy-col" data-i18n="shop_list_price_col" hidden>Цена закупки, ₹</th>
+                                <th class="text-right buy-col" data-i18n="shop_discount_pct_col" hidden>Скидка поставщика, %</th>
+                                <th class="text-right buy-col" data-i18n="shop_net_cost_col" hidden>Себестоимость, ₹</th>
                                 <th class="text-right cost-col" data-i18n="shop_cost_price">Цена расчёта, ₹</th>
                                 <th class="text-right cost-col" data-i18n="shop_last_time">Было в прошлый раз</th>
                                 <th></th>
@@ -160,7 +169,7 @@
     <script src="../js/auth-check.js?v=18"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/shop-utils.js?v=2"></script>
-    <script src="../js/pages/shop-receive.js?v=7"></script>
+    <script src="../js/pages/shop-receive.js?v=8"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_receive' });

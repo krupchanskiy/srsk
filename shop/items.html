@@ -103,6 +103,7 @@
                         <select class="select select-bordered" id="fSource">
                             <option value="consignment" data-i18n="shop_consignment_opt">Реализация</option>
                             <option value="own" data-i18n="shop_own_output">Свой выпуск</option>
+                            <option value="purchase" data-i18n="shop_purchase_kind">Закупка ШРСК</option>
                         </select>
                     </label>
                 </div>
@@ -148,7 +149,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/shop-utils.js?v=2"></script>
     <script src="../js/photo-editor.js?v=1"></script>
-    <script src="../js/pages/shop-items.js?v=4"></script>
+    <script src="../js/pages/shop-items.js?v=5"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_items' });
