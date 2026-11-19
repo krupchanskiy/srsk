@@ -138,6 +138,22 @@ function suspiciousAmount(rawText: string, amount: number | null): string | null
     .find((x) => x[0].replace(/[.,]/g, "") === String(Math.trunc(amount)));
   return th ? th[0] : null;
 }
+// Другие суммы в том же сообщении: «15000 з/п Алене\n1500 такси» — на «какая сумма?»
+// выбрали 1500, и 15 000 так и не попали в учёт (ВГ 19.11.2026). Заявка проводит одну
+// сумму — прямо говорим, что остальное отдельным сообщением. Числа, приклеенные к
+// буквам (рейс «AI2026»), и годы («зима 2027») не считаются. Если сумма написана рядом
+// с валютой («8718 рупий на 300 стаканчиков») — она явная, прочие числа считаем
+// количеством и не тревожим. Та же проверка — в fin-inbox.js.
+function otherAmounts(rawText: string, amount: number | null): number[] {
+  if (!rawText || !amount) return [];
+  const text = maskNonMoney(rawText);
+  const withCur = [...text.matchAll(new RegExp(`${AMT}\\s*(?:${CUR_WORDS})(?![\\p{L}])`, "giu"))];
+  if (withCur.some((m) => amtValue(m[1], m[2]) === Number(amount))) return [];
+  const nums = [...text.matchAll(new RegExp(`(?<![\\p{L}\\d.,])${AMT}`, "gu"))]
+    .map((m) => amtValue(m[1], m[2]))
+    .filter((n) => Number.isFinite(n) && n >= 100 && n !== Number(amount) && !(n >= 2020 && n <= 2039));
+  return [...new Set(nums)];
+}
 // Валюта только если названа ЯВНО. Иначе null — бот спросит (решение ВГ).
 function parseCurrency(text: string): string | null {
   if (/[$]|usd|долл/i.test(text)) return "USD";
@@ -256,8 +272,15 @@ Deno.serve(async (req) => {
       st.source_account ? `откуда: ${esc(st.source_account)}` : null,
     ].filter(Boolean).join(" · ");
     const doubt = suspiciousAmount(st.raw_text, st.amount);
+    const others = st.amount != null ? otherAmounts(st.raw_text, st.amount) : [];
+    const othersLine = others.length
+      ? `\n⚠️ <b>В сообщении есть ещё ${others.length > 1 ? "суммы" : "сумма"}:</b> ${others.map((n) => n.toLocaleString("ru-RU")).join(", ")}`
+        + ` — в эту заявку ${others.length > 1 ? "они не войдут" : "она не войдёт"}, запишется только ${st.amount}.`
+        + ` Если это отдельная трата — пришлите её отдельным сообщением.`
+      : "";
     const amountLine = `${known}\n<i>${esc(st.raw_text)}</i>`
-      + (doubt ? `\n⚠️ <b>Проверьте сумму:</b> в сообщении «${esc(doubt)}», я прочитал ${st.amount}.` : "");
+      + (doubt ? `\n⚠️ <b>Проверьте сумму:</b> в сообщении «${esc(doubt)}», я прочитал ${st.amount}.` : "")
+      + othersLine;
     let head: string;
     let keyboard: any[][];
     // Подсказка «как писать в следующий раз, чтобы я не переспрашивал» —

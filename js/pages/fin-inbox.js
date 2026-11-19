@@ -80,7 +80,45 @@ function suspiciousAmount(rawText, amount) {
     return th ? th[0] : null;
 }
 
+// Другие суммы в том же сообщении: «15000 з/п Алене\n1500 такси» — бот спросил «какая
+// сумма?», выбрали 1500, а 15 000 так и не попали в учёт (ВГ 19.11.2026). Заявка
+// проводит одну сумму, поэтому прямо говорим, что остальное — отдельной заявкой.
+// Числа-количества, даты и время («300шт», «5 кг», «28/09», «14:30») не считаются;
+// числа, приклеенные к буквам (рейс «AI2026»), и годы («зима 2027») — тоже.
+// Если сумма написана рядом с валютой («8718 рупий на 300 стаканчиков») — она указана
+// явно, прочие числа считаем количеством и не тревожим. Та же проверка — в tg-webhook.
+const CUR_WORDS = '[₹₽$€]|usd|eur|inr|rub|rs|руб\\p{L}*|рупи\\p{L}*|долл\\p{L}*|евро';
+const QTY_UNITS = 'шт|штук\\p{L}*|кг|килограмм\\p{L}*|гр|грамм\\p{L}*|г|л|литр\\p{L}*|мл|м|см|мм|метр\\p{L}*|'
+    + 'упак\\p{L}*|пач\\p{L}*|банк\\p{L}*|короб\\p{L}*|бутыл\\p{L}*|мешк\\p{L}*|мешок|пар[аы]?|'
+    + 'компл\\p{L}*|чел\\p{L}*|person\\p{L}*|pax|дн\\p{L}*|день|раз\\p{L}*|год\\p{L}*|%|процент\\p{L}*|дюжин\\p{L}*';
+const NUM = '\\d{1,3}(?:[.,]\\d{2,3})*[.,]\\d{3}(?!\\d)|\\d[\\d \\u00A0\\u2000-\\u200A\\u202F\\u205F\\u3000]{0,9}\\d|\\d';
+const AMT = `(${NUM})(?:[.,](\\d{1,2}))?(?![\\d])`;
+function otherAmounts(rawText, amount) {
+    if (!rawText || !amount) return [];
+    const blank = m => ' '.repeat(m.length);
+    const text = rawText
+        .replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?|(?:\d{1,2}-)?\d{1,2}\/\d{1,2}(?![\d/])/g, blank)
+        .replace(/(?<![\d.,])(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])(?=[ \t\u00A0\u2000-\u200A\u202F\u205F\u3000]+\d)/g, blank)
+        .replace(new RegExp(`(?:${NUM})(?:[.,]\\d{1,2})?[ \\t]*(?:${QTY_UNITS})(?![\\p{L}])`, 'giu'), blank);
+    const val = m => parseFloat(m[1].replace(/[\s.,]/g, '') + (m[2] ? '.' + m[2] : ''));
+    const withCur = [...text.matchAll(new RegExp(`${AMT}\\s*(?:${CUR_WORDS})(?![\\p{L}])`, 'giu'))];
+    if (withCur.some(m => val(m) === amount)) return [];
+    const nums = [...text.matchAll(new RegExp(`(?<![\\p{L}\\d.,])${AMT}`, 'gu'))]
+        .map(val)
+        .filter(n => Number.isFinite(n) && n >= 100 && n !== amount && !(n >= 2020 && n <= 2039));
+    return [...new Set(nums)];
+}
+
 function amountDoubtHtml(d) {
+    const others = otherAmounts(d.raw_text, Number(d.amount));
+    const othersHtml = others.length ? `
+        <div class="alert alert-warning py-2 mt-2 text-sm">
+            <span>В сообщении есть ещё ${others.length > 1 ? 'суммы' : 'сумма'} ${others.map(n => FinUtils.fmtMoney(n, d.currency || 'INR')).join(', ')} — в эту заявку ${others.length > 1 ? 'они не входят' : 'она не входит'}, проводится только ${FinUtils.fmtMoney(d.amount, d.currency || 'INR')}. Если это отдельная трата — проведите её отдельно.</span>
+        </div>` : '';
+    return othersHtml + amountDoubtOnlyHtml(d);
+}
+
+function amountDoubtOnlyHtml(d) {
     const doubt = suspiciousAmount(d.raw_text, Number(d.amount));
     return doubt ? `
         <div class="alert alert-warning py-2 mt-2 text-sm">
@@ -754,6 +792,8 @@ function openSplit(id) {
     document.getElementById('splitDraftId').value = id;
     document.getElementById('splitInfo').textContent =
         `${FinUtils.fmtMoney(splitDraft.amount, splitDraft.currency)} · ${splitDraft.purpose || splitDraft.raw_text || ''}`;
+    // «Есть ещё сумма» — и здесь: в этом окне как раз пытались дописать вторую трату строкой
+    document.getElementById('splitOthers').innerHTML = amountDoubtHtml(splitDraft);
     // Откуда списываем: свой подотчёт первым и назван прямо, кассы — ниже
     const ownAcc = FinUtils.refs.accounts.find(a => a.department_id === splitDraft.department_id
         && a.kind === 'custodial' && a.currency_code === splitDraft.currency && a.is_active);
