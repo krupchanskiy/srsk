@@ -67,13 +67,17 @@ function receiptLink(r) {
     return `<a class="link link-hover text-xs" href="${e(url)}" target="_blank" rel="noopener">открыть в чате</a>`;
 }
 
-// Перед суммой вплотную стоит ещё число — возможно, прочитан только хвост: «8,310» → 310.
+// Перед суммой вплотную стоит ещё число — возможно, прочитан только хвост: «8 310» → 310;
+// или сумма прочитана из «6.799» как тысячи — тоже показать человеку.
 // Возвращает этот кусок текста. Та же проверка — в tg-webhook (карточка бота).
 function suspiciousAmount(rawText, amount) {
     if (!rawText || !amount) return null;
     const text = rawText.replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?|(?:\d{1,2}-)?\d{1,2}[./]\d{1,2}(?![\d./])/g, ' ');
     const m = text.match(new RegExp(`\\d+[^\\p{L}\\d\\n\\r%]{1,2}${Math.trunc(amount)}(?!\\d)`, 'u'));
-    return m ? m[0] : null;
+    if (m) return m[0];
+    const th = [...text.matchAll(/(?<![\d.,])\d{1,3}(?:[.,]\d{2,3})*[.,]\d{3}(?!\d)/g)]
+        .find(x => x[0].replace(/[.,]/g, '') === String(Math.trunc(amount)));
+    return th ? th[0] : null;
 }
 
 function amountDoubtHtml(d) {

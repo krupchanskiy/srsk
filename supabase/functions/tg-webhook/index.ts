@@ -46,10 +46,13 @@ const CUR_WORDS = "[₹₽$€]|usd|eur|inr|rub|rs|руб\\p{L}*|рупи\\p{L}*
 // перенос строки, из-за чего «...28/09/2026\n12000₽» склеивалось в 202612000
 // (дата с новой строки + сумма). Баг ВГ 16.09.2026.
 // Неразрывные и узкие пробелы подставляет телефон: «8 310» читалось как 310 (ВГ 02.11.2026).
-const NUM = "\\d[\\d \\u00A0\\u2000-\\u200A\\u202F\\u205F\\u3000]{0,9}\\d|\\d";
+// Точка или запятая перед РОВНО тремя цифрами — разделитель тысяч, а не пайсы
+// (их не больше двух): «6.799» = 6799, «1,50,000» = 150000 (ВГ 19.11.2026).
+const NUM_THOUSANDS = "\\d{1,3}(?:[.,]\\d{2,3})*[.,]\\d{3}(?!\\d)";
+const NUM = `${NUM_THOUSANDS}|\\d[\\d \\u00A0\\u2000-\\u200A\\u202F\\u205F\\u3000]{0,9}\\d|\\d`;
 const AMT = `(${NUM})(?:[.,](\\d{1,2}))?(?![\\d])`;
 const amtValue = (int: string, frac?: string) =>
-  parseFloat(int.replace(/\s/g, "") + (frac ? "." + frac : ""));
+  parseFloat(int.replace(/[\s.,]/g, "") + (frac ? "." + frac : ""));
 
 // Числа, которые описывают не деньги, а количество, вес, объём, время, дату:
 // «300шт», «5 кг», «2 л», «14:30», «28/09/2026», «10%». Заменяем их пробелами
@@ -123,13 +126,17 @@ function parseMoney(rawText: string): { amount: number | null; raw: string; cand
   const n = amtValue(m[1], m[2]);
   return n > 0 ? { amount: n, raw: m[0] } : null;
 }
-// Перед суммой вплотную стоит ещё число — возможно, прочитан только хвост: «8,310» → 310.
+// Перед суммой вплотную стоит ещё число — возможно, прочитан только хвост: «8 310» → 310;
+// или сумма прочитана из «6.799» как тысячи — тоже показать человеку.
 // Возвращает этот кусок текста для предупреждения. Та же проверка — в fin-inbox.js.
 function suspiciousAmount(rawText: string, amount: number | null): string | null {
   if (!rawText || !amount) return null;
   const text = rawText.replace(/\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}:\d{2}(?::\d{2})?|(?:\d{1,2}-)?\d{1,2}[./]\d{1,2}(?![\d./])/g, " ");
   const m = text.match(new RegExp(`\\d+[^\\p{L}\\d\\n\\r%]{1,2}${Math.trunc(amount)}(?!\\d)`, "u"));
-  return m ? m[0] : null;
+  if (m) return m[0];
+  const th = [...text.matchAll(/(?<![\d.,])\d{1,3}(?:[.,]\d{2,3})*[.,]\d{3}(?!\d)/g)]
+    .find((x) => x[0].replace(/[.,]/g, "") === String(Math.trunc(amount)));
+  return th ? th[0] : null;
 }
 // Валюта только если названа ЯВНО. Иначе null — бот спросит (решение ВГ).
 function parseCurrency(text: string): string | null {
@@ -179,7 +186,7 @@ function looksLikeList(rawText: string): boolean {
   if (withCurrency > 1) return true;
   // Либо три и более «денежных» числа: мелочь вроде «5 кг» и время «14:30» не считаются
   const bigNumbers = [...text.matchAll(new RegExp(`(?<![\\d:.,])(?:${NUM})(?![\\d:.,])`, "gu"))]
-    .map((m) => parseFloat(m[0].replace(/\s/g, "")))
+    .map((m) => parseFloat(m[0].replace(/[\s.,]/g, "")))
     .filter((n) => Number.isFinite(n) && n >= 100);
   return bigNumbers.length >= 3;
 }
