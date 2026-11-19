@@ -548,13 +548,14 @@ const FLOAT_WORDS = /сдач|размен/i;
 const isFloatDraft = d => !!d && d.kind === 'transfer' && isFloatDept(d.target_department_id)
     && FLOAT_WORDS.test(d.raw_text || '');
 
-// Касса ДДС у отдела чата в валюте заявки — только если источник ещё не выбран и касса ровно одна
-async function floatCashbox(draft) {
+// Касса ДДС у отдела чата в валюте заявки — только если источник ещё не выбран и касса ровно одна.
+// Берём из справочника счетов (там есть cashbox_department_id), чтобы окно «Уточнить»
+// могло сразу показать её выбранной, а не «свой подотчёт».
+function floatCashbox(draft) {
     if (!isFloatDraft(draft) || draft.source_account_id || !draft.department_id) return null;
-    const { data } = await Layout.db.from('fin_accounts').select('id, name')
-        .eq('cashbox_department_id', draft.department_id).eq('currency_code', draft.currency)
-        .eq('is_active', true).limit(2);
-    return data?.length === 1 ? data[0] : null;
+    const boxes = FinUtils.refs.accounts.filter(a => a.is_active && a.kind === 'real'
+        && a.cashbox_department_id === draft.department_id && a.currency_code === draft.currency);
+    return boxes.length === 1 ? boxes[0] : null;
 }
 
 // autoSource = false — источник уже выбран руками в окне уточнения, кассу не подставляем
@@ -562,8 +563,8 @@ async function callPostDraft(id, targetHolder, autoSource = true) {
     const params = { p_id: id };
     if (targetHolder === FLOAT_PICK) {
         Object.assign(params, { p_rows: null, p_no_holder: true });
-        const box = autoSource ? await floatCashbox(chatDrafts.find(d => d.id === id)) : null;
-        if (box) params.p_source_account = box.id;
+        const box = autoSource ? floatCashbox(chatDrafts.find(d => d.id === id)) : null;
+        if (box) params.p_source_account = box.account_id;
     }
     else if (targetHolder) Object.assign(params, { p_rows: null, p_target_holder: targetHolder });
     const { data, error } = await Layout.db.rpc('tg_post_draft', params);
@@ -577,7 +578,7 @@ async function openHolderPick(draft, holders) {
     document.getElementById('holderDraftId').value = draft.id;
     // «на сдачу» / «размен» — пункт сдачи отмечен сразу, касса-источник видна в шапке
     const float = isFloatDraft(draft);
-    const box = float ? await floatCashbox(draft) : null;
+    const box = float ? floatCashbox(draft) : null;
     document.getElementById('holderInfo').textContent =
         `«${draft.target_department || ''}» · ${FinUtils.fmtMoney(draft.amount, draft.currency)} · ${draft.raw_text || ''}`
         + (box ? ` · откуда: ${box.name}` : '');
@@ -1015,7 +1016,8 @@ function openRefine(id) {
         && a.kind === 'custodial' && a.currency_code === refineDraft.currency && a.is_active);
     document.getElementById('refineSource').innerHTML =
         `<option value="">${ownAcc ? e(ownAcc.name) + ' — ' + t('fin_split_own_account') : t('fin_split_dept_own')}</option>` +
-        FinUtils.accountOptions(refineDraft.source_account_id,
+        // «на сдачу» / «размен» — сразу касса ДДС отдела-отправителя, а не его подотчёт (ВГ, 19.11)
+        FinUtils.accountOptions(refineDraft.source_account_id || floatCashbox(refineDraft)?.account_id,
                                 a => a.currency_code === refineDraft.currency
                                      && a.account_id !== ownAcc?.account_id);
     // Стартуем с одной строки на всю сумму — самый частый случай, дробят редко
