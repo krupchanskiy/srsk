@@ -110,6 +110,9 @@ function otherAmounts(rawText, amount) {
 }
 
 function amountDoubtHtml(d) {
+    // Сумму уже исправил человек (806) — предупреждения бота больше ни к чему
+    if (d.amount_original != null) return `
+        <div class="text-sm mt-2">Сумма исправлена: было ${FinUtils.fmtMoney(d.amount_original, d.currency || 'INR')}, стало ${FinUtils.fmtMoney(d.amount, d.currency || 'INR')}.</div>`;
     const others = otherAmounts(d.raw_text, Number(d.amount));
     const othersHtml = others.length ? `
         <div class="alert alert-warning py-2 mt-2 text-sm">
@@ -123,14 +126,44 @@ function amountDoubtOnlyHtml(d) {
     return doubt ? `
         <div class="alert alert-warning py-2 mt-2 text-sm">
             <span>Проверьте сумму: в сообщении «${e(doubt)}», прочитано ${FinUtils.fmtMoney(d.amount, d.currency || 'INR')}.</span>
+            ${d.kind ? `<button class="btn btn-sm" data-action="edit-amount">Исправить сумму</button>` : ''}
         </div>` : '';
 }
 
-// Заявку с сомнительной суммой молча не проводим. Сумма в заявке не правится:
-// если неверна — отклонить и внести заново.
+// Заявку с сомнительной суммой молча не проводим. Неверную сумму исправляют
+// кнопкой у суммы (806); исправленную человеком больше не переспрашиваем.
 function confirmDraftAmount(d) {
-    const doubt = d && suspiciousAmount(d.raw_text, Number(d.amount));
-    return !doubt || confirm(`В сообщении «${doubt}», прочитано ${FinUtils.fmtMoney(d.amount, d.currency || 'INR')}.\n\nСумма верна? Если нет — нажмите «Отмена», отклоните заявку и внесите заново.`);
+    const doubt = d && d.amount_original == null && suspiciousAmount(d.raw_text, Number(d.amount));
+    return !doubt || confirm(`В сообщении «${doubt}», прочитано ${FinUtils.fmtMoney(d.amount, d.currency || 'INR')}.\n\nСумма верна? Если нет — нажмите «Отмена» и исправьте сумму (✎ рядом с суммой).`);
+}
+
+// Исправить сумму заявки до проведения (806): старая сумма остаётся в
+// amount_original, в пояснение дописывается «сумма исправлена: … → …»
+function openAmountEdit(id) {
+    const d = chatDrafts.find(x => x.id === id);
+    if (!d) return;
+    document.getElementById('amountDraftId').value = id;
+    document.getElementById('amountInfo').textContent = d.raw_text || '';
+    document.getElementById('amountCurrency').textContent = d.currency || '';
+    document.getElementById('amountWas').textContent = d.amount_original != null
+        ? `Бот прочитал ${FinUtils.fmtMoney(d.amount_original, d.currency || 'INR')}` : '';
+    const input = document.getElementById('amountValue');
+    input.value = d.amount;
+    document.getElementById('amountModal').showModal();
+    input.select();
+}
+
+async function submitAmountEdit(ev) {
+    ev.preventDefault();
+    const { data, error } = await Layout.db.rpc('tg_set_draft_amount', {
+        p_id: document.getElementById('amountDraftId').value,
+        p_amount: Number(document.getElementById('amountValue').value)
+    });
+    if (error) { Layout.handleError(error, 'Исправить сумму'); return; }
+    if (!data?.ok) { Layout.showNotification(data?.error || t('error'), 'error'); return; }
+    document.getElementById('amountModal').close();
+    Layout.showNotification(t('fin_saved'), 'success');
+    await loadList();
 }
 
 function receiptCardHtml(r) {
@@ -313,7 +346,7 @@ function chatDraftCardHtml(d) {
                 <span class="badge badge-ghost badge-sm">${e(d.department)}</span>
                 ${onDate}
                 <span class="font-medium">${head}</span>
-                <span class="font-mono font-semibold">${FinUtils.fmtMoney(d.amount, d.currency)}</span>
+                <button class="btn btn-ghost btn-sm px-1 font-mono font-semibold" data-action="edit-amount" title="Исправить сумму">${FinUtils.fmtMoney(d.amount, d.currency)} <span class="opacity-60">✎</span></button>
                 ${d.category ? `<span class="badge badge-outline badge-sm">${e(d.category)}</span>` : ''}
                 ${d.source_account ? `<span class="badge badge-outline badge-sm">${t('fin_from')}: ${e(d.source_account)}</span>` : ''}
                 ${d.purpose ? `<span class="truncate max-w-md">${e(d.purpose)}</span>` : ''}
@@ -1180,6 +1213,7 @@ async function init() {
     document.getElementById('disputeForm').addEventListener('submit', submitDispute);
     document.getElementById('splitForm').addEventListener('submit', submitSplit);
     document.getElementById('refineForm').addEventListener('submit', submitRefine);
+    document.getElementById('amountForm').addEventListener('submit', submitAmountEdit);
     document.getElementById('refineSpent').addEventListener('change', syncRefineSpent);
     document.getElementById('refineSpent').addEventListener('change', suggestAllRefineRows);
     document.getElementById('refineTarget').addEventListener('change', syncRefineSpent);
@@ -1260,6 +1294,7 @@ async function init() {
             else if (btn.dataset.action === 'split-draft') openSplit(id);
             else if (btn.dataset.action === 'refine-draft') openRefine(id);
             else if (btn.dataset.action === 'dismiss-draft') dismissDraft(id);
+            else if (btn.dataset.action === 'edit-amount') openAmountEdit(id);
             return;
         }
         const card = ev.target.closest('[data-op]');
