@@ -135,6 +135,8 @@ function openAccountModal(accountId) {
     // Тип/валюта/способ сверки после создания не меняются
     ['accKind', 'accMode', 'accCurrency'].forEach(id => document.getElementById(id).disabled = !!acc);
     document.getElementById('accDeactivateBtn').classList.toggle('hidden', !acc || !acc.is_active);
+    // Архивный («замороженный») счёт можно вернуть в работу (ВГ, 19.11.2026)
+    document.getElementById('accReactivateBtn').classList.toggle('hidden', !acc || acc.is_active);
 
     // Ответственный у счёта с проводками меняется только передачей ответственности
     const hasActivity = acc && acc.last_ledger_seq !== null;
@@ -185,6 +187,16 @@ async function deactivateAccount() {
     const id = document.getElementById('accId').value;
     if (!id) return;
     const res = await FinUtils.rpc('fin_update_account', { account_id: id, is_active: false });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('accountModal').close();
+        await refresh();
+    }
+}
+
+async function reactivateAccount() {
+    const id = document.getElementById('accId').value;
+    if (!id) return;
+    const res = await FinUtils.rpc('fin_update_account', { account_id: id, is_active: true });
     if (FinUtils.handleResult(res)) {
         document.getElementById('accountModal').close();
         await refresh();
@@ -347,6 +359,6 @@ async function init() {
     });
 }
 
-window.FinAccounts = { openAccountModal, openOpening, openAccess, saveAccess, deactivateAccount, transferResponsibility };
+window.FinAccounts = { openAccountModal, openOpening, openAccess, saveAccess, deactivateAccount, reactivateAccount, transferResponsibility };
 init();
 })();
