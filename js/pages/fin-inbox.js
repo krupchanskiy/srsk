@@ -537,9 +537,30 @@ let floatDeptIds = new Set();
 const isFloatDept = id => !!id && floatDeptIds.has(id);
 const floatLabelHtml = id => `Выдано на сдачу <span class="opacity-60">(${id === CAFE_DEPT_ID ? 'касса 2 этажа, ' : ''}ни на кого)</span>`;
 
-async function callPostDraft(id, targetHolder) {
+// «На сдачу» / «размен» в тексте выдачи Кафе или Магазину (ВГ, 19.11): это не деньги
+// на человека, а сдача в кассу — пункт «Выдано на сдачу» отмечаем сами, а берутся
+// они из кассы ДДС, что стоит у отдела-отправителя (Нитья → «Касса ДДС у ГХ»).
+const FLOAT_WORDS = /сдач|размен/i;
+const isFloatDraft = d => !!d && d.kind === 'transfer' && isFloatDept(d.target_department_id)
+    && FLOAT_WORDS.test(d.raw_text || '');
+
+// Касса ДДС у отдела чата в валюте заявки — только если источник ещё не выбран и касса ровно одна
+async function floatCashbox(draft) {
+    if (!isFloatDraft(draft) || draft.source_account_id || !draft.department_id) return null;
+    const { data } = await Layout.db.from('fin_accounts').select('id, name')
+        .eq('cashbox_department_id', draft.department_id).eq('currency_code', draft.currency)
+        .eq('is_active', true).limit(2);
+    return data?.length === 1 ? data[0] : null;
+}
+
+// autoSource = false — источник уже выбран руками в окне уточнения, кассу не подставляем
+async function callPostDraft(id, targetHolder, autoSource = true) {
     const params = { p_id: id };
-    if (targetHolder === FLOAT_PICK) Object.assign(params, { p_rows: null, p_no_holder: true });
+    if (targetHolder === FLOAT_PICK) {
+        Object.assign(params, { p_rows: null, p_no_holder: true });
+        const box = autoSource ? await floatCashbox(chatDrafts.find(d => d.id === id)) : null;
+        if (box) params.p_source_account = box.id;
+    }
     else if (targetHolder) Object.assign(params, { p_rows: null, p_target_holder: targetHolder });
     const { data, error } = await Layout.db.rpc('tg_post_draft', params);
     if (error) { Layout.handleError(error, t('fin_post_draft')); return false; }
@@ -548,18 +569,22 @@ async function callPostDraft(id, targetHolder) {
     return false;
 }
 
-function openHolderPick(draft, holders) {
+async function openHolderPick(draft, holders) {
     document.getElementById('holderDraftId').value = draft.id;
+    // «на сдачу» / «размен» — пункт сдачи отмечен сразу, касса-источник видна в шапке
+    const float = isFloatDraft(draft);
+    const box = float ? await floatCashbox(draft) : null;
     document.getElementById('holderInfo').textContent =
-        `«${draft.target_department || ''}» · ${FinUtils.fmtMoney(draft.amount, draft.currency)} · ${draft.raw_text || ''}`;
-    // Никого не отмечаем заранее — выбор осознанный
+        `«${draft.target_department || ''}» · ${FinUtils.fmtMoney(draft.amount, draft.currency)} · ${draft.raw_text || ''}`
+        + (box ? ` · откуда: ${box.name}` : '');
+    // Никого не отмечаем заранее — выбор осознанный (кроме явной «сдачи»)
     document.getElementById('holderList').innerHTML = holders.map(h => {
         return `<label class="label cursor-pointer justify-start gap-3 py-1">
             <input type="radio" name="holderPick" class="radio radio-sm" value="${h.vaishnava_id}" required>
             <span class="label-text">${e(holderName(h))}</span>
         </label>`;
     }).join('') + (isFloatDept(draft.target_department_id) ? `<label class="label cursor-pointer justify-start gap-3 py-1">
-            <input type="radio" name="holderPick" class="radio radio-sm" value="${FLOAT_PICK}" required>
+            <input type="radio" name="holderPick" class="radio radio-sm" value="${FLOAT_PICK}" required ${float ? 'checked' : ''}>
             <span class="label-text">${floatLabelHtml(draft.target_department_id)}</span>
         </label>` : '');
     document.getElementById('holderModal').showModal();
@@ -813,7 +838,7 @@ async function loadRefineHolders() {
     if (deptId !== (refineIsSelf() ? null : document.getElementById('refineTarget').value)) return;
     document.getElementById('refineHolder').innerHTML = `<option value="">— выберу потом</option>` +
         refineHolders.map(h => `<option value="${h.vaishnava_id}">${e(holderName(h))}</option>`).join('') +
-        (isFloatDept(deptId) ? `<option value="${FLOAT_PICK}">Выдано на сдачу (${deptId === CAFE_DEPT_ID ? 'касса 2 этажа, ' : ''}ни на кого)</option>` : '');
+        (isFloatDept(deptId) ? `<option value="${FLOAT_PICK}" ${FLOAT_WORDS.test(refineDraft?.raw_text || '') ? 'selected' : ''}>Выдано на сдачу (${deptId === CAFE_DEPT_ID ? 'касса 2 этажа, ' : ''}ни на кого)</option>` : '');
     syncRefineSpent();
 }
 
@@ -1039,7 +1064,7 @@ async function submitRefine(ev) {
     // Держатель выбран — проводим сразу, без второго окна
     const holder = refineHolderShown() && document.getElementById('refineHolder').value;
     if (!spent && holder) {
-        if (await callPostDraft(id, holder)) document.getElementById('refineModal').close();
+        if (await callPostDraft(id, holder, !document.getElementById('refineSource').value)) document.getElementById('refineModal').close();
         else await loadList();   // уточнение сохранилось, проведение — нет
         return;
     }
