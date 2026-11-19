@@ -32,20 +32,21 @@ const QUESTION: Record<string, string> = {
 
 const MONEY_HINT = /мурти|кафе|процент|налог|билет|виз[аы]|зарплат|оплат|перев[её]л|перевод|приход|расход|поступ/i;
 
-// Дата операции из сообщения: «12.09», «12.09.26», «12.09.2026». Без года —
+// Дата операции из сообщения: «12.09», «12.09.26», «12.09.2026», «28/10/2026». Без года —
 // текущий; если так выходит будущее (в январе пишут про 28.12) — прошлый год.
 function parseDate(text: string): { iso: string; raw: string; invalid?: boolean } | null {
-  const m = text.match(/(?<![\d.,])(\d{1,2})\.(\d{1,2})(?:\.(\d{2}|\d{4}))?(?![\d.,])/);
+  // разделитель — точка или «/» (Нитья пишет 28/10/2026), один и тот же в дате
+  const m = text.match(/(?<![\d.,\/])(\d{1,2})([.\/])(\d{1,2})(?:\2(\d{2}|\d{4}))?(?![\d.,\/])/);
   if (!m) return null;
-  const day = +m[1], month = +m[2];
+  const day = +m[1], month = +m[3];
   // похоже на дату, но такой нет (31.02, 12.13) — молча ставить «сегодня» нельзя
   if (day < 1 || day > 31 || month < 1 || month > 12) return { iso: "", raw: m[0], invalid: true };
   const now = new Date(Date.now() + 5.5 * 3600 * 1000); // Индия
-  let year = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : now.getUTCFullYear();
+  let year = m[4] ? (m[4].length === 2 ? 2000 + +m[4] : +m[4]) : now.getUTCFullYear();
   const pad = (n: number) => String(n).padStart(2, "0");
   const today = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}`;
   let iso = `${year}-${pad(month)}-${pad(day)}`;
-  if (!m[3] && iso > today) { year -= 1; iso = `${year}-${pad(month)}-${pad(day)}`; }
+  if (!m[4] && iso > today) { year -= 1; iso = `${year}-${pad(month)}-${pad(day)}`; }
   // 31.02 и подобное — не дата
   const d = new Date(`${iso}T00:00:00Z`);
   if (d.getUTCMonth() + 1 !== month) return { iso: "", raw: m[0], invalid: true };
