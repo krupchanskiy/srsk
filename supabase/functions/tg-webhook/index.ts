@@ -383,6 +383,39 @@ Deno.serve(async (req) => {
     }
   }
 
+  // Записанная заявка: карточка сжимается в строку с кнопками «Изменить / Удалить»,
+  // пока заявку не провели (807, решение ВГ 19.11.2026). После проведения или
+  // отклонения на сайте строку убирает база (триггер tg_drafts_resolved_drop_card).
+  async function renderSaved(chatId: number, messageId: number, draftId: string): Promise<any> {
+    const { data: s } = await supa.rpc("tg_draft_summary", { p_id: draftId });
+    if (!s?.ok) return null;
+    const sym = s.currency ? CURRENCIES[s.currency] ?? s.currency : "";
+    const parts = [
+      `${Number(s.amount).toLocaleString("ru-RU")}${sym ? " " + sym : ""}`,
+      s.kind === "transfer" && s.target_department ? `→ ${esc(s.target_department)}` : null,
+      s.category ? esc(s.category) : null,
+      s.source_account ? `откуда: ${esc(s.source_account)}` : null,
+    ].filter(Boolean).join(" · ");
+    return await tg("editMessageText", {
+      chat_id: chatId, message_id: messageId, parse_mode: "HTML",
+      text: `✅ <b>Записано:</b> ${parts}`,
+      reply_markup: { inline_keyboard: [[
+        { text: "✏️ Изменить", callback_data: `de:${draftId}` },
+        { text: "🗑 Удалить", callback_data: `dd:${draftId}` },
+      ]] },
+    });
+  }
+
+  // Нажать «Изменить / Удалить» может автор заявки и казначей
+  async function canAuthorEdit(s: any, cq: any): Promise<boolean> {
+    if (s?.tg_user_id === cq.from.id) return true;
+    const tre = await treasurer();
+    if (!tre?.vaishnava_id) return false;
+    const { data: who } = await supa.rpc("tg_resolve_user", { p_user: cq.from.id, p_username: cq.from.username ?? null });
+    const clicker = Array.isArray(who) ? who[0] : who;
+    return clicker?.vaishnava_id === tre.vaishnava_id;
+  }
+
   // ---------- бота добавили/убрали из чата ----------
   if (update.my_chat_member) {
     const cm = update.my_chat_member;
@@ -410,7 +443,10 @@ Deno.serve(async (req) => {
     }
 
     if (action === "no") {
-      await supa.rpc("tg_set_draft_status", { p_id: parts[1], p_status: "dismissed", p_card_message_id: msg?.message_id });
+      const { data: noRow } = await supa.rpc("tg_set_draft_status", { p_id: parts[1], p_status: "dismissed", p_card_message_id: msg?.message_id });
+      // Заявку, которую открыли «Изменить», уже отмечали 👀 — снимаем, чтобы не казалось, что она ждёт проведения
+      const nr = Array.isArray(noRow) ? noRow[0] : noRow;
+      if (nr) await tg("setMessageReaction", { chat_id: nr.chat_id, message_id: nr.source_message_id, reaction: [] });
       // Карточка своё отработала — статус и так виден по реакции на исходном
       // сообщении (см. ветку ok ниже), а сама карточка после решения только
       // занимает место (замечание ВГ 16.09.2026). Бот админ во всех чатах —
@@ -452,7 +488,66 @@ Deno.serve(async (req) => {
       const { data } = await supa.rpc("tg_set_draft_status", { p_id: parts[1], p_status: "pending", p_card_message_id: msg?.message_id });
       const row = Array.isArray(data) ? data[0] : data;
       if (row) await tg("setMessageReaction", { chat_id: row.chat_id, message_id: row.source_message_id, reaction: [{ type: "emoji", emoji: "👀" }] });
-      await dropCard(msg);
+      // Карточка не исчезает, а становится строкой «Записано» с кнопками «Изменить / Удалить» (807)
+      const r = row ? await renderSaved(msg.chat.id, msg.message_id, parts[1]) : null;
+      if (!r?.ok) await dropCard(msg);
+    } else if (action === "de" || action === "dd" || action === "eb" || action === "ef" || action === "ddy") {
+      // «✏️ Изменить» / «🗑 Удалить» под записанной заявкой (807)
+      const draftId = action === "ef" ? parts[2] : parts[1];
+      const { data: s } = await supa.rpc("tg_draft_summary", { p_id: draftId });
+      const alert = (text: string) => tg("answerCallbackQuery", { callback_query_id: cq.id, show_alert: true, text });
+      if (!s?.ok) { await dropCard(msg); await tg("answerCallbackQuery", { callback_query_id: cq.id }); return new Response("ok"); }
+      if (!(await canAuthorEdit(s, cq))) {
+        await alert("Исправить или удалить заявку может только её автор.");
+        return new Response("ok");
+      }
+      if (s.status !== "pending") {
+        await alert(s.status === "posted"
+          ? "Заявка уже проведена — исправить её можно только через Ванамали Гопала. Напишите ему, что и на что поправить."
+          : "Эта заявка уже закрыта.");
+        await dropCard(msg);
+        return new Response("ok");
+      }
+      const sym = s.currency ? CURRENCIES[s.currency] ?? s.currency : "";
+      const sum = `${Number(s.amount).toLocaleString("ru-RU")}${sym ? " " + sym : ""}`;
+      if (action === "eb") {
+        await renderSaved(msg.chat.id, msg.message_id, draftId);
+      } else if (action === "de") {
+        // Только то, что выбиралось кнопками: сумму и описание правят в самом сообщении
+        const btns: any[] = [{ text: "Расход или передача", callback_data: `ef:kind:${draftId}` }];
+        if (s.kind === "transfer") btns.push({ text: "Кому", callback_data: `ef:target:${draftId}` });
+        btns.push({ text: "Валюта", callback_data: `ef:currency:${draftId}` });
+        if (s.kind === "expense" && s.has_categories) btns.push({ text: "Статья", callback_data: `ef:category:${draftId}` });
+        if (s.source_account) btns.push({ text: "Откуда", callback_data: `ef:source:${draftId}` });
+        const kb: any[][] = [];
+        for (let i = 0; i < btns.length; i += 2) kb.push(btns.slice(i, i + 2));
+        kb.push([{ text: "↩️ Назад", callback_data: `eb:${draftId}` }]);
+        await tg("editMessageText", {
+          chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML",
+          text: `✏️ <b>Что исправить?</b> (${sum})\n<i>Сумму или описание исправьте в самом сообщении — я подхвачу.</i>`,
+          reply_markup: { inline_keyboard: kb },
+        });
+      } else if (action === "ef") {
+        const { data: r } = await supa.rpc("tg_author_reopen", { p_id: draftId, p_tg_user: cq.from.id, p_field: parts[1] });
+        if (!r?.ok) { await alert("Не получилось открыть заявку для исправления."); return new Response("ok"); }
+        // До «Записать» заявки нет во «Входящих» — 👀 снимаем, вернётся после «Записать»
+        await tg("setMessageReaction", { chat_id: msg.chat.id, message_id: s.source_message_id, reaction: [] });
+        const { data: st } = await supa.rpc("tg_patch_draft", { p_id: draftId, p: {} });
+        if (st?.ok) await renderCard(msg.chat.id, msg.message_id, draftId, st);
+      } else if (action === "dd") {
+        await tg("editMessageText", {
+          chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML",
+          text: `🗑 <b>Удалить заявку ${sum}?</b>\nВ учёт она не попадёт.`,
+          reply_markup: { inline_keyboard: [[
+            { text: "Да, удалить", callback_data: `ddy:${draftId}` },
+            { text: "Нет", callback_data: `eb:${draftId}` },
+          ]] },
+        });
+      } else if (action === "ddy") {
+        const { data: r } = await supa.rpc("tg_author_dismiss", { p_id: draftId, p_tg_user: cq.from.id });
+        if (!r?.ok) { await alert("Не получилось удалить — возможно, заявку уже провели."); return new Response("ok"); }
+        await dropCard(msg);
+      }
     } else if (action === "k" || action === "c" || action === "t" || action === "s" || action === "a" || action === "m") {
       const value = parts[1];
       const draftId = parts[2];
@@ -565,6 +660,49 @@ Deno.serve(async (req) => {
     // Текст тот же — это не правка: Телеграм шлёт «исправленное» и на смену
     // реакции (бот ставит 👀 после «Записать»). Молчим (ВГ 15.10.2026).
     if (draft && draft.raw_text === text) return new Response("ok");
+    // Пока заявку не провели, правка сообщения меняет сумму и описание (807, решение ВГ 19.11.2026).
+    // Чаты счетов ИП устроены по-своему — там прежнее правило.
+    if (draft && (draft.status === "pending" || draft.status === "proposed")
+        && !(m.chat?.type !== "private" && await ipChatInfo(supa, m.chat.id))) {
+      const sym = (c: string | null) => (c ? CURRENCIES[c] ?? c : "");
+      const fmt = (n: number, c: string | null) => `${Number(n).toLocaleString("ru-RU")}${sym(c) ? " " + sym(c) : ""}`;
+      const money = parseMoney(text);
+      if (!money || money.amount == null || looksLikeList(text) || !parsePurpose(text, money.raw)) {
+        await tg("sendMessage", {
+          chat_id: m.chat.id, reply_to_message_id: m.message_id,
+          text: `⚠️ Не понял исправление — заявка осталась прежней: ${fmt(draft.amount, draft.currency)}.\n`
+              + "В сообщении должна быть одна сумма и на что потрачено, например: «Купил овощи 500 ₹».",
+        });
+        return new Response("ok");
+      }
+      const { data: r } = await supa.rpc("tg_author_edit_text", {
+        p_id: draft.id, p_tg_user: m.from.id, p_amount: money.amount, p_currency: parseCurrency(text),
+        p_raw_text: text, p_purpose: text.trim().slice(0, 1000),
+      });
+      if (!r?.ok) return new Response("ok");
+      const changed = Number(r.old_amount) !== Number(r.new_amount) || r.old_currency !== r.new_currency;
+      await tg("sendMessage", {
+        chat_id: m.chat.id, reply_to_message_id: m.message_id,
+        text: changed
+          ? `✏️ Обновил заявку: было ${fmt(r.old_amount, r.old_currency)} → стало ${fmt(r.new_amount, r.new_currency)}.`
+          : "✏️ Обновил описание заявки.",
+      });
+      // Строку бота (или карточку, если заявка ещё не записана) перерисовываем с новой суммой
+      const { data: s } = await supa.rpc("tg_draft_summary", { p_id: draft.id });
+      if (s?.card_message_id) {
+        if (s.status === "pending") {
+          await renderSaved(m.chat.id, s.card_message_id, draft.id);
+        } else if (s.status === "proposed") {
+          if (draft.status === "pending") {
+            // сменилась валюта у выдачи казначея — счёт выбрать заново, до «Записать» 👀 нет
+            await tg("setMessageReaction", { chat_id: m.chat.id, message_id: m.message_id, reaction: [] });
+          }
+          const { data: st } = await supa.rpc("tg_patch_draft", { p_id: draft.id, p: {} });
+          if (st?.ok) await renderCard(m.chat.id, s.card_message_id, draft.id, st);
+        }
+      }
+      return new Response("ok");
+    }
     if (draft) {
       await tg("sendMessage", {
         chat_id: m.chat.id, reply_to_message_id: m.message_id,
