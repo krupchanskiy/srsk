@@ -597,6 +597,8 @@ function toggleKindFields() {
     const kind = form().kind.value;
     document.querySelectorAll('#planForm [data-event-only]').forEach(el => el.classList.toggle('hidden', kind !== 'event'));
     document.querySelectorAll('#planForm [data-guru-only]').forEach(el => el.classList.toggle('hidden', kind !== 'guru'));
+    // Club108 — только информация (даты поездки клуба), без статусов (ВГ 20.11)
+    document.querySelectorAll('#planForm [data-no-club]').forEach(el => el.classList.toggle('hidden', kind === 'club'));
     checkLoad();
 }
 
@@ -741,7 +743,7 @@ async function savePlan(ev) {
     const f = form();
     const num = v => v === '' ? null : parseInt(v);
     const row = {
-        kind: f.kind.value, status: f.status.value, title: f.title.value.trim(),
+        kind: f.kind.value, status: f.kind.value === 'club' ? 'confirmed' : f.status.value, title: f.title.value.trim(),
         start_date: f.start_date.value, end_date: f.end_date.value,
         confirm_by: f.confirm_by.value || null,
         contact_name: f.contact_name.value.trim() || null, contact_phone: f.contact_phone.value.trim() || null,
