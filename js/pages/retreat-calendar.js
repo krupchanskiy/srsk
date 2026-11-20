@@ -324,14 +324,19 @@ function buildRows() {
         { key: 'bookings', label: tf('rc_row_bookings', 'Брони групп'), col: 'tentative', items: rows.bookings }
     ];
     if (perms.seePlans) out.push({ key: 'tentative', label: tf('rc_row_tentative', 'Предварительно'), col: 'tentative', items: rows.tentative });
-    // Махараджи: у кого есть записи в окне + «всегда в Расписании» (мигр. 823); по порядку справочника,
-    // «без имени» — последним
-    for (const m of maharajas) if (m.pinned && m.is_active && !guruRows.has(m.id)) guruRows.set(m.id, []);
+    // Махараджи: у кого есть записи в окне; по порядку справочника, «без имени» — последним.
+    // «Всегда в Расписании» (мигр. 823, Бхакти Вигьяна Госвами) — отдельной строкой со своей подписью
+    // под группой «Махараджи», видна и без записей (ВГ 20.11)
+    const isPinned = id => !!id && !!maharajas.find(m => m.id === id)?.pinned;
     const order = id => id ? (maharajas.find(m => m.id === id)?.sort_order ?? 999) : 10000;
-    const guruKeys = [...guruRows.keys()].sort((a, b) => order(a) - order(b) || maharajaName(a).localeCompare(maharajaName(b)));
+    const byOrder = (a, b) => order(a) - order(b) || maharajaName(a).localeCompare(maharajaName(b));
+    const guruKeys = [...guruRows.keys()].filter(k => !isPinned(k)).sort(byOrder);
     guruKeys.forEach((k, i) => out.push({ key: 'g' + k, label: k ? maharajaName(k) : tf('rc_maharajas', 'Махараджи') + ' (без имени)',
         cls: 'sub', col: 'guru', maharaja: k, items: guruRows.get(k), groupTop: i === 0 }));
-    if (perms.edit && !guruKeys.length) out.push({ key: 'g', label: tf('rc_maharajas', 'Махараджи'), cls: 'sub', col: 'guru', maharaja: '', items: [], groupTop: false });
+    if (perms.edit && !guruKeys.length) out.push({ key: 'g', label: tf('rc_maharajas', 'Махараджи'), col: 'guru', maharaja: '', items: [], groupTop: false });
+    const pinnedIds = maharajas.filter(m => m.pinned && (m.is_active || guruRows.has(m.id))).map(m => m.id).sort(byOrder);
+    for (const id of pinnedIds)
+        out.push({ key: 'gp' + id, label: maharajaName(id), col: 'guru', maharaja: id, items: guruRows.get(id) || [], groupTop: false });
     if (perms.seePlans) out.push({ key: 'club', label: tf('rc_row_club', 'Club108'), col: 'club', items: rows.club });
     if (rows.notes.length) out.push({ key: 'notes', label: tf('rc_row_notes', 'Заметки'), col: 'note', items: rows.notes });
     for (const r of out) assignLanes(r.items);
