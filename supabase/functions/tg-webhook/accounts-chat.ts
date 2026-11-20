@@ -391,12 +391,12 @@ export async function ipHandleCallback(ctx: Ctx, cq: any, parts: string[]): Prom
       await drop();
     }
   } else if (["e", "eb", "ef", "d", "dy"].includes(action)) {
-    // «✏️ Изменить» / «🗑 Удалить» под расходом во «Входящих» (812) — только автор
+    // «✏️ Изменить» / «🗑 Удалить» под расходом во «Входящих» (812) — автор и ВГ (814)
     const id = action === "ef" ? parts[3] : parts[2];
     const { data: st } = await supa.rpc("tg_ip_state", { p_id: id });
     const { data: own } = await supa.rpc("tg_ip_author_check", { p_id: id, p_tg_user: cq.from.id });
     if (!own?.ok) {
-      if (own?.error === "forbidden") { await alert("Исправить или удалить может только автор сообщения."); return; }
+      if (own?.error === "forbidden") { await alert("Исправить или удалить может автор сообщения или Ванамали Гопал."); return; }
       await alert(own?.error === "posted"
         ? "Расход уже проведён — исправить его можно только через Ванамали Гопала."
         : "Эта заявка уже закрыта.");
@@ -408,18 +408,20 @@ export async function ipHandleCallback(ctx: Ctx, cq: any, parts: string[]): Prom
         chat_id: chatId, message_id: msg.message_id, parse_mode: "HTML", text: own.text, reply_markup: savedKeyboard(id),
       });
     } else if (action === "e") {
-      const btns: any[] = [
-        { text: "Вид операции", callback_data: `ip:ef:k:${id}` },
-        { text: "Счёт", callback_data: `ip:ef:a:${id}` },
-        { text: "Департамент", callback_data: `ip:ef:d:${id}` },
-      ];
+      // «Вид операции» — только автору: приход и перевод проводятся сразу от его имени (814)
+      const btns: any[] = own.is_author ? [{ text: "Вид операции", callback_data: `ip:ef:k:${id}` }] : [];
+      btns.push({ text: "Счёт", callback_data: `ip:ef:a:${id}` });
+      btns.push({ text: "Департамент", callback_data: `ip:ef:d:${id}` });
       if (own.has_department) btns.push({ text: "Статья", callback_data: `ip:ef:c:${id}` });
       await tg("editMessageText", {
         chat_id: chatId, message_id: msg.message_id, parse_mode: "HTML",
         text: `✏️ <b>Что исправить в расходе ${ctx.esc(st.amount_fmt)}?</b>\n\n`
-            + "• Сумму, дату или описание — отредактируйте само сообщение.\n"
+            + (own.is_author
+              ? "• Сумму, дату или описание — отредактируйте само сообщение.\n"
+              : "• Сумму, дату или описание — во «Входящих» при проведении.\n")
             + "• Остальное — кнопкой ниже.",
-        reply_markup: { inline_keyboard: [btns.slice(0, 2), btns.slice(2), [{ text: "↩️ Назад", callback_data: `ip:eb:${id}` }]] },
+        reply_markup: { inline_keyboard: [btns.slice(0, 2), btns.slice(2), [{ text: "↩️ Назад", callback_data: `ip:eb:${id}` }]]
+          .filter((row) => row.length) },
       });
     } else if (action === "ef") {
       const { data: s2 } = await supa.rpc("tg_ip_author_reopen", { p_id: id, p_tg_user: cq.from.id, p_field: FIELD[parts[2]] });

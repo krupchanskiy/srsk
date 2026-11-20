@@ -242,7 +242,11 @@ Deno.serve(async (req) => {
     }
     return fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-    }).then((r) => r.json()).catch(() => null);
+    }).then((r) => r.json()).then((j) => {
+      // ответ Телеграма с ошибкой — в лог функции, иначе причину не найти
+      if (j && !j.ok) console.error(`tg ${method}: ${j.description ?? "error"}`);
+      return j;
+    }).catch((e) => { console.error(`tg ${method}: ${e}`); return null; });
   };
 
   // Убрать отработавшую карточку. Телеграм даёт удалять только сообщения
@@ -432,6 +436,7 @@ Deno.serve(async (req) => {
   // ---------- нажатия на карточке ----------
   if (update.callback_query) {
     const cq = update.callback_query;
+    console.log(`callback ${cq.data} from ${cq.from?.id} chat ${cq.message?.chat?.id}`);
     const parts = (cq.data || "").split(":");
     const action = parts[0];
     const msg = cq.message;
