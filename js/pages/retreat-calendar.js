@@ -29,7 +29,8 @@ const STYLE = {
     guru:      { c: '#0d9488', bg: '#ccfbf1' },
     note:      { c: '#6b7280', bg: '#f3f4f6' },
     booking:   { c: '#6366f1', bg: '#e0e7ff' },
-    rent:      { c: '#78716c', bg: '#f5f5f4' }
+    rent:      { c: '#78716c', bg: '#f5f5f4' },
+    internal:  { c: '#475569', bg: '#cbd5e1' }   // внутренний проект ШРСК (мигр. 820) — один цвет вместо цвета ретрита
 };
 // DateUtils.monthNames — в родительном падеже («ноября»), для заголовка месяца нужен именительный
 const MONTHS = {
@@ -97,7 +98,7 @@ async function load() {
     const [hol, ret, plans, books, rooms, overlaps] = await Promise.all([
         Layout.db.from('holidays').select('date, name_ru, name_en, name_hi, type')
             .gte('date', ys).lte('date', ye).neq('type', 'ekadashi').order('date'),
-        Layout.db.from('retreats').select('id, name_ru, name_en, name_hi, start_date, end_date, color, is_external, occupies_guesthouse')
+        Layout.db.from('retreats').select('id, name_ru, name_en, name_hi, start_date, end_date, color, is_external, is_internal, occupies_guesthouse')
             .lte('start_date', ye).gte('end_date', ys).order('start_date'),
         Layout.db.from('retreat_plans').select('*').lte('start_date', ye).gte('end_date', ys).order('start_date'),
         Layout.db.from('bookings').select('id, name, contact_name, contact_phone, check_in, check_out, beds_count, retreat_id, plan_id, status, notes')
@@ -236,8 +237,10 @@ function buildRows() {
 
     for (const r of D.retreats) {
         const c = Utils.isValidColor?.(r.color) ? r.color : '#10b981';
+        const look = r.is_internal ? STYLE.internal : { c, bg: hexBg(c) };
+        const meta = [r.is_internal ? e(tf('rc_internal', 'внутренний')) : '', r.occupies_guesthouse ? e(tf('rc_whole_house', 'весь ГД')) : ''].filter(Boolean).join(' · ');
         rows.retreats.push({ key: 'r' + r.id, src: 'retreat', id: r.id, s: r.start_date, e: r.end_date,
-            title: Layout.getName(r), meta: r.occupies_guesthouse ? e(tf('rc_whole_house', 'весь ГД')) : '', cls: '', c, bg: hexBg(c) });
+            title: Layout.getName(r), meta, cls: '', ...look });
     }
     for (const p of visiblePlans) {
         // Подтверждённая запись стала ретритом или бронью группы — показывается то, во что превратилась
@@ -468,6 +471,7 @@ function render() {
 function renderLegend() {
     const sw = (st, cls, label) => `<span><span class="sw ${cls}" style="--c:${st.c};--bg:${st.bg}"></span>${e(label)}</span>`;
     let html = sw({ c: '#10b981', bg: hexBg('#10b981') }, '', 'Ретрит') +
+        sw(STYLE.internal, '', 'Внутренний проект ШРСК') +
         sw(STYLE.confirmed, '', tf('rc_status_confirmed', 'Подтверждено') + ' (ещё не ретрит)') +
         sw(STYLE.booking, '', 'Бронь группы в шахматке');
     if (perms.seePlans) html += sw(STYLE.tentative, 'tentative', tf('rc_status_tentative', 'Бронь') + ' (предварительно)');
@@ -657,6 +661,7 @@ function openInfo(it) {
         html = `<p>${fmt(r.start_date)}.${r.start_date.slice(0, 4)} – ${fmt(r.end_date)}.${r.end_date.slice(0, 4)}</p>
             ${r.occupies_guesthouse ? `<p>Занимает весь Гостевой дом</p>` : ''}
             ${r.is_external ? `<p>Стороннее мероприятие</p>` : ''}
+            ${r.is_internal ? `<p>Внутренний проект ШРСК</p>` : ''}
             <div class="modal-action"><a class="btn btn-sm" href="../placement/timeline.html?date=${r.start_date}">Шахматка</a>
             ${window.currentUser?.is_superuser ? `<a class="btn btn-sm btn-primary" href="retreats.html?retreat=${encodeURIComponent(r.id)}">${e(tf('rc_open_retreat', 'Открыть ретрит'))}</a>` : ''}</div>`;
     } else {

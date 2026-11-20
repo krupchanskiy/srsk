@@ -246,6 +246,16 @@
                     <p class="text-xs opacity-50 mt-1" data-i18n="retreats_is_external_hint">Организовано не нами (аренда площадки, свадьба, чужой ретрит) — та же инфраструктура, но отдельно от наших ретритов в списках и выпадающих меню</p>
                 </div>
 
+                <!-- Внутренний проект ШРСК (ВГ 20.11.2026, мигр. 820): делаем для себя и финансируем сами
+                     («Ретрит Художников»); в «Расписании» — своим цветом. Со «Сторонним» вместе нельзя -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="is_internal" class="toggle toggle-primary" />
+                        <span class="label-text font-medium" data-i18n="retreats_is_internal">Внутренний проект ШРСК</span>
+                    </label>
+                    <p class="text-xs opacity-50 mt-1" data-i18n="retreats_is_internal_hint">ШРСК делает его для себя и финансирует сам (например, «Ретрит Художников»). В «Расписании» выделен своим цветом</p>
+                </div>
+
                 <!-- Весь Гостевой дом (ВГ 09.10, миграция 668): чужие брони на ночи ретрита —
                      с предупреждением. Без выбора по умолчанию — при сохранении спросит -->
                 <div class="form-control" id="guesthouseBlock">
@@ -636,6 +646,7 @@
                                 ${r.short_name ? `<span class="badge badge-sm badge-ghost">${Layout.escapeHtml(r.short_name)}</span>` : ''}
                                 ${isActive ? `<span class="badge badge-sm" style="background-color: ${r.color}; color: white;">${t('now')}</span>` : ''}
                                 ${r.is_external ? `<span class="badge badge-sm badge-outline">${t('retreats_is_external')}</span>` : ''}
+                                ${r.is_internal ? `<span class="badge badge-sm badge-outline">${t('retreats_is_internal') === 'retreats_is_internal' ? 'Внутренний проект ШРСК' : t('retreats_is_internal')}</span>` : ''}
                                 ${r.occupies_guesthouse ? '<span class="badge badge-sm badge-outline">Весь Гостевой дом</span>' : ''}
                                 ${r.registration_open ? `<span class="badge badge-sm badge-success">Регистрация</span>` : ''}
                             </div>
@@ -849,6 +860,7 @@
                     form.end_date.value = retreat.end_date;
                     form.expected_participants.value = retreat.expected_participants || 0;
                     form.is_external.checked = retreat.is_external || false;
+                    form.is_internal.checked = retreat.is_internal || false;
                     form.cafe_eligible.checked = retreat.cafe_eligible !== false;
                     if (retreat.occupies_guesthouse != null)
                         form.querySelector(`[name="occupies_guesthouse"][value="${retreat.occupies_guesthouse}"]`).checked = true;
@@ -1062,6 +1074,7 @@
                 end_date: form.end_date.value,
                 expected_participants: parseInt(form.expected_participants.value) || 0,
                 is_external: form.is_external.checked,
+                is_internal: form.is_internal.checked,
                 cafe_eligible: form.cafe_eligible.checked,
                 occupies_guesthouse: guesthouse === 'true',
                 contact_vaishnava_id: form.contact_vaishnava_id.value || null,
@@ -1297,6 +1310,9 @@
                 if (rForm.short_name.dataset.touched !== '1') rForm.short_name.value = suggestShortName(rForm.name_ru.value);
             });
             rForm.short_name.addEventListener('input', () => { rForm.short_name.dataset.touched = '1'; });
+            // Внутренний и сторонний одновременно не бывает (мигр. 820)
+            rForm.is_internal.addEventListener('change', () => { if (rForm.is_internal.checked) rForm.is_external.checked = false; });
+            rForm.is_external.addEventListener('change', () => { if (rForm.is_external.checked) rForm.is_internal.checked = false; });
 
             updateUI();
             Layout.hideLoader();
