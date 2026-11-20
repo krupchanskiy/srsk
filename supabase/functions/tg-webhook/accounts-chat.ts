@@ -417,9 +417,9 @@ export async function ipHandleCallback(ctx: Ctx, cq: any, parts: string[]): Prom
         chat_id: chatId, message_id: msg.message_id, parse_mode: "HTML",
         text: `✏️ <b>Что исправить в расходе ${ctx.esc(st.amount_fmt)}?</b>\n\n`
             + (own.is_author
-              ? "• Сумму, дату или описание — отредактируйте само сообщение.\n"
-              : "• Сумму, дату или описание — во «Входящих» при проведении.\n")
-            + "• Остальное — кнопкой ниже.",
+              ? "❗ Сумму, дату или описание — отредактируйте само сообщение.\n"
+              : "❗ Сумму, дату или описание — во «Входящих» при проведении.\n")
+            + "❗ Остальное — кнопкой ниже.",
         reply_markup: { inline_keyboard: [btns.slice(0, 2), btns.slice(2), [{ text: "↩️ Назад", callback_data: `ip:eb:${id}` }]]
           .filter((row) => row.length) },
       });

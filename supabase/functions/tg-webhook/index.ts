@@ -530,8 +530,8 @@ Deno.serve(async (req) => {
         await tg("editMessageText", {
           chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML",
           text: `✏️ <b>Что исправить в заявке ${sum}?</b>\n\n`
-              + "• Сумму или описание — отредактируйте само ваше сообщение.\n"
-              + "• Всё остальное — выберите кнопкой ниже.",
+              + "❗ Сумму или описание — отредактируйте само ваше сообщение.\n"
+              + "❗ Всё остальное — выберите кнопкой ниже.",
           reply_markup: { inline_keyboard: kb },
         });
       } else if (action === "ef") {
