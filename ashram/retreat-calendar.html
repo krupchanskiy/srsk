@@ -54,12 +54,12 @@
         .rc-bar.conflict { border: 2px solid #dc2626; line-height: 26px; }
         .rc-bar .warn { color: #b91c1c; font-weight: 600; }
         .rc-bar .overdue { color: #b91c1c; font-weight: 600; }
-        /* Праздник: клетка дня залита целиком, подпись — от неё вправо (ВГ 20.11) */
-        .rc-holday { position: absolute; top: 0; bottom: 0; width: var(--rc-dw); background: #fde68a; z-index: 1; }
-        .rc-holday.major { background: #f59e0b; }
-        .rc-hol { position: absolute; height: 22px; z-index: 2; font-size: 13px; line-height: 22px; white-space: nowrap; padding-left: 4px;
-                  color: #1f2937; }
-        .rc-hol.major { font-weight: 600; }
+        /* Праздник: клетка дня залита светлым тоном, подпись — с тёмной полоской слева (ВГ 20.11) */
+        .rc-holday { position: absolute; top: 0; bottom: 0; width: var(--rc-dw); background: #fef3c7; z-index: 1; }
+        .rc-holday.major { background: #fde68a; }
+        .rc-hol { position: absolute; height: 22px; z-index: 2; font-size: 13px; line-height: 22px; white-space: nowrap; padding-left: 5px;
+                  border-left: 3px solid #d97706; color: #1f2937; }
+        .rc-hol.major { font-weight: 600; border-left-color: #92400e; }
         .rc-num { position: absolute; top: 0; bottom: 0; width: var(--rc-dw); text-align: center; font-size: 15px; line-height: 34px; z-index: 1; }
         .rc-num.ok { color: #27500a; }
         .rc-num.lo { color: #633806; background: #faeeda; }
@@ -273,6 +273,6 @@
     <script src="../js/arrival-time.js?v=2"></script>
     <script src="../js/meal-group-editor.js?v=2"></script>
     <script src="../js/group-booking.js?v=20"></script>
-    <script src="../js/pages/retreat-calendar.js?v=9"></script>
+    <script src="../js/pages/retreat-calendar.js?v=10"></script>
 </body>
 </html>
