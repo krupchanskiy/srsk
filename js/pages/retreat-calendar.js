@@ -19,8 +19,8 @@ const e = str => Layout.escapeHtml(str ?? '');
 const tf = (key, fallback) => { const v = Layout.t(key); return !v || v === key ? fallback : v; };
 
 const GUEST_HOUSE_ID = '5fd72663-f118-4be4-80d7-155fb6264af7';   // «Гостевой дом» (как в house-guard.js)
-const DW = 30;          // ширина дня, px (как --rc-dw)
-const BAR_H = 24;       // высота дорожки
+const DW = 40;          // ширина дня, px (как --rc-dw)
+const BAR_H = 34;       // высота дорожки
 const DAY = 86400000;
 
 const STYLE = {
@@ -380,7 +380,7 @@ function render() {
     }
 
     const bar = it => `<div class="rc-bar ${it.cls} ${it.conflict ? 'conflict' : ''}" data-open="${it.key}"
-        style="--c:${it.c};--bg:${it.bg};left:${px(it.a) + 1}px;width:${(it.b - it.a + 1) * DW - 2}px;top:${it.lane * BAR_H + 2}px"
+        style="--c:${it.c};--bg:${it.bg};left:${px(it.a) + 1}px;width:${(it.b - it.a + 1) * DW - 2}px;top:${it.lane * BAR_H + 3}px"
         title="${e(it.title)} · ${fmt(it.s)}–${fmt(it.e)}"><span><b>${e(it.title)}</b>${it.meta ? ' · ' + it.meta : ''}</span></div>`;
     const line = (label, inner, h, opts = {}) => `<div class="rc-line" ${opts.attrs || ''}>
         <div class="rc-lab ${opts.cls || ''}" style="height:${h}px" title="${e(label)}">${opts.labelHtml || e(label)}</div>
@@ -395,17 +395,17 @@ function render() {
     // Праздники: подписи вправо от дня; близкие — на разные дорожки (по ширине текста)
     const hols = D.holidays.map(h => {
         const a = dayIdx(h.date), name = Layout.getName(h);
-        return { a, b: a + Math.max(1, Math.ceil((name.length * 6.2 + 8) / DW)) - 1, name, major: h.type === 'major' };
+        return { a, b: a + Math.max(1, Math.ceil((name.length * 7.5 + 10) / DW)) - 1, name, major: h.type === 'major' };
     }).sort((x, y) => x.a - y.a);
     const hEnds = [];
     for (const h of hols) { let l = hEnds.findIndex(x => x < h.a); if (l === -1) { l = hEnds.length; hEnds.push(h.b); } else hEnds[l] = h.b; h.lane = l; }
-    const holH = Math.max(1, hEnds.length) * 20 + 4;
+    const holH = Math.max(1, hEnds.length) * 24 + 6;
     html += line(tf('rc_row_holidays', 'Праздники'), hols.map(h =>
-        `<div class="rc-hol ${h.major ? 'major' : ''}" style="left:${px(h.a)}px;top:${h.lane * 20 + 2}px" title="${e(h.name)}">${e(h.name)}</div>`).join(''), holH, { cls: 'group' });
+        `<div class="rc-hol ${h.major ? 'major' : ''}" style="left:${px(h.a)}px;top:${h.lane * 24 + 3}px" title="${e(h.name)}">${e(h.name)}</div>`).join(''), holH, { cls: 'group' });
 
     const editable = perms.edit ? 'data-new' : '';
     for (const r of rows) {
-        const h = r.items.lanes * BAR_H + 4;
+        const h = r.items.lanes * BAR_H + 6;
         // Над первой строкой Махараджей — подпись группы
         const labelHtml = r.col === 'guru' && r.groupTop
             ? `<div><div class="text-[10px] uppercase tracking-wide opacity-70">${e(tf('rc_maharajas', 'Махараджи'))}</div>${e(r.label)}</div>` : '';
@@ -431,7 +431,7 @@ function render() {
             const crossTip = cross ? '\n⚠ ' + cross.map(o => `№${o.room} ${o.who || ''} — «${Layout.getName(o.retreat)}»`).join('; ') : '';
             cells += `<div class="rc-num ${cls} ${cross ? 'cross' : ''}" style="left:${px(d)}px" title="${e(tip + crossTip)}">${whole ? (cross ? '⚠' : 'весь') : f}</div>`;
         }
-        html += line(tf(c === 2 ? 'rc_row_gd2' : 'rc_row_gd4', c === 2 ? 'ГД двухместные' : 'ГД четырёхместные') + ` (${D.gdCaps[c]})`, cells, 26, { cls: 'sub' });
+        html += line(tf(c === 2 ? 'rc_row_gd2' : 'rc_row_gd4', c === 2 ? 'ГД двухместные' : 'ГД четырёхместные') + ` (${D.gdCaps[c]})`, cells, 34, { cls: 'sub' });
     }
     // Аренда: по дому; пусто — дом в эту дату не взят
     for (const name of D.rentNames) {
@@ -441,7 +441,7 @@ function render() {
             if (k === undefined) continue;
             cells += `<div class="rc-num ${k ? 'ok' : 'no'}" style="left:${px(d)}px" title="${e(name)}: свободно номеров ${k}">${k}</div>`;
         }
-        html += line('Аренда: ' + name, cells, 26, { cls: 'sub' });
+        html += line('Аренда: ' + name, cells, 34, { cls: 'sub' });
     }
     html += '</div>';
     const board = document.getElementById('rcBoard');

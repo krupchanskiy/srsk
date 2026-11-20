@@ -18,26 +18,26 @@
     <link rel="stylesheet" href="../css/common.css?v=30">
     <style>
         /* Горизонтальное расписание (ВГ 20.11.2026): дни слева направо, как в шахматке; строки — дорожки */
-        :root { --rc-dw: 30px; --rc-lab: 170px; }
+        :root { --rc-dw: 40px; --rc-lab: 230px; }
         .rc-board { overflow: auto; position: relative; }
         .rc-inner { position: relative; }
         .rc-line { display: flex; border-bottom: 1px solid #e5e7eb; }
         .rc-lab { position: sticky; left: 0; z-index: 12; flex: 0 0 var(--rc-lab); width: var(--rc-lab); background: #fff;
-                  border-right: 2px solid #d1d5db; padding: 0 8px; font-size: 13px; display: flex; align-items: center;
-                  line-height: 15px; overflow: hidden; }
-        .rc-lab.sub { color: #374151; font-size: 12px; }
+                  border-right: 2px solid #d1d5db; padding: 0 10px; font-size: 15px; display: flex; align-items: center;
+                  line-height: 18px; overflow: hidden; }
+        .rc-lab.sub { color: #374151; font-size: 14px; }
         .rc-lab.group { font-weight: 600; }
         .rc-track { position: relative; flex: 0 0 auto;
                     background-image: repeating-linear-gradient(90deg, transparent 0 calc(var(--rc-dw) - 1px), #f1f1f1 calc(var(--rc-dw) - 1px) var(--rc-dw)); }
         .rc-head { position: sticky; top: 0; z-index: 14; background: #f9fafb; }
         .rc-head .rc-lab { background: #f9fafb; z-index: 15; }
         .rc-months .rc-track, .rc-days .rc-track { background: none; display: flex; }
-        .rc-mon { flex: 0 0 auto; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; padding: 3px 6px;
+        .rc-mon { flex: 0 0 auto; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; padding: 5px 8px;
                   border-left: 2px solid #c4b5fd; background: #ede9fe; white-space: nowrap; overflow: clip; }
         .rc-mon span { position: sticky; left: calc(var(--rc-lab) + 4px); }
-        .rc-dd { flex: 0 0 var(--rc-dw); width: var(--rc-dw); text-align: center; font-size: 11px; line-height: 13px; padding: 2px 0;
+        .rc-dd { flex: 0 0 var(--rc-dw); width: var(--rc-dw); text-align: center; font-size: 13px; line-height: 16px; padding: 4px 0;
                  border-right: 1px solid #e5e7eb; color: #374151; }
-        .rc-dd b { display: block; font-size: 12px; color: #111827; }
+        .rc-dd b { display: block; font-size: 15px; color: #111827; }
         .rc-dd.we { background: #f3f4f6; }
         .rc-dd.today { background: #fef3c7; }
         .rc-dd.m1 { border-left: 2px solid #c4b5fd; }
@@ -46,22 +46,22 @@
         .rc-shade.we { background: rgba(0,0,0,.025); }
         .rc-shade.today { background: rgba(251, 191, 36, .18); }
         .rc-shade.m1 { border-left: 2px solid #ddd6fe; }
-        .rc-bar { position: absolute; height: 22px; z-index: 2; cursor: pointer; border-radius: 4px; font-size: 12px; line-height: 20px;
+        .rc-bar { position: absolute; height: 30px; z-index: 2; cursor: pointer; border-radius: 5px; font-size: 14px; line-height: 28px;
                   white-space: nowrap; overflow: clip; border: 1px solid var(--c); background: var(--bg); color: #111827; }
-        .rc-bar > span { position: sticky; left: calc(var(--rc-lab) + 2px); padding: 0 5px; display: inline-block; }
+        .rc-bar > span { position: sticky; left: calc(var(--rc-lab) + 2px); padding: 0 8px; display: inline-block; }
         .rc-bar.tentative { background: repeating-linear-gradient(135deg, var(--bg) 0 6px, #fff 6px 10px); border-style: dashed; }
         .rc-bar.cancelled { background: #f3f4f6; --c: #9ca3af; color: #4b5563; text-decoration: line-through; }
-        .rc-bar.conflict { border: 2px solid #dc2626; line-height: 18px; }
+        .rc-bar.conflict { border: 2px solid #dc2626; line-height: 26px; }
         .rc-bar .warn { color: #b91c1c; font-weight: 600; }
         .rc-bar .overdue { color: #b91c1c; font-weight: 600; }
-        .rc-hol { position: absolute; height: 18px; z-index: 2; font-size: 11px; line-height: 18px; white-space: nowrap; padding-left: 3px;
+        .rc-hol { position: absolute; height: 22px; z-index: 2; font-size: 13px; line-height: 22px; white-space: nowrap; padding-left: 4px;
                   border-left: 2px solid #f59e0b; color: #1f2937; }
         .rc-hol.major { font-weight: 600; border-left-color: #b45309; }
-        .rc-num { position: absolute; top: 0; bottom: 0; width: var(--rc-dw); text-align: center; font-size: 12px; line-height: 24px; z-index: 1; }
+        .rc-num { position: absolute; top: 0; bottom: 0; width: var(--rc-dw); text-align: center; font-size: 15px; line-height: 34px; z-index: 1; }
         .rc-num.ok { color: #27500a; }
         .rc-num.lo { color: #633806; background: #faeeda; }
         .rc-num.no { color: #791f1f; background: #fcebeb; font-weight: 600; }
-        .rc-num.whole { color: #3730a3; background: #e0e7ff; font-size: 10px; }
+        .rc-num.whole { color: #3730a3; background: #e0e7ff; font-size: 12px; }
         .rc-num.off { color: #9ca3af; }
         .rc-num.cross { box-shadow: inset 0 0 0 2px #dc2626; color: #b91c1c; font-weight: 600; }
         .rc-legend span.sw { display: inline-block; width: 18px; height: 12px; vertical-align: middle; border: 1px solid var(--c); background: var(--bg); margin-right: 4px; border-radius: 2px; }
@@ -270,6 +270,6 @@
     <script src="../js/arrival-time.js?v=2"></script>
     <script src="../js/meal-group-editor.js?v=2"></script>
     <script src="../js/group-booking.js?v=20"></script>
-    <script src="../js/pages/retreat-calendar.js?v=7"></script>
+    <script src="../js/pages/retreat-calendar.js?v=8"></script>
 </body>
 </html>
