@@ -694,6 +694,13 @@ function openPlan(p = null, defaults = {}) {
     document.getElementById('planModal').showModal();
 }
 
+// «1 номер», «3 номера», «24 номера», «5 номеров»
+function roomsWord(k) {
+    const m10 = k % 10, m100 = k % 100;
+    const w = m10 === 1 && m100 !== 11 ? 'номер' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'номера' : 'номеров';
+    return `${k} ${w}`;
+}
+
 // Ретрит или бронь из шахматки — только посмотреть
 function openInfo(it) {
     editing = null;
@@ -704,7 +711,8 @@ function openInfo(it) {
             ${r.occupies_guesthouse ? `<p>Занимает весь Гостевой дом</p>` : ''}
             ${r.is_external ? `<p>Стороннее мероприятие</p>` : ''}
             ${r.is_internal ? `<p>Внутренний проект ШРСК</p>` : ''}
-            ${!r.occupies_guesthouse && (r.rooms_2_needed || r.rooms_4_needed) ? `<p>Нужно номеров ГД: ${[r.rooms_2_needed ? `двухместных ${r.rooms_2_needed}` : '', r.rooms_4_needed ? `четырёхместных ${r.rooms_4_needed}` : ''].filter(Boolean).join(', ')}</p>` : ''}
+            ${!r.occupies_guesthouse && (r.rooms_2_needed || r.rooms_4_needed) ? `<p class="mt-2">Нужно номеров ГД:</p>
+                ${[2, 4].filter(c => r[`rooms_${c}_needed`]).map(c => `<p class="pl-4">${c}х — ${roomsWord(r[`rooms_${c}_needed`])}</p>`).join('')}` : ''}
             <div class="modal-action"><a class="btn btn-sm" href="../placement/timeline.html?date=${r.start_date}">Шахматка</a>
             ${window.currentUser?.is_superuser ? `<a class="btn btn-sm btn-primary" href="retreats.html?retreat=${encodeURIComponent(r.id)}">${e(tf('rc_open_retreat', 'Открыть ретрит'))}</a>` : ''}</div>`;
     } else {
