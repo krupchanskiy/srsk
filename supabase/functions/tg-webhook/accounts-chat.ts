@@ -195,13 +195,81 @@ async function startRecon(ctx: Ctx, chatId: number, tgUser: number): Promise<str
   return null;
 }
 
+// дата и «×3»/«2 сета» у мурти — не сумма: иначе «×3 69000» читалось как 369000
+function moneyText(text: string, date: { raw: string } | null): string {
+  return (date ? text.replace(date.raw, " ") : text)
+    .replace(/[x×х]\s*\d{1,2}(?!\d)/giu, " ")
+    .replace(/(?<![\d.,])\d{1,2}\s*сет\p{L}*/giu, " ");
+}
+
+// Кнопки под расходом, отправленным во «Входящие» (812): исправить или удалить, пока не проведён
+function savedKeyboard(id: string) {
+  return { inline_keyboard: [[
+    { text: "✏️ Изменить", callback_data: `ip:e:${id}` },
+    { text: "🗑 Удалить", callback_data: `ip:d:${id}` },
+  ]] };
+}
+
+// ---------- правка сообщения (812) ----------
+// Пока не записано или расход ещё во «Входящих» — сумма, дата и текст меняются.
+// Проведённое — как раньше: только через ВГ.
+async function ipHandleEdit(ctx: Ctx, m: any, text: string): Promise<void> {
+  const { supa, tg, esc } = ctx;
+  const chatId = m.chat.id;
+  const { data: d } = await supa.rpc("tg_ip_draft_for_message", { p_chat: chatId, p_message_id: m.message_id });
+  // Телеграм шлёт «правку» и на реакцию бота — текст тот же, молчим
+  if (!d || d.raw_text === text.trim().slice(0, 1000) || d.tg_user_id !== m.from.id) return;
+  if (d.status === "dismissed") return;
+  const editable = d.status === "proposed" || (d.status === "sent_to_inbox" && d.inbox_status === "pending");
+  if (!editable) {
+    await warn(ctx, chatId, m.message_id,
+      "⚠️ Эта операция уже проведена — правка сообщения на неё не влияет.\n"
+      + "Чтобы исправить, напишите Ванамали Гопалу, что и на что поправить.");
+    return;
+  }
+  const fmt = (n: number) => `${Number(n).toLocaleString("ru-RU")} ₽`;
+  const date = parseDate(text);
+  const money = date?.invalid ? null : ctx.parseMoney(moneyText(text, date));
+  if (!money || money.amount === null || ctx.looksLikeList(moneyText(text, date))) {
+    await warn(ctx, chatId, m.message_id,
+      `⚠️ Не понял исправление — осталось прежним: ${fmt(d.amount)}.\n`
+      + "В сообщении должна быть одна сумма, дата — в начале: «12.09 мурти большой 2 комплекта 30000 ₽».");
+    return;
+  }
+  const { data: r } = await supa.rpc("tg_ip_author_edit_text", {
+    p_id: d.id, p_tg_user: m.from.id, p_amount: money.amount,
+    p_occurred_on: date?.iso ?? null, p_raw_text: text.trim().slice(0, 1000),
+  });
+  if (!r?.ok) {
+    const why: Record<string, string> = {
+      future_date: `дата ${esc(r?.date)} ещё не наступила`,
+      too_old: `дата ${esc(r?.date)} старше года`,
+    };
+    if (why[r?.error]) await warn(ctx, chatId, m.message_id, `⚠️ Не исправил: ${why[r.error]}. Проверьте дату в начале сообщения.`);
+    return;
+  }
+  if (d.card_message_id) {
+    if (r.status === "sent_to_inbox") {
+      await tg("editMessageText", {
+        chat_id: chatId, message_id: d.card_message_id, parse_mode: "HTML", text: r.text,
+        reply_markup: savedKeyboard(d.id),
+      });
+    } else if (r.state?.ok) {
+      await renderCard(ctx, chatId, d.card_message_id, r.state);
+    }
+  }
+  const changes = [
+    Number(r.old_amount) !== Number(r.new_amount) ? `сумма ${fmt(r.old_amount)} → ${fmt(r.new_amount)}` : null,
+    r.old_date !== r.new_date ? `дата ${r.old_date} → ${r.new_date}` : null,
+  ].filter(Boolean).join(", ");
+  await warn(ctx, chatId, m.message_id, changes ? `✏️ Исправил: ${changes}.` : "✏️ Обновил описание.");
+}
+
 // ---------- сообщения ----------
 export async function ipHandleMessage(ctx: Ctx, update: any, m: any, text: string): Promise<void> {
   const { supa, tg, esc } = ctx;
-  // Правки не трогаем: принятое сообщение не правится (правило ВГ), а Телеграм
-  // присылает «правку» и на реакцию бота.
-  if (update.edited_message && !update.message) return;
   if (m.from.is_bot) return;
+  if (update.edited_message && !update.message) { await ipHandleEdit(ctx, m, text); return; }
   const chatId = m.chat.id;
 
   // ответ на вопрос сверки
@@ -249,10 +317,7 @@ export async function ipHandleMessage(ctx: Ctx, update: any, m: any, text: strin
     }
     return;
   }
-  // дата и «×3»/«2 сета» у мурти — не сумма: иначе «×3 69000» читалось как 369000
-  const forMoney = (date ? text.replace(date.raw, " ") : text)
-    .replace(/[x×х]\s*\d{1,2}(?!\d)/giu, " ")
-    .replace(/(?<![\d.,])\d{1,2}\s*сет\p{L}*/giu, " ");
+  const forMoney = moneyText(text, date);
   const money = ctx.parseMoney(forMoney);
   if (!money || ctx.looksLikeList(forMoney) || money.amount === null) {
     if (MONEY_HINT.test(text) || money) {
@@ -314,7 +379,7 @@ export async function ipHandleCallback(ctx: Ctx, cq: any, parts: string[]): Prom
       // карточка превращается в итог: видно, что и куда записано, и остатки
       await tg("editMessageText", {
         chat_id: chatId, message_id: msg.message_id, parse_mode: "HTML", text: data.text,
-        reply_markup: { inline_keyboard: [] },
+        reply_markup: data.kind === "expense" ? savedKeyboard(parts[2]) : { inline_keyboard: [] },
       });
     } else if (data?.error === "not_author") {
       await alert("Подтвердить может только автор сообщения.");
@@ -323,6 +388,59 @@ export async function ipHandleCallback(ctx: Ctx, cq: any, parts: string[]): Prom
       await alert(`Не провелось: ${data.message}`.slice(0, 190));
       return;
     } else if (data?.error === "closed") {
+      await drop();
+    }
+  } else if (["e", "eb", "ef", "d", "dy"].includes(action)) {
+    // «✏️ Изменить» / «🗑 Удалить» под расходом во «Входящих» (812) — только автор
+    const id = action === "ef" ? parts[3] : parts[2];
+    const { data: st } = await supa.rpc("tg_ip_state", { p_id: id });
+    const { data: own } = await supa.rpc("tg_ip_author_check", { p_id: id, p_tg_user: cq.from.id });
+    if (!own?.ok) {
+      if (own?.error === "forbidden") { await alert("Исправить или удалить может только автор сообщения."); return; }
+      await alert(own?.error === "posted"
+        ? "Расход уже проведён — исправить его можно только через Ванамали Гопала."
+        : "Эта заявка уже закрыта.");
+      await tg("editMessageReplyMarkup", { chat_id: chatId, message_id: msg.message_id, reply_markup: { inline_keyboard: [] } });
+      return;
+    }
+    if (action === "eb") {
+      await tg("editMessageText", {
+        chat_id: chatId, message_id: msg.message_id, parse_mode: "HTML", text: own.text, reply_markup: savedKeyboard(id),
+      });
+    } else if (action === "e") {
+      const btns: any[] = [
+        { text: "Вид операции", callback_data: `ip:ef:k:${id}` },
+        { text: "Счёт", callback_data: `ip:ef:a:${id}` },
+        { text: "Департамент", callback_data: `ip:ef:d:${id}` },
+      ];
+      if (own.has_department) btns.push({ text: "Статья", callback_data: `ip:ef:c:${id}` });
+      await tg("editMessageText", {
+        chat_id: chatId, message_id: msg.message_id, parse_mode: "HTML",
+        text: `✏️ <b>Что исправить в расходе ${ctx.esc(st.amount_fmt)}?</b>\n\n`
+            + "• Сумму, дату или описание — отредактируйте само сообщение.\n"
+            + "• Остальное — кнопкой ниже.",
+        reply_markup: { inline_keyboard: [btns.slice(0, 2), btns.slice(2), [{ text: "↩️ Назад", callback_data: `ip:eb:${id}` }]] },
+      });
+    } else if (action === "ef") {
+      const { data: s2 } = await supa.rpc("tg_ip_author_reopen", { p_id: id, p_tg_user: cq.from.id, p_field: FIELD[parts[2]] });
+      if (!s2?.ok) { await alert("Не получилось открыть расход для исправления."); return; }
+      // до «Отправить» во «Входящих» его нет — 👀 снимаем, вернётся после «Отправить»
+      if (own.source_message_id) {
+        await tg("setMessageReaction", { chat_id: chatId, message_id: own.source_message_id, reaction: [] });
+      }
+      await renderCard(ctx, chatId, msg.message_id, s2);
+    } else if (action === "d") {
+      await tg("editMessageText", {
+        chat_id: chatId, message_id: msg.message_id, parse_mode: "HTML",
+        text: `🗑 <b>Удалить расход ${ctx.esc(st.amount_fmt)}?</b>\nВо «Входящих» его больше не будет.`,
+        reply_markup: { inline_keyboard: [[
+          { text: "Да, удалить", callback_data: `ip:dy:${id}` },
+          { text: "Нет", callback_data: `ip:eb:${id}` },
+        ]] },
+      });
+    } else if (action === "dy") {
+      const { data: r } = await supa.rpc("tg_ip_author_dismiss", { p_id: id, p_tg_user: cq.from.id });
+      if (!r?.ok) { await alert("Не получилось удалить — возможно, расход уже провели."); return; }
       await drop();
     }
   } else if (action === "rs") {

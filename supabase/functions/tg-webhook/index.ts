@@ -655,6 +655,11 @@ Deno.serve(async (req) => {
   // сообщение не правим и не удаляем, ошибку исправляет фин-администратор при
   // проведении, при необходимости минусует и вносит заново.
   if (update.edited_message && !update.message) {
+    // Чат счетов ИП: правку разбирает свой обработчик (812) — там другая карточка и дата операции
+    if (m.chat?.type !== "private" && await ipChatInfo(supa, m.chat.id)) {
+      await ipHandleMessage({ supa, tg, esc, parseMoney, looksLikeList }, update, m, text);
+      return new Response("ok");
+    }
     const { data: prev } = await supa.rpc("tg_draft_for_message", {
       p_chat: m.chat.id, p_message_id: m.message_id,
     });
@@ -663,9 +668,7 @@ Deno.serve(async (req) => {
     // реакции (бот ставит 👀 после «Записать»). Молчим (ВГ 15.10.2026).
     if (draft && draft.raw_text === text) return new Response("ok");
     // Пока заявку не провели, правка сообщения меняет сумму и описание (807, решение ВГ 19.11.2026).
-    // Чаты счетов ИП устроены по-своему — там прежнее правило.
-    if (draft && (draft.status === "pending" || draft.status === "proposed")
-        && !(m.chat?.type !== "private" && await ipChatInfo(supa, m.chat.id))) {
+    if (draft && (draft.status === "pending" || draft.status === "proposed")) {
       const sym = (c: string | null) => (c ? CURRENCIES[c] ?? c : "");
       const fmt = (n: number, c: string | null) => `${Number(n).toLocaleString("ru-RU")}${sym(c) ? " " + sym(c) : ""}`;
       const money = parseMoney(text);
