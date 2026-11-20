@@ -329,8 +329,8 @@ function buildRows() {
     // «Всегда в Расписании» (мигр. 823, Бхакти Вигьяна Госвами) — отдельной строкой со своей подписью
     // под группой «Махараджи», видна и без записей (ВГ 20.11)
     const isPinned = id => !!id && !!maharajas.find(m => m.id === id)?.pinned;
-    const order = id => id ? (maharajas.find(m => m.id === id)?.sort_order ?? 999) : 10000;
-    const byOrder = (a, b) => order(a) - order(b) || maharajaName(a).localeCompare(maharajaName(b));
+    // По алфавиту (ВГ 20.11); «без имени» — последним
+    const byOrder = (a, b) => (!a) - (!b) || maharajaName(a).localeCompare(maharajaName(b), 'ru');
     const guruKeys = [...guruRows.keys()].filter(k => !isPinned(k)).sort(byOrder);
     guruKeys.forEach((k, i) => out.push({ key: 'g' + k, label: k ? maharajaName(k) : tf('rc_maharajas', 'Махараджи') + ' (без имени)',
         cls: 'sub', col: 'guru', maharaja: k, items: guruRows.get(k), groupTop: i === 0 }));
@@ -930,9 +930,9 @@ function toggleFullscreen(btn) {
 
 // ---------- справочник Махараджей ----------
 async function loadMaharajas() {
-    const { data, error } = await Layout.db.from('maharajas').select('id, name, sort_order, is_active, pinned').order('sort_order').order('name');
+    const { data, error } = await Layout.db.from('maharajas').select('id, name, is_active, pinned').order('name');
     if (error) { Layout.handleError(error, 'Махараджи'); return; }
-    maharajas = data || [];
+    maharajas = (data || []).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 }
 
 async function loadStaff() {
@@ -947,7 +947,6 @@ async function loadStaff() {
 function renderMaharajas() {
     const used = id => D?.plans?.filter(p => p.maharaja_id === id).length || 0;
     document.getElementById('maharajasList').innerHTML = maharajas.map(m => `<div class="flex items-center gap-2" data-mid="${m.id}">
-        <input type="number" name="sort_order" class="input input-bordered input-sm w-16" value="${m.sort_order}" title="Порядок" aria-label="Порядок">
         <input type="text" name="name" class="input input-bordered input-sm flex-1" value="${e(m.name)}" aria-label="Имя">
         <label class="label cursor-pointer gap-1 py-0" title="Снятые с галочки не предлагаются в новых записях"><input type="checkbox" name="is_active" class="checkbox checkbox-xs" ${m.is_active ? 'checked' : ''}><span class="label-text text-xs">в списке</span></label>
         <label class="label cursor-pointer gap-1 py-0" title="Строка видна в Расписании всегда, даже без записей"><input type="checkbox" name="pinned" class="checkbox checkbox-xs" ${m.pinned ? 'checked' : ''}><span class="label-text text-xs">всегда в Расписании</span></label>
@@ -964,8 +963,7 @@ async function addMaharaja(ev) {
     ev.preventDefault();
     const name = ev.target.name.value.trim();
     if (!name) return;
-    const sort = Math.max(0, ...maharajas.map(m => m.sort_order || 0)) + 10;
-    const { error } = await Layout.db.from('maharajas').insert({ name, sort_order: sort });
+    const { error } = await Layout.db.from('maharajas').insert({ name });
     if (error) return Layout.handleError(error, 'Махараджи');
     ev.target.reset();
     await loadMaharajas();
