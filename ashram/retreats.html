@@ -1301,8 +1301,12 @@
             updateUI();
             Layout.hideLoader();
 
-            const planId = new URLSearchParams(location.search).get('from_plan');
+            const params = new URLSearchParams(location.search);
+            const planId = params.get('from_plan');
             if (planId) await openFromPlan(planId);
+            // retreats.html?retreat=<id> — сразу настройки ретрита («Открыть ретрит» в «Расписании»)
+            const openId = params.get('retreat');
+            if (openId && retreats.some(r => r.id === openId)) openModal(openId);
         }
 
         init();

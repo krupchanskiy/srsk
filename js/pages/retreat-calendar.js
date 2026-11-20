@@ -28,7 +28,8 @@ const STYLE = {
     tentative: { c: '#d97706', bg: '#fde68a' },
     guru:      { c: '#0d9488', bg: '#ccfbf1' },
     note:      { c: '#6b7280', bg: '#f3f4f6' },
-    booking:   { c: '#6366f1', bg: '#e0e7ff' }
+    booking:   { c: '#6366f1', bg: '#e0e7ff' },
+    rent:      { c: '#78716c', bg: '#f5f5f4' }
 };
 // DateUtils.monthNames — в родительном падеже («ноября»), для заголовка месяца нужен именительный
 const MONTHS = {
@@ -146,7 +147,7 @@ async function load() {
         holidays: hol.data, retreats: ret.data, plans: plans.data, bookings: books.data,
         gd, rent, gdCaps: caps,
         // Только дома, взятые хотя бы на одну ночь показанного года
-        rentNames: [...new Set(rent.flatMap(x => Object.keys(x.byBld)))].sort(), free: gd.map(g => Object.values(g).reduce((a, b) => a + b, 0)),
+        rentRooms: rentRooms.reduce((m, r) => { const k = Layout.getName(r.buildings); m[k] = (m[k] || 0) + 1; return m; }, {}), free: gd.map(g => Object.values(g).reduce((a, b) => a + b, 0)),
         totalRooms: gdRooms.length, overlaps
     };
     // Ночи пересечения (для ⚠ в колонке «Гостевой дом») и брони с пересечением (для обводки)
@@ -381,7 +382,7 @@ function render() {
 
     const bar = it => `<div class="rc-bar ${it.cls} ${it.conflict ? 'conflict' : ''}" data-open="${it.key}"
         style="--c:${it.c};--bg:${it.bg};left:${px(it.a) + 1}px;width:${(it.b - it.a + 1) * DW - 2}px;top:${it.lane * BAR_H + 3}px"
-        title="${e(it.title)} · ${fmt(it.s)}–${fmt(it.e)}"><span><b>${e(it.title)}</b>${it.meta ? ' · ' + it.meta : ''}</span></div>`;
+        title="${e(it.tip || `${it.title} · ${fmt(it.s)}–${fmt(it.e)}`)}"><span><b>${e(it.title)}</b>${it.meta ? ' · ' + it.meta : ''}</span></div>`;
     const line = (label, inner, h, opts = {}) => `<div class="rc-line" ${opts.attrs || ''}>
         <div class="rc-lab ${opts.cls || ''}" style="height:${h}px" title="${e(label)}">${opts.labelHtml || e(label)}</div>
         <div class="rc-track" style="width:${W}px;height:${h}px" ${opts.trackAttrs || ''}>${shade}${inner}</div></div>`;
@@ -436,15 +437,26 @@ function render() {
         }
         html += line(tf(c === 2 ? 'rc_row_gd2' : 'rc_row_gd4', c === 2 ? 'ГД двухместные' : 'ГД четырёхместные') + ` (${D.gdCaps[c]})`, cells, 34, { cls: 'sub' });
     }
-    // Аренда: по дому; пусто — дом в эту дату не взят
-    for (const name of D.rentNames) {
-        let cells = '';
+    // Аренда: одна строка, полоса на каждый непрерывный срок, когда гостиница снята (ВГ 20.11);
+    // пересекающиеся сроки разных гостиниц — друг под другом
+    const rentBars = [];
+    for (const name of Object.keys(D.rentRooms).sort()) {
         for (let d = 0; d < n; d++) {
-            const k = D.rent[d].byBld[name];
-            if (k === undefined) continue;
-            cells += `<div class="rc-num ${k ? 'ok' : 'no'}" style="left:${px(d)}px" title="${e(name)}: свободно номеров ${k}">${k}</div>`;
+            if (D.rent[d].byBld[name] === undefined) continue;
+            let end = d;
+            while (end + 1 < n && D.rent[end + 1].byBld[name] !== undefined) end++;
+            const free = D.rent.slice(d, end + 1).map(x => x.byBld[name]);
+            const lo = Math.min(...free), hi = Math.max(...free), all = D.rentRooms[name];
+            const s0 = addDays(start, d), e0 = addDays(start, end);
+            rentBars.push({ key: 'rent' + name + d, src: 'rent', s: s0, e: e0, title: name, cls: 'rent', ...STYLE.rent,
+                meta: e(`${all} ном.`) + (lo < all ? ` · <span class="${lo ? '' : 'warn'}">свободно ${lo === hi ? lo : `${lo}–${hi}`}</span>` : ''),
+                tip: `${name}: снята ${fmt(s0)}–${fmt(e0)}, номеров ${all}, свободно целиком ${lo === hi ? lo : `от ${lo} до ${hi}`}` });
+            d = end;
         }
-        html += line('Аренда: ' + name, cells, 34, { cls: 'sub' });
+    }
+    if (rentBars.length) {
+        assignLanes(rentBars);
+        html += line(tf('rc_row_rent', 'Аренда'), rentBars.map(bar).join(''), rentBars.lanes * BAR_H + 6, { cls: 'group' });
     }
     html += '</div>';
     const board = document.getElementById('rcBoard');
@@ -461,7 +473,7 @@ function renderLegend() {
     if (perms.seePlans) html += sw(STYLE.tentative, 'tentative', tf('rc_status_tentative', 'Бронь') + ' (предварительно)');
     html += sw(STYLE.guru, '', tf('rc_maharajas', 'Махараджи'));
     html += `<span><span class="sw" style="--c:#dc2626;--bg:#fff;border-width:2px"></span>⚠ пересечение</span>`;
-    html += `<span class="opacity-80 basis-full">Числа в строках ГД — сколько номеров этого типа свободно целиком в эту ночь (в скобках — всего; «два плюс один» — двухместные). Жёлтый — меньше трети, красный — ни одного. Аренда — свободные номера арендного дома, пока он взят.</span>`;
+    html += `<span class="opacity-80 basis-full">Числа в строках ГД — сколько номеров этого типа свободно целиком в эту ночь (в скобках — всего; «два плюс один» — двухместные). Жёлтый — меньше трети, красный — ни одного. Аренда — гостиницы, которые ШРСК снимает: полоса на срок аренды, при наведении — сколько номеров свободно.</span>`;
     document.getElementById('rcLegend').innerHTML = html;
 }
 
@@ -588,7 +600,7 @@ function renderLinks() {
     const parts = [];
     const retreat = p.retreat_id && D.retreats.find(r => r.id === p.retreat_id);
     if (p.retreat_id) parts.push(`<div>Ретрит: <b>${e(retreat ? Layout.getName(retreat) : '—')}</b>
-        <a class="link link-primary ml-2" href="retreats.html">${e(tf('rc_open_retreat', 'Открыть ретрит'))}</a></div>`);
+        <a class="link link-primary ml-2" href="retreats.html?retreat=${encodeURIComponent(p.retreat_id)}">${e(tf('rc_open_retreat', 'Открыть ретрит'))}</a></div>`);
     else if (window.currentUser?.is_superuser && p.status !== 'cancelled')
         parts.push(`<button type="button" class="btn btn-sm btn-outline" data-action="create-retreat">${e(tf('rc_create_retreat', 'Создать ретрит'))}</button>
             <span class="opacity-80 ml-1">— заведёт настоящий ретрит (CRM, оплаты, кухня начнут его видеть)</span>`);
@@ -646,7 +658,7 @@ function openInfo(it) {
             ${r.occupies_guesthouse ? `<p>Занимает весь Гостевой дом</p>` : ''}
             ${r.is_external ? `<p>Стороннее мероприятие</p>` : ''}
             <div class="modal-action"><a class="btn btn-sm" href="../placement/timeline.html">Шахматка</a>
-            ${window.currentUser?.is_superuser ? `<a class="btn btn-sm btn-primary" href="retreats.html">${e(tf('rc_open_retreat', 'Открыть ретрит'))}</a>` : ''}</div>`;
+            ${window.currentUser?.is_superuser ? `<a class="btn btn-sm btn-primary" href="retreats.html?retreat=${encodeURIComponent(r.id)}">${e(tf('rc_open_retreat', 'Открыть ретрит'))}</a>` : ''}</div>`;
     } else {
         const b = D.bookings.find(x => x.id === it.id);
         html = `<p>Бронь группы в шахматке: ${b.beds_count || 0} мест, ${fmt(b.check_in)}–${fmt(b.check_out)}</p>
