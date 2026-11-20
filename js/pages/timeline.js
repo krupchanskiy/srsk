@@ -406,6 +406,25 @@ async function loadTimelineData() {
         };
     }).filter(r => r.rawStartDay <= DAYS_TO_SHOW - 1 && r.rawEndDay >= 0);
 
+    // Предварительные брони и планы из «Расписания» (мигр. 817) — в той же полосе, штриховкой / пунктиром,
+    // чтобы ресепшен видел «здесь, возможно, группа». База отдаёт их только тем, у кого есть право на планы.
+    const { data: plansData } = await Layout.db.from('retreat_plans')
+        .select('id, title, start_date, end_date, status, confirm_by, people_count, rooms_count')
+        .eq('kind', 'event').in('status', ['plan', 'tentative'])
+        .lte('start_date', endDateStr).gte('end_date', startDateStr);
+    for (const p of plansData || []) {
+        const rawStartDay = dateToDayIndex(p.start_date), rawEndDay = dateToDayIndex(p.end_date);
+        const extra = [p.status === 'tentative' ? tf('rc_status_tentative', 'Предварительно') : tf('rc_status_plan', 'План'),
+            p.confirm_by ? `${tf('rc_confirm_by', 'подтвердить до')} ${p.confirm_by.slice(8, 10)}.${p.confirm_by.slice(5, 7)}` : '',
+            p.rooms_count ? `${p.rooms_count} ${tf('rc_rooms', 'номеров').toLowerCase()}` : '',
+            p.people_count ? `${p.people_count} ${tf('rc_people', 'людей').toLowerCase()}` : ''].filter(Boolean).join(', ');
+        timelineData.retreats.push({
+            name: p.title, planStatus: p.status, dates: `${DateUtils.formatRange(p.start_date, p.end_date)} · ${extra}`,
+            startDay: Math.max(0, rawStartDay), endDay: Math.min(DAYS_TO_SHOW - 1, rawEndDay), rawStartDay, rawEndDay
+        });
+    }
+    timelineData.retreats = timelineData.retreats.filter(r => r.rawStartDay <= DAYS_TO_SHOW - 1 && r.rawEndDay >= 0);
+
     // Группируем комнаты по зданиям
     const roomsByBuilding = {};
     rooms.forEach(room => {
@@ -4098,7 +4117,9 @@ function renderRetreats() {
         const h = Math.floor(BAND_HEIGHT / r.lanes);
         const gap = r.lanes > 1 ? 1 : 0;
         const font = r.lanes > 1 ? 'font-size: 12px;' : '';
-        html += `<div class="retreat-chip" title="${e(r.name)} · ${e(r.dates)}" style="left: ${left}px; width: ${width}px; top: ${r.lane * h}px; height: ${h - gap}px; line-height: ${h - gap}px; ${font} background: ${Utils.safeColor(r.color, '#10b981')};">${e(r.name)}</div>`;
+        const bg = r.planStatus ? '' : `background: ${Utils.safeColor(r.color, '#10b981')};`;
+        const planCls = r.planStatus ? ` retreat-chip-${r.planStatus}` : '';
+        html += `<div class="retreat-chip${planCls}" title="${e(r.name)} · ${e(r.dates)}" style="left: ${left}px; width: ${width}px; top: ${r.lane * h}px; height: ${h - gap}px; line-height: ${h - gap}px; ${font} ${bg}">${e(r.name)}</div>`;
     });
 
     // Названия месяцев на первых числах

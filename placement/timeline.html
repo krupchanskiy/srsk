@@ -122,6 +122,19 @@
             border: none !important;
         }
 
+        /* Из «Расписания»: предварительная бронь — штриховка, план — пунктир (мигр. 817) */
+        .retreat-chip.retreat-chip-tentative {
+            background: repeating-linear-gradient(135deg, #fde68a 0 8px, #fffbeb 8px 14px);
+            color: #78350f;
+            box-shadow: inset 0 0 0 1px #f59e0b;
+        }
+        .retreat-chip.retreat-chip-plan {
+            background: #f9fafb;
+            color: #374151;
+            box-shadow: inset 0 0 0 1px #9ca3af;
+            outline: 1px dashed #9ca3af;
+            outline-offset: -1px;
+        }
         .retreat-chip {
             position: absolute;
             top: 0;
@@ -1404,7 +1417,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=5"></script>
-    <script src="../js/layout.js?v=132"></script>
+    <script src="../js/layout.js?v=133"></script>
     <script>
     function toggleFullscreen(btn) {
         const isFS = document.body.classList.toggle('board-fullscreen');
@@ -1413,10 +1426,10 @@
     </script>
     <script src="../js/retreat-select.js?v=2"></script>
     <script src="../js/meal-group-editor.js?v=2"></script>
-    <script src="../js/house-guard.js?v=4"></script>
+    <script src="../js/house-guard.js?v=5"></script>
     <script src="../js/arrival-time.js?v=2"></script>
-    <script src="../js/group-booking.js?v=19"></script>
-    <script src="../js/pages/timeline.js?v=104"></script>
+    <script src="../js/group-booking.js?v=20"></script>
+    <script src="../js/pages/timeline.js?v=105"></script>
 
 </body>
 </html>

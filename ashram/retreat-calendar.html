@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=9"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Расписание ретритов — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=30">
+    <style>
+        /* Горизонтальное расписание (ВГ 20.11.2026): дни слева направо, как в шахматке; строки — дорожки */
+        :root { --rc-dw: 30px; --rc-lab: 170px; }
+        .rc-board { overflow: auto; position: relative; }
+        .rc-inner { position: relative; }
+        .rc-line { display: flex; border-bottom: 1px solid #e5e7eb; }
+        .rc-lab { position: sticky; left: 0; z-index: 12; flex: 0 0 var(--rc-lab); width: var(--rc-lab); background: #fff;
+                  border-right: 2px solid #d1d5db; padding: 0 8px; font-size: 13px; display: flex; align-items: center;
+                  line-height: 15px; overflow: hidden; }
+        .rc-lab.sub { color: #374151; font-size: 12px; }
+        .rc-lab.group { font-weight: 600; }
+        .rc-track { position: relative; flex: 0 0 auto;
+                    background-image: repeating-linear-gradient(90deg, transparent 0 calc(var(--rc-dw) - 1px), #f1f1f1 calc(var(--rc-dw) - 1px) var(--rc-dw)); }
+        .rc-head { position: sticky; top: 0; z-index: 14; background: #f9fafb; }
+        .rc-head .rc-lab { background: #f9fafb; z-index: 15; }
+        .rc-months .rc-track, .rc-days .rc-track { background: none; display: flex; }
+        .rc-mon { flex: 0 0 auto; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; padding: 3px 6px;
+                  border-left: 2px solid #c4b5fd; background: #ede9fe; white-space: nowrap; overflow: clip; }
+        .rc-mon span { position: sticky; left: calc(var(--rc-lab) + 4px); }
+        .rc-dd { flex: 0 0 var(--rc-dw); width: var(--rc-dw); text-align: center; font-size: 11px; line-height: 13px; padding: 2px 0;
+                 border-right: 1px solid #e5e7eb; color: #374151; }
+        .rc-dd b { display: block; font-size: 12px; color: #111827; }
+        .rc-dd.we { background: #f3f4f6; }
+        .rc-dd.today { background: #fef3c7; }
+        .rc-dd.m1 { border-left: 2px solid #c4b5fd; }
+        /* Выходные и сегодня — одним слоем под полосами */
+        .rc-shade { position: absolute; top: 0; bottom: 0; pointer-events: none; z-index: 0; }
+        .rc-shade.we { background: rgba(0,0,0,.025); }
+        .rc-shade.today { background: rgba(251, 191, 36, .18); }
+        .rc-shade.m1 { border-left: 2px solid #ddd6fe; }
+        .rc-bar { position: absolute; height: 22px; z-index: 2; cursor: pointer; border-radius: 4px; font-size: 12px; line-height: 20px;
+                  white-space: nowrap; overflow: clip; border: 1px solid var(--c); background: var(--bg); color: #111827; }
+        .rc-bar > span { position: sticky; left: calc(var(--rc-lab) + 2px); padding: 0 5px; display: inline-block; }
+        .rc-bar.tentative { background: repeating-linear-gradient(135deg, var(--bg) 0 6px, #fff 6px 10px); border-style: dashed; }
+        .rc-bar.cancelled { background: #f3f4f6; --c: #9ca3af; color: #4b5563; text-decoration: line-through; }
+        .rc-bar.conflict { border: 2px solid #dc2626; line-height: 18px; }
+        .rc-bar .warn { color: #b91c1c; font-weight: 600; }
+        .rc-bar .overdue { color: #b91c1c; font-weight: 600; }
+        .rc-hol { position: absolute; height: 18px; z-index: 2; font-size: 11px; line-height: 18px; white-space: nowrap; padding-left: 3px;
+                  border-left: 2px solid #f59e0b; color: #1f2937; }
+        .rc-hol.major { font-weight: 600; border-left-color: #b45309; }
+        .rc-num { position: absolute; top: 0; bottom: 0; width: var(--rc-dw); text-align: center; font-size: 12px; line-height: 24px; z-index: 1; }
+        .rc-num.ok { color: #27500a; }
+        .rc-num.lo { color: #633806; background: #faeeda; }
+        .rc-num.no { color: #791f1f; background: #fcebeb; font-weight: 600; }
+        .rc-num.whole { color: #3730a3; background: #e0e7ff; font-size: 10px; }
+        .rc-num.off { color: #9ca3af; }
+        .rc-num.cross { box-shadow: inset 0 0 0 2px #dc2626; color: #b91c1c; font-weight: 600; }
+        .rc-legend span.sw { display: inline-block; width: 18px; height: 12px; vertical-align: middle; border: 1px solid var(--c); background: var(--bg); margin-right: 4px; border-radius: 2px; }
+        .rc-legend span.sw.tentative { background: repeating-linear-gradient(135deg, var(--bg) 0 4px, #fff 4px 7px); border-style: dashed; }
+        /* «На весь экран» — как в шахматке */
+        body.board-fullscreen > header, body.board-fullscreen > footer { display: none !important; }
+        body.board-fullscreen main { padding: 8px; max-width: none; }
+        body.board-fullscreen #rcBoard { max-height: calc(100vh - 70px) !important; }
+        body.board-fullscreen #rcLegend, body.board-fullscreen #rcAlerts { display: none; }
+        @media print { .rc-board { max-height: none !important; overflow: visible; } }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="px-4 py-6 flex-1">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+            <div class="flex items-center gap-3 flex-wrap">
+                <h1 class="text-2xl font-bold" data-i18n="retreat_calendar">Расписание</h1>
+                <!-- Как в шахматке: ‹ Сегодня › по месяцам, быстрый переход к месяцу, поиск -->
+                <div class="flex items-center gap-1">
+                    <button class="btn btn-sm btn-ghost btn-square" data-action="month" data-delta="-1" title="Месяц назад" aria-label="Месяц назад">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                    </button>
+                    <button class="btn btn-sm btn-ghost px-2" data-action="today" data-i18n="rc_today">Сегодня</button>
+                    <button class="btn btn-sm btn-ghost btn-square" data-action="month" data-delta="1" title="Месяц вперёд" aria-label="Месяц вперёд">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                    <select id="rcMonth" class="select select-bordered select-sm w-auto pr-8" title="Перейти к месяцу" aria-label="Перейти к месяцу"></select>
+                </div>
+                <div class="relative" id="rcSearchBox">
+                    <input type="text" id="rcSearch" class="input input-bordered input-sm w-56 pl-8" placeholder="Поиск по названию..." aria-label="Поиск">
+                    <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <div id="rcSearchResults" class="hidden absolute z-30 mt-1 w-96 max-w-[90vw] bg-base-100 rounded-lg shadow-lg border border-base-300 max-h-80 overflow-y-auto"></div>
+                </div>
+                <label class="label cursor-pointer gap-2 py-0" id="rcCancelledToggle">
+                    <input type="checkbox" class="checkbox checkbox-xs" id="rcShowCancelled">
+                    <span class="label-text text-sm" data-i18n="rc_show_cancelled">Показывать отменённое</span>
+                </label>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+            <button class="btn btn-sm btn-outline gap-1" id="rcAttnBtn" data-action="attention" title="Требуют внимания">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M10.3 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.7 3.86a2 2 0 00-3.4 0z"/></svg>
+                <span data-i18n="rc_attention">Требуют внимания</span>
+                <span class="badge badge-sm" id="rcAttnCount">0</span>
+            </button>
+            <button class="btn btn-sm btn-ghost hidden" id="rcMaharajasBtn" data-action="maharajas" data-i18n="rc_maharajas">Махараджи</button>
+            <button class="btn btn-ghost btn-sm btn-square" data-action="fullscreen" id="rcFsBtn" title="На весь экран" aria-label="На весь экран">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/></svg>
+            </button>
+            <button class="btn btn-primary btn-sm gap-2 hidden" id="rcAddBtn" data-action="add">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span data-i18n="rc_add">Добавить</span>
+            </button>
+            </div>
+        </div>
+        <!-- «Требуют внимания»: просрочено «подтвердить до», нет ответственного, пересечения -->
+        <div id="rcAttn" class="hidden mb-3 bg-base-100 border border-warning/40 rounded-lg px-4 py-3 text-sm space-y-1"></div>
+
+        <!-- ⚠ пересечения с ретритами «весь Гостевой дом» (как плашка шахматки) -->
+        <div id="rcAlerts" class="hidden mb-3 bg-error/5 border border-error/30 rounded-lg px-4 py-3 text-sm space-y-1"></div>
+
+        <div class="rc-legend flex flex-wrap gap-x-4 gap-y-1 text-sm mb-3" id="rcLegend"></div>
+
+        <div class="card bg-base-100 shadow-sm">
+            <div class="rc-board" id="rcBoard">
+                <div class="text-center py-10"><span class="loading loading-spinner"></span></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <!-- Запись расписания -->
+    <dialog id="planModal" class="modal">
+        <div class="modal-box max-w-2xl relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" data-action="close-plan" aria-label="Закрыть">✕</button>
+            <h3 class="font-bold text-lg mb-4" id="planTitle"></h3>
+            <form id="planForm" class="space-y-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1">Вид</span>
+                        <select name="kind" class="select select-bordered select-sm">
+                            <option value="event" data-i18n="rc_kind_event">Ретрит / группа</option>
+                            <option value="guru" data-i18n="rc_kind_guru">Махараджи</option>
+                            <option value="note" data-i18n="rc_kind_note">Заметка</option>
+                        </select>
+                    </label>
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1">Статус</span>
+                        <select name="status" class="select select-bordered select-sm">
+                            <option value="tentative" data-i18n="rc_status_tentative">Бронь</option>
+                            <option value="confirmed" data-i18n="rc_status_confirmed">Подтверждено</option>
+                            <option value="cancelled" data-i18n="rc_status_cancelled">Отменено</option>
+                        </select>
+                    </label>
+                </div>
+                <!-- Махарадж из справочника (мигр. 819); пусто — «Махараджи» без имени -->
+                <label class="form-control" data-guru-only>
+                    <span class="label-text font-medium mb-1" data-i18n="rc_maharaja">Махарадж</span>
+                    <select name="maharaja_id" class="select select-bordered select-sm"></select>
+                </label>
+                <label class="form-control">
+                    <span class="label-text font-medium mb-1" data-i18n="rc_title">Название</span>
+                    <input type="text" name="title" class="input input-bordered input-sm" required>
+                </label>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1">С</span>
+                        <input type="date" name="start_date" class="input input-bordered input-sm" required>
+                    </label>
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1">По</span>
+                        <input type="date" name="end_date" class="input input-bordered input-sm" required>
+                    </label>
+                    <label class="form-control" data-event-only>
+                        <span class="label-text font-medium mb-1" data-i18n="rc_confirm_by">Подтвердить до</span>
+                        <input type="date" name="confirm_by" class="input input-bordered input-sm">
+                    </label>
+                </div>
+                <label class="form-control" data-event-only>
+                    <span class="label-text font-medium mb-1"><span data-i18n="rc_responsible">Ответственный</span> <span class="font-normal opacity-80">— от ШРСК; за 30 дней до «подтвердить до» получит напоминание в Телеграм</span></span>
+                    <select name="responsible_id" class="select select-bordered select-sm"></select>
+                </label>
+                <div id="planLoadWarn" class="hidden alert alert-warning text-sm py-2"></div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" data-event-only>
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1">Контактное лицо</span>
+                        <input type="text" name="contact_name" class="input input-bordered input-sm">
+                    </label>
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1">Телефон</span>
+                        <input type="text" name="contact_phone" class="input input-bordered input-sm">
+                    </label>
+                </div>
+                <!-- Номера по типам (мигр. 818): сверяются со свободными номерами Гостевого дома по ночам -->
+                <div class="grid grid-cols-2 gap-3" data-event-only>
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1" data-i18n="rc_rooms_2">Двухместных</span>
+                        <input type="number" min="0" name="rooms_2" class="input input-bordered input-sm" title="«Два плюс один» — тоже двухместный">
+                    </label>
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1" data-i18n="rc_rooms_4">Четырёхместных</span>
+                        <input type="number" min="0" name="rooms_4" class="input input-bordered input-sm">
+                    </label>
+                </div>
+                <div class="grid grid-cols-2 gap-3" data-event-only>
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1" data-i18n="rc_people">Людей</span>
+                        <input type="number" min="0" name="people_count" class="input input-bordered input-sm">
+                    </label>
+                    <label class="form-control">
+                        <span class="label-text font-medium mb-1" data-i18n="rc_prepayment">Предоплата</span>
+                        <input type="text" name="prepayment" class="input input-bordered input-sm" placeholder="$300">
+                    </label>
+                </div>
+                <div class="flex flex-wrap gap-4" data-event-only>
+                    <label class="label cursor-pointer gap-2 py-0"><input type="checkbox" name="needs_cafe" class="checkbox checkbox-sm"><span class="label-text" data-i18n="rc_needs_cafe">Нужно кафе</span></label>
+                    <label class="label cursor-pointer gap-2 py-0"><input type="checkbox" name="needs_hall" class="checkbox checkbox-sm"><span class="label-text" data-i18n="rc_needs_hall">Нужен лекционный зал</span></label>
+                </div>
+                <label class="form-control">
+                    <span class="label-text font-medium mb-1">Заметка</span>
+                    <textarea name="notes" rows="4" class="textarea textarea-bordered text-sm"></textarea>
+                </label>
+
+                <!-- Связь с шахматкой и ретритом -->
+                <div id="planLinks" class="hidden rounded-lg border border-base-300 p-3 space-y-2 text-sm"></div>
+
+                <div class="modal-action flex-wrap gap-2">
+                    <button type="button" class="btn btn-ghost btn-error btn-sm mr-auto hidden" id="planDelete" data-action="delete-plan">Удалить</button>
+                    <button type="button" class="btn btn-ghost" data-action="close-plan" data-i18n="cancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary" id="planSave" data-i18n="save">Сохранить</button>
+                </div>
+            </form>
+            <div id="planReadonly" class="hidden"></div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <!-- Справочник Махараджей -->
+    <dialog id="maharajasModal" class="modal">
+        <div class="modal-box max-w-lg relative">
+            <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" data-action="close-maharajas" aria-label="Закрыть">✕</button>
+            <h3 class="font-bold text-lg mb-1" data-i18n="rc_maharajas">Махараджи</h3>
+            <p class="text-sm opacity-80 mb-3">Почётные гости для строк Расписания. Порядок — номер слева (меньше — выше). Кого нет в списке — записывайте как «Махараджи (без имени)».</p>
+            <div id="maharajasList" class="space-y-2"></div>
+            <form id="maharajaAdd" class="flex gap-2 mt-3">
+                <input type="text" name="name" class="input input-bordered input-sm flex-1" placeholder="Имя Махараджа" required>
+                <button type="submit" class="btn btn-sm btn-primary" data-i18n="rc_add">Добавить</button>
+            </form>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/auth-check.js?v=18"></script>
+    <script src="../js/cache.js?v=2"></script>
+    <script src="../js/utils.js?v=23"></script>
+    <script src="../js/translit.js"></script>
+    <script src="../js/auto-translate.js"></script>
+    <script src="../js/date-utils.js?v=5"></script>
+    <script src="../js/layout.js?v=133"></script>
+    <script src="../js/retreat-select.js?v=2"></script>
+    <script src="../js/house-guard.js?v=5"></script>
+    <script src="../js/arrival-time.js?v=2"></script>
+    <script src="../js/meal-group-editor.js?v=2"></script>
+    <script src="../js/group-booking.js?v=20"></script>
+    <script src="../js/pages/retreat-calendar.js?v=6"></script>
+</body>
+</html>

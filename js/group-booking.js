@@ -11,6 +11,7 @@
 // окно лишь не даёт выбрать заведомо занятое.
 //
 // GroupBooking.open({ checkIn, checkOut, roomId, selfCount, bookingId, onSaved })
+// Из «Расписания»: + { planId, name, contact: { name, phone }, notes, people, retreatId }
 
 const GroupBooking = (() => {
 'use strict';
@@ -1120,6 +1121,16 @@ async function open(opts = {}) {
         if (opts.selfCount) S.picks[SELF] = opts.selfCount;
         // Из сделки CRM даты уже посчитаны (ретрит ± рейсы) — ретрит их не перебивает
         if (person && opts.checkIn) S.datesTouched = true;
+        // Из «Расписания» (запись группы): название, контакт, даты записи; бронь запомнит запись (мигр. 817)
+        if (opts.planId && !person) {
+            S.planId = opts.planId;
+            S.datesTouched = true;
+            if (opts.name) { $('gbName').value = opts.name; $('gbName').dataset.manual = '1'; }
+            $('gbContactName').value = opts.contact?.name || '';
+            $('gbContactPhone').value = opts.contact?.phone || '';
+            $('gbNotes').value = opts.notes || '';
+            if (opts.people) $('gbPeople').value = opts.people;
+        }
         fillRetreats(opts.retreatId || '');
     }
     ArrivalTime.set($('gbArrTime'), { time: S.times.arr, keep: S.times.keep });
@@ -1280,6 +1291,7 @@ async function saveNew(head, from, to, retreat) {
     const { total } = seatTotals();
     const { data: booking, error } = await Layout.db.from('bookings')
         .insert({ ...head, ...(S.contactEmail ? { contact_email: S.contactEmail } : {}),
+            ...(S.planId ? { plan_id: S.planId } : {}),
             check_in: from, check_out: to, beds_count: total, status: 'confirmed' })
         .select().single();
     if (error) { Layout.showNotification(error.message, 'error'); return false; }

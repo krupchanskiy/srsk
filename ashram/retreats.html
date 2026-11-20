@@ -435,7 +435,7 @@
     <script src="../js/translit.js"></script>
     <script src="../js/auto-translate.js"></script>
     <script src="../js/date-utils.js?v=5"></script>
-    <script src="../js/layout.js?v=132"></script>
+    <script src="../js/layout.js?v=133"></script>
     <script>
         // ==================== STATE ====================
         let retreats = [];
@@ -821,6 +821,7 @@
 
         function openModal(id = null) {
             editingId = id;
+            fromPlan = null;
             const modal = document.getElementById('retreatModal');
             const form = document.getElementById('retreatForm');
             const title = document.getElementById('modalTitle');
@@ -1085,6 +1086,7 @@
                         .single();
                     if (error) throw error;
                     retreatId = newRetreat.id;
+                    if (fromPlan) await linkPlanToRetreat(retreatId);
                 }
 
                 // Upload new image if selected
@@ -1115,6 +1117,43 @@
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = t('save');
             }
+        }
+
+        // ==================== ИЗ «РАСПИСАНИЯ» (мигр. 817) ====================
+        // retreats.html?from_plan=<id>: окно нового ретрита с названием, датами и числом людей записи;
+        // после сохранения запись подтверждена и связана с ретритом, места в шахматке — на ретрит
+        let fromPlan = null;
+
+        async function openFromPlan(planId) {
+            const { data: p, error } = await Layout.db.from('retreat_plans').select('*').eq('id', planId).maybeSingle();
+            if (error || !p) return;
+            if (p.retreat_id) { Layout.showNotification('Ретрит по этой записи уже заведён', 'info'); return; }
+            openModal();
+            fromPlan = p;
+            const form = document.getElementById('retreatForm');
+            form.name_ru.value = p.title;
+            form.short_name.value = suggestShortName(p.title);
+            form.start_date.value = p.start_date;
+            form.end_date.value = p.end_date;
+            form.expected_participants.value = p.people_count || 0;
+        }
+
+        async function linkPlanToRetreat(retreatId) {
+            const p = fromPlan;
+            fromPlan = null;
+            const { error } = await Layout.db.from('retreat_plans')
+                .update({ retreat_id: retreatId, status: 'confirmed' }).eq('id', p.id);
+            if (error) { Layout.handleError(error, 'Расписание'); return; }
+            const { data: books } = await Layout.db.from('bookings').select('id, beds_count')
+                .eq('plan_id', p.id).neq('status', 'cancelled').is('retreat_id', null);
+            if (!books?.length) return;
+            const seats = books.reduce((s, b) => s + (b.beds_count || 0), 0);
+            if (!confirm(`В шахматке по записи «${p.title}» забронировано мест: ${seats}. Отнести их к новому ретриту?`)) return;
+            const ids = books.map(b => b.id);
+            const r1 = await Layout.db.from('bookings').update({ retreat_id: retreatId }).in('id', ids);
+            const r2 = await Layout.db.from('residents').update({ retreat_id: retreatId })
+                .in('booking_id', ids).is('retreat_id', null);
+            if (r1.error || r2.error) Layout.handleError(r1.error || r2.error, 'Расписание');
         }
 
         async function deleteRetreat() {
@@ -1261,6 +1300,9 @@
 
             updateUI();
             Layout.hideLoader();
+
+            const planId = new URLSearchParams(location.search).get('from_plan');
+            if (planId) await openFromPlan(planId);
         }
 
         init();

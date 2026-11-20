@@ -137,7 +137,7 @@ const HouseGuard = (() => {
                 if (!item.note && row.notes) item.note = row.notes;
                 continue;
             }
-            out.set(key, { ids: [row.id], room: rooms.get(row.room_id), who: name || row.bookings?.name || '',
+            out.set(key, { ids: [row.id], booking_id: row.booking_id || null, room: rooms.get(row.room_id), who: name || row.bookings?.name || '',
                 note: row.notes || row.bookings?.notes || '', check_in: row.check_in, check_out: row.check_out,
                 retreat: r, ...h });
         }

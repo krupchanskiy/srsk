@@ -197,6 +197,7 @@ const modules = {
         menuConfig: [
             { id: 'ashram', items: [
                 { id: 'retreats', href: 'ashram/retreats.html' },
+                { id: 'retreat_calendar', href: 'ashram/retreat-calendar.html' },
                 { id: 'festivals', href: 'ashram/festivals.html' }
             ]},
             { id: 'dashboards', items: [
@@ -325,6 +326,7 @@ const pagePermissions = {
 
     // Ashram
     'ashram/retreats.html': 'view_retreats',
+    'ashram/retreat-calendar.html': 'view_retreats',
     'ashram/festivals.html': 'view_festivals',
     'ashram/dashboard-vaishnavas.html': 'view_retreats',
     
