@@ -277,7 +277,8 @@ function buildRows() {
             need ? e('нужно ' + need) : ''].filter(Boolean).join(' · ');
         rows.retreats.push({ key: 'r' + r.id, src: 'retreat', id: r.id, s: r.start_date, e: r.end_date,
             title: Layout.getName(r), meta, cls: '', ...look,
-            tip: `${Layout.getName(r)} · ${fmt(r.start_date)}–${fmt(r.end_date)}${need ? ` · нужно номеров ГД: ${need}` : ''}` });
+            tip: `${Layout.getName(r)} · ${fmt(r.start_date)}–${fmt(r.end_date)}` + (need ? '\nНужно номеров ГД:' +
+                [2, 4].filter(c => r[`rooms_${c}_needed`]).map(c => `\n  ${c}х — ${roomsWord(r[`rooms_${c}_needed`])}`).join('') : '') });
     }
     for (const p of visiblePlans) {
         // Подтверждённая запись стала ретритом или бронью группы — показывается то, во что превратилась
