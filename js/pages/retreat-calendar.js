@@ -455,7 +455,7 @@ function render() {
         const h = r.items.lanes * BAR_H + 6;
         // Над первой строкой Махараджей — подпись группы
         const labelHtml = r.col === 'guru' && r.groupTop
-            ? `<div><div class="text-[10px] uppercase tracking-wide opacity-70">${e(tf('rc_maharajas', 'Махараджи'))}</div>${e(r.label)}</div>` : '';
+            ? `<div><div class="font-semibold" style="font-size:15px">${e(tf('rc_maharajas', 'Махараджи'))}</div><div class="text-sm">${e(r.label)}</div></div>` : '';
         html += line(r.label, r.items.map(bar).join(''), h, {
             labelHtml, cls: r.cls || 'group',
             trackAttrs: `${editable} data-col="${r.col}" data-maharaja="${r.maharaja ?? ''}"`
