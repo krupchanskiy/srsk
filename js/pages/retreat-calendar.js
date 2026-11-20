@@ -249,7 +249,7 @@ function planMeta(p) {
         const over = p.confirm_by < todayIso();
         parts.push(`<span class="${over ? 'overdue' : ''}">${over ? '⚠ ' : ''}до ${fmt(p.confirm_by)}</span>`);
     }
-    const types = [2, 4].filter(c => p['rooms_' + c]).map(c => `${c}м×${p['rooms_' + c]}`).join(' ');
+    const types = [2, 4].filter(c => p['rooms_' + c]).map(c => `${c}х — ${p['rooms_' + c]}`).join(', ');
     const nums = [p.people_count ? `${p.people_count} чел.` : '', types || (p.rooms_count ? `${p.rooms_count} ном.` : '')].filter(Boolean).join(' · ');
     if (nums) parts.push(e(nums));
     const linked = D.bookings.filter(b => b.plan_id === p.id);
@@ -271,8 +271,8 @@ function buildRows() {
     for (const r of D.retreats) {
         const c = Utils.isValidColor?.(r.color) ? r.color : '#10b981';
         const look = r.is_internal ? STYLE.internal : { c, bg: hexBg(c) };
-        // Не весь ГД — сколько номеров нужно (мигр. 821): «2м×24 4м×1»
-        const need = r.occupies_guesthouse ? '' : [2, 4].filter(c => r[`rooms_${c}_needed`]).map(c => `${c}м×${r[`rooms_${c}_needed`]}`).join(' ');
+        // Не весь ГД — сколько номеров нужно (мигр. 821): «2х — 24, 4х — 1»
+        const need = r.occupies_guesthouse ? '' : [2, 4].filter(c => r[`rooms_${c}_needed`]).map(c => `${c}х — ${r[`rooms_${c}_needed`]}`).join(', ');
         const meta = [r.is_internal ? e(tf('rc_internal', 'внутренний')) : '', r.occupies_guesthouse ? e(tf('rc_whole_house', 'весь ГД')) : '',
             need ? e('нужно ' + need) : ''].filter(Boolean).join(' · ');
         rows.retreats.push({ key: 'r' + r.id, src: 'retreat', id: r.id, s: r.start_date, e: r.end_date,
