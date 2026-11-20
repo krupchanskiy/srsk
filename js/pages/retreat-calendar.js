@@ -324,7 +324,9 @@ function buildRows() {
         { key: 'bookings', label: tf('rc_row_bookings', 'Брони групп'), col: 'tentative', items: rows.bookings }
     ];
     if (perms.seePlans) out.push({ key: 'tentative', label: tf('rc_row_tentative', 'Предварительно'), col: 'tentative', items: rows.tentative });
-    // Махараджи: только у кого есть записи в окне; по порядку справочника, «без имени» — последним
+    // Махараджи: у кого есть записи в окне + «всегда в Расписании» (мигр. 823); по порядку справочника,
+    // «без имени» — последним
+    for (const m of maharajas) if (m.pinned && m.is_active && !guruRows.has(m.id)) guruRows.set(m.id, []);
     const order = id => id ? (maharajas.find(m => m.id === id)?.sort_order ?? 999) : 10000;
     const guruKeys = [...guruRows.keys()].sort((a, b) => order(a) - order(b) || maharajaName(a).localeCompare(maharajaName(b)));
     guruKeys.forEach((k, i) => out.push({ key: 'g' + k, label: k ? maharajaName(k) : tf('rc_maharajas', 'Махараджи') + ' (без имени)',
@@ -597,8 +599,10 @@ function toggleKindFields() {
     const kind = form().kind.value;
     document.querySelectorAll('#planForm [data-event-only]').forEach(el => el.classList.toggle('hidden', kind !== 'event'));
     document.querySelectorAll('#planForm [data-guru-only]').forEach(el => el.classList.toggle('hidden', kind !== 'guru'));
-    // Club108 — только информация (даты поездки клуба), без статусов (ВГ 20.11)
-    document.querySelectorAll('#planForm [data-no-club]').forEach(el => el.classList.toggle('hidden', kind === 'club'));
+    // Club108 и Махараджи — только информация (даты и место), без статусов (ВГ 20.11)
+    const info = kind === 'club' || kind === 'guru';
+    document.querySelectorAll('#planForm [data-no-club]').forEach(el => el.classList.toggle('hidden', info));
+    document.getElementById('planTitleLabel').textContent = kind === 'guru' ? 'Где находится' : tf('rc_title', 'Название');
     checkLoad();
 }
 
@@ -743,7 +747,7 @@ async function savePlan(ev) {
     const f = form();
     const num = v => v === '' ? null : parseInt(v);
     const row = {
-        kind: f.kind.value, status: f.kind.value === 'club' ? 'confirmed' : f.status.value, title: f.title.value.trim(),
+        kind: f.kind.value, status: ['club', 'guru'].includes(f.kind.value) ? 'confirmed' : f.status.value, title: f.title.value.trim(),
         start_date: f.start_date.value, end_date: f.end_date.value,
         confirm_by: f.confirm_by.value || null,
         contact_name: f.contact_name.value.trim() || null, contact_phone: f.contact_phone.value.trim() || null,
@@ -900,7 +904,7 @@ function toggleFullscreen(btn) {
 
 // ---------- справочник Махараджей ----------
 async function loadMaharajas() {
-    const { data, error } = await Layout.db.from('maharajas').select('id, name, sort_order, is_active').order('sort_order').order('name');
+    const { data, error } = await Layout.db.from('maharajas').select('id, name, sort_order, is_active, pinned').order('sort_order').order('name');
     if (error) { Layout.handleError(error, 'Махараджи'); return; }
     maharajas = data || [];
 }
@@ -920,6 +924,7 @@ function renderMaharajas() {
         <input type="number" name="sort_order" class="input input-bordered input-sm w-16" value="${m.sort_order}" title="Порядок" aria-label="Порядок">
         <input type="text" name="name" class="input input-bordered input-sm flex-1" value="${e(m.name)}" aria-label="Имя">
         <label class="label cursor-pointer gap-1 py-0" title="Снятые с галочки не предлагаются в новых записях"><input type="checkbox" name="is_active" class="checkbox checkbox-xs" ${m.is_active ? 'checked' : ''}><span class="label-text text-xs">в списке</span></label>
+        <label class="label cursor-pointer gap-1 py-0" title="Строка видна в Расписании всегда, даже без записей"><input type="checkbox" name="pinned" class="checkbox checkbox-xs" ${m.pinned ? 'checked' : ''}><span class="label-text text-xs">всегда в Расписании</span></label>
         <button type="button" class="btn btn-ghost btn-xs btn-square text-error" data-action="maharaja-del" data-id="${m.id}" title="Удалить" aria-label="Удалить">✕</button>
     </div>`).join('') || '<div class="text-sm opacity-80">Пока пусто</div>';
 }
