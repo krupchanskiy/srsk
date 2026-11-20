@@ -400,7 +400,10 @@ function render() {
     const hEnds = [];
     for (const h of hols) { let l = hEnds.findIndex(x => x < h.a); if (l === -1) { l = hEnds.length; hEnds.push(h.b); } else hEnds[l] = h.b; h.lane = l; }
     const holH = Math.max(1, hEnds.length) * 24 + 6;
-    html += line(tf('rc_row_holidays', 'Праздники'), hols.map(h =>
+    const holDays = new Map();
+    for (const h of hols) holDays.set(h.a, holDays.get(h.a) || h.major);
+    const holFill = [...holDays].map(([a, major]) => `<div class="rc-holday ${major ? 'major' : ''}" style="left:${px(a)}px"></div>`).join('');
+    html += line(tf('rc_row_holidays', 'Праздники'), holFill + hols.map(h =>
         `<div class="rc-hol ${h.major ? 'major' : ''}" style="left:${px(h.a)}px;top:${h.lane * 24 + 3}px" title="${e(h.name)}">${e(h.name)}</div>`).join(''), holH, { cls: 'group' });
 
     const editable = perms.edit ? 'data-new' : '';
