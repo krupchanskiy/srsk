@@ -994,7 +994,7 @@ function openIncome() {
     document.getElementById('incShopMurtiNote').value = '';
     document.getElementById('incShopNote').value = '';
     document.getElementById('incShopFloat').value = '';
-    cafeFloatLoaded = false;
+    cafeFloatDate = null;
     shopFloatCur = null;
     updateIncomeCategoryList();
     document.getElementById('incAmount').value = '';
@@ -1121,22 +1121,26 @@ function syncCafeBlock() {
     loadCafeFloat();
 }
 
-// Размен в кассе 2 этажа = остаток Кафе без держателя (693). Сам не подставляется
-// (ВГ, 15.10): касса может сдаваться и целиком с разменом, и только выручкой —
-// вычет размена каждый раз осознанный, кнопкой с суммой
-let cafeFloatLoaded = false;
+// Размен в кассе 2 этажа = остаток Кафе без держателя (693). Возвращается с КАЖДОЙ
+// кассой 2 этажа обязательно, как у магазина (ВГ 20.11, мигр. 810): вычитается сам весь
+// размен, выданный до дня прихода. Раньше вычет был по кнопке (15.10) — его не нажимали,
+// и выданный размен уходил в доход. Новый размен — галочками в калькуляторе (809).
+let cafeFloatDate = null, cafeFloatAuto = 0;
 async function loadCafeFloat() {
-    if (cafeFloatLoaded) return;
-    cafeFloatLoaded = true;
-    const { data } = await Layout.db.rpc('fin_cafe_float', { p_currency: 'INR' });
-    const amount = Number(data) || 0;
-    const btn = document.getElementById('incCafeFloatBtn');
-    btn.classList.toggle('hidden', amount <= 0);
-    btn.textContent = `выдано на сдачу ${FinUtils.fmtMoney(amount, 'INR')} — вычесть`;
-    btn.onclick = () => { document.getElementById('incCafeFloat').value = amount; syncCafeTotal(); };
+    const date = document.getElementById('incDate').value;
+    if (!date || cafeFloatDate === date) return;
+    cafeFloatDate = date;
+    const { data, error } = await Layout.db.rpc('fin_department_float_before',
+        { p_department: CAFE_DEPT_ID, p_currency: 'INR', p_date: date });
+    if (cafeFloatDate !== date) return;
+    if (error) { Layout.handleError(error, 'Размен кафе'); return; }
+    cafeFloatAuto = Number(data) || 0;
+    document.getElementById('incCafeFloat').value = cafeFloatAuto || '';
+    syncCafeTotal();
 }
 
-const cafeFloat = () => Number(document.getElementById('incCafeFloat').value) || 0;
+// размен вычитается, только если касса 2 этажа снята: без неё размен так и лежит в ящике
+const cafeFloat = () => (Number(document.getElementById('incCafeHall').value) || 0) > 0 ? cafeFloatAuto : 0;
 // Отмечено в калькуляторе купюр «оставить на сдачу» (ВГ 20.11, мигр. 809):
 // купюры с обоих этажей складываются, остаются в кассе Кафе — доход от этого не меняется
 const cafeLeft = () => Math.round(['incCafeSelf', 'incCafeHall'].reduce((s, id) => {
@@ -1153,7 +1157,7 @@ function syncCafeTotal() {
         !hall ? ''
         : cafeFloat()
             ? `Доходом кафе пойдёт ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}` + (left ? '' : `, сдача ${FinUtils.fmtMoney(cafeFloat(), 'INR')} вернётся с Кафе`)
-            : 'Сдача не вычтена — всё снятое с 2 этажа пойдёт доходом',
+            : 'Размена, выданного раньше, нет — всё снятое с 2 этажа пойдёт доходом',
         !left ? ''
         : `Остаётся на сдачу ${FinUtils.fmtMoney(left, 'INR')}, в кассу уносите ${FinUtils.fmtMoney(sum - left, 'INR')}`
           + (back > 0 ? ` (сдачи вернётся ${FinUtils.fmtMoney(back, 'INR')})`
@@ -1725,6 +1729,7 @@ async function init() {
     document.getElementById('incomeModal').addEventListener('change', syncShopBlock);
     document.getElementById('incCategory').addEventListener('change', maybeSuggestIncomeObject);
     document.getElementById('incDate').addEventListener('change', maybeSuggestIncomeObject);
+    document.getElementById('incDate').addEventListener('change', () => { if (isCafeIncome()) loadCafeFloat(); });
     document.getElementById('incObject').addEventListener('change', () => { incObjectAuto = false; });
     // Остаток плательщика зависит от общей суммы и валюты счёта
     document.getElementById('incAmount').addEventListener('input', updateSplitRecap);
