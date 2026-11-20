@@ -1111,6 +1111,32 @@ function openRefine(id) {
     document.getElementById('refineModal').showModal();
 }
 
+// Завод и Стройка — отдельные хозяйства: всё, что ШРСК за них платит, — их долг
+// перед ШРСК, а не расход. «Уже потрачено» этот долг гасит, поэтому сначала
+// предупреждаем, а перед проведением ещё раз спрашиваем (ВГ, 20.11.2026)
+const DEBT_DEPT_NAMES = ['Завод', 'Стройка'];
+function debtDeptName(deptId) {
+    const d = departments.find(x => x.id === deptId);
+    return d && DEBT_DEPT_NAMES.includes(d.name) ? d.name : null;
+}
+function warnDebtDeptSpent(name) {
+    return confirm(`⚠ ${name} — отдельное хозяйство. То, что ШРСК платит за ${name === 'Завод' ? 'завод' : 'стройку'}, — `
+        + `долг ${name === 'Завод' ? 'завода' : 'стройки'} перед ШРСК.\n\n`
+        + `Без галочки деньги останутся на счёте «${name}» как долг. С галочкой «Уже потрачено» `
+        + `долг пропадёт — будто ${name === 'Завод' ? 'завод' : 'стройка'} потратил${name === 'Завод' ? '' : 'а'} свои деньги.\n\n`
+        + `Всё равно отметить «Уже потрачено»?`);
+}
+// Галочку ставят или меняют получателя при стоящей галочке — предупреждение;
+// «Отмена» снимает галочку
+function checkDebtDeptSpent() {
+    const box = document.getElementById('refineSpent');
+    const name = !refineIsSelf() && box.checked && debtDeptName(document.getElementById('refineTarget').value);
+    if (name && !warnDebtDeptSpent(name)) {
+        box.checked = false;
+        syncRefineSpent();
+    }
+}
+
 // «Уже потрачено» — деньги ушли из рук в руки и тут же были израсходованы:
 // нужны статья и, если это трата события, ретрит — в каждой строке.
 function syncRefineSpent() {
@@ -1132,6 +1158,9 @@ async function submitRefine(ev) {
     const id = document.getElementById('refineDraftId').value;
     const spent = document.getElementById('refineSpent').checked;
     if ((spent || (refineHolderShown() && document.getElementById('refineHolder').value)) && !confirmDraftAmount(refineDraft)) return;
+    const debtName = spent && !refineIsSelf() && debtDeptName(document.getElementById('refineTarget').value);
+    if (debtName && !confirm(`Провести ${FinUtils.fmtMoney(refineDraft.amount, refineDraft.currency)} как расход «${debtName}»?\n\n`
+        + `Долг ${debtName === 'Завод' ? 'завода' : 'стройки'} перед ШРСК на эту сумму НЕ появится.`)) return;
 
     const self = refineIsSelf();
     const { data, error } = await Layout.db.rpc('tg_refine_draft', {
@@ -1219,8 +1248,10 @@ async function init() {
     document.getElementById('refineForm').addEventListener('submit', submitRefine);
     document.getElementById('amountForm').addEventListener('submit', submitAmountEdit);
     document.getElementById('refineSpent').addEventListener('change', syncRefineSpent);
+    document.getElementById('refineSpent').addEventListener('change', checkDebtDeptSpent);
     document.getElementById('refineSpent').addEventListener('change', suggestAllRefineRows);
     document.getElementById('refineTarget').addEventListener('change', syncRefineSpent);
+    document.getElementById('refineTarget').addEventListener('change', checkDebtDeptSpent);
     document.getElementById('refineTarget').addEventListener('change', loadRefineHolders);
     document.getElementById('refineHolder').addEventListener('change', syncRefineSpent);
     document.getElementById('refineTarget').addEventListener('change', suggestAllRefineRows);

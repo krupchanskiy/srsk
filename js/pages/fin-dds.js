@@ -1567,6 +1567,29 @@ function transferHolderValue(side) {
     return list.length && v && v !== FLOAT_PICK ? v : null;
 }
 
+// Завод и Стройка — отдельные хозяйства: всё, что ШРСК за них платит, — их долг
+// перед ШРСК, а не расход. «Уже потрачено» этот долг гасит, поэтому сначала
+// предупреждаем, а перед проведением ещё раз спрашиваем (ВГ, 20.11.2026)
+const DEBT_DEPT_NAMES = ['Завод', 'Стройка'];
+function debtDeptOfAccount(accountId) {
+    const a = FinUtils.refs.accounts.find(x => x.account_id === accountId);
+    const name = a && a.kind === 'custodial' ? (a.name || '').replace(/\s*\(.*\)\s*$/, '') : null;
+    return DEBT_DEPT_NAMES.includes(name) ? name : null;
+}
+function checkDebtDeptSpent() {
+    const box = document.getElementById('trSpent');
+    const name = box.checked && debtDeptOfAccount(document.getElementById('trTarget').value);
+    if (name && !confirm(`⚠ ${name} — отдельное хозяйство. То, что ШРСК платит за ${name === 'Завод' ? 'завод' : 'стройку'}, — `
+        + `долг ${name === 'Завод' ? 'завода' : 'стройки'} перед ШРСК.\n\n`
+        + `Без галочки деньги останутся на счёте «${name}» как долг. С галочкой «Деньги уже потрачены» `
+        + `долг пропадёт — будто ${name === 'Завод' ? 'завод' : 'стройка'} потратил${name === 'Завод' ? '' : 'а'} свои деньги.\n\n`
+        + `Всё равно отметить?`)) {
+        box.checked = false;
+        toggleTransferSpent();
+        syncTransferHolder();
+    }
+}
+
 // «Деньги уже потрачены»: за департамент оплатили напрямую, и одним действием
 // нужны обе стороны — и выдача, и расход (ВГ, 15.08)
 function toggleTransferSpent() {
@@ -1621,6 +1644,9 @@ async function submitTransfer(ev) {
         Layout.showNotification(t('fin_category'), 'error');
         return;
     }
+    const debtName = spent && debtDeptOfAccount(target);
+    if (debtName && !confirm(`Провести ${FinUtils.fmtMoney(differ ? document.getElementById('trTargetAmount').value : document.getElementById('trAmount').value, accCurrency('trTarget'))} как расход «${debtName}»?\n\n`
+        + `Долг ${debtName === 'Завод' ? 'завода' : 'стройки'} перед ШРСК на эту сумму НЕ появится.`)) return;
     const дата = document.getElementById('trDate').value;
     const комментарий = document.getElementById('trComment').value || null;
     const держатель = transferHolderValue(TR_SIDES[1]);
@@ -1699,6 +1725,8 @@ async function init() {
     document.getElementById('trAmount').addEventListener('input', updateTransferRecap);
     document.getElementById('trSpent').addEventListener('change', toggleTransferSpent);
     document.getElementById('trSpent').addEventListener('change', syncTransferHolder);
+    document.getElementById('trSpent').addEventListener('change', checkDebtDeptSpent);
+    document.getElementById('trTarget').addEventListener('change', checkDebtDeptSpent);
     document.getElementById('expenseModal').addEventListener('input', updateExpenseRecap);
     document.getElementById('expenseModal').addEventListener('change', updateExpenseRecap);
     // Сменили счёт в строке расхода — канал этой строки встаёт по счёту
