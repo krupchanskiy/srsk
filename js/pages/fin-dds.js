@@ -988,6 +988,7 @@ function openIncome() {
     document.getElementById('incChannel').innerHTML = каналыСписком(каналСчёта(document.getElementById('incAccount').value));
     document.getElementById('incCafeSelf').value = '';
     document.getElementById('incCafeHall').value = '';
+    ['incCafeSelf', 'incCafeHall'].forEach(id => window.CashCalc?.forget?.(document.getElementById(id)));
     document.getElementById('incCafeFloat').value = '';
     document.getElementById('incShopMurti').value = '';
     document.getElementById('incShopMurtiNote').value = '';
@@ -1136,15 +1137,28 @@ async function loadCafeFloat() {
 }
 
 const cafeFloat = () => Number(document.getElementById('incCafeFloat').value) || 0;
+// Отмечено в калькуляторе купюр «оставить на сдачу» (ВГ 20.11, мигр. 809):
+// купюры с обоих этажей складываются, остаются в кассе Кафе — доход от этого не меняется
+const cafeLeft = () => Math.round(['incCafeSelf', 'incCafeHall'].reduce((s, id) => {
+    const el = document.getElementById(id);
+    return s + (el.dataset.cashFloatCur === 'INR' ? Number(el.dataset.cashFloatLeft) || 0 : 0);
+}, 0) * 100) / 100;
 
 function syncCafeTotal() {
     const sum = cafeParts().reduce((s, p) => s + p.amount, 0);
     document.getElementById('incAmount').value = sum ? Math.round(sum * 100) / 100 : '';
     const hall = Number(document.getElementById('incCafeHall').value) || 0;
-    document.getElementById('incCafeNet').textContent = !hall ? ''
+    const left = cafeLeft(), back = Math.round((cafeFloat() - left) * 100) / 100;
+    document.getElementById('incCafeNet').textContent = [
+        !hall ? ''
         : cafeFloat()
-            ? `Доходом кафе пойдёт ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}, сдача ${FinUtils.fmtMoney(cafeFloat(), 'INR')} вернётся с Кафе`
-            : 'Сдача не вычтена — всё снятое с 2 этажа пойдёт доходом';
+            ? `Доходом кафе пойдёт ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}` + (left ? '' : `, сдача ${FinUtils.fmtMoney(cafeFloat(), 'INR')} вернётся с Кафе`)
+            : 'Сдача не вычтена — всё снятое с 2 этажа пойдёт доходом',
+        !left ? ''
+        : `Остаётся на сдачу ${FinUtils.fmtMoney(left, 'INR')}, в кассу уносите ${FinUtils.fmtMoney(sum - left, 'INR')}`
+          + (back > 0 ? ` (сдачи вернётся ${FinUtils.fmtMoney(back, 'INR')})`
+             : back < 0 ? ` (на сдачу добавится ${FinUtils.fmtMoney(-back, 'INR')})` : '')
+    ].filter(Boolean).join('. ');
 }
 
 function cafeParts() {
@@ -1331,6 +1345,10 @@ async function submitIncome(ev) {
     if (cafe && !parts.length) { Layout.showNotification('Введите сумму хотя бы по одной точке кафе', 'error'); return; }
     // Размен входит в снятую кассу 2 этажа — доходом только остаток (693)
     const float = cafe ? cafeFloat() : 0;
+    const left = cafe ? cafeLeft() : 0;
+    if (left > parts.reduce((s, p) => s + Number(p.amount), 0)) {
+        Layout.showNotification('На сдачу отмечено больше, чем сдано', 'error'); return;
+    }
     const hallPart = parts.find(p => p.cafe_point === 'cafe');
     if (float > 0) {
         if (!hallPart || float > hallPart.amount) {
@@ -1384,10 +1402,11 @@ async function submitIncome(ev) {
     if (isDonation && document.getElementById('incDonorId').value) {
         payload.payer_contact_id = document.getElementById('incDonorId').value;
     }
-    if (float > 0) {
+    if (float > 0 || left > 0) {
         payload.rows = payload.rows.filter(r => r.amount > 0);
         payload.cafe_float = float;
-        payload.float_account_id = hallPart.account.value;
+        payload.float_left = left;
+        payload.float_account_id = (hallPart || parts[0]).account.value;
     } else if (sFloat > 0) {
         payload.rows = payload.rows.filter(r => r.amount > 0);
         payload.cafe_float = sFloat;
@@ -1395,7 +1414,7 @@ async function submitIncome(ev) {
         payload.float_department_id = floatDept;
     }
     const res = await FinUtils.rpc(isDonation ? 'fin_create_donation'
-        : float > 0 || sFloat > 0 ? 'fin_create_cafe_collection' : 'fin_create_income', payload);
+        : float > 0 || left > 0 || sFloat > 0 ? 'fin_create_cafe_collection' : 'fin_create_income', payload);
     if (FinUtils.handleResult(res)) {
         requestIds.income = null;
         document.getElementById('incomeModal').close();

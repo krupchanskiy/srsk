@@ -260,6 +260,18 @@ const ShopShift = (() => {
     }
 
     // ---------- сдача ----------
+    // Отмечено галочками в калькуляторе купюр — остаётся в ящике на сдачу (ВГ 20.11, мигр. 809)
+    function оставленоНаСдачу() {
+        const поле = document.querySelector('[data-take-check="INR"]');
+        return поле?.dataset.cashFloatCur === 'INR' ? Number(поле.dataset.cashFloatLeft) || 0 : 0;
+    }
+    function описаниеОставленного(размен, оставить) {
+        const разница = Math.round((размен - оставить) * 100) / 100;
+        return `${тр('shop_float_left', 'Остаётся в ящике на сдачу')} ${деньги(оставить)}`
+            + (разница > 0 ? ` · ${тр('shop_float_returns', 'Размен вернётся в кассу')} ${деньги(разница)}`
+               : разница < 0 ? ` · ${тр('shop_float_added', 'на сдачу добавится')} ${деньги(-разница)}` : '');
+    }
+
     function рисоватьСдачу() {
         const тело = $('#handoverBody');
 
@@ -324,8 +336,9 @@ const ShopShift = (() => {
                         <label class="form-control">
                             <div class="label py-1"><span class="label-text text-sm">${тр('shop_take_counted', 'Пересчитал')}, ${ЗНАК[в] || в}</span></div>
                             <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums"
-                                   data-take-check="${в}" data-expected="${с}" data-cash-calc="${в}" data-cash-expected="${с}" placeholder="${деньги(с, в)}">
+                                   data-take-check="${в}" data-expected="${с}" data-cash-calc="${в}" data-cash-expected="${с}" ${в === 'INR' ? 'data-cash-float' : ''} placeholder="${деньги(с, в)}">
                             <span data-take-diff="${в}"></span>
+                            ${в === 'INR' ? '<span class="text-xs mt-1" data-take-left></span>' : ''}
                         </label>`).join('')}</div>
                     <div class="grid gap-3 md:grid-cols-3">${выборСчетов}</div>
                     <div class="flex flex-wrap gap-2">
@@ -514,7 +527,8 @@ const ShopShift = (() => {
                     if (s.value) accounts[s.dataset.account] = s.value;
                 });
                 const размен = Number(пакет.float_amount) || 0;
-                const нужныВалюты = [...new Set([...строкиПакета.map(л => л.currency_code), ...(размен > 0 ? ['INR'] : [])])];
+                const оставить = оставленоНаСдачу();
+                const нужныВалюты = [...new Set([...строкиПакета.map(л => л.currency_code), ...(размен > 0 || оставить > 0 ? ['INR'] : [])])];
                 const безСчёта = нужныВалюты.filter(в => !accounts[в]);
                 if (безСчёта.length) {
                     return Layout.showNotification(`${t('shop_pick_account_for')} ${
@@ -523,11 +537,12 @@ const ShopShift = (() => {
                 const суммы = строкиПакета.map(л => деньги(
                     Number(л.goods_amount) + Number(л.murti_amount) + Number(л.donation_amount),
                     л.currency_code)).join(', ')
-                    + (размен > 0 ? `; ${тр('shop_float_returns', 'Размен вернётся в кассу')} ${деньги(размен)}` : '');
+                    + (оставить > 0 ? `; ${описаниеОставленного(размен, оставить)}`
+                       : размен > 0 ? `; ${тр('shop_float_returns', 'Размен вернётся в кассу')} ${деньги(размен)}` : '');
                 if (!confirm(t('shop_confirm_accept').replace('%s', суммы))) return;
                 return разово(b, async () => {
                     const { data, error } = await Layout.db.rpc('shop_accept_handover', {
-                        payload: { handover_id: пакет.id, accounts },
+                        payload: { handover_id: пакет.id, accounts, float_left: оставить },
                     });
                     if (error) return Layout.handleError(error, t('shop_err_accept'));
                     if (data && data.ok === false) {
@@ -625,6 +640,11 @@ const ShopShift = (() => {
             const el = ev.target;
             // казначей пересчитывает принятые деньги: только подсказка, нигде не хранится
             if (el.dataset.takeCheck !== undefined) {
+                if (el.dataset.takeCheck === 'INR') {
+                    const м = document.querySelector('[data-take-left]');
+                    const о = оставленоНаСдачу();
+                    if (м) м.textContent = о ? описаниеОставленного(Number(пакет?.float_amount) || 0, о) : '';
+                }
                 const ждём = Number(el.dataset.expected) || 0;
                 const есть = Number(el.value.replace(',', '.').replace(/[^\d.]/g, ''));
                 const метка = document.querySelector(`[data-take-diff="${el.dataset.takeCheck}"]`);

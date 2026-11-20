@@ -7,6 +7,11 @@
 // подсказать сама: CashCalc.currencyOf = input => 'INR'. В окне валюту можно сменить.
 // Номиналы — из справочника fin_denominations (мигр. 796): новая валюта со своими
 // купюрами появляется в калькуляторе сама. Без связи — запасной список ниже.
+//
+// «Оставить на сдачу» (ВГ, 20.11.2026): у поля с атрибутом data-cash-float у каждого
+// номинала есть галочка — эти купюры остаются в кассе как сдача. В поле вставляется
+// вся пересчитанная сумма, а отмеченная часть — в input.dataset.cashFloatLeft
+// (ручная правка поля её сбрасывает). Раскладка такого поля не стирается при вставке.
 (function () {
     // ₹2000 Резервный банк изъял — в калькуляторе не показываем (в Сверке остаётся)
     const HIDDEN = { INR: [2000] };
@@ -41,9 +46,9 @@
     }
 
     const TEXTS = {
-        ru: { expected: 'Должно быть', diff: 'Разница', match: 'сходится', title: 'Посчитать по купюрам', total: 'Итого', other: 'Монеты и прочее', insert: 'Вставить сумму', cancel: 'Отмена', clear: 'Очистить', btn: 'Посчитать по купюрам' },
-        en: { expected: 'Expected', diff: 'Difference', match: 'matches', title: 'Count by banknotes', total: 'Total', other: 'Coins and other', insert: 'Insert amount', cancel: 'Cancel', clear: 'Clear', btn: 'Count by banknotes' },
-        hi: { expected: 'होना चाहिए', diff: 'अंतर', match: 'मेल खाता है', title: 'नोटों से गिनें', total: 'कुल', other: 'सिक्के और अन्य', insert: 'राशि डालें', cancel: 'रद्द करें', clear: 'साफ़ करें', btn: 'नोटों से गिनें' }
+        ru: { left: 'Остаётся на сдачу', toTill: 'Уносите в кассу', leftHint: 'галочка — купюры этого номинала остаются на сдачу', expected: 'Должно быть', diff: 'Разница', match: 'сходится', title: 'Посчитать по купюрам', total: 'Итого', other: 'Монеты и прочее', insert: 'Вставить сумму', cancel: 'Отмена', clear: 'Очистить', btn: 'Посчитать по купюрам' },
+        en: { left: 'Stays as change', toTill: 'Take to the till', leftHint: 'tick — these notes stay as change', expected: 'Expected', diff: 'Difference', match: 'matches', title: 'Count by banknotes', total: 'Total', other: 'Coins and other', insert: 'Insert amount', cancel: 'Cancel', clear: 'Clear', btn: 'Count by banknotes' },
+        hi: { left: 'छुट्टे के लिए रहता है', toTill: 'कैश में ले जाएँ', leftHint: 'टिक — ये नोट छुट्टे के लिए रहते हैं', expected: 'होना चाहिए', diff: 'अंतर', match: 'मेल खाता है', title: 'नोटों से गिनें', total: 'कुल', other: 'सिक्के और अन्य', insert: 'राशि डालें', cancel: 'रद्द करें', clear: 'साफ़ करें', btn: 'नोटों से गिनें' }
     };
     const tx = key => {
         let lang = 'ru';
@@ -56,7 +61,8 @@
 
     // Набранное не теряется, если окно закрыли случайно (пока поле живо на странице)
     const drafts = new WeakMap();
-    let target = null, currency = 'INR', dlg = null;
+    let target = null, currency = 'INR', dlg = null, inserting = false;
+    const floatMode = () => !!target && target.dataset.cashFloat !== undefined;
 
     function resolveCurrency(input) {
         const own = (input.dataset.cashCalc || '').toUpperCase();
@@ -81,10 +87,15 @@
             <div class="join mb-3" data-cc="currencies">
                 ${Object.keys(DENOMS).map(c => `<button type="button" class="btn btn-sm join-item" data-cc-cur="${c}">${sign(c)} ${c}</button>`).join('')}
             </div>
+            <div class="text-xs opacity-70 mb-1" data-cc="leftHint" hidden>${tx('leftHint')}</div>
             <div class="flex flex-col gap-1" data-cc="rows"></div>
             <div class="flex items-center gap-2 mt-2">
                 <span class="text-sm flex-1">${tx('other')}</span>
                 <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm w-28 text-right font-mono" data-cc="other">
+            </div>
+            <div class="rounded-lg border border-base-300 px-3 py-2 mt-3 text-sm" data-cc="leftBox" hidden>
+                <div class="flex justify-between"><span>${tx('left')}</span><b class="font-mono" data-cc="leftSum"></b></div>
+                <div class="flex justify-between mt-1"><span>${tx('toTill')}</span><b class="font-mono" data-cc="toTill"></b></div>
             </div>
             <div class="rounded-lg border border-base-300 px-3 py-2 mt-3 text-sm" data-cc="check" hidden>
                 <div class="flex justify-between"><span>${tx('expected')}</span><b class="font-mono" data-cc="expected"></b></div>
@@ -100,6 +111,7 @@
         document.body.appendChild(dlg);
 
         dlg.addEventListener('input', () => { saveDraft(); recalc(); });
+        dlg.addEventListener('change', ev => { if (ev.target.matches('[data-cc-left]')) { saveDraft(); recalc(); } });
         dlg.addEventListener('click', ev => {
             const cur = ev.target.closest('[data-cc-cur]');
             if (cur) { saveDraft(); currency = cur.dataset.ccCur; renderRows(); return; }
@@ -123,7 +135,8 @@
     function readCounts() {
         const counts = {};
         dlg.querySelectorAll('[data-cc-qty]').forEach(i => { if (i.value !== '') counts[i.dataset.ccQty] = i.value; });
-        return { counts, other: dlg.querySelector('[data-cc="other"]').value };
+        const marks = [...dlg.querySelectorAll('[data-cc-left]:checked')].map(c => c.dataset.ccLeft);
+        return { counts, marks, other: dlg.querySelector('[data-cc="other"]').value };
     }
     function saveDraft() {
         if (!target) return;
@@ -135,9 +148,14 @@
 
     function renderRows() {
         const draft = (drafts.get(target) || {})[currency] || { counts: {}, other: '' };
+        const marks = draft.marks || [];
+        const withLeft = floatMode();
+        dlg.querySelector('[data-cc="leftHint"]').hidden = !withLeft;
         dlg.querySelectorAll('[data-cc-cur]').forEach(b => b.classList.toggle('btn-primary', b.dataset.ccCur === currency));
         dlg.querySelector('[data-cc="rows"]').innerHTML = DENOMS[currency].map(d => `
             <div class="flex items-center gap-2">
+                ${withLeft ? `<input type="checkbox" class="checkbox checkbox-sm" data-cc-left="${d}" ${marks.includes(String(d)) ? 'checked' : ''}
+                       title="${tx('left')}" aria-label="${tx('left')}: ${sign(currency)} ${fmt(d)}">` : ''}
                 <span class="font-mono w-20 text-right">${sign(currency)} ${fmt(d)}</span>
                 <span class="opacity-60">×</span>
                 <input type="text" inputmode="numeric" autocomplete="off" class="input input-bordered input-sm w-20 text-right font-mono"
@@ -146,6 +164,16 @@
             </div>`).join('');
         dlg.querySelector('[data-cc="other"]').value = draft.other || '';
         recalc();
+    }
+
+    // сумма отмеченных галочкой номиналов — остаётся на сдачу
+    function leftTotal() {
+        let s = 0;
+        dlg.querySelectorAll('[data-cc-left]:checked').forEach(c => {
+            const q = Math.floor(num(dlg.querySelector(`[data-cc-qty="${c.dataset.ccLeft}"]`)?.value));
+            s += q * Number(c.dataset.ccLeft);
+        });
+        return s;
     }
 
     function total() {
@@ -162,6 +190,13 @@
     function recalc() {
         const sum = total();
         dlg.querySelector('[data-cc="total"]').textContent = `${sign(currency)} ${fmt(sum)}`;
+        const left = floatMode() ? leftTotal() : 0;
+        const leftBox = dlg.querySelector('[data-cc="leftBox"]');
+        leftBox.hidden = !left;
+        if (left) {
+            dlg.querySelector('[data-cc="leftSum"]').textContent = `${sign(currency)} ${fmt(left)}`;
+            dlg.querySelector('[data-cc="toTill"]').textContent = `${sign(currency)} ${fmt(Math.round((sum - left) * 100) / 100)}`;
+        }
         const raw = target?.dataset.cashExpected;
         const box = dlg.querySelector('[data-cc="check"]');
         box.hidden = raw === undefined || raw === '' || currency !== resolveCurrency(target);
@@ -176,12 +211,22 @@
 
     function insert() {
         const sum = total();
+        const keep = floatMode();
         if (target && target.isConnected) {
+            if (keep) {
+                const left = leftTotal();
+                if (left) { target.dataset.cashFloatLeft = String(left); target.dataset.cashFloatCur = currency; }
+                else { delete target.dataset.cashFloatLeft; delete target.dataset.cashFloatCur; }
+            }
             target.value = sum ? String(sum) : '';
-            target.dispatchEvent(new Event('input', { bubbles: true }));
-            target.dispatchEvent(new Event('change', { bubbles: true }));
+            inserting = true;
+            try {
+                target.dispatchEvent(new Event('input', { bubbles: true }));
+                target.dispatchEvent(new Event('change', { bubbles: true }));
+            } finally { inserting = false; }
         }
-        drafts.delete(target);
+        // у поля со сдачей раскладку оставляем: открыли снова — видно, что отмечено
+        if (!keep) drafts.delete(target);
         dlg.close();
         // поле могли перерисовать по событию input — ищем по тем же признакам
         (target?.isConnected ? target : null)?.focus();
@@ -202,6 +247,12 @@
     function enhance(input) {
         if (input.dataset.cashCalcReady) return;
         input.dataset.cashCalcReady = '1';
+        // сумму поправили руками — отметка «на сдачу» из калькулятора больше не верна
+        input.addEventListener('input', () => {
+            if (inserting || input.dataset.cashFloatLeft === undefined) return;
+            delete input.dataset.cashFloatLeft; delete input.dataset.cashFloatCur;
+            drafts.delete(input);
+        });
         const wrap = document.createElement('span');
         wrap.className = 'relative block min-w-0';
         input.parentNode.insertBefore(wrap, input);
@@ -231,5 +282,12 @@
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
-    window.CashCalc = Object.assign(window.CashCalc || {}, { open });
+    // форму открыли заново — забыть раскладку и отметку «на сдачу» этого поля
+    function forget(input) {
+        if (!input) return;
+        drafts.delete(input);
+        delete input.dataset.cashFloatLeft; delete input.dataset.cashFloatCur;
+    }
+
+    window.CashCalc = Object.assign(window.CashCalc || {}, { open, forget });
 })();
