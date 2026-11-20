@@ -98,7 +98,7 @@ async function load() {
     const [hol, ret, plans, books, rooms, overlaps] = await Promise.all([
         Layout.db.from('holidays').select('date, name_ru, name_en, name_hi, type')
             .gte('date', ys).lte('date', ye).neq('type', 'ekadashi').order('date'),
-        Layout.db.from('retreats').select('id, name_ru, name_en, name_hi, start_date, end_date, color, is_external, is_internal, occupies_guesthouse')
+        Layout.db.from('retreats').select('id, name_ru, name_en, name_hi, start_date, end_date, color, is_external, is_internal, occupies_guesthouse, rooms_2_needed, rooms_4_needed')
             .lte('start_date', ye).gte('end_date', ys).order('start_date'),
         Layout.db.from('retreat_plans').select('*').lte('start_date', ye).gte('end_date', ys).order('start_date'),
         Layout.db.from('bookings').select('id, name, contact_name, contact_phone, check_in, check_out, beds_count, retreat_id, plan_id, status, notes')
@@ -114,7 +114,7 @@ async function load() {
     const gdRooms = rooms.data.filter(r => r.building_id === GUEST_HOUSE_ID);
     const rentRooms = rooms.data.filter(r => r.buildings.is_temporary);
     const ids = [...gdRooms, ...rentRooms].map(r => r.id);
-    const res = ids.length ? await fetchAll(() => Layout.db.from('residents').select('room_id, check_in, check_out')
+    const res = ids.length ? await fetchAll(() => Layout.db.from('residents').select('room_id, check_in, check_out, retreat_id')
         .in('room_id', ids).neq('status', 'cancelled')
         .lte('check_in', ye).or(`check_out.is.null,check_out.gt.${ys}`)) : [];
 
@@ -144,10 +144,43 @@ async function load() {
     }
     const caps = {};
     for (const r of gdRooms) caps[typeOf(r.capacity)] = (caps[typeOf(r.capacity)] || 0) + 1;
+
+    // Предварительно (ВГ 20.11, мигр. 821): ретрит не на весь ГД, но с числом нужных номеров —
+    // в его ночи эти номера вычитаются из свободных. Номера ГД, где его люди уже стоят в шахматке,
+    // не вычитаются второй раз. Не хватает — ⚠ в строке ГД и в «Требуют внимания».
+    const gdType = new Map(gdRooms.map(r => [r.id, typeOf(r.capacity)]));
+    const hold = Array.from({ length: n }, () => []);   // ночь → [{ retreat, c, k }]
+    const short = [];                                     // { retreat, c, need, free, date }
+    for (const rt of ret.data) {
+        if (rt.occupies_guesthouse || !(rt.rooms_2_needed || rt.rooms_4_needed)) continue;
+        const last = rt.end_date > rt.start_date ? addDays(rt.end_date, -1) : rt.start_date;
+        const worst = {};
+        for (let d = Math.max(0, dayIdx(rt.start_date)); d <= Math.min(n - 1, dayIdx(last)); d++) {
+            const placed = {};
+            for (const r of res) {
+                if (r.retreat_id !== rt.id || !gdType.has(r.room_id)) continue;
+                const a = dayIdx(r.check_in), b = r.check_out ? dayIdx(r.check_out) : n;
+                if (a <= d && d < b) placed[gdType.get(r.room_id)] = (placed[gdType.get(r.room_id)] ||= new Set()).add(r.room_id);
+            }
+            // Лишний четырёхместный, уже занятый людьми ретрита, закрывает нужду в двухместном
+            const extra4 = Math.max(0, (placed[4]?.size || 0) - (rt.rooms_4_needed || 0));
+            for (const c of [2, 4]) {
+                const need = rt[`rooms_${c}_needed`] || 0;
+                const k = Math.max(0, need - (placed[c]?.size || 0) - (c === 2 ? extra4 : 0));
+                if (!k) continue;
+                const free = gd[d][c] || 0;
+                hold[d].push({ retreat: rt, c, k });
+                gd[d][c] = free - k;
+                if (free < k && (!worst[c] || free < worst[c].free)) worst[c] = { retreat: rt, c, need: k, free, date: addDays(ys, d) };
+            }
+        }
+        short.push(...Object.values(worst));
+    }
     D = {
         holidays: hol.data, retreats: ret.data, plans: plans.data, bookings: books.data,
         gd, rent, gdCaps: caps,
         // Только дома, взятые хотя бы на одну ночь показанного года
+        hold, short,
         rentRooms: rentRooms.reduce((m, r) => { const k = Layout.getName(r.buildings); m[k] = (m[k] || 0) + 1; return m; }, {}), free: gd.map(g => Object.values(g).reduce((a, b) => a + b, 0)),
         totalRooms: gdRooms.length, overlaps
     };
@@ -238,9 +271,13 @@ function buildRows() {
     for (const r of D.retreats) {
         const c = Utils.isValidColor?.(r.color) ? r.color : '#10b981';
         const look = r.is_internal ? STYLE.internal : { c, bg: hexBg(c) };
-        const meta = [r.is_internal ? e(tf('rc_internal', 'внутренний')) : '', r.occupies_guesthouse ? e(tf('rc_whole_house', 'весь ГД')) : ''].filter(Boolean).join(' · ');
+        // Не весь ГД — сколько номеров нужно (мигр. 821): «2м×24 4м×1»
+        const need = r.occupies_guesthouse ? '' : [2, 4].filter(c => r[`rooms_${c}_needed`]).map(c => `${c}м×${r[`rooms_${c}_needed`]}`).join(' ');
+        const meta = [r.is_internal ? e(tf('rc_internal', 'внутренний')) : '', r.occupies_guesthouse ? e(tf('rc_whole_house', 'весь ГД')) : '',
+            need ? e('нужно ' + need) : ''].filter(Boolean).join(' · ');
         rows.retreats.push({ key: 'r' + r.id, src: 'retreat', id: r.id, s: r.start_date, e: r.end_date,
-            title: Layout.getName(r), meta, cls: '', ...look });
+            title: Layout.getName(r), meta, cls: '', ...look,
+            tip: `${Layout.getName(r)} · ${fmt(r.start_date)}–${fmt(r.end_date)}${need ? ` · нужно номеров ГД: ${need}` : ''}` });
     }
     for (const p of visiblePlans) {
         // Подтверждённая запись стала ретритом или бронью группы — показывается то, во что превратилась
@@ -338,6 +375,8 @@ function attentionItems() {
             list.push(`${e(maharajaName(p.maharaja_id))} в двух местах одновременно: ${open(p)} (${dates(p)}) и ${open(o)} (${dates(o)})`);
         }
     }
+    for (const x of D.short)
+        list.push(`<a class="link link-hover font-medium" href="retreats.html?retreat=${encodeURIComponent(x.retreat.id)}">${e(Layout.getName(x.retreat))}</a> (${fmt(x.retreat.start_date)}–${fmt(x.retreat.end_date)}) — не хватает ${x.c === 2 ? 'двухместных' : 'четырёхместных'} номеров ГД: нужно ${x.need}, на ${fmt(x.date)} свободно ${x.free}`);
     for (const o of D.overlaps.filter(o => o.kind === 'cross'))
         list.push(`Бронь <a class="link link-hover font-medium" href="../placement/timeline.html?resident=${encodeURIComponent(o.ids[0])}&date=${o.check_in}">${e(o.who || 'Без имени')}</a> (№${e(o.room)}, ${fmt(o.from)}→${fmt(o.to)}) — на днях ретрита «${e(Layout.getName(o.retreat))}» (весь Гостевой дом)`);
     return list;
@@ -432,11 +471,14 @@ function render() {
             const whole = wholeHouse.find(r => r.start_date <= date && date <= r.end_date);
             const f = D.gd[d][c] || 0, all = D.gdCaps[c];
             const cross = D.crossNights.get(d);
-            const cls = whole ? 'whole' : !f ? 'no' : f / all < 0.3 ? 'lo' : 'ok';
+            const held = D.hold[d].filter(h => h.c === c);
+            const cls = whole ? 'whole' : f <= 0 ? 'no' : f / all < 0.3 ? 'lo' : 'ok';
             const tip = whole ? `Ретрит «${Layout.getName(whole)}» — весь Гостевой дом`
-                : `${capName(c)} свободно целиком: ${f} из ${all}`;
+                : `${capName(c)} свободно целиком: ${Math.max(0, f)} из ${all}` + (held.length
+                    ? `\nПредварительно под ретриты: ${held.map(h => `«${Layout.getName(h.retreat)}» — ${h.k}`).join(', ')}`
+                      + (f < 0 ? `\n⚠ Не хватает: ${-f}` : '') : '');
             const crossTip = cross ? '\n⚠ ' + cross.map(o => `№${o.room} ${o.who || ''} — «${Layout.getName(o.retreat)}»`).join('; ') : '';
-            cells += `<div class="rc-num ${cls} ${cross ? 'cross' : ''}" style="left:${px(d)}px" title="${e(tip + crossTip)}">${whole ? (cross ? '⚠' : 'весь') : f}</div>`;
+            cells += `<div class="rc-num ${cls} ${cross ? 'cross' : ''} ${held.length ? 'held' : ''}" style="left:${px(d)}px" title="${e(tip + crossTip)}">${whole ? (cross ? '⚠' : 'весь') : f < 0 ? `⚠${f}` : f}</div>`;
         }
         html += line(tf(c === 2 ? 'rc_row_gd2' : 'rc_row_gd4', c === 2 ? 'ГД двухместные' : 'ГД четырёхместные') + ` (${D.gdCaps[c]})`, cells, 34, { cls: 'sub' });
     }
@@ -477,7 +519,7 @@ function renderLegend() {
     if (perms.seePlans) html += sw(STYLE.tentative, 'tentative', tf('rc_status_tentative', 'Бронь') + ' (предварительно)');
     html += sw(STYLE.guru, '', tf('rc_maharajas', 'Махараджи'));
     html += `<span><span class="sw" style="--c:#dc2626;--bg:#fff;border-width:2px"></span>⚠ пересечение</span>`;
-    html += `<span class="opacity-80 basis-full">Числа в строках ГД — сколько номеров этого типа свободно целиком в эту ночь (в скобках — всего; «два плюс один» — двухместные). Жёлтый — меньше трети, красный — ни одного. Аренда — гостиницы, которые ШРСК снимает: полоса на срок аренды, при наведении — сколько номеров свободно.</span>`;
+    html += `<span class="opacity-80 basis-full">Числа в строках ГД — сколько номеров этого типа свободно целиком в эту ночь (в скобках — всего; «два плюс один» — двухместные). Жёлтый — меньше трети, красный — ни одного. Подчёркнутое число — уже за вычетом номеров, нужных ретритам (предварительно, пока их люди не стоят в шахматке); «⚠−3» — трёх не хватает. Аренда — гостиницы, которые ШРСК снимает: полоса на срок аренды, при наведении — сколько номеров свободно.</span>`;
     document.getElementById('rcLegend').innerHTML = html;
 }
 
@@ -569,11 +611,11 @@ function checkLoad() {
             const i = dayIdx(d);
             nights++;
             for (const c of [2, 4]) {
-                const g = D.gd[i][c] || 0, r = D.rent[i].byCap[c] || 0;
+                const g = Math.max(0, D.gd[i][c] || 0), r = D.rent[i].byCap[c] || 0;
                 if (minGd[c] === undefined || g < minGd[c]) { minGd[c] = g; minDate[c] = d; }
                 if (minRent[c] === undefined || r < minRent[c]) minRent[c] = r;
             }
-            const s2 = (D.gd[i][2] || 0) - need[2];
+            const s2 = Math.max(0, D.gd[i][2] || 0) - need[2];
             if (spare2 === null || s2 < spare2) spare2 = s2;
             // Аренда, которая есть на ВСЕ ночи записи — с наименьшим числом свободных за срок
             const bld = D.rent[i].byBld;
@@ -662,6 +704,7 @@ function openInfo(it) {
             ${r.occupies_guesthouse ? `<p>Занимает весь Гостевой дом</p>` : ''}
             ${r.is_external ? `<p>Стороннее мероприятие</p>` : ''}
             ${r.is_internal ? `<p>Внутренний проект ШРСК</p>` : ''}
+            ${!r.occupies_guesthouse && (r.rooms_2_needed || r.rooms_4_needed) ? `<p>Нужно номеров ГД: ${[r.rooms_2_needed ? `двухместных ${r.rooms_2_needed}` : '', r.rooms_4_needed ? `четырёхместных ${r.rooms_4_needed}` : ''].filter(Boolean).join(', ')}</p>` : ''}
             <div class="modal-action"><a class="btn btn-sm" href="../placement/timeline.html?date=${r.start_date}">Шахматка</a>
             ${window.currentUser?.is_superuser ? `<a class="btn btn-sm btn-primary" href="retreats.html?retreat=${encodeURIComponent(r.id)}">${e(tf('rc_open_retreat', 'Открыть ретрит'))}</a>` : ''}</div>`;
     } else {
