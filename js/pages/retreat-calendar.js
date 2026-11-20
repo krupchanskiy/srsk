@@ -27,6 +27,7 @@ const STYLE = {
     confirmed: { c: '#0ea5e9', bg: '#e0f2fe' },
     tentative: { c: '#d97706', bg: '#fde68a' },
     guru:      { c: '#0d9488', bg: '#ccfbf1' },
+    club:      { c: '#c2410c', bg: '#ffedd5' },   // Club108 — паломничества и путешествия клуба (мигр. 822)
     note:      { c: '#6b7280', bg: '#f3f4f6' },
     booking:   { c: '#6366f1', bg: '#e0e7ff' },
     rent:      { c: '#78716c', bg: '#f5f5f4' },
@@ -265,7 +266,7 @@ function buildRows() {
     const visiblePlans = D.plans.filter(p => showCancelled || p.status !== 'cancelled');
     const plansById = new Map(D.plans.map(p => [p.id, p]));
     const mClash = maharajaClashes();
-    const rows = { retreats: [], bookings: [], tentative: [], notes: [] };
+    const rows = { retreats: [], bookings: [], tentative: [], club: [], notes: [] };
     const guruRows = new Map();   // maharaja_id ('' — без имени) → items
 
     for (const r of D.retreats) {
@@ -286,20 +287,21 @@ function buildRows() {
             if (p.retreat_id && D.retreats.some(r => r.id === p.retreat_id)) continue;
             if (D.bookings.some(b => b.plan_id === p.id)) continue;
         }
-        const st = p.kind === 'guru' ? STYLE.guru : p.kind === 'note' ? STYLE.note : (STYLE[p.status] || STYLE.tentative);
+        const st = p.kind === 'guru' ? STYLE.guru : p.kind === 'club' ? STYLE.club : p.kind === 'note' ? STYLE.note : (STYLE[p.status] || STYLE.tentative);
         const clash = planHouseClash(p);
         const twice = mClash.get(p.id);
         const conflict = !!clash || !!twice || D.bookings.some(b => b.plan_id === p.id && D.crossBookings.has(b.id));
         const warn = clash ? `<span class="warn">⚠ весь ГД: «${e(Layout.getName(clash))}»</span>`
             : twice ? `<span class="warn">⚠ в это время: ${twice.map(x => e(x.title)).join(', ')}</span>` : '';
         const item = { key: 'p' + p.id, src: 'plan', id: p.id, s: p.start_date, e: p.end_date, title: p.title, conflict,
-            meta: [warn, p.kind === 'note' ? '' : planMeta(p)].filter(Boolean).join(' · '),
+            meta: [warn, p.kind === 'note' || p.kind === 'club' ? '' : planMeta(p)].filter(Boolean).join(' · '),
             cls: p.status === 'confirmed' ? '' : p.status, c: st.c, bg: st.bg };
         if (p.kind === 'guru') {
             const k = p.maharaja_id || '';
             if (!guruRows.has(k)) guruRows.set(k, []);
             guruRows.get(k).push(item);
-        } else if (p.kind === 'note') rows.notes.push(item);
+        } else if (p.kind === 'club') rows.club.push(item);
+        else if (p.kind === 'note') rows.notes.push(item);
         else if (p.status === 'confirmed') rows.retreats.push(item);
         else rows.tentative.push(item);
     }
@@ -328,6 +330,7 @@ function buildRows() {
     guruKeys.forEach((k, i) => out.push({ key: 'g' + k, label: k ? maharajaName(k) : tf('rc_maharajas', 'Махараджи') + ' (без имени)',
         cls: 'sub', col: 'guru', maharaja: k, items: guruRows.get(k), groupTop: i === 0 }));
     if (perms.edit && !guruKeys.length) out.push({ key: 'g', label: tf('rc_maharajas', 'Махараджи'), cls: 'sub', col: 'guru', maharaja: '', items: [], groupTop: false });
+    if (perms.seePlans) out.push({ key: 'club', label: tf('rc_row_club', 'Club108'), col: 'club', items: rows.club });
     if (rows.notes.length) out.push({ key: 'notes', label: tf('rc_row_notes', 'Заметки'), col: 'note', items: rows.notes });
     for (const r of out) assignLanes(r.items);
     return out;
@@ -519,6 +522,7 @@ function renderLegend() {
         sw(STYLE.booking, '', 'Бронь группы в шахматке');
     if (perms.seePlans) html += sw(STYLE.tentative, 'tentative', tf('rc_status_tentative', 'Бронь') + ' (предварительно)');
     html += sw(STYLE.guru, '', tf('rc_maharajas', 'Махараджи'));
+    if (perms.seePlans) html += sw(STYLE.club, '', 'Club108');
     html += `<span><span class="sw" style="--c:#dc2626;--bg:#fff;border-width:2px"></span>⚠ пересечение</span>`;
     html += `<span class="opacity-80 basis-full">Числа в строках ГД — сколько номеров этого типа свободно целиком в эту ночь (в скобках — всего; «два плюс один» — двухместные). Жёлтый — меньше трети, красный — ни одного. Подчёркнутое число — уже за вычетом номеров, нужных ретритам (предварительно, пока их люди не стоят в шахматке); «⚠−3» — трёх не хватает. Аренда — гостиницы, которые ШРСК снимает: полоса на срок аренды, при наведении — сколько номеров свободно.</span>`;
     document.getElementById('rcLegend').innerHTML = html;
@@ -859,7 +863,7 @@ function bindEvents() {
             const col = empty.dataset.col;
             openPlan(null, {
                 start_date: date, end_date: date,
-                kind: col === 'guru' ? 'guru' : col === 'note' ? 'note' : 'event',
+                kind: col === 'guru' ? 'guru' : col === 'club' ? 'club' : col === 'note' ? 'note' : 'event',
                 status: col === 'event' ? 'confirmed' : 'tentative',
                 maharaja_id: col === 'guru' ? (empty.dataset.maharaja || '') : ''
             });
