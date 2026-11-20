@@ -71,6 +71,15 @@ const capName = c => ({ 1: 'Одноместных', 2: tf('rc_rooms_2', 'Дву
 // Трёхместных номеров нет: «два плюс один» (№3, 7, 8, 17) — двухместный с доп. кроватью (ВГ 20.11)
 const typeOf = c => c === 3 ? 2 : c;
 
+// Арендный дом взят на эту дату — только по периодам аренды (или «доступно с/по»).
+// Без единого периода — НЕ взят (Utils.buildingAvailable в этом случае разрешает бронь,
+// но для Расписания это давало «дом взят весь год», ВГ 20.11)
+function rentedOn(b, date) {
+    const periods = b.building_rental_periods?.length ? b.building_rental_periods
+        : (b.available_from && b.available_until ? [{ date_from: b.available_from, date_to: b.available_until }] : []);
+    return periods.some(p => p.date_from <= date && date <= p.date_to);
+}
+
 // ---------- загрузка ----------
 async function fetchAll(build) {
     const out = [];
@@ -124,7 +133,7 @@ async function load() {
         gd.push(g);
         const byCap = {}, byBld = {};
         for (const r of rentRooms) {
-            if (busy[d].has(r.id) || !Utils.buildingAvailable(r.buildings, date, date)) continue;
+            if (busy[d].has(r.id) || !rentedOn(r.buildings, date)) continue;
             byCap[typeOf(r.capacity)] = (byCap[typeOf(r.capacity)] || 0) + 1;
             const name = Layout.getName(r.buildings);
             byBld[name] = (byBld[name] || 0) + 1;
@@ -136,7 +145,8 @@ async function load() {
     D = {
         holidays: hol.data, retreats: ret.data, plans: plans.data, bookings: books.data,
         gd, rent, gdCaps: caps,
-        rentNames: [...new Set(rentRooms.map(r => Layout.getName(r.buildings)))].sort(), free: gd.map(g => Object.values(g).reduce((a, b) => a + b, 0)),
+        // Только дома, взятые хотя бы на одну ночь показанного года
+        rentNames: [...new Set(rent.flatMap(x => Object.keys(x.byBld)))].sort(), free: gd.map(g => Object.values(g).reduce((a, b) => a + b, 0)),
         totalRooms: gdRooms.length, overlaps
     };
     // Ночи пересечения (для ⚠ в колонке «Гостевой дом») и брони с пересечением (для обводки)
