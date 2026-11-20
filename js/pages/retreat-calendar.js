@@ -254,7 +254,7 @@ function planMeta(p) {
     const nums = [p.people_count ? `${p.people_count} чел.` : '', types || (p.rooms_count ? `${p.rooms_count} ном.` : '')].filter(Boolean).join(' · ');
     if (nums) parts.push(e(nums));
     const linked = D.bookings.filter(b => b.plan_id === p.id);
-    if (linked.length) parts.push(e(`${tf('rc_booked_places', 'В шахматке')}: ${linked.reduce((s, b) => s + (b.beds_count || 0), 0)} мест`));
+    if (linked.length) parts.push(e(`${tf('rc_booked_places', 'В шахматке')}: ${placesWord(linked.reduce((s, b) => s + (b.beds_count || 0), 0))}`));
     if (p.kind === 'event' && p.status !== 'cancelled')
         parts.push(p.responsible_id ? e('отв. ' + staffName(p.responsible_id)) : `<span class="overdue">отв. —</span>`);
     return parts.join(' · ');
@@ -311,6 +311,7 @@ function buildRows() {
         if (b.retreat_id) continue;
         const pl = b.plan_id && plansById.get(b.plan_id);
         if (pl && pl.status !== 'confirmed') continue;
+        if (pl && pl.kind === 'guru') continue;   // номер Махараджа — на его полосе («В шахматке: …»)
         if (!b.plan_id && (b.beds_count || 0) < 5) continue;
         const cross = D.crossBookings.has(b.id);
         rows.bookings.push({ key: 'b' + b.id, src: 'booking', id: b.id, s: b.check_in, e: b.check_out,
@@ -658,8 +659,20 @@ function checkLoad() {
 function renderLinks() {
     const box = document.getElementById('planLinks');
     const p = editing;
-    if (!p || p.kind !== 'event') { box.classList.add('hidden'); return; }
+    // Ретрит/группа — ретрит и места; Махарадж — номер в шахматке, когда приезжает к нам (ВГ 20.11)
+    if (!p || (p.kind !== 'event' && p.kind !== 'guru')) { box.classList.add('hidden'); return; }
     const parts = [];
+    if (p.kind === 'guru') {
+        const linked = D.bookings.filter(b => b.plan_id === p.id);
+        if (linked.length) parts.push(`<div><b>${e(tf('rc_booked_places', 'В шахматке'))}:</b> ` + linked.map(b =>
+            `${e(b.name || '—')} · ${placesWord(b.beds_count || 0)} · ${fmt(b.check_in)}–${fmt(b.check_out)}`).join('; ') +
+            ` <a class="link link-primary ml-1" href="../placement/timeline.html?date=${p.start_date}">Шахматка</a></div>`);
+        if (perms.book) parts.push(`<button type="button" class="btn btn-sm btn-outline" data-action="book-places">Забронировать номер в шахматке</button>
+            <span class="opacity-80 ml-1">— если Махарадж будет у нас</span>`);
+        box.innerHTML = parts.join('');
+        box.classList.toggle('hidden', !parts.length);
+        return;
+    }
     const retreat = p.retreat_id && D.retreats.find(r => r.id === p.retreat_id);
     if (p.retreat_id) parts.push(`<div>Ретрит: <b>${e(retreat ? Layout.getName(retreat) : '—')}</b>
         <a class="link link-primary ml-2" href="retreats.html?retreat=${encodeURIComponent(p.retreat_id)}">${e(tf('rc_open_retreat', 'Открыть ретрит'))}</a></div>`);
@@ -708,6 +721,12 @@ function openPlan(p = null, defaults = {}) {
     toggleKindFields();
     renderLinks();
     document.getElementById('planModal').showModal();
+}
+
+// «1 место», «3 места», «5 мест»
+function placesWord(k) {
+    const m10 = k % 10, m100 = k % 100;
+    return `${k} ${m10 === 1 && m100 !== 11 ? 'место' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'места' : 'мест'}`;
 }
 
 // «1 номер», «3 номера», «24 номера», «5 номеров»
@@ -826,8 +845,10 @@ function bookPlaces() {
     const p = editing;
     if (!p) return;
     document.getElementById('planModal').close();
+    // Махарадж: бронь называется его именем (а не местом из записи)
+    const name = p.kind === 'guru' ? (p.maharaja_id ? maharajaName(p.maharaja_id) : `Махарадж — ${p.title}`) : p.title;
     GroupBooking.open({
-        planId: p.id, name: p.title, checkIn: p.start_date, checkOut: p.end_date,
+        planId: p.id, name, checkIn: p.start_date, checkOut: p.end_date,
         contact: { name: p.contact_name, phone: p.contact_phone }, notes: p.notes, people: p.people_count,
         retreatId: p.retreat_id || '',
         onSaved: () => reload()
