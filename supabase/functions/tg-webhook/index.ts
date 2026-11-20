@@ -524,7 +524,9 @@ Deno.serve(async (req) => {
         kb.push([{ text: "↩️ Назад", callback_data: `eb:${draftId}` }]);
         await tg("editMessageText", {
           chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: "HTML",
-          text: `✏️ <b>Что исправить?</b> (${sum})\n<i>Сумму или описание исправьте в самом сообщении — я подхвачу.</i>`,
+          text: `✏️ <b>Что исправить в заявке ${sum}?</b>\n\n`
+              + "• Сумму или описание — отредактируйте само ваше сообщение.\n"
+              + "• Всё остальное — выберите кнопкой ниже.",
           reply_markup: { inline_keyboard: kb },
         });
       } else if (action === "ef") {
