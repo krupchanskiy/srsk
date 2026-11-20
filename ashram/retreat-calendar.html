@@ -30,6 +30,9 @@
         .rc-track { position: relative; flex: 0 0 auto;
                     background-image: repeating-linear-gradient(90deg, transparent 0 calc(var(--rc-dw) - 1px), #f1f1f1 calc(var(--rc-dw) - 1px) var(--rc-dw)); }
         .rc-head { position: sticky; top: 0; z-index: 14; background: #f9fafb; }
+        /* «Предварительно» — ещё не точно: строка чуть тёплым тоном, подпись янтарная (ВГ 20.11) */
+        .rc-line.tent .rc-track { background-color: #fffbeb; }
+        .rc-line.tent .rc-lab { background: #fffbeb; color: #92400e; }
         .rc-head .rc-lab { background: #f9fafb; z-index: 15; }
         .rc-months .rc-track, .rc-days .rc-track { background: none; display: flex; }
         .rc-mon { flex: 0 0 auto; font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; padding: 5px 8px;
@@ -276,6 +279,6 @@
     <script src="../js/arrival-time.js?v=2"></script>
     <script src="../js/meal-group-editor.js?v=2"></script>
     <script src="../js/group-booking.js?v=20"></script>
-    <script src="../js/pages/retreat-calendar.js?v=22"></script>
+    <script src="../js/pages/retreat-calendar.js?v=23"></script>
 </body>
 </html>

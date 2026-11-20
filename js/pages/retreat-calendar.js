@@ -431,7 +431,7 @@ function render() {
     const bar = it => `<div class="rc-bar ${it.cls} ${it.conflict ? 'conflict' : ''}" data-open="${it.key}"
         style="--c:${it.c};--bg:${it.bg};left:${px(it.a) + 1}px;width:${(it.b - it.a + 1) * DW - 2}px;top:${it.lane * BAR_H + 3}px"
         title="${e(it.tip || `${it.title} · ${fmt(it.s)}–${fmt(it.e)}`)}"><span><b>${e(it.title)}</b>${it.meta ? ' · ' + it.meta : ''}</span></div>`;
-    const line = (label, inner, h, opts = {}) => `<div class="rc-line" ${opts.attrs || ''}>
+    const line = (label, inner, h, opts = {}) => `<div class="rc-line ${opts.lineCls || ''}" ${opts.attrs || ''}>
         <div class="rc-lab ${opts.cls || ''}" style="height:${h}px" title="${e(label)}">${opts.labelHtml || e(label)}</div>
         <div class="rc-track" style="width:${W}px;height:${h}px" ${opts.trackAttrs || ''}>${shade}${inner}</div></div>`;
 
@@ -462,7 +462,7 @@ function render() {
         const labelHtml = r.col === 'guru' && r.groupTop
             ? `<div><div class="font-semibold" style="font-size:15px">${e(tf('rc_maharajas', 'Махараджи'))}</div><div class="text-sm">${e(r.label)}</div></div>` : '';
         html += line(r.label, r.items.map(bar).join(''), h, {
-            labelHtml, cls: r.cls || 'group',
+            labelHtml, cls: r.cls || 'group', lineCls: r.key === 'tentative' ? 'tent' : '',
             trackAttrs: `${editable} data-col="${r.col}" data-maharaja="${r.maharaja ?? ''}"`
         });
     }
