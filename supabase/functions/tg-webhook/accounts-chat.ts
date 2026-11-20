@@ -30,7 +30,7 @@ const QUESTION: Record<string, string> = {
   murti_count: "🔢 <b>Сколько сетов?</b>",
 };
 
-const MONEY_HINT = /мурти|кафе|процент|налог|билет|виз[аы]|зарплат|оплат|перев[её]л|перевод|приход|расход|поступ/i;
+const MONEY_HINT = /мурти|кафе|магазин|дерев|процент|налог|билет|виз[аы]|зарплат|оплат|перев[её]л|перевод|приход|расход|поступ/i;
 
 // Дата операции из сообщения: «12.09», «12.09.26», «12.09.2026», «28/10/2026». Без года —
 // текущий; если так выходит будущее (в январе пишут про 28.12) — прошлый год.
@@ -65,6 +65,10 @@ function hints(text: string) {
     if (n >= 1 && n <= 99) h.murti_count = n;
   } else if (/касс\p{L}*\s+кафе|кафе\p{L}*\s+касс/iu.test(text)) {
     h.hint_category_code = "cafe_cash";
+  } else if (/дерев/i.test(text)) {
+    h.hint_category_code = "tree_donation";
+  } else if (/магазин/i.test(text)) {
+    h.hint_category_code = "shop_cash";
   } else if (/процент/i.test(text)) {
     h.hint_category_code = "interest_received";
   } else if (/налог/i.test(text)) {
