@@ -116,6 +116,7 @@ async function renderCard(ctx: Ctx, chatId: number, messageId: number | null, st
     st.kind === "expense" && st.department ? esc(st.department) : null,
     st.category ? esc(st.category) : null,
     st.kind === "income" && st.murti ? esc(st.murti) : null,
+    st.kind === "income" && st.other ? `«${esc(st.other)}»` : null,
   ].filter(Boolean).join(" · ");
 
   let head: string;
