@@ -607,7 +607,7 @@ function renderLinks() {
     const linked = D.bookings.filter(b => b.plan_id === p.id);
     if (linked.length) parts.push(`<div><b>${e(tf('rc_booked_places', 'В шахматке'))}:</b> ` + linked.map(b =>
         `${e(b.name || '—')} · ${b.beds_count || 0} мест · ${fmt(b.check_in)}–${fmt(b.check_out)}`).join('; ') +
-        ` <a class="link link-primary ml-1" href="../placement/timeline.html">Шахматка</a></div>`);
+        ` <a class="link link-primary ml-1" href="../placement/timeline.html?date=${p.start_date}">Шахматка</a></div>`);
     if (perms.book && p.status !== 'cancelled')
         parts.push(`<button type="button" class="btn btn-sm btn-outline" data-action="book-places">${e(tf('rc_book_places', 'Забронировать места в шахматке'))}</button>`);
     box.innerHTML = parts.join('');
@@ -657,14 +657,14 @@ function openInfo(it) {
         html = `<p>${fmt(r.start_date)}.${r.start_date.slice(0, 4)} – ${fmt(r.end_date)}.${r.end_date.slice(0, 4)}</p>
             ${r.occupies_guesthouse ? `<p>Занимает весь Гостевой дом</p>` : ''}
             ${r.is_external ? `<p>Стороннее мероприятие</p>` : ''}
-            <div class="modal-action"><a class="btn btn-sm" href="../placement/timeline.html">Шахматка</a>
+            <div class="modal-action"><a class="btn btn-sm" href="../placement/timeline.html?date=${r.start_date}">Шахматка</a>
             ${window.currentUser?.is_superuser ? `<a class="btn btn-sm btn-primary" href="retreats.html?retreat=${encodeURIComponent(r.id)}">${e(tf('rc_open_retreat', 'Открыть ретрит'))}</a>` : ''}</div>`;
     } else {
         const b = D.bookings.find(x => x.id === it.id);
         html = `<p>Бронь группы в шахматке: ${b.beds_count || 0} мест, ${fmt(b.check_in)}–${fmt(b.check_out)}</p>
             ${b.contact_name ? `<p>${e(b.contact_name)} ${e(b.contact_phone || '')}</p>` : ''}
             ${b.notes ? `<p class="whitespace-pre-line text-sm mt-2">${e(b.notes)}</p>` : ''}
-            <div class="modal-action"><a class="btn btn-sm btn-primary" href="../placement/timeline.html">Шахматка</a></div>`;
+            <div class="modal-action"><a class="btn btn-sm btn-primary" href="../placement/timeline.html?date=${b.check_in}">Шахматка</a></div>`;
     }
     document.getElementById('planTitle').textContent = it.title;
     form().classList.add('hidden');

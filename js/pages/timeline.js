@@ -5121,6 +5121,12 @@ async function openStayAlert(id, date) {
 async function init() {
     await Layout.init({ module: 'housing', menuId: 'reception', itemId: 'timeline' });
     Layout.showLoader();
+    // ?date=<день> без resident — открыть шахматку с этой даты (кнопка «Шахматка» в «Расписании»)
+    const startParams = new URLSearchParams(location.search);
+    if (startParams.get('date') && !startParams.get('resident')) {
+        const d = DateUtils.parseDate(startParams.get('date'));
+        if (!isNaN(d)) { d.setDate(d.getDate() - 2); baseDate = d; }
+    }
     await Promise.all([
         loadTimelineData(),
         loadDictionaries()
