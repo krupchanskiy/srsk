@@ -509,7 +509,8 @@ function счётВПереводе(p, op) {
     const текущий = filterValues().account;
     if (op?.type !== 'transfer' || !p.account_id || p.account_id === текущий) return e(p.account_name);
     const url = `dds.html?account=${encodeURIComponent(p.account_id)}&to=${encodeURIComponent(op.occurred_on)}`;
-    return `<a class="link link-hover" href="${url}" title="${e(t('fin_open_ledger'))}">${e(p.account_name)}</a>`;
+    // Подчёркнута сразу: с link-hover ссылку не было видно (ВГ, 21.11)
+    return `<a class="link link-primary" href="${url}" title="${e(t('fin_open_ledger'))}">${e(p.account_name)}</a>`;
 }
 
 // Резолвер имени автора по auth user_id (с кэшем)
