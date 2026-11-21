@@ -346,12 +346,13 @@
                         <label class="label py-0"><span class="label-text">Кафе <span class="opacity-60">(2 этаж)</span></span></label>
                         <input type="number" id="incCafeHall" data-cash-calc data-cash-float class="input input-bordered input-sm" min="0" step="0.01">
                     </div>
-                    <!-- Размен «по кругу» (693): касса 2 этажа снимается целиком вместе с разменом;
-                         размен возвращается с Кафе, доходом идёт только остальное -->
+                    <!-- Касса 2 этажа сдаётся целиком вместе со вчерашней сдачей — она вычитается сама
+                         и только поясняется; новую сдачу выдают тут же, как в магазине (ВГ 21.11, мигр. 825) -->
+                    <span class="text-xs opacity-60 col-span-2 -mt-1" id="incCafeNet"></span>
                     <div class="form-control col-span-2">
-                        <label class="label py-0"><span class="label-text">из них размен, выданный раньше <span class="opacity-60">(вычитается сам)</span></span></label>
-                        <input type="number" id="incCafeFloat" class="input input-bordered input-sm opacity-70" min="0" step="0.01" readonly tabindex="-1">
-                        <span class="text-xs opacity-60 mt-1" id="incCafeNet"></span>
+                        <label class="label py-0"><span class="label-text">Выдать сдачу на предстоящий день <span class="opacity-60">(2 этаж), ₹</span></span></label>
+                        <input type="number" id="incCafeIssue" data-cash-calc="INR" class="input input-bordered input-sm" min="0" step="0.01">
+                        <span class="text-xs opacity-60 mt-1" id="incCafeIssueNote"></span>
                     </div>
                 </div>
                 <!-- «Касса Магазин» и «Мурти» — две статьи (ВГ, 18.10.2026): деньги магазина приходят
@@ -598,7 +599,7 @@
 <script src="../js/fin-utils.js?v=25"></script>
 <script src="../js/shop-treasurer-banner.js?v=1"></script>
 <script src="../js/cash-calc.js?v=4"></script>
-<script src="../js/pages/fin-dds.js?v=60"></script>
+<script src="../js/pages/fin-dds.js?v=61"></script>
 
 </body>
 </html>

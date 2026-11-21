@@ -989,7 +989,9 @@ function openIncome() {
     document.getElementById('incCafeSelf').value = '';
     document.getElementById('incCafeHall').value = '';
     ['incCafeSelf', 'incCafeHall'].forEach(id => window.CashCalc?.forget?.(document.getElementById(id)));
-    document.getElementById('incCafeFloat').value = '';
+    document.getElementById('incCafeIssue').value = '';
+    window.CashCalc?.forget?.(document.getElementById('incCafeIssue'));
+    cafeIssueManual = false;
     document.getElementById('incShopMurti').value = '';
     document.getElementById('incShopMurtiNote').value = '';
     document.getElementById('incShopNote').value = '';
@@ -1135,7 +1137,6 @@ async function loadCafeFloat() {
     if (cafeFloatDate !== date) return;
     if (error) { Layout.handleError(error, 'Размен кафе'); return; }
     cafeFloatAuto = Number(data) || 0;
-    document.getElementById('incCafeFloat').value = cafeFloatAuto || '';
     syncCafeTotal();
 }
 
@@ -1143,6 +1144,8 @@ async function loadCafeFloat() {
 const cafeFloat = () => (Number(document.getElementById('incCafeHall').value) || 0) > 0 ? cafeFloatAuto : 0;
 // Отмечено в калькуляторе купюр «оставить на сдачу» (ВГ 20.11, мигр. 809):
 // купюры с обоих этажей складываются, остаются в кассе Кафе — доход от этого не меняется
+let cafeIssueManual = false;
+const cafeIssue = () => Math.round((Number(document.getElementById('incCafeIssue').value) || 0) * 100) / 100;
 const cafeLeft = () => Math.round(['incCafeSelf', 'incCafeHall'].reduce((s, id) => {
     const el = document.getElementById(id);
     return s + (el.dataset.cashFloatCur === 'INR' ? Number(el.dataset.cashFloatLeft) || 0 : 0);
@@ -1152,16 +1155,19 @@ function syncCafeTotal() {
     const sum = cafeParts().reduce((s, p) => s + p.amount, 0);
     document.getElementById('incAmount').value = sum ? Math.round(sum * 100) / 100 : '';
     const hall = Number(document.getElementById('incCafeHall').value) || 0;
-    const left = cafeLeft();
-    // старая сдача возвращается целиком, новая выдаётся целиком на 2 этаж — двумя записями (мигр. 825)
-    document.getElementById('incCafeNet').textContent = [
-        !hall ? ''
+    // Вчерашняя сдача сдаётся вместе с кассой 2 этажа — вычитается сама, тут только пояснение;
+    // новая сдача — полем «Выдать сдачу» (галочки калькулятора подставляются туда же) (ВГ 21.11, мигр. 825)
+    const issueEl = document.getElementById('incCafeIssue');
+    if (!cafeIssueManual) issueEl.value = cafeLeft() || '';
+    const issue = cafeIssue();
+    document.getElementById('incCafeNet').textContent = !hall ? ''
         : cafeFloat()
-            ? `Доходом кафе пойдёт ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}, вчерашняя сдача ${FinUtils.fmtMoney(cafeFloat(), 'INR')} вернётся с Кафе`
-            : 'Размена, выданного раньше, нет — всё снятое с 2 этажа пойдёт доходом',
-        !left ? ''
-        : `Новая сдача ${FinUtils.fmtMoney(left, 'INR')} выдаётся на 2 этаж, в кассу уносите ${FinUtils.fmtMoney(sum - left, 'INR')}`
-    ].filter(Boolean).join('. ');
+            ? `Касса 2 этажа включая сдачу прошлого дня ${FinUtils.fmtMoney(cafeFloat(), 'INR')} — доходом кафе ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}`
+            : 'Сдачи прошлого дня нет — всё снятое с 2 этажа пойдёт доходом';
+    document.getElementById('incCafeIssueNote').textContent = !issue ? ''
+        : cafeLeft() && issue === cafeLeft()
+            ? `Отмеченные купюры остаются на сдачу, в кассу уносите ${FinUtils.fmtMoney(sum - issue, 'INR')}`
+            : `Выдаётся из кассы на 2 этаж`;
 }
 
 function cafeParts() {
@@ -1348,10 +1354,7 @@ async function submitIncome(ev) {
     if (cafe && !parts.length) { Layout.showNotification('Введите сумму хотя бы по одной точке кафе', 'error'); return; }
     // Размен входит в снятую кассу 2 этажа — доходом только остаток (693)
     const float = cafe ? cafeFloat() : 0;
-    const left = cafe ? cafeLeft() : 0;
-    if (left > parts.reduce((s, p) => s + Number(p.amount), 0)) {
-        Layout.showNotification('На сдачу отмечено больше, чем сдано', 'error'); return;
-    }
+    const left = cafe ? cafeIssue() : 0;
     const hallPart = parts.find(p => p.cafe_point === 'cafe');
     if (float > 0) {
         if (!hallPart || float > hallPart.amount) {
@@ -1751,7 +1754,10 @@ async function init() {
     FinUtils.attachPersonSearch(document.getElementById('incDonorSearch'), document.getElementById('incDonorId'));
     FinUtils.attachPersonSearch(document.getElementById('incParticipantSearch'), document.getElementById('incParticipantId'));
     document.getElementById('incCategory').addEventListener('change', syncParticipantBlock);
-    document.getElementById('incCafeWrap').addEventListener('input', syncCafeTotal);
+    document.getElementById('incCafeWrap').addEventListener('input', ev => {
+        if (ev.target.id === 'incCafeIssue') cafeIssueManual = true;
+        syncCafeTotal();
+    });
     document.getElementById('incomeModal').addEventListener('input', syncShopBlock);
     document.getElementById('incomeModal').addEventListener('change', syncShopBlock);
     document.getElementById('incCategory').addEventListener('change', maybeSuggestIncomeObject);
