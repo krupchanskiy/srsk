@@ -1152,16 +1152,15 @@ function syncCafeTotal() {
     const sum = cafeParts().reduce((s, p) => s + p.amount, 0);
     document.getElementById('incAmount').value = sum ? Math.round(sum * 100) / 100 : '';
     const hall = Number(document.getElementById('incCafeHall').value) || 0;
-    const left = cafeLeft(), back = Math.round((cafeFloat() - left) * 100) / 100;
+    const left = cafeLeft();
+    // старая сдача возвращается целиком, новая выдаётся целиком на 2 этаж — двумя записями (мигр. 825)
     document.getElementById('incCafeNet').textContent = [
         !hall ? ''
         : cafeFloat()
-            ? `Доходом кафе пойдёт ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}` + (left ? '' : `, сдача ${FinUtils.fmtMoney(cafeFloat(), 'INR')} вернётся с Кафе`)
+            ? `Доходом кафе пойдёт ${FinUtils.fmtMoney(hall - cafeFloat(), 'INR')}, вчерашняя сдача ${FinUtils.fmtMoney(cafeFloat(), 'INR')} вернётся с Кафе`
             : 'Размена, выданного раньше, нет — всё снятое с 2 этажа пойдёт доходом',
         !left ? ''
-        : `Остаётся на сдачу ${FinUtils.fmtMoney(left, 'INR')}, в кассу уносите ${FinUtils.fmtMoney(sum - left, 'INR')}`
-          + (back > 0 ? ` (сдачи вернётся ${FinUtils.fmtMoney(back, 'INR')})`
-             : back < 0 ? ` (на сдачу добавится ${FinUtils.fmtMoney(-back, 'INR')})` : '')
+        : `Новая сдача ${FinUtils.fmtMoney(left, 'INR')} выдаётся на 2 этаж, в кассу уносите ${FinUtils.fmtMoney(sum - left, 'INR')}`
     ].filter(Boolean).join('. ');
 }
 
