@@ -463,7 +463,7 @@ async function toggleDetails(opId, ключ = opId) {
         + (пояснение ? `<div class="fin-panel-head">${e(пояснение)}</div>` : '')
         + `<div class="fin-postings">` + (data || []).map(p => `
         <div class="fin-posting">
-            <span class="fin-posting-acc">${e(p.account_name)}</span>
+            <span class="fin-posting-acc">${счётВПереводе(p, op)}</span>
             <span class="fin-tags">
                 ${p.category_name ? тег(p.category_name) : ''}
                 ${p.cafe_point ? тег(CAFE_POINTS[p.cafe_point]) : ''}
@@ -501,6 +501,15 @@ async function toggleDetails(opId, ключ = opId) {
             if (el && name) el.textContent = `${t('fin_created_by')}: ${name}`;
         });
     }
+}
+
+// В развороте перевода второй счёт — ссылка на его выписку до даты перевода:
+// видно, откуда пришли деньги (напр. перенос 864 700 ₹ с «Гест-хауса» 19.10) (ВГ, 21.11)
+function счётВПереводе(p, op) {
+    const текущий = filterValues().account;
+    if (op?.type !== 'transfer' || !p.account_id || p.account_id === текущий) return e(p.account_name);
+    const url = `dds.html?account=${encodeURIComponent(p.account_id)}&to=${encodeURIComponent(op.occurred_on)}`;
+    return `<a class="link link-hover" href="${url}" title="${e(t('fin_open_ledger'))}">${e(p.account_name)}</a>`;
 }
 
 // Резолвер имени автора по auth user_id (с кэшем)
