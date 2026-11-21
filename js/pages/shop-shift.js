@@ -34,7 +34,7 @@ const ShopShift = (() => {
         if (смена) {
             const ответы = await Promise.all([
                 Layout.db.from('shop_sales')
-                    .select('id, number, sold_at, currency_code, items_total, donation_amount, paid_amount, status, shop_sale_items(qty, shop_items(name_ru))')
+                    .select('id, number, sold_at, currency_code, items_total, donation_amount, paid_amount, extra_inr, rate_used, status, shop_sale_items(qty, shop_items(name_ru))')
                     .eq('shift_id', смена.id).order('sold_at', { ascending: false }),
                 Layout.db.rpc('shop_shift_expected', { p_shift: смена.id }),
             ]);
@@ -94,12 +94,13 @@ const ShopShift = (() => {
         выручкаСмен = {};
         if (история.length) {
             const { data: чеки } = await Layout.db.from('shop_sales')
-                .select('shift_id, currency_code, paid_amount, change_inr')
+                .select('shift_id, currency_code, paid_amount, change_inr, extra_inr')
                 .in('shift_id', история.map(с => с.id)).eq('status', 'posted');
             (чеки || []).forEach(ч => {
                 const в = выручкаСмен[ч.shift_id] ||= {};
                 в[ч.currency_code] = (в[ч.currency_code] || 0) + Number(ч.paid_amount);
                 if (Number(ч.change_inr)) в.INR = (в.INR || 0) - Number(ч.change_inr);
+                if (Number(ч.extra_inr)) в.INR = (в.INR || 0) + Number(ч.extra_inr);
             });
         }
 
@@ -136,6 +137,8 @@ const ShopShift = (() => {
         const поВалютам = {};
         проведённые.forEach(о => {
             поВалютам[о.currency_code] = (поВалютам[о.currency_code] || 0) + Number(о.paid_amount);
+            // доплата рупиями к валютному чеку (мигр. 824)
+            if (Number(о.extra_inr)) поВалютам.INR = (поВалютам.INR || 0) + Number(о.extra_inr);
         });
 
         const ячейка = (ключ, значение, цвет = '') =>
@@ -155,6 +158,7 @@ const ShopShift = (() => {
 
     // курс чека: paid_amount в валюте платежа, items_total в рупиях
     function курсИз(о) {
+        if (Number(о.extra_inr)) return Number(о.rate_used) || 1;
         const товарнаяЧасть = Number(о.paid_amount) - Number(о.donation_amount);
         return товарнаяЧасть > 0 ? Number(о.items_total) / товарнаяЧасть : 1;
     }
@@ -170,7 +174,6 @@ const ShopShift = (() => {
         $('#countBoxes').innerHTML = ожидаем.map(ж => {
             const факт = пересчёт[ж.currency_code];
             const введено = факт !== undefined && факт !== '';
-            const разница = введено ? Number(факт) - Number(ж.expected) : null;
             return `
             <label class="form-control">
                 <div class="label py-1"><span class="label-text text-sm">
@@ -178,15 +181,26 @@ const ShopShift = (() => {
                     <b class="nums">${деньги(ж.expected, ж.currency_code)}</b></span></div>
                 <input type="text" inputmode="decimal" autocomplete="off" class="input input-bordered input-sm nums" data-count="${ж.currency_code}" data-cash-calc="${ж.currency_code}" data-cash-expected="${ж.expected}"
                        value="${введено ? e(факт) : ''}" placeholder="${t('shop_counted_placeholder')}">
-                ${разница === null ? ''
-                  : разница === 0
-                    ? `<span class="text-xs text-success mt-1">${t('shop_matches')}</span>`
-                    : `<span class="text-xs text-error mt-1">${t('shop_discrepancy')} ${разница > 0 ? '+' : ''}${деньги(разница, ж.currency_code)}</span>
-                       <input class="input input-bordered input-sm mt-1" data-why="${ж.currency_code}"
-                              value="${e(причины[ж.currency_code] || '')}" placeholder="${t('shop_discrepancy_reason')}">`}
+                <div class="flex flex-col" data-count-status="${ж.currency_code}">${статусПересчёта(ж)}</div>
             </label>`;
         }).join('') || `<div class="text-sm opacity-60">${t('shop_count_hint_none')}</div>`;
 
+        обновитьЗакрытие();
+    }
+
+    // «сходится / расхождение» под полем пересчёта
+    function статусПересчёта(ж) {
+        const факт = пересчёт[ж.currency_code];
+        if (факт === undefined || факт === '') return '';
+        const разница = Number(факт) - Number(ж.expected);
+        return разница === 0
+            ? `<span class="text-xs text-success mt-1">${t('shop_matches')}</span>`
+            : `<span class="text-xs text-error mt-1">${t('shop_discrepancy')} ${разница > 0 ? '+' : ''}${деньги(разница, ж.currency_code)}</span>
+               <input class="input input-bordered input-sm mt-1" data-why="${ж.currency_code}"
+                      value="${e(причины[ж.currency_code] || '')}" placeholder="${t('shop_discrepancy_reason')}">`;
+    }
+
+    function обновитьЗакрытие() {
         const всёВведено = ожидаем.every(ж => (пересчёт[ж.currency_code] ?? '') !== '');
         const объяснено = ожидаем.every(ж => {
             const факт = пересчёт[ж.currency_code];
@@ -405,7 +419,8 @@ const ShopShift = (() => {
                     ${о.status === 'cancelled' ? `<span class="badge badge-sm">${t('shop_cancelled')}</span>` : ''}</td>
                 <td data-label="${t('shop_amount_word')}" class="text-right nums">${деньги(сумма)}</td>
                 <td data-label="${t('shop_payment')}">${о.currency_code === 'INR'
-                    ? t('shop_cash_inr') : деньги(о.paid_amount, о.currency_code)}</td>
+                    ? t('shop_cash_inr') : деньги(о.paid_amount, о.currency_code)
+                      + (Number(о.extra_inr) ? ' + ' + деньги(о.extra_inr, 'INR') : '')}</td>
                 <td data-label="">${можноОтменить
                     ? `<button class="btn btn-ghost btn-xs" data-cancel="${о.id}">${t('shop_undo')}</button>` : ''}</td>
             </tr>`;
@@ -657,13 +672,14 @@ const ShopShift = (() => {
                 return;
             }
             if (el.dataset.count !== undefined) {
-                // поле текстовое: у type=number браузер не отдаёт позицию курсора, и после
-                // перерисовки цифры вставали в начало — сумма набиралась задом наперёд
-                пересчёт[el.dataset.count] = el.value.replace(',', '.').replace(/[^\d.]/g, '');
-                const поз = el.selectionStart, вал = el.dataset.count;
-                рисоватьПересчёт();
-                const нов = document.querySelector(`[data-count="${вал}"]`);
-                if (нов) { нов.focus(); try { нов.setSelectionRange(поз, поз); } catch { /* number */ } }
+                // само поле не перерисовываем: калькулятор купюр оборачивает новое поле,
+                // и на телефоне курсор после каждой цифры уходил в начало (жалоба 21.11)
+                const вал = el.dataset.count;
+                пересчёт[вал] = el.value.replace(',', '.').replace(/[^\d.]/g, '');
+                const ж = ожидаем.find(x => x.currency_code === вал);
+                const место = document.querySelector(`[data-count-status="${вал}"]`);
+                if (ж && место) место.innerHTML = статусПересчёта(ж);
+                обновитьЗакрытие();
                 return;
             }
             if (el.dataset.why !== undefined) {
