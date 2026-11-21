@@ -31,7 +31,7 @@ const ShopTill = (() => {
 
     let товары = [], категории = [], цели = [], курсы = {}, сменаId = null;
     let состояние = {
-        кат: null, поиск: '', корзина: [], валюта: 'INR', получено: '',
+        кат: null, поиск: '', корзина: [], валюта: 'INR', получено: '', доплата: null,
         скидка: 0, причина: null, дар: 0, цель: null, раскрыт: false,
         панельСкидки: false, видСкидки: '%', вводСкидки: '10', панельДара: false, вводДара: '',
     };
@@ -82,9 +82,12 @@ const ShopTill = (() => {
         const вал = состояние.валюта;
         if (вал === 'INR' || !состояние.получено) return null;
         const курс = курсы[вал] || 1;
-        const разница = Math.round(((число(состояние.получено) || 0) * курс
+        // доплата рупиями к валюте (мигр. 824): сдача тогда точнее — до 10 ₹
+        const доплата = число(состояние.доплата || '0') || 0;
+        const шаг = доплата > 0 ? 10 : 50;
+        const разница = Math.round(((число(состояние.получено) || 0) * курс + доплата
             - (итогРупии() + состояние.дар * курс)) * 100) / 100;
-        return разница < 0 ? разница : Math.floor(разница / 50) * 50;
+        return разница < 0 ? разница : Math.floor(разница / шаг) * шаг;
     }
 
     // ---------- загрузка ----------
@@ -322,8 +325,9 @@ const ShopTill = (() => {
         const получено = число(состояние.получено || '0');
         const сдачаР = сдачаРупиями();
         // в валюте сдача рупиями; «не хватает» показываем в валюте, округлив вверх до шага
+        const естьДоплата = (число(состояние.доплата || '0') || 0) > 0;
         const сдача = вал !== 'INR'
-            ? (сдачаР === null ? null : сдачаР < 0
+            ? (сдачаР === null ? null : сдачаР < 0 && !естьДоплата
                 ? -Math.ceil(-сдачаР / (курсы[вал] || 1) / (ШАГ[вал] || 1)) * (ШАГ[вал] || 1) : сдачаР)
             : получено ? получено - всего : null;
         const целиКнопки = цели.map(ц => `
@@ -409,11 +413,19 @@ const ShopTill = (() => {
             </div>
             <div class="flex gap-1">${(НОМИНАЛЫ[вал] || []).map(н =>
                 `<button class="btn btn-sm btn-outline flex-1" data-note="${н}">${н}</button>`).join('')}</div>
+            ${вал !== 'INR' && состояние.доплата !== null ? `<div class="flex items-center gap-2">
+                <span class="text-sm opacity-60 flex-1">${тр('shop_extra_inr', 'Доплата рупиями')}</span>
+                <input id="extra" class="input input-bordered input-sm w-32 nums font-bold text-right" inputmode="decimal"
+                       placeholder="₹" value="${e(состояние.доплата ?? '')}">
+                <button class="btn btn-sm btn-ghost" id="extraClear" aria-label="убрать">✕</button>
+            </div>` : ''}
             ${сдача !== null ? `<div class="flex items-center justify-between">
                 <span class="text-sm opacity-60">${вал !== 'INR' && сдача >= 0 ? тр('shop_change_inr', 'Сдача рупиями') : t('shop_change')}</span>
                 <span class="font-bold nums ${сдача < 0 ? 'text-error' : вал !== 'INR' ? 'text-lg' : ''}">${сдача < 0
-                    ? t('shop_not_enough') + ' ' + деньги(-сдача, вал)
+                    ? t('shop_not_enough') + ' ' + деньги(-сдача, естьДоплата ? 'INR' : вал)
                     : деньги(сдача, вал !== 'INR' ? 'INR' : вал)}</span></div>` : ''}
+            ${сдача !== null && сдача < 0 && вал !== 'INR' && !естьДоплата ? `<button class="btn btn-sm btn-outline w-full" id="extraAdd">
+                ${тр('shop_extra_inr_add', 'Доплатить рупиями')} ${деньги(Math.ceil(-сдачаР / 10) * 10, 'INR')}</button>` : ''}
             ${сдача > 0 && вал === 'INR' ? `<button class="btn btn-sm btn-outline btn-secondary w-full" id="tipRest">
                 ${t('shop_change')} ${деньги(сдача, вал)} — ${t('shop_change_to_donation')}</button>` : ''}
 
@@ -468,6 +480,8 @@ const ShopTill = (() => {
         // «Получено» не ввели — значит, дали ровно к оплате; сдачу считаем и от этого
         if (вал !== 'INR' && !состояние.получено) состояние.получено = String(всего);
         if (вал !== 'INR') payload.tendered = число(состояние.получено) || всего;
+        const доплата = вал !== 'INR' ? (число(состояние.доплата || '0') || 0) : 0;
+        if (доплата > 0) payload.extra_inr = доплата;
         const сдачаР = вал !== 'INR' ? Math.max(сдачаРупиями() ?? 0, 0) : 0;
         const сдача = вал !== 'INR' ? сдачаР : (число(состояние.получено) || 0) - всего;
         const валСдачи = вал !== 'INR' ? 'INR' : вал;
@@ -476,7 +490,7 @@ const ShopTill = (() => {
         // снимок нужен, чтобы вернуть чек на экран, если сервер его не принял
         const снимок = JSON.parse(JSON.stringify({
             корзина: состояние.корзина, скидка: состояние.скидка, причина: состояние.причина,
-            дар: состояние.дар, цель: состояние.цель, получено: состояние.получено,
+            дар: состояние.дар, цель: состояние.цель, получено: состояние.получено, доплата: состояние.доплата,
             валюта: состояние.валюта,
         }));
         // остаток уменьшаем сразу: продавец должен видеть полку, а не ждать сервер
@@ -513,7 +527,7 @@ const ShopTill = (() => {
 
     function очистить() {
         Object.assign(состояние, {
-            корзина: [], скидка: 0, причина: null, получено: '', раскрыт: false,
+            корзина: [], скидка: 0, причина: null, получено: '', доплата: null, раскрыт: false,
             панельСкидки: false, вводСкидки: '10', дар: 0, вводДара: '', панельДара: false,
         });
     }
@@ -570,7 +584,7 @@ const ShopTill = (() => {
             if (b.id === 'openCart' || b.id === 'toPay') { состояние.раскрыт = true; return рисоватьЧек(); }
             if (b.id === 'backToGrid') { состояние.раскрыт = false; рисоватьЧек(); scrollTo({ top: 0, behavior: 'smooth' }); return; }
             if (b.id === 'giftOnly') { состояние.раскрыт = true; состояние.панельДара = true; return рисоватьЧек(); }
-            if (b.dataset.cur) { состояние.валюта = b.dataset.cur; состояние.получено = '';
+            if (b.dataset.cur) { состояние.валюта = b.dataset.cur; состояние.получено = ''; состояние.доплата = null;
                                  состояние.дар = 0; состояние.вводДара = ''; return рисоватьЧек(); }
             if (b.dataset.note) { состояние.получено = String((число(состояние.получено) || 0) + (+b.dataset.note));
                                   return рисоватьЧек(); }
@@ -594,6 +608,10 @@ const ShopTill = (() => {
                 if (сдача > 0) состояние.дар = Math.round((состояние.дар + сдача) * 100) / 100;
                 return рисоватьЧек();
             }
+            if (b.id === 'extraAdd') { const н = сдачаРупиями();
+                                       if (н !== null && н < 0) состояние.доплата = String(Math.ceil(-н / 10) * 10);
+                                       return рисоватьЧек(); }
+            if (b.id === 'extraClear') { состояние.доплата = null; return рисоватьЧек(); }
             if (b.id === 'exact') { состояние.получено = String(кОплате()); return рисоватьЧек(); }
             if (b.id === 'sell') return провести();
             if (b.id === 'undoBtn') return отменитьПоследнюю();
@@ -607,6 +625,8 @@ const ShopTill = (() => {
             if (el.id === 'q') { состояние.поиск = el.value; рисоватьЧипы(); рисоватьСетку(); return; }
             if (el.id === 'got') { состояние.получено = el.value; const п = el.selectionStart;
                                    рисоватьЧек(); вернуть('#got', п); return; }
+            if (el.id === 'extra') { состояние.доплата = el.value; const п = el.selectionStart;
+                                     рисоватьЧек(); вернуть('#extra', п); return; }
             if (el.id === 'discVal') { состояние.вводСкидки = el.value; const п = el.selectionStart;
                                        рисоватьЧек(); вернуть('#discVal', п); return; }
             if (el.id === 'giftVal') { состояние.вводДара = el.value; const п = el.selectionStart;

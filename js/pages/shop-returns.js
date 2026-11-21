@@ -19,7 +19,7 @@ const ShopReturns = (() => {
     let смены = [], выбранаСмена = '', выбранДень = '';
     // новый перевод мог ещё не попасть в закэшированный словарь — тогда русский текст, а не ключ
     const тр = (ключ, ru) => { const v = t(ключ); return v === ключ ? ru : v; };
-    const ПОЛЯ_ЧЕКА = 'id, number, sold_at, currency_code, paid_amount, donation_amount, status, '
+    const ПОЛЯ_ЧЕКА = 'id, number, sold_at, currency_code, paid_amount, extra_inr, donation_amount, status, '
         + 'shop_sale_items(qty, shop_items(name_ru, name_en, name_hi))';
     const можно = () => !!window.hasPermission?.('shop_manage');
 
@@ -106,7 +106,8 @@ const ShopReturns = (() => {
                 <td data-label="${тр('shop_goods_col', 'Товары')}" class="text-sm">${Object.entries(товарыЧека(ч))
                     .map(([имя, к]) => e(имя) + (к > 1 ? ` <span class="opacity-60">×${к}</span>` : '')).join(', ')
                     || `<span class="opacity-60">${t('shop_donation')}</span>`}</td>
-                <td data-label="${t('shop_amount_word')}" class="text-right nums">${деньги(ч.paid_amount, ч.currency_code)}</td>
+                <td data-label="${t('shop_amount_word')}" class="text-right nums">${деньги(ч.paid_amount, ч.currency_code)}${Number(ч.extra_inr)
+                    ? ' + ' + деньги(ч.extra_inr, 'INR') : ''}</td>
                 <td data-label="" class="text-right">
                     <button class="btn btn-ghost btn-xs" data-open="${ч.id}">${t('shop_open_btn')}</button></td>
             </tr>`).join('')
@@ -121,6 +122,7 @@ const ShopReturns = (() => {
     async function открыть(saleId) {
         const ответ = await Layout.db.from('shop_sales')
             .select(`id, number, sold_at, currency_code, paid_amount, donation_amount, discount_amount, status,
+                     extra_inr, change_inr, rate_used,
                      shop_sale_items(id, qty, price, item_id, shop_items(name_ru, name_en, name_hi))`)
             .eq('id', saleId).maybeSingle();
         if (ShopUtils.ошибка(ответ, t('shop_err_receipt'))) return;
@@ -155,6 +157,7 @@ const ShopReturns = (() => {
         $('#saleTitle').textContent = `${t('shop_receipt')} №${чек.number}`;
         $('#saleMeta').textContent = `${DateUtils.formatShort(когда)} ${DateUtils.formatTime(когда)} · ` +
             `${t('shop_paid_word')} ${деньги(чек.paid_amount, чек.currency_code)}` +
+            (Number(чек.extra_inr) ? ' + ' + деньги(чек.extra_inr, 'INR') : '') +
             (Number(чек.donation_amount)
                 ? ', ' + t('shop_of_which_donation').replace('%s',
                     деньги(чек.donation_amount, чек.currency_code)) : '');
@@ -181,7 +184,9 @@ const ShopReturns = (() => {
 
     // деньги считает сервер по доле позиции в уплаченном — здесь прикидка для продавца
     function обновитьИтог() {
-        const товарная = Number(чек.paid_amount) - Number(чек.donation_amount);
+        // как на сервере: доплата рупиями и сдача рупиями переводятся в валюту чека
+        const товарная = Number(чек.paid_amount) - Number(чек.donation_amount)
+            + (Number(чек.extra_inr || 0) - Number(чек.change_inr || 0)) / (Number(чек.rate_used) || 1);
         const база = позиции.reduce((s, п) => s + п.продано * п.цена, 0);
         let сумма = 0, штукВсего = 0;
         позиции.forEach(п => {
