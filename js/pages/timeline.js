@@ -253,7 +253,7 @@ async function loadTimelineData() {
     // его люди; обычный — не дольше конца + 3 дня.
     const [{ data: selectableRetreats }, { data: factEnds }] = await Promise.all([
         Layout.db.from('retreats')
-            .select('id, name_ru, name_en, name_hi, short_name, start_date, end_date, color, is_external, contact_vaishnava_id')
+            .select('id, name_ru, name_en, name_hi, short_name, start_date, end_date, color, is_external, contact_vaishnava_id, meals_self')
             .order('start_date'),
         Layout.db.from('retreat_fact_end').select('retreat_id, fact_end, is_internal')
     ]);
@@ -2010,7 +2010,10 @@ async function applyBookingRetreat() {
 
 // Заявка «Разовое питание по дням» ретрита на эти даты (мигр. 640) — кухня считает по ней
 async function findByDayMealGroup(retreatId, from, to) {
-    if (!retreatId || !from) return null;
+    if (!retreatId) return null;
+    // Группа питается сама (мигр. 826) — галочек прасада нет, база всё равно поставит «не питается»
+    if (allRetreats.find(r => r.id === retreatId)?.meals_self) return { self: true };
+    if (!from) return null;
     const { data } = await Layout.db.from('meal_groups').select('id, name')
         .eq('retreat_id', retreatId).eq('by_day', true).lte('start_date', to || from).gte('end_date', from).limit(1);
     return data?.[0] || null;
@@ -2048,7 +2051,9 @@ function setPrasadByGroup(mealGroup, form, checks, note, mealTypeSel) {
     checks.classList.toggle('hidden', !!mealGroup);
     mealTypeSel?.classList.toggle('hidden', !!mealGroup);
     note.classList.toggle('hidden', !mealGroup);
-    note.innerHTML = mealGroup
+    note.innerHTML = mealGroup?.self
+        ? 'Группа питается самостоятельно (отмечено в карточке ретрита) — кухня не считает, прасад не начисляется.'
+        : mealGroup
         ? `Питание отдельно от проживания: кухня считает по заявке «${e(mealGroup.name)}» в <a class="link link-primary" href="../vaishnavas/groups.html" target="_blank">«Питании по заявке»</a>. Лишний едок — добавьте его в числа заявки.`
         : '';
 }

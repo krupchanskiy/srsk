@@ -256,6 +256,16 @@
                     <p class="text-xs opacity-50 mt-1" data-i18n="retreats_is_internal_hint">ШРСК делает его для себя и финансирует сам (например, «Ретрит Художников»). В «Расписании» выделен своим цветом</p>
                 </div>
 
+                <!-- Группа питается сама (ВГ 22.11.2026, мигр. 826): у всех людей ретрита питание «сам»,
+                     кухня не считает, прасад не начисляется — ни поимённо, ни по заявке -->
+                <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                        <input type="checkbox" name="meals_self" class="toggle toggle-primary" />
+                        <span class="label-text font-medium">Группа питается самостоятельно</span>
+                    </label>
+                    <p class="text-xs opacity-50 mt-1">Своё питание полностью (например, свадьба со своим поваром). Всем местам и людям ретрита — «питание сам»: кухня их не считает, прасад не начисляется, заявка на питание не нужна</p>
+                </div>
+
                 <!-- Весь Гостевой дом (ВГ 09.10, миграция 668): чужие брони на ночи ретрита —
                      с предупреждением. Без выбора по умолчанию — при сохранении спросит -->
                 <div class="form-control" id="guesthouseBlock">
@@ -877,6 +887,7 @@
                     form.is_external.checked = retreat.is_external || false;
                     form.is_internal.checked = retreat.is_internal || false;
                     form.cafe_eligible.checked = retreat.cafe_eligible !== false;
+                    form.meals_self.checked = retreat.meals_self || false;
                     if (retreat.occupies_guesthouse != null)
                         form.querySelector(`[name="occupies_guesthouse"][value="${retreat.occupies_guesthouse}"]`).checked = true;
                     form.rooms_2_needed.value = retreat.rooms_2_needed ?? '';
@@ -1100,6 +1111,7 @@
                 is_external: form.is_external.checked,
                 is_internal: form.is_internal.checked,
                 cafe_eligible: form.cafe_eligible.checked,
+                meals_self: form.meals_self.checked,
                 occupies_guesthouse: guesthouse === 'true',
                 // Весь ГД — номера не считаем; иначе — сколько нужно по типам
                 rooms_2_needed: guesthouse === 'true' || form.rooms_2_needed.value === '' ? null : Math.max(0, parseInt(form.rooms_2_needed.value) || 0),
