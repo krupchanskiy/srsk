@@ -665,13 +665,16 @@
                          onclick="openModal('${r.id}')">
                         ${imageBlock}
                         <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2 mb-1">
+                            <div class="flex flex-wrap items-center gap-2 mb-1">
                                 <h3 class="font-bold text-lg">${name}</h3>
                                 ${r.short_name ? `<span class="badge badge-sm badge-ghost">${Layout.escapeHtml(r.short_name)}</span>` : ''}
                                 ${isActive ? `<span class="badge badge-sm" style="background-color: ${r.color}; color: white;">${t('now')}</span>` : ''}
                                 ${r.is_external ? `<span class="badge badge-sm badge-outline">${t('retreats_is_external')}</span>` : ''}
                                 ${r.is_internal ? `<span class="badge badge-sm badge-outline">${t('retreats_is_internal') === 'retreats_is_internal' ? 'Внутренний проект ШРСК' : t('retreats_is_internal')}</span>` : ''}
                                 ${r.occupies_guesthouse ? '<span class="badge badge-sm badge-outline">Весь Гостевой дом</span>' : ''}
+                                ${r.occupies_guesthouse === false && !r.rooms_2_needed && !r.rooms_4_needed ? '<span class="badge badge-sm badge-outline">Часть Гостевого дома</span>' : ''}
+                                ${r.meals_self ? '<span class="badge badge-sm badge-warning">Питание своё</span>' : ''}
+                                ${r.cafe_eligible !== false ? '<span class="badge badge-sm badge-outline">Касса кафе</span>' : ''}
                                 ${!r.occupies_guesthouse && (r.rooms_2_needed || r.rooms_4_needed) ? `<span class="badge badge-sm badge-outline">Номера ГД: ${[r.rooms_2_needed ? `2-м × ${r.rooms_2_needed}` : '', r.rooms_4_needed ? `4-м × ${r.rooms_4_needed}` : ''].filter(Boolean).join(', ')}</span>` : ''}
                                 ${r.registration_open ? `<span class="badge badge-sm badge-success">Регистрация</span>` : ''}
                             </div>
