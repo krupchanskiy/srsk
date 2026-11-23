@@ -669,11 +669,16 @@ function renderBulk() {
         const вкл = есть.filter(l => l.meals.find(m => m.d === d)[k]).length;
         return вкл === 0 ? '' : вкл === есть.length ? 'checked' : 'data-mixed="1"';
     };
+    // сколько приёмов в этот день по строкам (ВГ 23.11): видно сразу, сколько ели
+    const сколько = (d, k) => {
+        const n = t.reduce((a, l) => a + приёмов(l, l.meals.find(m => m.d === d), k), 0);
+        return n ? `<b class="ml-auto pl-1">${n}</b>` : '';
+    };
     document.getElementById('grBulkWho').textContent = marked.size ? `отмеченным (${marked.size})` : `всем (${lines.length})`;
     document.getElementById('grBulkDays').innerHTML = днис.map(d => `<div class="border border-base-300 rounded px-1.5 py-0.5 text-xs">
         <div class="font-medium">${дата(d)}</div>
-        <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-day="${d}" data-m="b" ${состояние(d, 'b')}> завтрак</label>
-        <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-day="${d}" data-m="l" ${состояние(d, 'l')}> обед</label>
+        <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-day="${d}" data-m="b" ${состояние(d, 'b')}> завтрак${сколько(d, 'b')}</label>
+        <label class="flex items-center gap-1"><input type="checkbox" class="checkbox checkbox-xs" data-gr-day="${d}" data-m="l" ${состояние(d, 'l')}> обед${сколько(d, 'l')}</label>
     </div>`).join('');
     document.querySelectorAll('#grBulkDays [data-mixed]').forEach(el => { el.indeterminate = true; });
     const о = общиеДаты();
