@@ -320,7 +320,7 @@ function detailBodyHtml(g) {
         ? accr.map(a => `<div class="flex justify-between gap-4"><span>${periodLabel(a.period)}${a.is_manual ? ` (${t('fin_payroll_manual')})` : ''}${a.days_worked != null && a.days_worked < a.days_in_month ? ` (${a.days_worked}/${a.days_in_month} ${t('fin_payroll_days')})` : ''}</span><span class="font-mono">${FinUtils.fmtMoney(a.amount, a.currency_code)}</span></div>`).join('')
         : `<div class="opacity-60">${t('fin_payroll_no_accruals')}</div>`;
     const payHtml = pays.length
-        ? pays.map(p => `<div class="flex justify-between gap-4 ${p.is_reversed ? 'opacity-50 line-through' : ''}"><span class="min-w-0">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}${p.comment ? ` — ${e(p.comment)}` : ''}${Number(p.withheld_amount) > 0
+        ? pays.map(p => `<div class="flex justify-between gap-4 ${p.is_reversed ? 'opacity-50 line-through' : ''}"><span class="min-w-0">${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}${p.comment ? ` — ${e(p.comment)}` : ''}${periodsHtml(p)}${Number(p.withheld_amount) > 0
             ? `<div class="opacity-70">${e(tr('fin_payroll_on_hand', 'на руки'))} <span class="whitespace-nowrap">${FinUtils.fmtMoney(p.on_hand, p.currency_code)}</span> · ${e(tr('fin_payroll_withheld', 'удержано'))} <span class="whitespace-nowrap">${FinUtils.fmtMoney(p.withheld_amount, p.currency_code)}</span></div>` : ''}${confirmHtml(p)}</span><span class="font-mono text-right whitespace-nowrap">${FinUtils.fmtMoney(p.amount, p.currency_code)}</span></div>`).join('')
         : `<div class="opacity-60">${t('fin_payroll_no_payments')}</div>`;
     const showHousing = g.housing_amount != null || g.housing.length;
@@ -368,6 +368,7 @@ function render() {
     groups = buildGroups();
     renderConfirmWarning();
     renderPayablesWarning();
+    renderPeriodsWarning();
     const range = currentRange();
     const container = document.getElementById('payrollBody');
     const byDept = new Map();
@@ -457,8 +458,14 @@ function openPayModal(positionId) {
         : '';
     document.getElementById('payAmountLabel').textContent = debt > 0 ? tr('fin_payroll_on_hand_label', 'На руки') : t('fin_payroll_amount');
     document.getElementById('payAmount').value = due != null ? round2(due - withhold) : '';
-    updatePaySummary();
     document.getElementById('payDate').value = FinUtils.todayISO();
+    setupPeriodEditor('payPeriods', {
+        g, exceptId: null,
+        rows: [{ month: oldestUnpaidMonth(g, null, FinUtils.todayISO()), amount: due != null ? round2(due) : null }],
+        getTotal: payTotal,
+        getDate: () => document.getElementById('payDate').value || FinUtils.todayISO()
+    });
+    updatePaySummary();
     document.getElementById('payComment').value = '';
     document.getElementById('payModal').showModal();
 }
@@ -466,7 +473,21 @@ function openPayModal(positionId) {
 let payState = { debt: 0, currency: 'INR' };
 
 // «Оклад 35 000 = на руки 17 000 + удержано 18 000» — видно, что уйдёт из кассы
+// Сумма выплаты = на руки + удержано; одна строка месяца идёт за суммой сама
+function payTotal() {
+    const hand = Number(document.getElementById('payAmount').value || 0);
+    const wh = payState.debt > 0 ? Number(document.getElementById('payWithhold').value || 0) : 0;
+    return round2(hand + wh);
+}
+
 function updatePaySummary() {
+    const ed = periodEditors.payPeriods;
+    if (ed && ed.rows.length === 1) {
+        ed.rows[0].amount = payTotal() || null;
+        const inp = document.querySelector('#payPeriods [data-pf="amount"]');
+        if (inp) inp.value = ed.rows[0].amount ?? '';
+    }
+    if (ed) updatePeriodStatus('payPeriods');
     const box = document.getElementById('paySummary');
     const hand = Number(document.getElementById('payAmount').value || 0);
     const wh = payState.debt > 0 ? Number(document.getElementById('payWithhold').value || 0) : 0;
@@ -475,6 +496,210 @@ function updatePaySummary() {
     box.classList.remove('hidden');
     box.innerHTML = `${e(tr('fin_payroll_salary', 'Оклад'))} <b>${FinUtils.fmtMoney(hand + wh, c)}</b> = ${e(tr('fin_payroll_on_hand', 'на руки'))} ${FinUtils.fmtMoney(hand, c)} + ${e(tr('fin_payroll_withheld', 'удержано'))} ${FinUtils.fmtMoney(wh, c)}`
         + (wh > payState.debt + 0.005 ? `<div class="text-error">⚠ ${e(tr('fin_payroll_withhold_over', 'Удержание больше долга'))}</div>` : '');
+}
+
+// ---------- «За какой месяц» у выплаты (828) ----------
+// Выплата раскладывается строками «месяц — сумма», итог = сумма выплаты
+// (вместе с удержанием). Проводка одна. Месяц вперёд можно — помечается
+// «аванс»; больше начисленного — предупреждаем, но не запрещаем (ВГ 26.11).
+const monthKey = iso => (iso || '').slice(0, 7);
+const monthLabel = key => periodLabel(`${key}-01`);
+
+// Начислено минус уже разложено выплатами — по месяцам (кроме правимой выплаты)
+function monthRemaining(g, exceptId) {
+    const m = new Map();
+    for (const a of g.accruals) m.set(monthKey(a.period), (m.get(monthKey(a.period)) || 0) + Number(a.amount));
+    for (const p of g.payments) {
+        if (p.is_reversed || p.id === exceptId) continue;
+        for (const x of p.periods || []) m.set(monthKey(x.period), (m.get(monthKey(x.period)) || 0) - Number(x.amount));
+    }
+    return m;
+}
+
+// Самый старый неоплаченный месяц (как в базе), нет такого — месяц даты
+function oldestUnpaidMonth(g, exceptId, dateISO) {
+    const rem = monthRemaining(g, exceptId);
+    return [...rem.keys()].sort().find(k => rem.get(k) > 0.005) || monthKey(dateISO || FinUtils.todayISO());
+}
+
+// Месяцы для выбора: от начала работы до следующего месяца (аванс)
+function periodMonthOptions(g, selected) {
+    const lang = DateUtils.getLang();
+    const names = DateUtils.monthNames[lang] || DateUtils.monthNames.ru;
+    const start = DateUtils.parseDate(g.positions[0].effective_from);
+    const now = new Date();
+    const keys = [];
+    for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+         d >= new Date(start.getFullYear(), start.getMonth(), 1) && keys.length < 36;
+         d = new Date(d.getFullYear(), d.getMonth() - 1, 1)) {
+        keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+    if (selected && !keys.includes(selected)) keys.push(selected);
+    // monthNames — родительный падеж («октября»), для списка нужен именительный
+    const loc = { ru: 'ru-RU', en: 'en-US', hi: 'hi-IN' }[lang] || 'ru-RU';
+    return keys.map(k => {
+        const [y, m] = k.split('-').map(Number);
+        const name = new Date(y, m - 1, 1).toLocaleDateString(loc, { month: 'long' }) || names[m - 1];
+        return `<option value="${k}" ${k === selected ? 'selected' : ''}>${name} ${y}</option>`;
+    }).join('');
+}
+
+// Редакторы строк: окно «Выплатить» и окно «Месяцы выплаты»
+const periodEditors = {};
+
+function setupPeriodEditor(containerId, opts) {
+    periodEditors[containerId] = { containerId, ...opts };
+    renderPeriodEditor(containerId);
+}
+
+function renderPeriodEditor(id) {
+    const ed = periodEditors[id];
+    const box = document.getElementById(id);
+    box.innerHTML = ed.rows.map((r, i) => `
+        <div class="flex gap-2 mb-1" data-pf-row="${i}">
+            <select class="select select-bordered select-sm flex-1 min-w-0" data-pf="month">${periodMonthOptions(ed.g, r.month)}</select>
+            <input type="number" class="input input-bordered input-sm w-28" min="0" step="0.01" data-pf="amount" value="${r.amount ?? ''}">
+            ${ed.rows.length > 1 ? `<button type="button" class="btn btn-ghost btn-sm px-2" data-pf="del" title="${e(t('delete'))}">✕</button>` : ''}
+        </div>`).join('')
+        + `<button type="button" class="link link-primary text-sm" data-pf="add">+ ${e(tr('fin_payroll_add_month', 'Добавить месяц'))}</button>
+           <div class="text-xs mt-1" data-pf="status"></div>`;
+    updatePeriodStatus(id);
+}
+
+function readPeriodRows(id) {
+    const ed = periodEditors[id];
+    document.querySelectorAll(`#${id} [data-pf-row]`).forEach(row => {
+        const r = ed.rows[Number(row.dataset.pfRow)];
+        r.month = row.querySelector('[data-pf="month"]').value;
+        const v = row.querySelector('[data-pf="amount"]').value;
+        r.amount = v === '' ? null : round2(v);
+    });
+}
+
+function periodEditorError(id) {
+    const ed = periodEditors[id];
+    const total = round2(ed.getTotal());
+    if (ed.rows.some(r => !r.month || !(r.amount > 0))) return tr('fin_payroll_month_need_amount', 'У каждого месяца нужна сумма');
+    if (new Set(ed.rows.map(r => r.month)).size !== ed.rows.length) return tr('fin_payroll_month_twice', 'Один и тот же месяц указан дважды');
+    const sum = round2(ed.rows.reduce((s, r) => s + r.amount, 0));
+    if (Math.abs(sum - total) > 0.005) {
+        return tr('fin_payroll_months_mismatch', 'По месяцам {sum}, а выплата {total}')
+            .replace('{sum}', FinUtils.fmtMoney(sum, ed.g.currency_code)).replace('{total}', FinUtils.fmtMoney(total, ed.g.currency_code));
+    }
+    return null;
+}
+
+function updatePeriodStatus(id) {
+    const ed = periodEditors[id];
+    const box = document.querySelector(`#${id} [data-pf="status"]`);
+    if (!box) return;
+    const rem = monthRemaining(ed.g, ed.exceptId);
+    const payMonth = monthKey(ed.getDate());
+    const notes = [];
+    for (const r of ed.rows) {
+        if (!r.month || !(r.amount > 0)) continue;
+        if (r.month >= payMonth) notes.push(`<div class="opacity-70">${e(monthLabel(r.month))} — ${e(tr('fin_payroll_advance_mark', 'аванс'))}</div>`);
+        const left = round2(rem.get(r.month) || 0);
+        if (r.amount > left + 0.005) {
+            notes.push(`<div class="text-warning">⚠ ${e(monthLabel(r.month))}: ${e(tr('fin_payroll_month_over', 'больше начисленного, осталось'))} ${FinUtils.fmtMoney(Math.max(left, 0), ed.g.currency_code)}</div>`);
+        }
+    }
+    const err = periodEditorError(id);
+    box.innerHTML = (err ? `<div class="text-error">⚠ ${e(err)}</div>` : '') + notes.join('');
+}
+
+function periodEditorPayload(id) {
+    return periodEditors[id].rows.map(r => ({ period: `${r.month}-01`, amount: r.amount }));
+}
+
+function bindPeriodEditor(id) {
+    const box = document.getElementById(id);
+    box.addEventListener('input', () => { readPeriodRows(id); updatePeriodStatus(id); });
+    box.addEventListener('change', () => { readPeriodRows(id); updatePeriodStatus(id); });
+    box.addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-pf]');
+        if (!btn || btn.tagName !== 'BUTTON') return;
+        const ed = periodEditors[id];
+        readPeriodRows(id);
+        if (btn.dataset.pf === 'add') {
+            const last = ed.rows[ed.rows.length - 1]?.month || monthKey(ed.getDate());
+            const d = DateUtils.parseDate(`${last}-01`);
+            const next = DateUtils.toISO(new Date(d.getFullYear(), d.getMonth() + 1, 1)).slice(0, 7);
+            const left = round2(ed.getTotal() - ed.rows.reduce((s, r) => s + (r.amount || 0), 0));
+            ed.rows.push({ month: next, amount: left > 0 ? left : null });
+        } else if (btn.dataset.pf === 'del') {
+            ed.rows.splice(Number(btn.closest('[data-pf-row]').dataset.pfRow), 1);
+        }
+        renderPeriodEditor(id);
+    });
+}
+
+// В ведомости: «за окт 2026» / «за сен 2026 50 000 + окт 2026 50 000»; нет — ⚠
+function periodsHtml(p) {
+    const list = p.periods || [];
+    const edit = ` <button type="button" class="link link-primary" data-edit-periods="${p.id}">${e(tr('fin_payroll_months_edit', 'изменить'))}</button>`;
+    if (!list.length) {
+        if (p.is_reversed) return '';
+        return `<div class="text-warning font-semibold">⚠ ${e(tr('fin_payroll_month_unknown', 'месяц не указан'))}${edit}</div>`;
+    }
+    const payMonth = monthKey(p.occurred_on);
+    const parts = list.map(x => {
+        const k = monthKey(x.period);
+        const adv = k >= payMonth ? ` (${e(tr('fin_payroll_advance_mark', 'аванс'))})` : '';
+        return list.length > 1
+            ? `${e(monthLabel(k))}${adv} <span class="whitespace-nowrap">${FinUtils.fmtMoney(x.amount, p.currency_code)}</span>`
+            : `${e(monthLabel(k))}${adv}`;
+    });
+    return `<div class="opacity-80">${e(tr('fin_payroll_for_month', 'за'))} ${parts.join(' + ')}${p.is_reversed ? '' : edit}</div>`;
+}
+
+// ⚠ Выплаты без месяца — список, клик открывает окно месяцев
+function renderPeriodsWarning() {
+    const box = document.getElementById('payrollPeriodsWarn');
+    const list = payments.filter(p => !p.is_reversed && !(p.periods || []).length)
+        .sort((a, b) => a.occurred_on.localeCompare(b.occurred_on));
+    if (!list.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="alert alert-warning mb-4 items-start">
+        <div class="w-full">
+            <div class="font-semibold">⚠ ${e(tr('fin_payroll_months_missing_title', 'Выплаты без месяца'))}: ${list.length}</div>
+            <ul class="mt-1 text-sm">${list.map(p => {
+                const g = groupByPosition(p.position_id);
+                return `<li><button type="button" class="hover:underline text-left" data-edit-periods="${p.id}">
+                    • ${e(g?.employee_name || '')} (${e(g?.department_name || '')}) — ${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}, ${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.comment ? ` — <span class="opacity-70">${e(p.comment)}</span>` : ''}
+                </button></li>`;
+            }).join('')}</ul>
+        </div>
+    </div>`;
+}
+
+function openPeriodsModal(paymentId) {
+    const p = payments.find(x => x.id === paymentId);
+    const g = p && groupByPosition(p.position_id);
+    if (!g) return;
+    document.getElementById('periodsPaymentId').value = paymentId;
+    document.getElementById('periodsModalTitle').textContent = `${tr('fin_payroll_months_title', 'За какой месяц')} — ${g.employee_name} (${g.department_name})`;
+    document.getElementById('periodsModalSub').textContent =
+        `${DateUtils.formatShort(DateUtils.parseDate(p.occurred_on))}, ${FinUtils.fmtMoney(p.amount, p.currency_code)}${p.comment ? ` — ${p.comment}` : ''}`;
+    const rows = (p.periods || []).length
+        ? p.periods.map(x => ({ month: monthKey(x.period), amount: round2(x.amount) }))
+        : [{ month: oldestUnpaidMonth(g, p.id, p.occurred_on), amount: round2(p.amount) }];
+    setupPeriodEditor('periodsRows', { g, rows, exceptId: p.id, getTotal: () => Number(p.amount), getDate: () => p.occurred_on });
+    document.getElementById('periodsModal').showModal();
+}
+
+async function submitPeriods(ev) {
+    ev.preventDefault();
+    readPeriodRows('periodsRows');
+    const err = periodEditorError('periodsRows');
+    if (err) { Layout.showNotification(err, 'error'); return; }
+    const res = await FinUtils.rpc('fin_set_payroll_payment_periods', {
+        payment_id: document.getElementById('periodsPaymentId').value,
+        periods: periodEditorPayload('periodsRows')
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('periodsModal').close();
+        await load();
+    }
 }
 
 // Оплата жилья: сумма к оплате подставляется, кому отдали — обязательно
@@ -615,7 +840,11 @@ async function submitAccrue(ev) {
 async function submitPay(ev) {
     ev.preventDefault();
     const withhold = payState.debt > 0 ? (document.getElementById('payWithhold').value || null) : null;
+    readPeriodRows('payPeriods');
+    const perr = periodEditorError('payPeriods');
+    if (perr) { Layout.showNotification(perr, 'error'); return; }
     const res = await FinUtils.rpc('fin_pay_payroll', {
+        periods: periodEditorPayload('payPeriods'),
         position_id: document.getElementById('payPositionId').value,
         amount: document.getElementById('payAmount').value,
         withhold_amount: withhold,
@@ -673,7 +902,9 @@ async function init() {
         const unskipBtn = ev.target.closest('[data-housing-unskip]');
         const payeeBtn = ev.target.closest('[data-housing-payee]');
         const absBtn = ev.target.closest('[data-absence-cancel]');
-        if (absBtn) cancelAbsence(absBtn.dataset.absenceCancel);
+        const periodsBtn = ev.target.closest('[data-edit-periods]');
+        if (periodsBtn) openPeriodsModal(periodsBtn.dataset.editPeriods);
+        else if (absBtn) cancelAbsence(absBtn.dataset.absenceCancel);
         else if (payeeBtn) openPayeeModal(payeeBtn.dataset.housingPayee);
         else if (skipBtn) skipHousingMonth(skipBtn.dataset.housingSkip);
         else if (unskipBtn) unskipHousingMonth(unskipBtn.dataset.housingUnskip);
@@ -691,6 +922,14 @@ async function init() {
         if (btn) openPosition(btn.dataset.openPos);
     }));
     document.getElementById('housingPayeeForm').addEventListener('submit', FinUtils.lockedSubmit(submitPayee));
+    document.getElementById('payrollPeriodsWarn').addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-edit-periods]');
+        if (btn) openPeriodsModal(btn.dataset.editPeriods);
+    });
+    bindPeriodEditor('payPeriods');
+    bindPeriodEditor('periodsRows');
+    document.getElementById('payDate').addEventListener('change', () => updatePeriodStatus('payPeriods'));
+    document.getElementById('periodsForm').addEventListener('submit', FinUtils.lockedSubmit(submitPeriods));
     document.getElementById('payForm').addEventListener('submit', FinUtils.lockedSubmit(submitPay));
     document.getElementById('accrueForm').addEventListener('submit', FinUtils.lockedSubmit(submitAccrue));
     document.getElementById('housingForm').addEventListener('submit', FinUtils.lockedSubmit(submitHousing));
