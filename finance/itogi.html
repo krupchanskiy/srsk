@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <script src="../js/color-init.js?v=9"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Итоги — Финансы — ШРСК</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=30">
+    <link rel="stylesheet" href="../css/fin.css?v=1">
+    <style>
+        /* «Итоги»: крупные цифры сверху, ниже деревья с раскрытием до операций (макет ВГ 26.11) */
+        .it { --in:#15803d; --out:#b4462f; --bar-in:#7cc4a2; --bar-out:#e8a08f; --warn:#a86a00; --warn-soft:#fff4dc; --line:rgba(15,23,42,.09); --muted:#5d6862; }
+        .it .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .it .c-in { color: var(--in); } .it .c-out { color: var(--out); }
+        .it .up { color: var(--in); } .it .down { color: var(--out); }
+        .it .lbl { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+        .it .big { font-size: 1.75rem; font-weight: 800; letter-spacing: -.015em; }
+        .it .cmp { font-size: .85rem; color: var(--muted); }
+        .it .note { font-size: .85rem; color: var(--muted); }
+        .it .warnbox { background: var(--warn-soft); border-left: 4px solid var(--warn); padding: 10px 14px; border-radius: 6px; font-size: .9rem; }
+        .it .warnbox b { color: var(--warn); }
+        .it .box { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+        .it .box h2 { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 1.05rem; margin-bottom: 6px; }
+        .it details { border-top: 1px solid var(--line); }
+        .it details details { border-top: 0; margin-left: 18px; }
+        .it summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 14px minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 6px 2px; }
+        .it summary::-webkit-details-marker { display: none; }
+        .it summary .chev { transition: transform .15s; color: var(--muted); font-size: .7rem; }
+        .it details[open] > summary .chev { transform: rotate(90deg); }
+        .it summary .name { min-width: 0; overflow-wrap: anywhere; }
+        .it .share { display: block; height: 4px; border-radius: 2px; margin-top: 3px; background: var(--line); overflow: hidden; }
+        .it .share i { display: block; height: 100%; }
+        .it .nodata { color: var(--warn); font-weight: 600; }
+        .it .zero { color: var(--muted); }
+        .it .ops { margin: 0 0 8px 22px; font-size: .84rem; }
+        .it .op { display: grid; grid-template-columns: 74px minmax(0,1fr) auto; gap: 8px; padding: 5px 4px; border-bottom: 1px dashed var(--line); color: inherit; }
+        .it .op:hover { background: rgba(15,23,42,.04); }
+        .it .op .meta { font-size: .76rem; color: var(--muted); overflow-wrap: anywhere; }
+        .it .tiles { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+        @media (max-width: 760px) { .it .tiles { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+        .it .tile { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+        .it .tile .v { font-size: 1.4rem; font-weight: 800; }
+        .it .tile .s { font-size: .8rem; color: var(--muted); }
+        .it .totals { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+        @media (max-width: 640px) { .it .totals { grid-template-columns: 1fr; } }
+        .it .cols { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+        @media (max-width: 900px) { .it .cols { grid-template-columns: 1fr; } }
+        .it table.t { border-collapse: collapse; width: 100%; font-size: .88rem; }
+        .it table.t th, .it table.t td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+        .it table.t th:first-child, .it table.t td:first-child { text-align: left; }
+        .it table.t th { font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+        .it table.t th.sort { cursor: pointer; }
+        .it table.t tr.grp td { font-weight: 700; background: rgba(15,118,110,.06); }
+        .it table.t tr.click { cursor: pointer; }
+        .it table.t tr.sub td { font-size: .82rem; color: var(--muted); }
+        .it table.t tr.sub td:first-child { padding-left: 24px; }
+        .it .chart svg { width: 100%; height: auto; display: block; }
+        .it .chart text { fill: var(--muted); font-size: 11px; }
+        .it .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: .8rem; color: var(--muted); margin-top: 6px; }
+        .it .legend span { display: inline-flex; align-items: center; gap: 5px; }
+        .it .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+        .it .sheet { background: #fff; color: #111; border: 1px solid var(--line); box-shadow: 0 2px 14px rgba(0,0,0,.12); max-width: 794px; margin: 0 auto; padding: 32px 36px; }
+        .it .sheet h3 { font-size: 1.25rem; font-weight: 700; }
+        .it .sheet .sub { font-size: .85rem; margin-bottom: 12px; }
+        .it .sheet .kpi { display: flex; gap: 28px; flex-wrap: wrap; margin: 8px 0 14px; }
+        .it .sheet .kpi div { font-size: 1.25rem; font-weight: 800; }
+        .it .sheet .kpi small { display: block; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+        .it .sheet .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+        .it .sheet table.t { font-size: .78rem; }
+        .it .sheet table.t td, .it .sheet table.t th { padding: 3px 5px; border-bottom: 1px solid #c9c9c9; color: #111; }
+        .it .sheet tr.lvl2 td:first-child { padding-left: 16px; font-size: .74rem; }
+        @media (max-width: 640px) { .it .sheet { padding: 18px 14px; } .it .sheet .two { grid-template-columns: 1fr; } }
+        @media print {
+            @page { size: A4; margin: 10mm; }
+            .it .sheet { border: 0; box-shadow: none; padding: 0; max-width: none; }
+            .it .share { display: none; }
+            .it .box, .it .tile { border: 0; padding: 4px 0; }
+            .it table.t td, .it table.t th { border-bottom-color: #bbb; }
+            .it .sheet .two { grid-template-columns: 1fr 1fr; }
+        }
+        @media (prefers-reduced-motion: reduce) { .it summary .chev { transition: none; } }
+    </style>
+</head>
+<body class="fin-page bg-base-200 min-h-screen flex flex-col">
+
+<div id="header-placeholder"></div>
+
+<main class="container mx-auto px-4 py-6 flex-1 it">
+    <div class="flex flex-wrap justify-between items-center gap-3 mb-4 no-print">
+        <h1 class="text-2xl font-bold">Итоги</h1>
+        <div class="flex flex-wrap items-center gap-2">
+            <label for="monthSelect" class="note">Месяц</label>
+            <select id="monthSelect" class="select select-bordered select-sm font-semibold"></select>
+            <button type="button" class="btn btn-sm btn-outline" id="sheetBtn">Лист для отправки</button>
+        </div>
+    </div>
+
+    <div role="tablist" class="tabs tabs-boxed w-fit mb-4 no-print flex-wrap" id="tabs">
+        <a role="tab" class="tab tab-active" data-tab="month">Месяц</a>
+        <a role="tab" class="tab" data-tab="dept">Департамент</a>
+        <a role="tab" class="tab" data-tab="retreat">Ретрит</a>
+        <a role="tab" class="tab" data-tab="months">Сравнение месяцев</a>
+        <a role="tab" class="tab" data-tab="retreats">Сравнение ретритов</a>
+        <a role="tab" class="tab" data-tab="sheet">Лист</a>
+    </div>
+
+    <div id="denied" class="hidden box">Страница «Итоги» доступна только суперпользователям.</div>
+    <div id="loading" class="text-center py-10"><span class="loading loading-spinner loading-md"></span></div>
+
+    <section class="space-y-4" id="p-month" hidden></section>
+    <section class="space-y-4" id="p-dept" hidden></section>
+    <section class="space-y-4" id="p-retreat" hidden></section>
+    <section class="space-y-4" id="p-months" hidden></section>
+    <section class="space-y-4" id="p-retreats" hidden></section>
+    <section class="space-y-4" id="p-sheet" hidden></section>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="../js/config.js?v=5"></script>
+<script src="../js/auth-check.js?v=18"></script>
+<script src="../js/cache.js?v=2"></script>
+<script src="../js/utils.js?v=23"></script>
+<script src="../js/layout.js?v=135"></script>
+<script src="../js/date-utils.js?v=5"></script>
+<script src="../js/pages/fin-itogi.js?v=1"></script>
+
+</body>
+</html>

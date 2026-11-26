@@ -150,6 +150,9 @@ const modules = {
             { id: 'fin_analytics', items: [
                 { id: 'fin_analytics', href: 'finance/analytics.html' }
             ]},
+            { id: 'fin_itogi', items: [
+                { id: 'fin_itogi', href: 'finance/itogi.html' }
+            ]},
             { id: 'fin_dictionaries', items: [
                 { id: 'fin_dictionaries', href: 'finance/dictionaries.html' }
             ]},
@@ -374,6 +377,7 @@ const pagePermissions = {
     'finance/accounts.html': ['fin_admin', 'fin_observer', 'fin_account_user', 'fin_dept_viewer'],
     'finance/reconciliation.html': ['fin_admin', 'fin_observer'],
     'finance/analytics.html': ['fin_admin', 'fin_observer', 'fin_dept_viewer'],
+    'finance/itogi.html': 'superuser_only_itogi', // права ни у кого нет → видят только суперпользователи (ВГ 26.11)
     'finance/dictionaries.html': 'fin_admin',
     'finance/payroll.html': 'fin_admin',
     'finance/sales-fee.html': ['fin_admin', 'fin_observer'],
@@ -683,7 +687,7 @@ async function loadTranslations(retried = false) {
 
     // Проверка на наличие новых переводов (для автоинвалидации устаревшего кэша)
     // Добавляйте сюда ключи новых обязательных переводов
-    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe', 'nav_prices', 'prices_title', 'nav_cost', 'cost_title', 'rental_add_retreat', 'timeline_whole_room', 'nav_data_check', 'nav_form3'];
+    const requiredKeys = ['self_accommodation', 'nav_user_management', 'nav_retreat_prasad', 'purchased', 'nav_residents_list', 'nav_prasad', 'timeline_uncovered_title', 'expected_guests', 'timeline_no_retreat', 'fin_split_dept', 'fin_refine', 'fin_refine_spent', 'person_meal_period', 'retreat_report_title', 'retreats_cafe_eligible', 'retreat_report_finance_cafe', 'nav_prices', 'prices_title', 'nav_cost', 'cost_title', 'rental_add_retreat', 'timeline_whole_room', 'nav_data_check', 'nav_form3', 'nav_fin_itogi'];
     const hasAllKeys = requiredKeys.every(key => data.some(row => row.key === key));
 
     if (!hasAllKeys && !retried) {
