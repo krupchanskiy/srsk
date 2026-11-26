@@ -34,6 +34,7 @@ const dFull = iso => `${dShort(iso)}.${DateUtils.parseDate(iso).getFullYear()}`;
 const curMonth = () => { const n = new Date(); return DateUtils.toISO(new Date(n.getFullYear(), n.getMonth(), 1)); };
 function delta(cur, prev, goodUp) {
     if (prev == null || !prev) return '';
+    if ((cur < 0) !== (prev < 0)) return '';   // при смене знака процент ничего не говорит
     const p = Math.round((cur - prev) / Math.abs(prev) * 100);
     const up = p >= 0;
     return `<span class="${up === goodUp ? 'up' : 'down'}">${up ? '+' : ''}${p}%</span>`;
@@ -416,9 +417,11 @@ async function renderRetreat() {
     bind();
 }
 function monthSplitHtml(rt, P) {
-    const ms = st.months.filter(m => st.rows[m] && m <= rt.end_date && DateUtils.toISO(new Date(DateUtils.parseDate(m).getFullYear(), DateUtils.parseDate(m).getMonth() + 1, 0)) >= rt.start_date);
-    if (!ms.length) return '';
     const name = rt.name_ru, obj = P.r.object?.display_name || name;
+    // месяцы ретрита + месяцы, где по нему что-то проведено позже (процент отделу продаж и т.п.)
+    const ms = st.months.filter(m => st.rows[m] && ((m <= rt.end_date && DateUtils.toISO(new Date(DateUtils.parseDate(m).getFullYear(), DateUtils.parseDate(m).getMonth() + 1, 0)) >= rt.start_date)
+        || st.rows[m].some(r => r.dept === 'Ретриты' && r.sub === name)));
+    if (!ms.length) return '';
     const isMine = r => r.sub === name || (r.sub || '').startsWith(name + ' — часть');
     const cols = new Map();   // колонка → {m: сумма}
     const add = (col, m, v) => { if (!cols.has(col)) cols.set(col, {}); cols.get(col)[m] = (cols.get(col)[m] || 0) + v; };
@@ -432,10 +435,10 @@ function monthSplitHtml(rt, P) {
     if (!cols.size) return '';
     const days = m => { const d0 = DateUtils.parseDate(m), d1 = new Date(d0.getFullYear(), d0.getMonth() + 1, 0);
         const a = Math.max(d0, DateUtils.parseDate(rt.start_date)), b = Math.min(d1, DateUtils.parseDate(rt.end_date));
-        return Math.round((b - a) / 86400000) + 1; };
+        return b < a ? 0 : Math.round((b - a) / 86400000) + 1; };
     const names = [...cols.keys()];
     return `<div class="box"><h2>Из них по месяцам</h2><div class="overflow-x-auto"><table class="t"><thead><tr><th>Месяц</th><th>Дней</th>${names.map(c => `<th>${e(c)}</th>`).join('')}</tr></thead><tbody>
-        ${ms.map(m => `<tr><td>${mLabel(m)}</td><td>${days(m)} из ${P.n.days}</td>${names.map(c => { const v = cols.get(c)[m]; return `<td class="num ${v < 0 ? 'c-out' : ''}">${v ? fmt(v) : '<span class="zero">0 ₹</span>'}</td>`; }).join('')}</tr>`).join('')}
+        ${ms.map(m => `<tr><td>${mLabel(m)}</td><td>${days(m) ? `${days(m)} из ${P.n.days}` : 'после ретрита'}</td>${names.map(c => { const v = cols.get(c)[m]; return `<td class="num ${v < 0 ? 'c-out' : ''}">${v ? fmt(v) : '<span class="zero">0 ₹</span>'}</td>`; }).join('')}</tr>`).join('')}
         </tbody></table></div><p class="note mt-2">Эти же цифры стоят во вкладке «Месяц». Оплаты участников и спонсора делятся по дням ретрита, кафе и магазин — по дате выручки, расходы — по дате.</p></div>`;
 }
 
