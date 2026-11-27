@@ -1619,6 +1619,7 @@ function toggleTransferSpent() {
 // получателя, строки «месяц — сумма». Проводит fin_pay_payroll (перевод + расход +
 // месяцы одной операцией). У оплаты труда человек обязателен, у гонорара — по желанию.
 const PAY_CATEGORY_CODES = ['dept_labor', 'retreat_fee'];
+const PAY_ONE_OFF = 'one_off';
 let payPositions = null;   // fin_v_payroll_positions (видит только администратор финансов)
 let trPay = { key: '', rows: [], people: [] };
 
@@ -1667,10 +1668,12 @@ function syncTransferPay() {
     if (trPay.key !== key) {
         const prev = sel.value;
         trPay = { key, rows: [], people };
+        // Разовая выплата (волонтёру, премия) — мимо ведомости, простым расходом (ВГ 27.11)
         sel.innerHTML = (code === 'dept_labor'
             ? `<option value="">— выберите —</option>`
             : `<option value="">— не из ведомости (только ретрит) —</option>`)
-            + people.map(x => `<option value="${x.vaishnava_id}">${e(x.name)}</option>`).join('');
+            + people.map(x => `<option value="${x.vaishnava_id}">${e(x.name)}</option>`).join('')
+            + (code === 'dept_labor' ? `<option value="${PAY_ONE_OFF}">Разовая — вне ведомости (волонтёру, премия)</option>` : '');
         if (people.some(x => x.vaishnava_id === prev)) sel.value = prev;
     }
     sel.required = code === 'dept_labor' && people.length > 0;
@@ -1682,6 +1685,9 @@ function syncTransferPay() {
         hint.textContent = code === 'dept_labor'
             ? `⚠ В ведомости «${deptName}» никого нет. Добавьте человека в Финансы → Зарплата, тогда выплата встанет в ведомость. Без этого пройдёт простым расходом.`
             : `В ведомости «${deptName}» никого нет — гонорар пройдёт расходом по ретриту.`;
+    } else if (sel.value === PAY_ONE_OFF) {
+        hint.classList.add('opacity-60');
+        hint.textContent = 'Пройдёт простым расходом: в ведомость не попадёт. Кому — напишите в комментарии.';
     } else {
         hint.textContent = '';
     }
@@ -1987,7 +1993,7 @@ async function init() {
     document.getElementById('trSpentCategory').addEventListener('change', syncTransferPay);
     document.getElementById('trTarget').addEventListener('change', syncTransferPay);
     document.getElementById('trSource').addEventListener('change', syncTransferPay);
-    document.getElementById('trPayPerson').addEventListener('change', onTransferPayPerson);
+    document.getElementById('trPayPerson').addEventListener('change', syncTransferPay);
     document.getElementById('trAmount').addEventListener('input', syncTrPayAmount);
     document.getElementById('trTargetAmount').addEventListener('input', syncTrPayAmount);
     bindTrPayMonths();
