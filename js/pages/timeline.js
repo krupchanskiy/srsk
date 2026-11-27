@@ -1419,7 +1419,7 @@ function searchVaishnavas(query) {
         suggestionsEl.innerHTML = `<div class="p-3 text-gray-500 text-sm">${t('timeline_not_found')}</div>`;
     } else {
         suggestionsEl.innerHTML = matches.map(v => {
-            const name = getVaishnavName(v);
+            const name = getVaishnavFullName(v);
             const badge = v.is_team_member ? `<span class="badge badge-sm badge-primary ml-2">${t('timeline_team')}</span>` : '';
             return `<div class="p-2 hover:bg-base-200 cursor-pointer flex items-center" data-action="select-vaishnava" data-id="${v.id}">
                 <span>${e(name)}</span>${badge}
@@ -1713,7 +1713,7 @@ function searchBookingVaishnavas(query) {
         suggestionsEl.innerHTML = `<div class="p-3 text-gray-500 text-sm">${t('timeline_not_found')}</div>`;
     } else {
         suggestionsEl.innerHTML = matches.map(v =>
-            `<div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-booking-vaishnava" data-id="${v.id}">${e(getVaishnavName(v))}</div>`
+            `<div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-booking-vaishnava" data-id="${v.id}">${e(getVaishnavFullName(v))}</div>`
         ).join('');
     }
     suggestionsEl.classList.remove('hidden');
@@ -1893,7 +1893,7 @@ function bookingPeople() {
         const matches = vaishnavas.filter(v =>
             getVaishnavFullName(v).toLowerCase().includes(q) || (v.phone || '').toLowerCase().includes(q)).slice(0, 10);
         sug.innerHTML = matches.length
-            ? matches.map(v => `<div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-booking-person" data-id="${v.id}">${e(getVaishnavName(v))}</div>`).join('')
+            ? matches.map(v => `<div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-booking-person" data-id="${v.id}">${e(getVaishnavFullName(v))}</div>`).join('')
             : `<div class="p-3 text-gray-500 text-sm">${e(tf('timeline_not_found_new_name', 'Нет в справочнике — сохраним просто имя'))}</div>`;
         sug.classList.remove('hidden');
     });
@@ -2077,7 +2077,7 @@ function searchBookingContact(q) {
     if (q.length < 2) { box.classList.add('hidden'); return; }
     const found = vaishnavas.filter(v => getVaishnavFullName(v).toLowerCase().includes(q)).slice(0, 10);
     if (!found.length) { box.classList.add('hidden'); return; }
-    box.innerHTML = found.map(v => `<div class="p-2 hover:bg-base-200 cursor-pointer" data-contact-id="${v.id}">${e(getVaishnavName(v))}</div>`).join('');
+    box.innerHTML = found.map(v => `<div class="p-2 hover:bg-base-200 cursor-pointer" data-contact-id="${v.id}">${e(getVaishnavFullName(v))}</div>`).join('');
     box.classList.remove('hidden');
 }
 
