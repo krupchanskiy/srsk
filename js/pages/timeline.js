@@ -1410,7 +1410,7 @@ function searchVaishnavas(query) {
 
     const q = query.toLowerCase();
     const matches = vaishnavas.filter(v => {
-        const name = getVaishnavName(v).toLowerCase();
+        const name = getVaishnavFullName(v).toLowerCase();
         const phone = (v.phone || '').toLowerCase();
         return name.includes(q) || phone.includes(q);
     }).slice(0, 10);
@@ -1704,7 +1704,7 @@ function searchBookingVaishnavas(query) {
     }
     const q = query.toLowerCase();
     const matches = vaishnavas.filter(v => {
-        const name = getVaishnavName(v).toLowerCase();
+        const name = getVaishnavFullName(v).toLowerCase();
         const phone = (v.phone || '').toLowerCase();
         return name.includes(q) || phone.includes(q);
     }).slice(0, 10);
@@ -1891,7 +1891,7 @@ function bookingPeople() {
         const q = ev.target.value.trim().toLowerCase();
         if (q.length < 2) { sug.classList.add('hidden'); return; }
         const matches = vaishnavas.filter(v =>
-            getVaishnavName(v).toLowerCase().includes(q) || (v.phone || '').toLowerCase().includes(q)).slice(0, 10);
+            getVaishnavFullName(v).toLowerCase().includes(q) || (v.phone || '').toLowerCase().includes(q)).slice(0, 10);
         sug.innerHTML = matches.length
             ? matches.map(v => `<div class="p-2 hover:bg-base-200 cursor-pointer" data-action="select-booking-person" data-id="${v.id}">${e(getVaishnavName(v))}</div>`).join('')
             : `<div class="p-3 text-gray-500 text-sm">${e(tf('timeline_not_found_new_name', 'Нет в справочнике — сохраним просто имя'))}</div>`;
@@ -2075,7 +2075,7 @@ function searchBookingContact(q) {
     const box = document.getElementById('bookingContactSuggestions');
     q = q.trim().toLowerCase();
     if (q.length < 2) { box.classList.add('hidden'); return; }
-    const found = vaishnavas.filter(v => getVaishnavName(v).toLowerCase().includes(q)).slice(0, 10);
+    const found = vaishnavas.filter(v => getVaishnavFullName(v).toLowerCase().includes(q)).slice(0, 10);
     if (!found.length) { box.classList.add('hidden'); return; }
     box.innerHTML = found.map(v => `<div class="p-2 hover:bg-base-200 cursor-pointer" data-contact-id="${v.id}">${e(getVaishnavName(v))}</div>`).join('');
     box.classList.remove('hidden');
