@@ -1687,7 +1687,7 @@ function syncTransferPay() {
             : `В ведомости «${deptName}» никого нет — гонорар пройдёт расходом по ретриту.`;
     } else if (sel.value === PAY_ONE_OFF) {
         hint.classList.add('opacity-60');
-        hint.textContent = 'Пройдёт простым расходом: в ведомость не попадёт. Кому — напишите в комментарии.';
+        hint.textContent = 'Пройдёт простым расходом, в ведомость не попадёт. Кому — напишите в комментарии, месяц — в строках ниже (не в комментарии).';
     } else {
         hint.textContent = '';
     }
@@ -1698,13 +1698,34 @@ function syncTransferPay() {
 async function onTransferPayPerson() {
     const person = trPayPerson();
     const wrap = document.getElementById('trPayMonthsWrap');
-    wrap.classList.toggle('hidden', !person);
+    const oneOff = trPayOneOff();
+    wrap.classList.toggle('hidden', !person && !oneOff);
+    // Разовая вне ведомости: месяцы тоже указываются — каждая строка своим расходом «за <месяц>»
+    if (oneOff) {
+        if (trPay.person !== PAY_ONE_OFF || !trPay.rows.length) {
+            trPay.person = PAY_ONE_OFF;
+            const date = document.getElementById('trDate').value || FinUtils.todayISO();
+            trPay.rows = [{ month: date.slice(0, 7), amount: trPayTotal() || null }];
+        }
+        renderTrPayMonths();
+        return;
+    }
     if (!person) { trPay.rows = []; trPay.person = null; return; }
     if (trPay.person === person.vaishnava_id && trPay.rows.length) { renderTrPayMonths(); return; }
     trPay.person = person.vaishnava_id;
     const date = document.getElementById('trDate').value || FinUtils.todayISO();
     trPay.rows = [{ month: await oldestUnpaidMonth(person, date), amount: trPayTotal() || null }];
     if (trPay.person === person.vaishnava_id) renderTrPayMonths();
+}
+
+function trPayOneOff() {
+    return trPayCategory() === 'dept_labor' && document.getElementById('trPayPerson').value === PAY_ONE_OFF;
+}
+
+// «за октябрь 2026» — по этим словам «Итоги» относят оплату труда к месяцу
+function trPayMonthText(key) {
+    const [y, mo] = key.split('-').map(Number);
+    return `за ${new Date(y, mo - 1, 1).toLocaleDateString('ru-RU', { month: 'long' })} ${y}`;
 }
 
 function trPayPerson() {
@@ -1736,8 +1757,9 @@ async function oldestUnpaidMonth(person, dateISO) {
 }
 
 function trPayMonthOptions(selected) {
-    const start = DateUtils.parseDate(trPayPerson()?.start || FinUtils.todayISO());
     const now = new Date();
+    const start = trPayPerson()?.start ? DateUtils.parseDate(trPayPerson().start)
+        : new Date(now.getFullYear(), now.getMonth() - 12, 1);
     const keys = [];
     for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
          d >= new Date(start.getFullYear(), start.getMonth(), 1) && keys.length < 36;
@@ -1796,7 +1818,7 @@ function updateTrPayStatus() {
 
 // Сумма перевода поменялась — одна строка месяца идёт за ней сама
 function syncTrPayAmount() {
-    if (trPay.rows.length !== 1 || !trPayPerson()) return;
+    if (trPay.rows.length !== 1 || !(trPayPerson() || trPayOneOff())) return;
     trPay.rows[0].amount = trPayTotal() || null;
     const inp = document.querySelector('#trPayMonths [data-tm="amount"]');
     if (inp) inp.value = trPay.rows[0].amount ?? '';
@@ -1878,6 +1900,14 @@ async function submitTransfer(ev) {
     const держатель = transferHolderValue(TR_SIDES[1]);
     const сКого = transferHolderValue(TR_SIDES[0]);
 
+    // Разовая вне ведомости: месяцы проверяем до перевода
+    const oneOff = spent && trPayOneOff();
+    if (oneOff) {
+        readTrPayMonths();
+        const perr = trPayMonthsError();
+        if (perr) { Layout.showNotification(perr, 'error'); return; }
+    }
+
     // Оплата труда / гонорар человеку из ведомости — выплатой по ведомости (833):
     // перевод, расход и месяцы одной операцией, выплата видна в Зарплате
     const payPerson = spent && trPayPerson();
@@ -1928,7 +1958,29 @@ async function submitTransfer(ev) {
     requestIds.transfer = null;
 
     // Деньги ушли сразу поставщику: тем же действием списываем их со счёта получателя
-    if (spent) {
+    if (oneOff) {
+        // По расходу на каждый месяц: «<комментарий> — за октябрь 2026» (ВГ 27.11)
+        let failed = false;
+        for (const r of trPay.rows) {
+            const expRes = await FinUtils.rpc('fin_create_expense', {
+                request_id: FinUtils.newRequestId(),
+                occurred_on: дата,
+                comment: (комментарий ? `${комментарий} — ` : '') + trPayMonthText(r.month),
+                rows: [{
+                    id: FinUtils.newRequestId(),
+                    account_id: target,
+                    amount: r.amount,
+                    category_id: категория,
+                    cost_center_id: null,
+                    object_id: document.getElementById('trSpentObject').value || null,
+                    contractor_id: null,
+                    payment_channel: null
+                }]
+            });
+            if (!FinUtils.handleResult(expRes)) { failed = true; break; }
+        }
+        if (failed) Layout.showNotification(t('fin_transfer_spent_failed'), 'warning');
+    } else if (spent) {
         requestIds.transferExpense = requestIds.transferExpense || FinUtils.newRequestId();
         const сумма = differ ? document.getElementById('trTargetAmount').value
                              : document.getElementById('trAmount').value;
