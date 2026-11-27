@@ -17,6 +17,7 @@ const Form3Checkout = (() => {
     const PORTAL = 'https://indianfrro.gov.in';
     const HOUR = 3600 * 1000, DAY = 24 * HOUR;
     const LOOKBACK_DAYS = 30;   // выезды за последний месяц; раньше — выписаны по учётной книге (17.11)
+    const BY_NAME_FROM = '2026-11-27'; // брони «на имя» — с этого выезда (ВГ 27.11); прежние выписаны по книге
 
     let items = [];     // все заезды иностранцев, пересекающие [сегодня − 30 дней, сегодня]
     let query = '';
@@ -36,9 +37,23 @@ const Form3Checkout = (() => {
             .lte('check_in', today).gte('check_out', from);
         if (error) { Layout.handleError(error, 'Выписка'); return; }
         const ids = [...new Set((res || []).map(r => r.vaishnava_id))];
-        if (!ids.length) { items = []; render(); return; }
 
-        const [vs, allRes, docs, entries] = await Promise.all([
+        // Брони «на имя» (без карточки): гражданства нет, ищем на портале по имени из брони
+        const nameFrom = from > BY_NAME_FROM ? from : BY_NAME_FROM;
+        const { data: byName, error: bnErr } = await Layout.db.from('residents').select(cols + ', guest_name')
+            .is('vaishnava_id', null).not('guest_name', 'is', null).neq('status', 'cancelled')
+            .lte('check_in', today).gte('check_out', nameFrom);
+        if (bnErr) { Layout.handleError(bnErr, 'Выписка'); return; }
+        const bnRows = (byName || []).filter(r => r.has_housing !== false && r.guest_name.trim());
+        let bnEntries = [];
+        if (bnRows.length) {
+            const { data, error: enErr } = await Layout.db.from('form3_entries').select('*').in('resident_id', bnRows.map(r => r.id));
+            if (enErr) { Layout.handleError(enErr, 'Выписка'); return; }
+            bnEntries = data || [];
+        }
+
+        const none = { data: [], error: null };
+        const [vs, allRes, docs, entries] = !ids.length ? [none, none, none, none] : await Promise.all([
             Layout.db.from('vaishnavas').select('id, spiritual_name, first_name, last_name, citizenship').in('id', ids)
                 .or('citizenship.is.null,citizenship.neq.IND'),   // без гражданства — только для сверки с порталом
             Layout.db.from('residents').select(cols).in('vaishnava_id', ids).neq('status', 'cancelled').order('check_in'),
@@ -61,7 +76,8 @@ const Form3Checkout = (() => {
                 const last = [...stay.rows].sort((a, b) => a.check_out.localeCompare(b.check_out)).pop();
                 const entry = entries.data.find(en => en.vaishnava_id === v.id &&
                     (stay.rows.some(r => r.id === en.resident_id) ||
-                     (en.arrival_date && en.arrival_date >= stay.check_in && en.arrival_date <= stay.check_out))) || null;
+                     (en.arrival_date && en.arrival_date >= stay.check_in && en.arrival_date <= stay.check_out))) ||
+                    bnEntries.find(en => stay.rows.some(r => r.id === en.resident_id)) || null;
                 const time = last.departure_time ? last.departure_time.slice(0, 5) : null;
                 const moment = time ? new Date(`${stay.check_out}T${time}`) : DateUtils.parseDate(stay.check_out);
                 items.push({
@@ -71,6 +87,18 @@ const Form3Checkout = (() => {
                     moment, deadline: new Date(moment.getTime() + DAY)
                 });
             }
+        }
+        for (const r of bnRows) {
+            const time = r.departure_time ? r.departure_time.slice(0, 5) : null;
+            const moment = time ? new Date(`${r.check_out}T${time}`) : DateUtils.parseDate(r.check_out);
+            items.push({
+                known: false, byName: true, v: { id: null, spiritual_name: r.guest_name.trim(), citizenship: null },
+                doc: null, entry: bnEntries.find(en => en.resident_id === r.id) || null,
+                stay: { check_in: r.check_in, check_out: r.check_out, rows: [r] }, last: r,
+                date: r.check_out, time, dest: r.next_destination || null,
+                ended: r.check_out <= today, notOut: r.status !== 'checked_out',
+                moment, deadline: new Date(moment.getTime() + DAY)
+            });
         }
         items.sort((a, b) => a.moment - b.moment || nameOf(a.v).localeCompare(nameOf(b.v)));
         if (portal) analyze();
@@ -82,7 +110,8 @@ const Form3Checkout = (() => {
     const latinOf = it => [it.doc?.passport_given_name, it.doc?.passport_surname].filter(Boolean).join(' ');
     const marked = it => !!it.entry?.checkout_marked_at;
     // В очереди — иностранцы (гражданство не IND) и все, у кого есть анкета; без гражданства и анкеты — только сверка
-    const inQueue = it => it.ended && !marked(it) && (it.known || !!it.entry?.form3_id);
+    // Брони «на имя» — тоже в очереди: гражданство неизвестно, сверка с порталом по имени из брони
+    const inQueue = it => it.ended && !marked(it) && (it.known || it.byName || !!it.entry?.form3_id);
     // Минуты на циферблате портала — шаг 5, округляем вниз (не позже фактического отъезда)
     const portalTime = t => { const [h, m] = t.split(':').map(Number); return `${String(h).padStart(2, '0')}:${String(m - m % 5).padStart(2, '0')}`; };
 
@@ -187,8 +216,9 @@ const Form3Checkout = (() => {
         const iss = issuesOf(it);
         if (it.notOut) iss.push('в шахматке не выселен');
         return `<tr>
-            <td><a class="link font-medium" href="../vaishnavas/person.html?id=${e(it.v.id)}" target="_blank">${e(nameOf(it.v))}</a>
-                <div class="text-xs opacity-70">${e(latinOf(it))}${latinOf(it) ? ' · ' : ''}${e(it.v.citizenship)} · ${e(placeOf(it))}</div>
+            <td>${it.byName ? `<span class="font-medium">${e(nameOf(it.v))}</span>`
+                : `<a class="link font-medium" href="../vaishnavas/person.html?id=${e(it.v.id)}" target="_blank">${e(nameOf(it.v))}</a>`}
+                <div class="text-xs opacity-70">${it.byName ? 'бронь на имя, без карточки' : `${e(latinOf(it))}${latinOf(it) ? ' · ' : ''}${e(it.v.citizenship)}`} · ${e(placeOf(it))}</div>
                 ${it.entry?.form3_id ? `<div class="text-xs font-mono opacity-70">${e(it.entry.form3_id)}</div>` : ''}</td>
             <td class="whitespace-nowrap">${fmtDate(it.stay.check_in)} → ${fmtDate(it.date)}</td>
             <td><div class="flex flex-wrap items-center gap-1">
@@ -224,7 +254,7 @@ const Form3Checkout = (() => {
             <td><input type="checkbox" class="checkbox checkbox-sm" data-co-link="${k}" ${l.sure ? 'checked' : ''}></td>
             <td>${e(nameOf(l.it.v))}<div class="text-xs opacity-70">${e(latinOf(l.it))} · заезд ${fmtDate(l.it.stay.check_in)}</div></td>
             <td><span class="font-mono">${e(l.row.id)}</span><div class="text-xs opacity-70">${e(l.row.name)} · ${e(l.row.nationality || '')} · заезд ${fmtDate(l.row.arrival)}</div>
-                ${l.it.known ? '' : `<div class="text-xs">гражданство в ШРСК не указано → ${e(isoOf(l.row.nationality) || 'выбрать вручную')}</div>`}</td>
+                ${l.it.known || l.it.byName ? '' : `<div class="text-xs">гражданство в ШРСК не указано → ${e(isoOf(l.row.nationality) || 'выбрать вручную')}</div>`}</td>
             <td class="text-xs">${e(l.why)}${l.sure ? '' : ' <span class="text-warning">⚠ проверьте</span>'}</td></tr>`).join('');
         return `<div class="bg-base-100 rounded-lg p-4 mb-4 space-y-3 border border-primary">
             <div class="font-semibold">Портал FRRO: невыписанных ${portal.rows.length}${portal.total != null ? ` из ${portal.total}` : ''} (список на ${fmtAt(new Date(portal.at))})</div>
@@ -272,7 +302,8 @@ const Form3Checkout = (() => {
 
         links = [];
         for (const it of items.filter(x => !x.entry?.form3_id && !marked(x))) {
-            const our = latinOf(it) ? tokens(latinOf(it)) : tokens(`${it.v.first_name || ''} ${it.v.last_name || ''}`);
+            const our = latinOf(it) ? tokens(latinOf(it))
+                : tokens(it.byName ? it.v.spiritual_name : `${it.v.first_name || ''} ${it.v.last_name || ''}`);
             const pass = (it.doc?.passport_number || '').replace(/\s/g, '').toUpperCase();
             const cands = rows.filter(r => !usedIds.has(r.id) && r.arrival && dayDiff(r.arrival, it.stay.check_in) <= 1).map(r => {
                 const their = tokens(r.name);
@@ -295,7 +326,7 @@ const Form3Checkout = (() => {
         }
         const linked = new Set(links.map(l => l.it));
         stale = full ? items.filter(it => inQueue(it) && it.entry?.form3_id && !pendingIds.has(it.entry.form3_id)) : [];
-        notFound = full ? items.filter(it => inQueue(it) && it.known && !it.entry?.form3_id && !linked.has(it)) : [];
+        notFound = full ? items.filter(it => inQueue(it) && (it.known || it.byName) && !it.entry?.form3_id && !linked.has(it)) : [];
     }
 
     function onMessage(ev) {
@@ -394,7 +425,7 @@ const Form3Checkout = (() => {
                     arrival_date: it.stay.check_in, expected_checkout: it.stay.check_out });
             if (error) { Layout.handleError(error, nameOf(it.v)); return; }
             // гражданство не было указано — берём с портала
-            const iso = !it.known && isoOf(l.row.nationality);
+            const iso = !it.known && it.v.id && isoOf(l.row.nationality);
             if (iso) {
                 const { error: cErr } = await Layout.db.from('vaishnavas').update({ citizenship: iso }).eq('id', it.v.id).is('citizenship', null);
                 if (cErr) Layout.handleError(cErr, nameOf(it.v));
