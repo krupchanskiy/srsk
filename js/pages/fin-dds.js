@@ -492,7 +492,7 @@ async function toggleDetails(opId, ключ = opId) {
         </label>${['expense', 'income', 'donation'].includes(op?.type) && !op?.is_reversed ? `<button class="btn btn-ghost btn-xs gap-1" onclick="FinDds.repeatOperation('${opId}')">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
             ${t('fin_repeat')}</button>` : ''}` : '')
-        + reversalButtonHtml(opId) + `</span></div></div>`;
+        + laborMonthButtonHtml(op, data) + reversalButtonHtml(opId) + `</span></div></div>`;
 
     // автор операции (2.8) — резолвим имя по created_by
     if (op?.created_by) {
@@ -646,6 +646,47 @@ async function submitAnalytics(ev) {
     });
     if (FinUtils.handleResult(res)) {
         document.getElementById('analyticsModal').close();
+        await loadTable();
+    }
+}
+
+// ==================== МЕСЯЦ РАЗОВОЙ ОПЛАТЫ ТРУДА (мигр. 834) ====================
+// У расхода «Оплата труда» вне ведомости месяц — в комментарии «… — за ноябрь 2026»;
+// по нему «Итоги» относят выплату к месяцу. Меняется без сторно, пишется в журнал.
+const LABOR_MONTH_RE = /\s*—?\s*за\s+(январь|февраль|март|апрель|май|июнь|июль|август|сентябрь|октябрь|ноябрь|декабрь)\s+(\d{4})\s*$/i;
+const RU_MONTHS = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+
+function laborMonthButtonHtml(op, postings) {
+    if (!window.hasPermission?.('fin_admin') || !op || op.type !== 'expense' || op.is_reversed) return '';
+    if (!postings?.length || !postings.every(p => p.category_name === 'Оплата труда')) return '';
+    return `<button class="btn btn-ghost btn-xs gap-1" onclick="FinDds.openLaborMonth('${op.operation_id}')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>
+        Месяц</button>`;
+}
+
+function openLaborMonth(opId) {
+    const op = opsById[opId];
+    if (!op) return;
+    const comment = op.comment || '';
+    const m = comment.match(LABOR_MONTH_RE);
+    const current = m ? `${m[2]}-${String(RU_MONTHS.indexOf(m[1].toLowerCase()) + 1).padStart(2, '0')}` : op.occurred_on.slice(0, 7);
+    document.getElementById('lmOpId').value = opId;
+    document.getElementById('lmInfo').textContent =
+        `${DateUtils.formatShort(DateUtils.parseDate(op.occurred_on))} · ${m ? 'сейчас: за ' + m[1].toLowerCase() + ' ' + m[2] : 'месяц не указан — считается по дате'}`;
+    document.getElementById('lmComment').value = m ? comment.replace(LABOR_MONTH_RE, '') : comment;
+    document.getElementById('lmMonth').innerHTML = monthOptionsHtml(laborMonthKeys(op.occurred_on), current);
+    document.getElementById('laborMonthModal').showModal();
+}
+
+async function submitLaborMonth(ev) {
+    ev.preventDefault();
+    const res = await FinUtils.rpc('fin_set_labor_month', {
+        operation_id: document.getElementById('lmOpId').value,
+        comment: document.getElementById('lmComment').value || null,
+        period: `${document.getElementById('lmMonth').value}-01`
+    });
+    if (FinUtils.handleResult(res)) {
+        document.getElementById('laborMonthModal').close();
         await loadTable();
     }
 }
@@ -1756,7 +1797,30 @@ async function oldestUnpaidMonth(person, dateISO) {
     return [...m.keys()].sort().find(k => m.get(k) > 0.005) || dateISO.slice(0, 7);
 }
 
+// Месяцы для разовой оплаты труда: 10 месяцев назад … следующий от даты выплаты.
+// «Итоги» берут месяц из «за <месяц>», а год угадывают по дате — дальше нельзя (мигр. 834)
+function laborMonthKeys(dateISO) {
+    const d0 = DateUtils.parseDate(dateISO || FinUtils.todayISO());
+    const keys = [];
+    for (let i = 1; i >= -10; i--) {
+        const d = new Date(d0.getFullYear(), d0.getMonth() + i, 1);
+        keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+    return keys;
+}
+
+function monthOptionsHtml(keys, selected) {
+    return keys.map(k => {
+        const [y, mo] = k.split('-').map(Number);
+        const name = new Date(y, mo - 1, 1).toLocaleDateString('ru-RU', { month: 'long' });
+        return `<option value="${k}" ${k === selected ? 'selected' : ''}>${name} ${y}</option>`;
+    }).join('');
+}
+
 function trPayMonthOptions(selected) {
+    if (trPayOneOff()) {
+        return monthOptionsHtml(laborMonthKeys(document.getElementById('trDate').value), selected);
+    }
     const now = new Date();
     const start = trPayPerson()?.start ? DateUtils.parseDate(trPayPerson().start)
         : new Date(now.getFullYear(), now.getMonth() - 12, 1);
@@ -1825,10 +1889,25 @@ function syncTrPayAmount() {
     updateTrPayStatus();
 }
 
+// Сумму не ввели (или её ставило само окно) — она равна сумме по месяцам (ВГ 27.11).
+// Введённую руками не трогаем: расхождение покажет предупреждение
+function autoFillTrAmount() {
+    const differ = accCurrency('trSource') !== accCurrency('trTarget');
+    const field = document.getElementById(differ ? 'trTargetAmount' : 'trAmount');
+    if (field.value !== '' && !trPay.amountAuto) return;
+    const sum = Math.round(trPay.rows.reduce((s, r) => s + (r.amount || 0), 0) * 100) / 100;
+    field.value = sum > 0 ? sum : '';
+    trPay.amountAuto = true;
+    updateTransferRecap();
+}
+
 function bindTrPayMonths() {
     const box = document.getElementById('trPayMonths');
-    box.addEventListener('input', () => { readTrPayMonths(); updateTrPayStatus(); });
-    box.addEventListener('change', () => { readTrPayMonths(); updateTrPayStatus(); });
+    box.addEventListener('input', () => { readTrPayMonths(); autoFillTrAmount(); updateTrPayStatus(); });
+    box.addEventListener('change', () => { readTrPayMonths(); autoFillTrAmount(); updateTrPayStatus(); });
+    // Сумму ввели руками — дальше окно её не меняет
+    ['trAmount', 'trTargetAmount'].forEach(id => document.getElementById(id)
+        .addEventListener('input', () => { trPay.amountAuto = false; }));
     box.addEventListener('click', ev => {
         const btn = ev.target.closest('button[data-tm]');
         if (!btn) return;
@@ -1842,6 +1921,7 @@ function bindTrPayMonths() {
         } else if (btn.dataset.tm === 'del') {
             trPay.rows.splice(Number(btn.closest('[data-tm-row]').dataset.tmRow), 1);
         }
+        autoFillTrAmount();
         renderTrPayMonths();
     });
 }
@@ -1950,7 +2030,9 @@ async function submitTransfer(ev) {
         target_account_id: target,
         source_amount: document.getElementById('trAmount').value,
         target_amount: differ ? document.getElementById('trTargetAmount').value : null,
-        comment: комментарий,
+        // Разовая за один месяц: у перевода тот же «… — за <месяц>», что у расхода — в ДДС они встают парой
+        comment: oneOff && trPay.rows.length === 1
+            ? (комментарий ? `${комментарий} — ` : '') + trPayMonthText(trPay.rows[0].month) : комментарий,
         ...(держатель ? { target_holder_person_id: держатель } : {}),
         ...(сКого ? { source_holder_person_id: сКого } : {})
     });
@@ -2026,6 +2108,7 @@ async function init() {
     document.getElementById('transferForm').addEventListener('submit', FinUtils.lockedSubmit(submitTransfer));
     document.getElementById('reversalForm').addEventListener('submit', FinUtils.lockedSubmit(submitReversal));
     document.getElementById('analyticsForm').addEventListener('submit', FinUtils.lockedSubmit(submitAnalytics));
+    document.getElementById('laborMonthForm').addEventListener('submit', FinUtils.lockedSubmit(submitLaborMonth));
     document.getElementById('reallocForm').addEventListener('submit', FinUtils.lockedSubmit(submitRealloc));
     document.getElementById('revNewDate').addEventListener('change', ev =>
         document.getElementById('revDateWrap').classList.toggle('hidden', !ev.target.checked));
@@ -2142,6 +2225,6 @@ window.CashCalc = Object.assign(window.CashCalc || {}, {
     }
 });
 
-window.FinDds = { openExpense, openIncome, openTransfer, addExpenseRow, addIncomeRow,addPayeeRow, openReversal, openRealloc, addReallocRow, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };
+window.FinDds = { openLaborMonth, openExpense, openIncome, openTransfer, addExpenseRow, addIncomeRow,addPayeeRow, openReversal, openRealloc, addReallocRow, openAnalytics, attachFile, updateRecap: updateExpenseRecap, repeatOperation };
 init();
 })();

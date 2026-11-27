@@ -457,6 +457,31 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+<!-- Модалка: месяц разовой оплаты труда (834) -->
+<dialog id="laborMonthModal" class="modal">
+    <div class="modal-box max-w-sm">
+        <h3 class="font-bold text-lg mb-1">Оплата труда — за какой месяц</h3>
+        <div class="text-sm opacity-70 mb-3" id="lmInfo"></div>
+        <form id="laborMonthForm">
+            <input type="hidden" id="lmOpId">
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text">Комментарий (кому)</span></label>
+                <input type="text" id="lmComment" class="input input-bordered input-sm">
+            </div>
+            <div class="form-control mb-2">
+                <label class="label py-0"><span class="label-text">Месяц</span></label>
+                <select id="lmMonth" class="select select-bordered select-sm" required></select>
+            </div>
+            <p class="text-xs opacity-60">Сумма, дата и счета не меняются, сторно не нужно. Правка попадёт в журнал изменений.</p>
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="document.getElementById('laborMonthModal').close()" data-i18n="cancel">Отмена</button>
+                <button type="submit" class="btn btn-primary" data-i18n="save">Сохранить</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
 <!-- Модалка: Сторно -->
 <dialog id="reversalModal" class="modal">
     <div class="modal-box max-w-sm">
@@ -611,7 +636,7 @@
 <script src="../js/fin-utils.js?v=25"></script>
 <script src="../js/shop-treasurer-banner.js?v=1"></script>
 <script src="../js/cash-calc.js?v=4"></script>
-<script src="../js/pages/fin-dds.js?v=66"></script>
+<script src="../js/pages/fin-dds.js?v=67"></script>
 
 </body>
 </html>
