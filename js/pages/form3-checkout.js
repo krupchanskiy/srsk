@@ -240,7 +240,7 @@ const Form3Checkout = (() => {
             return `<div class="bg-base-100 rounded-lg p-4 mb-4 border border-primary space-y-2">
                 <div class="font-semibold">Как выписать${nReady ? ` (готовы: ${nReady})` : ''}</div>
                 <ol class="list-decimal ml-5 text-sm space-y-1">
-                    <li>Откройте портал FRRO, войдите → Form III Details → вкладка <b>PENDING FOR CHECKOUT</b>.
+                    <li>Откройте портал FRRO и войдите.
                         <a class="btn btn-xs btn-primary ml-1" href="${PORTAL}/formIII/" target="_blank" rel="noopener">Открыть портал</a></li>
                     <li>На портале нажмите закладку <b>«ШРСК → выписка»</b> на панели закладок браузера.
                         Её ещё нет — <a class="link" data-co="bookmarks">возьмите на вкладке «Закладки»</a> (перетащить на панель).</li>
@@ -490,8 +490,20 @@ const Form3Checkout = (() => {
 
             async function openPending() {
                 extend();
-                const lbl = Array.from(document.querySelectorAll('.mat-tab-label, [role="tab"]')).find(x => norm(x.textContent).indexOf('PENDING FOR CHECKOUT') >= 0);
-                if (!lbl) throw new Error('не вижу вкладку PENDING FOR CHECKOUT — откройте Form III Details');
+                const findTab = () => Array.from(document.querySelectorAll('.mat-tab-label, [role="tab"]')).find(x => norm(x.textContent).indexOf('PENDING FOR CHECKOUT') >= 0);
+                let lbl = findTab();
+                if (!lbl) {
+                    // Закладку нажали не на Form III Details (например, на Home) — переходим сами через меню слева
+                    const items = Array.from(document.querySelectorAll('a, li, span, div, mat-list-item')).filter(x => norm(x.textContent) === 'FORM III DETAILS');
+                    const link = items.length ? items[items.length - 1] : null;
+                    if (link) {
+                        say('Открываю Form III Details…');
+                        (link.closest('a, [routerlink], mat-list-item, li') || link).click();
+                        lbl = await waitFor(findTab, 15000);
+                        await sleep(1000);
+                    }
+                }
+                if (!lbl) throw new Error('не вижу вкладку PENDING FOR CHECKOUT — откройте слева Form III Details и нажмите закладку ещё раз');
                 if (lbl.getAttribute('aria-selected') !== 'true') { lbl.click(); await sleep(1500); }
             }
             const searchBox = () => body().querySelector('input[placeholder*="earch"], input[matinput], input');
@@ -726,13 +738,13 @@ const Form3Checkout = (() => {
             <div class="font-semibold">Выписка (Mark Checkout)</div>
             <div><a class="btn btn-primary f3-bm" href="${bookmarkHref()}" title="Перетащите на панель закладок">ШРСК → выписка</a></div>
             <ol class="list-decimal ml-5 text-sm space-y-1">
-                <li>На портале: войдите → Form III Details (вкладки DRAFT / PENDING FOR CHECKOUT).</li>
+                <li>На портале войдите (страница любая — закладка сама откроет Form III Details).</li>
                 <li>Нажмите закладку <b>«ШРСК → выписка»</b>. Она откроет окно ШРСК и передаст туда список невыписанных с портала.</li>
                 <li>В окне ШРСК, вкладка «Выписка»: подтвердите связки анкет без номера, отметьте уже выписанных, нажмите <b>«Выписать на портале»</b>.</li>
                 <li>Вернитесь на вкладку портала: справа сверху список «кто / дата / время / куда». Проверьте и нажмите <b>«Выписать всех»</b> — закладка выпишет подряд и остановится на первом расхождении. В ШРСК отметится само.</li>
             </ol>
             <div class="text-sm opacity-70">Выписать можно только после отъезда: портал не даёт поставить будущее время. Без времени отъезда и «куда едет» человек в очередь на портал не попадает.</div>
-            <div class="alert text-sm">Первая версия: на портале её ещё не пробовали. Первый раз — вместе с Claude.</div>`;
+            <div class="alert text-sm">Закладку обновили 27.11 (сама открывает Form III Details). Старую удалите и перетащите эту заново — в закладке браузера хранится её старый текст.</div>`;
         pane.appendChild(div);
     }
 
