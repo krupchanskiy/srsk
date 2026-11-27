@@ -514,7 +514,7 @@ async function loadTimelineData() {
                     // Получаем имя резидента
                     let guestName = res.guest_name || '';
                     if (res.vaishnavas) {
-                        guestName = getVaishnavName(res.vaishnavas, '');
+                        guestName = getVaishnavFullName(res.vaishnavas, '');
                     }
                     // Если это бронирование - показываем название брони или имя контакта
                     if (!guestName && res.bookings) {
@@ -1090,7 +1090,7 @@ function openSelfStayModal(kind = 'guests') {
 function openSelfStay(id) {
     const res = selfStays.find(r => r.id === id && !r.fromCrm);
     if (!res) return;
-    const name = (res.vaishnavas ? getVaishnavName(res.vaishnavas, '') : '') || res.guest_name || '—';
+    const name = (res.vaishnavas ? getVaishnavFullName(res.vaishnavas, '') : '') || res.guest_name || '—';
     openResidentModal({
         id: res.id, name: name !== '—' ? name : selfSeatName(res), isBooking: !res.arrived_at, rawData: res,
         hasDebt: debtorsSet.has(finKey(res)),
@@ -4964,7 +4964,7 @@ function selfBookingSeats(bookingId) {
 
 // Имя в блоке «Самостоятельное проживание»: человек, иначе «Группа X · место k»
 function selfSeatName(res) {
-    const name = (res.vaishnavas ? getVaishnavName(res.vaishnavas, '') : '') || res.guest_name;
+    const name = (res.vaishnavas ? getVaishnavFullName(res.vaishnavas, '') : '') || res.guest_name;
     if (name) return name;
     const b = res.bookings;
     const gname = b ? (b.name || b.contact_name || '') : '';
