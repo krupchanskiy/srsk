@@ -8,7 +8,7 @@
 //   • срок — сутки от выезда; меньше 4 часов или просрочено — красная плашка сверху;
 //   • закладка «ШРСК → выписка» на портале открывает это окно, обмен через postMessage (без буфера обмена):
 //     портал присылает список PENDING FOR CHECKOUT → здесь сверка (связать анкеты без номера, убрать уже
-//     выписанных) → очередь уходит на портал → после одного «Выписать всех» портал выписывает подряд,
+//     выписанных — само, ВГ 27.11) → заполненные сразу уходят на портал → «Выписать этих N чел.» — портал выписывает подряд,
 //     на любом расхождении останавливается и шлёт сюда результат по каждому → form3_entries.checkout_marked_at.
 // Выписать можно только после фактического отъезда: портал не даёт поставить будущее время.
 
@@ -244,7 +244,7 @@ const Form3Checkout = (() => {
                         <a class="btn btn-xs btn-primary ml-1" href="${PORTAL}/formIII/" target="_blank" rel="noopener">Открыть портал</a></li>
                     <li>На портале нажмите закладку <b>«ШРСК → выписка»</b> на панели закладок браузера.
                         Её ещё нет — <a class="link" data-co="bookmarks">возьмите на вкладке «Закладки»</a> (перетащить на панель).</li>
-                    <li>Откроется это окно со сверкой и кнопкой <b>«Выписать на портале»</b>. Нажмите её, вернитесь на портал и нажмите <b>«Выписать всех»</b>.</li>
+                    <li>Откроется окно ШРСК: оно само отметит уже выписанных на портале и вернёт на портал тех, у кого всё заполнено. Вернитесь на вкладку портала и нажмите <b>«Выписать этих N чел.»</b> — выпишутся только они.</li>
                 </ol>
                 <div class="text-xs opacity-70">Выписали на портале руками — нажмите «Выписан вручную» у человека, он уйдёт из очереди.</div>
             </div>`;
@@ -271,8 +271,8 @@ const Form3Checkout = (() => {
                 <div class="text-xs opacity-70">Скорее всего, уже выписаны по учётной книге или анкету не подавали. Проверьте на портале и уберите из очереди.</div>
                 <button class="btn btn-sm mt-1" data-co="notfound">Убрать из очереди</button></div>` : ''}
             <div class="flex flex-wrap items-center gap-2">
-                <button class="btn btn-sm btn-primary" data-co="send" ${nReady ? '' : 'disabled'}>Выписать на портале (${nReady})</button>
-                <span class="text-sm opacity-70">${nReady ? 'Список уйдёт на вкладку портала — там проверьте и нажмите «Выписать всех».' : 'Готовых к выписке нет: у каждого должны быть номер анкеты, время и «куда едет», и он уже уехал.'}</span>
+                <button class="btn btn-sm" data-co="send" ${nReady ? '' : 'disabled'}>Отправить на портал ещё раз (${nReady})</button>
+                <span class="text-sm opacity-70">${nReady ? `Готовые к выписке (${nReady}) уже отправлены на вкладку портала — вернитесь туда и нажмите «Выписать этих ${nReady} чел.». Выпишутся только они.` : 'Готовых к выписке нет: у каждого должны быть номер анкеты, время и «куда едет», и он уже уехал.'}</span>
             </div>
             ${log.length ? `<div class="text-sm space-y-0.5">${log.map(l => `<div class="${l.ok ? '' : 'text-error'}">${e(l.text)}</div>`).join('')}</div>` : ''}
         </div>`;
@@ -338,13 +338,27 @@ const Form3Checkout = (() => {
             portal = { source: ev.source, rows: m.rows || [], total: m.total, at: m.at };
             log = [];
             showTab();
-            Promise.resolve(loaded).then(() => { analyze(); render(); });
+            Promise.resolve(loaded).then(autoSync);
         } else if (m.type === 'result') {
             onResult(m);
         }
     }
 
-    function sendQueue() {
+    // Сразу после списка с портала (ВГ 27.11): уже выписанных на портале — отметить в ШРСК само,
+    // уверенные связки анкет — связать само, и тут же вернуть на портал тех, кто заполнен.
+    async function autoSync() {
+        analyze();
+        render();
+        const sure = links.filter(l => l.sure);
+        if (sure.length) await linkList(sure, true);
+        if (stale.length) await markDone(stale, `На портале уже не в PENDING FOR CHECKOUT — выписан (сверка ${new Date().toLocaleDateString('ru-RU')})`, true);
+        if (sure.length || stale.length) await load();
+        if (sure.length) log.push({ ok: true, text: `Связано с анкетами портала: ${sure.map(l => nameOf(l.it.v)).join(', ')}` });
+        if (stale.length) log.push({ ok: true, text: `Уже выписаны на портале — отмечено в ШРСК: ${stale.map(it => nameOf(it.v)).join(', ')}` });
+        sendQueue(true);
+    }
+
+    function sendQueue(auto) {
         if (!portal?.source || portal.source.closed) {
             Layout.showNotification('Вкладка портала закрыта — нажмите закладку «ШРСК → выписка» на портале ещё раз', 'error');
             return;
@@ -353,9 +367,12 @@ const Form3Checkout = (() => {
             form3_id: it.entry.form3_id, who: latinOf(it) || nameOf(it.v), srsk_name: nameOf(it.v),
             arrival: it.stay.check_in, date: it.date, time: portalTime(it.time), dest: it.dest
         }));
-        if (!list.length) return;
-        portal.source.postMessage({ srskFrro: 1, type: 'queue', items: list }, PORTAL);
-        log = [{ ok: true, text: `Отправлено на портал: ${list.length} чел. Перейдите на вкладку портала и нажмите «Выписать всех».` }];
+        const waiting = items.filter(it => inQueue(it) && !ready(it)).length;
+        if (!list.length && !auto) return;
+        portal.source.postMessage({ srskFrro: 1, type: 'queue', items: list, waiting }, PORTAL);
+        log.push({ ok: true, text: list.length
+            ? `На портал отправлено к выписке: ${list.length} чел. Вернитесь на вкладку портала и нажмите «Выписать этих ${list.length} чел.».`
+            : 'Выписывать на портале пока некого: ни у кого в очереди не заполнено всё нужное.' });
         render();
     }
 
@@ -387,10 +404,11 @@ const Form3Checkout = (() => {
         if (error) { Layout.handleError(error, 'Выписка'); return; }
         Layout.showNotification(`${nameOf(it.v)}: сохранено`, 'success');
         await load();
+        if (portal) sendQueue(true);   // дописали время/куда — человек сразу уходит в список на портале
     }
 
     // Отметить «выписан» без закладки (вручную / уже выписан / убрать из очереди)
-    async function markDone(list, note) {
+    async function markDone(list, note, quiet) {
         for (const it of list) {
             const row = {
                 checkout_marked_at: new Date().toISOString(), checkout_marked_by: window.currentUser?.vaishnava_id || null,
@@ -403,6 +421,7 @@ const Form3Checkout = (() => {
                     arrival_date: it.stay.check_in, expected_checkout: it.stay.check_out });
             if (error) { Layout.handleError(error, nameOf(it.v)); return; }
         }
+        if (quiet) return;
         Layout.showNotification(`Отмечено: ${list.length}`, 'success');
         await load();
     }
@@ -410,6 +429,12 @@ const Form3Checkout = (() => {
     async function linkChosen() {
         const chosen = links.filter((l, k) => document.querySelector(`[data-co-link="${k}"]`)?.checked);
         if (!chosen.length) return;
+        await linkList(chosen);
+        await load();
+        if (portal) sendQueue(true);   // новые связанные могут быть готовы — обновить список на портале
+    }
+
+    async function linkList(chosen, quiet) {
         const stamp = new Date().toLocaleDateString('ru-RU');
         for (const l of chosen) {
             const it = l.it;
@@ -431,8 +456,7 @@ const Form3Checkout = (() => {
                 if (cErr) Layout.handleError(cErr, nameOf(it.v));
             }
         }
-        Layout.showNotification(`Связано анкет: ${chosen.length}`, 'success');
-        await load();
+        if (!quiet) Layout.showNotification(`Связано анкет: ${chosen.length}`, 'success');
         Form3.reload();
     }
 
@@ -660,23 +684,29 @@ const Form3Checkout = (() => {
             st.onMsg = ev => {
                 if (ev.origin !== SRSK || !ev.data || !ev.data.srskFrro) return;
                 if (ev.data.type === 'got') got = true;
-                if (ev.data.type === 'queue') showQueue(ev.data.items || [], ev.source);
+                if (ev.data.type === 'queue') showQueue(ev.data.items || [], ev.source, ev.data.waiting || 0);
             };
             window.addEventListener('message', st.onMsg);
 
-            function showQueue(list, src) {
+            function showQueue(list, src, waiting) {
                 if (st.busy) return;
+                st.listed = true;
+                const rest = waiting ? '<div style="margin-top:6px;color:#555">Ещё ' + waiting + ' чел. в очереди ШРСК без времени, «куда едет» или номера анкеты — их не трогаю. Допишите в ШРСК, нажмите там «Сохранить» — список здесь обновится сам.</div>' : '';
+                if (!list.length) {
+                    say('<div>Выписывать некого: в ШРСК ни у кого не заполнено всё нужное.</div>' + rest);
+                    return;
+                }
                 const today = new Date();
                 const bad = list.filter(x => !x.form3_id || !x.time || !x.dest || new Date(x.date + 'T' + x.time) > today);
-                say('<div>Выписать на портале (' + list.length + '):</div>' +
+                say('<div>К выписке из ШРСК (' + list.length + ' чел.) — выпишу только их:</div>' +
                     '<table style="width:100%;border-collapse:collapse;margin:6px 0">' + list.map(x =>
                         '<tr style="border-top:1px solid #ddd"><td style="padding:3px 4px">' + esc(x.who) + '<div style="font-size:11px;color:#555">' + esc(x.form3_id) + '</div></td>' +
                         '<td style="padding:3px 4px;white-space:nowrap">' + esc(x.date.split('-').reverse().join('.')) + ' ' + esc(x.time) + '</td>' +
                         '<td style="padding:3px 4px">' + esc(x.dest) + '</td></tr>').join('') + '</table>' +
                     (bad.length ? '<div style="color:#b91c1c">⚠ Есть строки без данных или с будущим временем — не выписываю.</div>'
                         : '<div style="margin:6px 0">Проверьте список. Submit необратим. Остановлюсь на первом расхождении.</div>' +
-                          '<button id="srskCoGo" style="' + btnStyle + ';background:#8b5cf6;color:#fff">Выписать всех</button>') +
-                    '<button id="srskCoNo" style="' + btnStyle + ';background:#fff">Отмена</button>');
+                          '<button id="srskCoGo" style="' + btnStyle + ';background:#8b5cf6;color:#fff">Выписать этих ' + list.length + ' чел.</button>') +
+                    '<button id="srskCoNo" style="' + btnStyle + ';background:#fff">Отмена</button>' + rest);
                 panel.querySelector('#srskCoNo').onclick = () => panel.remove();
                 const go = panel.querySelector('#srskCoGo');
                 if (go) go.onclick = () => runQueue(list, src);
@@ -716,8 +746,8 @@ const Form3Checkout = (() => {
                     w.postMessage({ srskFrro: 1, type: 'pending', rows: p.rows, total: p.total, at: at }, SRSK);
                     await sleep(1000);
                 }
-                say(got ? 'Список у ШРСК. Перейдите в окно ШРСК: там сверка и кнопка «Выписать на портале».'
-                    : 'ШРСК не ответил за 90 секунд. Войдите в ШРСК в открывшемся окне и нажмите закладку ещё раз.');
+                if (!got) say('ШРСК не ответил за 90 секунд. Войдите в ШРСК в открывшемся окне и нажмите закладку ещё раз.');
+                else if (!st.listed) say('Список у ШРСК. Жду от ШРСК, кого выписывать…');
             } catch (err) {
                 say('<div style="color:#b91c1c">✗ ' + esc((err && err.message) || err) + '</div>');
             }
@@ -740,8 +770,8 @@ const Form3Checkout = (() => {
             <ol class="list-decimal ml-5 text-sm space-y-1">
                 <li>На портале войдите (страница любая — закладка сама откроет Form III Details).</li>
                 <li>Нажмите закладку <b>«ШРСК → выписка»</b>. Она откроет окно ШРСК и передаст туда список невыписанных с портала.</li>
-                <li>В окне ШРСК, вкладка «Выписка»: подтвердите связки анкет без номера, отметьте уже выписанных, нажмите <b>«Выписать на портале»</b>.</li>
-                <li>Вернитесь на вкладку портала: справа сверху список «кто / дата / время / куда». Проверьте и нажмите <b>«Выписать всех»</b> — закладка выпишет подряд и остановится на первом расхождении. В ШРСК отметится само.</li>
+                <li>ШРСК сам отметит тех, кто уже выписан на портале, и вернёт на портал список тех, у кого заполнены номер анкеты, время и «куда едет».</li>
+                <li>Вернитесь на вкладку портала: справа сверху список «кто / дата / время / куда». Проверьте и нажмите <b>«Выписать этих N чел.»</b> — выпишутся только они, по очереди; на первом расхождении остановится. В ШРСК отметится само.</li>
             </ol>
             <div class="text-sm opacity-70">Выписать можно только после отъезда: портал не даёт поставить будущее время. Без времени отъезда и «куда едет» человек в очередь на портал не попадает.</div>
             <div class="alert text-sm">Закладку обновили 27.11 (сама открывает Form III Details). Старую удалите и перетащите эту заново — в закладке браузера хранится её старый текст.</div>`;
@@ -773,7 +803,7 @@ const Form3Checkout = (() => {
                     if (confirm(`Убрать из очереди ${notFound.length} чел.? Их нет среди невыписанных на портале.`))
                         markDone(notFound, `Нет среди невыписанных на портале (сверка ${new Date().toLocaleDateString('ru-RU')}) — убран из очереди`);
                     break;
-                case 'send': sendQueue(); break;
+                case 'send': log = []; sendQueue(); break;
             }
         });
     }
