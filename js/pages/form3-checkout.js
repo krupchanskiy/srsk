@@ -168,7 +168,6 @@ const Form3Checkout = (() => {
             ${portalPanel(nReady)}
             <div class="flex flex-wrap items-center gap-2 mb-3">
                 <span class="text-sm opacity-80">В очереди: <b>${queue.length}</b>, готовы к выписке: <b>${nReady}</b>.</span>
-                <span class="text-sm opacity-60">Выписывает закладка «ШРСК → выписка» на портале (вкладка «Закладки»).</span>
             </div>
             ${queue.length ? (shown.length ? `<div class="overflow-x-auto bg-base-100 rounded-lg"><table class="table table-sm">
                 <thead><tr><th>Человек</th><th>Заезд → выезд</th><th>Время и куда едет</th><th>Срок</th><th>Что не хватает</th></tr></thead>
@@ -205,8 +204,20 @@ const Form3Checkout = (() => {
     // ==================== СВЯЗЬ С ПОРТАЛОМ ====================
     function portalPanel(nReady) {
         if (!portal) {
-            return location.hash === '#frro-checkout'
-                ? '<div class="alert mb-3 text-sm"><span class="loading loading-spinner loading-sm"></span> Жду список PENDING FOR CHECKOUT с портала…</div>' : '';
+            if (location.hash === '#frro-checkout')
+                return '<div class="alert mb-3 text-sm"><span class="loading loading-spinner loading-sm"></span> Жду список PENDING FOR CHECKOUT с портала…</div>';
+            // До закладки кнопки выписки нет — показываем, как до неё дойти
+            return `<div class="bg-base-100 rounded-lg p-4 mb-4 border border-primary space-y-2">
+                <div class="font-semibold">Как выписать${nReady ? ` (готовы: ${nReady})` : ''}</div>
+                <ol class="list-decimal ml-5 text-sm space-y-1">
+                    <li>Откройте портал FRRO, войдите → Form III Details → вкладка <b>PENDING FOR CHECKOUT</b>.
+                        <a class="btn btn-xs btn-primary ml-1" href="${PORTAL}/formIII/" target="_blank" rel="noopener">Открыть портал</a></li>
+                    <li>На портале нажмите закладку <b>«ШРСК → выписка»</b> на панели закладок браузера.
+                        Её ещё нет — <a class="link" data-co="bookmarks">возьмите на вкладке «Закладки»</a> (перетащить на панель).</li>
+                    <li>Откроется это окно со сверкой и кнопкой <b>«Выписать на портале»</b>. Нажмите её, вернитесь на портал и нажмите <b>«Выписать всех»</b>.</li>
+                </ol>
+                <div class="text-xs opacity-70">Выписали на портале руками — нажмите «Выписан вручную» у человека, он уйдёт из очереди.</div>
+            </div>`;
         }
         const full = portal.total == null || portal.rows.length >= portal.total;
         const linkRows = links.map((l, k) => `<tr>
@@ -704,6 +715,7 @@ const Form3Checkout = (() => {
             const i = +b.dataset.i;
             switch (b.dataset.co) {
                 case 'goto': showTab(); break;
+                case 'bookmarks': document.querySelector('[data-tab="bookmarks"]')?.click(); break;
                 case 'save': saveRow(i); break;
                 case 'manual':
                     if (confirm(`${nameOf(items[i].v)}: выезд уже отмечен на портале вручную? Человек уйдёт из очереди.`))
