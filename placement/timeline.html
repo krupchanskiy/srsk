@@ -1397,6 +1397,18 @@
                         <input type="date" id="checkoutDate" class="input input-bordered">
                     </div>
                     <div id="checkoutDepartureTime" data-arrival-time="out"></div>
+                    <!-- Иностранец: для выписки на портале FRRO (Form III) -->
+                    <div id="checkoutFrroBlock" class="hidden rounded-lg border border-base-300 p-3 space-y-2">
+                        <div class="text-sm" data-i18n="timeline_frro_hint">Иностранец: выезд отмечается на портале FRRO в течение суток. Нужны время отъезда и куда едет.</div>
+                        <label class="form-control">
+                            <span class="label-text text-sm" data-i18n="timeline_frro_next_destination">Куда едет (город, страна)</span>
+                            <input type="text" id="checkoutNextDestination" class="input input-bordered input-sm" placeholder="Delhi / Moscow">
+                        </label>
+                        <label id="checkoutFrroGroupRow" class="label cursor-pointer justify-start gap-2 py-0 hidden">
+                            <input type="checkbox" id="checkoutFrroGroup" class="checkbox checkbox-xs checkbox-primary">
+                            <span id="checkoutFrroGroupText" class="label-text text-sm"></span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="modal-action">
@@ -1429,7 +1441,7 @@
     <script src="../js/house-guard.js?v=5"></script>
     <script src="../js/arrival-time.js?v=2"></script>
     <script src="../js/group-booking.js?v=20"></script>
-    <script src="../js/pages/timeline.js?v=107"></script>
+    <script src="../js/pages/timeline.js?v=108"></script>
 
 </body>
 </html>

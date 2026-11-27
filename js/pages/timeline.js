@@ -200,7 +200,7 @@ async function loadTimelineData() {
         Layout.db.from('residents')
             .select(`*,
                 resident_categories(id, slug, name_ru, name_en, name_hi, color),
-                vaishnavas(id, first_name, last_name, spiritual_name, service),
+                vaishnavas(id, first_name, last_name, spiritual_name, service, citizenship),
                 bookings(id, name, contact_name, contact_phone, contact_telegram, notes),
                 resident_children(id, vaishnava_id, guest_name, birth_date,
                     vaishnavas(id, first_name, last_name, spiritual_name, birth_date))`)
@@ -2963,14 +2963,34 @@ async function checkoutResident() {
         if (флаги?.some(f => f.is_debt) && !confirm(t('timeline_debt_warning'))) return;
     }
 
+    // Иностранец: без времени и «куда едет» выписку на портале FRRO сделать нельзя — спрашиваем, но не держим
+    const foreign = isForeign(res);
+    const nextDest = foreign ? (document.getElementById('checkoutNextDestination').value.trim() || null) : undefined;
+    if (foreign && (!dep.time || !nextDest)) {
+        const miss = [!dep.time && tf('timeline_frro_no_time', 'время отъезда'), !nextDest && tf('timeline_frro_no_dest', 'куда едет')].filter(Boolean).join(', ');
+        if (!confirm(tf('timeline_frro_missing', 'Иностранец: не указано — %s. Без этого его не выписать на портале FRRO (срок — сутки после отъезда). Выселить всё равно?').replace('%s', miss))) return;
+    }
+
+    const upd = { check_out: checkoutDate, departure_time: dep.time, late_checkout: dep.legacy, status: 'checked_out' };
+    if (foreign) upd.next_destination = nextDest;
     const { error } = await Layout.db
         .from('residents')
-        .update({ check_out: checkoutDate, departure_time: dep.time, late_checkout: dep.legacy, status: 'checked_out' })
+        .update(upd)
         .eq('id', currentResident.id);
 
     if (error) {
         alert(Layout.t('error') + ': ' + error.message);
         return;
+    }
+
+    // Группа: одно время и направление на всех иностранцев брони с тем же днём выезда (сами не выселяются)
+    if (foreign && document.getElementById('checkoutFrroGroup').checked) {
+        const ids = frroGroupMates(res, checkoutDate).map(r => r.id);
+        if (ids.length) {
+            const { error: gErr } = await Layout.db.from('residents')
+                .update({ departure_time: dep.time, next_destination: nextDest }).in('id', ids);
+            if (gErr) Layout.handleError(gErr, tf('timeline_frro_group', 'Группа'));
+        }
     }
 
     document.getElementById('residentModal').close();
@@ -3486,6 +3506,30 @@ function showCheckoutScreen() {
     document.getElementById('checkoutDate').value = defaultDate;
     // Время отъезда (670); старая галочка «Поздний выезд» — только если уже стоит
     ArrivalTime.set(document.getElementById('checkoutDepartureTime'), { time: res.departure_time, legacy: !!res.late_checkout });
+
+    // Иностранец: «куда едет» и время — для выписки на портале FRRO (Form III, ВГ 17.11, мигр. 788)
+    const foreign = isForeign(res);
+    const block = document.getElementById('checkoutFrroBlock');
+    block.classList.toggle('hidden', !foreign);
+    document.getElementById('checkoutNextDestination').value = res.next_destination || '';
+    const mates = foreign ? frroGroupMates(res) : [];
+    document.getElementById('checkoutFrroGroupRow').classList.toggle('hidden', !mates.length);
+    document.getElementById('checkoutFrroGroup').checked = mates.length > 0;
+    document.getElementById('checkoutFrroGroupText').textContent =
+        tf('timeline_frro_group', 'То же время и «куда едет» — всем иностранцам этой брони с тем же днём выезда') + ` (${mates.length})`;
+}
+
+// Иностранец = гражданство указано и не Индия (как в Form III)
+function isForeign(res) {
+    const c = res?.vaishnavas?.citizenship;
+    return !!c && c !== 'IND';
+}
+
+// Иностранцы той же брони с тем же днём выезда (кроме самого человека) — им то же время и направление
+function frroGroupMates(res, checkoutDate = res.check_out) {
+    if (!res.booking_id) return [];
+    return periodResidents.filter(r => r.booking_id === res.booking_id && r.id !== res.id
+        && r.status !== 'cancelled' && r.check_out === checkoutDate && isForeign(r));
 }
 
 // Показать экран редактирования дат

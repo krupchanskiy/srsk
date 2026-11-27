@@ -1036,5 +1036,5 @@ const Form3 = (() => {
         window.addEventListener('hashchange', takeSubmittedFromHash);
     }
 
-    return { init, reload: load };
+    return { init, reload: load, mergeStays, COUNTRY };   // mergeStays, COUNTRY — для form3-checkout.js
 })();
