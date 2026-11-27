@@ -1510,6 +1510,9 @@ function openTransfer(sourceId) {
     document.getElementById('trHolder').dataset.dept = '';
     document.getElementById('trSrcHolder').dataset.dept = '';
     loadDeptHolders().then(syncTransferHolder);
+    trPay = { key: '', rows: [], people: [] };
+    document.getElementById('trPayPerson').value = '';
+    loadPayPositions().then(syncTransferPay);
     document.getElementById('transferModal').showModal();
 }
 
@@ -1608,6 +1611,211 @@ function toggleTransferSpent() {
     const spent = document.getElementById('trSpent').checked;
     document.getElementById('trSpentBlock').classList.toggle('hidden', !spent);
     document.getElementById('trSpentCategory').required = spent;
+    syncTransferPay();
+}
+
+// ---------- «Оплата труда» / «Гонорар за ретрит»: кому и за какие месяцы (ВГ 27.11, мигр. 833) ----------
+// Такая выплата — это выплата по ведомости: человек из сотрудников департамента-
+// получателя, строки «месяц — сумма». Проводит fin_pay_payroll (перевод + расход +
+// месяцы одной операцией). У оплаты труда человек обязателен, у гонорара — по желанию.
+const PAY_CATEGORY_CODES = ['dept_labor', 'retreat_fee'];
+let payPositions = null;   // fin_v_payroll_positions (видит только администратор финансов)
+let trPay = { key: '', rows: [], people: [] };
+
+async function loadPayPositions() {
+    if (payPositions) return;
+    const { data, error } = await Layout.db.from('fin_v_payroll_positions')
+        .select('id, vaishnava_id, employee_name, department_id, currency_code, effective_from, is_current');
+    payPositions = error ? [] : (data || []);
+}
+
+function trPayCategory() {
+    if (!document.getElementById('trSpent').checked || !payPositions?.length) return null;
+    const id = document.getElementById('trSpentCategory').value;
+    const code = FinUtils.refs.categories.find(c => c.id === id)?.code;
+    return PAY_CATEGORY_CODES.includes(code) ? code : null;
+}
+
+// Сотрудники департамента-получателя в его валюте: одна строка на человека,
+// позиция — текущая (или последняя), месяцы — от начала работы
+function trPayPeople() {
+    const dept = transferDept('trTarget');
+    const cur = accCurrency('trTarget');
+    const by = new Map();
+    for (const p of payPositions || []) {
+        if (!dept || p.department_id !== dept || p.currency_code !== cur) continue;
+        const x = by.get(p.vaishnava_id) || { vaishnava_id: p.vaishnava_id, name: p.employee_name, positions: [] };
+        x.positions.push(p);
+        by.set(p.vaishnava_id, x);
+    }
+    return [...by.values()].map(x => {
+        x.positions.sort((a, b) => (a.effective_from || '').localeCompare(b.effective_from || ''));
+        x.payPosition = x.positions.find(p => p.is_current) || x.positions[x.positions.length - 1];
+        x.start = x.positions[0].effective_from;
+        return x;
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
+}
+
+function syncTransferPay() {
+    const code = trPayCategory();
+    const block = document.getElementById('trPayBlock');
+    const sel = document.getElementById('trPayPerson');
+    block.classList.toggle('hidden', !code);
+    if (!code) { sel.required = false; trPay.key = ''; return; }
+    const people = trPayPeople();
+    const key = `${code}|${transferDept('trTarget')}|${accCurrency('trTarget')}`;
+    if (trPay.key !== key) {
+        const prev = sel.value;
+        trPay = { key, rows: [], people };
+        sel.innerHTML = (code === 'dept_labor'
+            ? `<option value="">— выберите —</option>`
+            : `<option value="">— не из ведомости (только ретрит) —</option>`)
+            + people.map(x => `<option value="${x.vaishnava_id}">${e(x.name)}</option>`).join('');
+        if (people.some(x => x.vaishnava_id === prev)) sel.value = prev;
+    }
+    sel.required = code === 'dept_labor' && people.length > 0;
+    const deptName = (document.getElementById('trTarget').selectedOptions[0]?.textContent || '').replace(/\s*\(.*$/, '');
+    const hint = document.getElementById('trPayHint');
+    hint.className = 'text-xs mt-1';
+    if (!people.length) {
+        hint.classList.add(code === 'dept_labor' ? 'text-warning' : 'opacity-60');
+        hint.textContent = code === 'dept_labor'
+            ? `⚠ В ведомости «${deptName}» никого нет. Добавьте человека в Финансы → Зарплата, тогда выплата встанет в ведомость. Без этого пройдёт простым расходом.`
+            : `В ведомости «${deptName}» никого нет — гонорар пройдёт расходом по ретриту.`;
+    } else {
+        hint.textContent = '';
+    }
+    sel.classList.toggle('hidden', !people.length);
+    onTransferPayPerson();
+}
+
+async function onTransferPayPerson() {
+    const person = trPayPerson();
+    const wrap = document.getElementById('trPayMonthsWrap');
+    wrap.classList.toggle('hidden', !person);
+    if (!person) { trPay.rows = []; trPay.person = null; return; }
+    if (trPay.person === person.vaishnava_id && trPay.rows.length) { renderTrPayMonths(); return; }
+    trPay.person = person.vaishnava_id;
+    const date = document.getElementById('trDate').value || FinUtils.todayISO();
+    trPay.rows = [{ month: await oldestUnpaidMonth(person, date), amount: trPayTotal() || null }];
+    if (trPay.person === person.vaishnava_id) renderTrPayMonths();
+}
+
+function trPayPerson() {
+    if (!trPayCategory()) return null;
+    const id = document.getElementById('trPayPerson').value;
+    return trPay.people.find(x => x.vaishnava_id === id) || null;
+}
+
+// Сумма выплаты — то, что легло на счёт департамента
+function trPayTotal() {
+    const differ = accCurrency('trSource') !== accCurrency('trTarget');
+    return Math.round(Number(document.getElementById(differ ? 'trTargetAmount' : 'trAmount').value || 0) * 100) / 100;
+}
+
+// Самый старый месяц, где начислено больше, чем уже разложено выплатами (как в ведомости)
+async function oldestUnpaidMonth(person, dateISO) {
+    const ids = person.positions.map(p => p.id);
+    const [acc, pay] = await Promise.all([
+        Layout.db.from('fin_v_payroll_accruals').select('period, amount').in('position_id', ids),
+        Layout.db.from('fin_v_payroll_payments').select('is_reversed, periods').in('position_id', ids)
+    ]);
+    const m = new Map();
+    for (const a of acc.data || []) m.set(a.period.slice(0, 7), (m.get(a.period.slice(0, 7)) || 0) + Number(a.amount));
+    for (const p of pay.data || []) {
+        if (p.is_reversed) continue;
+        for (const x of p.periods || []) m.set(x.period.slice(0, 7), (m.get(x.period.slice(0, 7)) || 0) - Number(x.amount));
+    }
+    return [...m.keys()].sort().find(k => m.get(k) > 0.005) || dateISO.slice(0, 7);
+}
+
+function trPayMonthOptions(selected) {
+    const start = DateUtils.parseDate(trPayPerson()?.start || FinUtils.todayISO());
+    const now = new Date();
+    const keys = [];
+    for (let d = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+         d >= new Date(start.getFullYear(), start.getMonth(), 1) && keys.length < 36;
+         d = new Date(d.getFullYear(), d.getMonth() - 1, 1)) {
+        keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+    if (selected && !keys.includes(selected)) keys.push(selected);
+    return keys.map(k => {
+        const [y, mo] = k.split('-').map(Number);
+        const name = new Date(y, mo - 1, 1).toLocaleDateString('ru-RU', { month: 'long' });
+        return `<option value="${k}" ${k === selected ? 'selected' : ''}>${name} ${y}</option>`;
+    }).join('');
+}
+
+function renderTrPayMonths() {
+    const box = document.getElementById('trPayMonths');
+    box.innerHTML = trPay.rows.map((r, i) => `
+        <div class="flex gap-2 mb-1" data-tm-row="${i}">
+            <select class="select select-bordered select-sm flex-1 min-w-0" data-tm="month">${trPayMonthOptions(r.month)}</select>
+            <input type="number" class="input input-bordered input-sm w-28" min="0" step="0.01" data-tm="amount" value="${r.amount ?? ''}">
+            ${trPay.rows.length > 1 ? `<button type="button" class="btn btn-ghost btn-sm px-2" data-tm="del" title="${e(t('delete'))}">✕</button>` : ''}
+        </div>`).join('')
+        + `<button type="button" class="link link-primary text-sm" data-tm="add">+ Добавить месяц</button>
+           <div class="text-xs mt-1" data-tm="status"></div>`;
+    updateTrPayStatus();
+}
+
+function readTrPayMonths() {
+    document.querySelectorAll('#trPayMonths [data-tm-row]').forEach(row => {
+        const r = trPay.rows[Number(row.dataset.tmRow)];
+        r.month = row.querySelector('[data-tm="month"]').value;
+        const v = row.querySelector('[data-tm="amount"]').value;
+        r.amount = v === '' ? null : Math.round(Number(v) * 100) / 100;
+    });
+}
+
+function trPayMonthsError() {
+    const rows = trPay.rows;
+    if (!rows.length || rows.some(r => !r.month || !(r.amount > 0))) return 'У каждого месяца нужна сумма';
+    if (new Set(rows.map(r => r.month)).size !== rows.length) return 'Один и тот же месяц указан дважды';
+    const sum = Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100;
+    const total = trPayTotal();
+    if (Math.abs(sum - total) > 0.005) {
+        const c = accCurrency('trTarget');
+        return `По месяцам ${FinUtils.fmtMoney(sum, c)}, а выплата ${FinUtils.fmtMoney(total, c)}`;
+    }
+    return null;
+}
+
+function updateTrPayStatus() {
+    const box = document.querySelector('#trPayMonths [data-tm="status"]');
+    if (!box) return;
+    const err = trPayMonthsError();
+    box.innerHTML = err ? `<div class="text-error">⚠ ${e(err)}</div>` : '';
+}
+
+// Сумма перевода поменялась — одна строка месяца идёт за ней сама
+function syncTrPayAmount() {
+    if (trPay.rows.length !== 1 || !trPayPerson()) return;
+    trPay.rows[0].amount = trPayTotal() || null;
+    const inp = document.querySelector('#trPayMonths [data-tm="amount"]');
+    if (inp) inp.value = trPay.rows[0].amount ?? '';
+    updateTrPayStatus();
+}
+
+function bindTrPayMonths() {
+    const box = document.getElementById('trPayMonths');
+    box.addEventListener('input', () => { readTrPayMonths(); updateTrPayStatus(); });
+    box.addEventListener('change', () => { readTrPayMonths(); updateTrPayStatus(); });
+    box.addEventListener('click', ev => {
+        const btn = ev.target.closest('button[data-tm]');
+        if (!btn) return;
+        readTrPayMonths();
+        if (btn.dataset.tm === 'add') {
+            const last = trPay.rows[trPay.rows.length - 1]?.month || FinUtils.todayISO().slice(0, 7);
+            const d = DateUtils.parseDate(`${last}-01`);
+            const next = DateUtils.toISO(new Date(d.getFullYear(), d.getMonth() + 1, 1)).slice(0, 7);
+            const left = Math.round((trPayTotal() - trPay.rows.reduce((s, r) => s + (r.amount || 0), 0)) * 100) / 100;
+            trPay.rows.push({ month: next, amount: left > 0 ? left : null });
+        } else if (btn.dataset.tm === 'del') {
+            trPay.rows.splice(Number(btn.closest('[data-tm-row]').dataset.tmRow), 1);
+        }
+        renderTrPayMonths();
+    });
 }
 
 // Получатель никогда не совпадает с источником: источник исключён из списка
@@ -1663,6 +1871,42 @@ async function submitTransfer(ev) {
     const комментарий = document.getElementById('trComment').value || null;
     const держатель = transferHolderValue(TR_SIDES[1]);
     const сКого = transferHolderValue(TR_SIDES[0]);
+
+    // Оплата труда / гонорар человеку из ведомости — выплатой по ведомости (833):
+    // перевод, расход и месяцы одной операцией, выплата видна в Зарплате
+    const payPerson = spent && trPayPerson();
+    if (payPerson) {
+        if (differ) {
+            Layout.showNotification('Выплата по ведомости — только в одной валюте. Разные валюты — сначала обмен, потом выплата.', 'error');
+            return;
+        }
+        if (transferHolderShown(TR_SIDES[0])) {
+            Layout.showNotification('Выплату по ведомости с кассы нескольких держателей не проводим — выдайте из Кассы.', 'error');
+            return;
+        }
+        readTrPayMonths();
+        const perr = trPayMonthsError();
+        if (perr) { Layout.showNotification(perr, 'error'); return; }
+        const res = await FinUtils.rpc('fin_pay_payroll', {
+            position_id: payPerson.payPosition.id,
+            amount: document.getElementById('trAmount').value,
+            withhold_amount: null,
+            occurred_on: дата,
+            comment: комментарий,
+            periods: trPay.rows.map(r => ({ period: `${r.month}-01`, amount: r.amount })),
+            source_account_id: source,
+            category_code: trPayCategory(),
+            object_id: document.getElementById('trSpentObject').value || null
+        });
+        if (!FinUtils.handleResult(res)) return;
+        requestIds.transfer = null;
+        document.getElementById('transferModal').close();
+        highlightNext = true;
+        await FinUtils.reloadAccounts();
+        await loadTable();
+        return;
+    }
+
     const res = await FinUtils.rpc('fin_create_transfer', {
         request_id: requestIds.transfer,
         occurred_on: дата,
@@ -1739,6 +1983,14 @@ async function init() {
     document.getElementById('trSpent').addEventListener('change', syncTransferHolder);
     document.getElementById('trSpent').addEventListener('change', checkDebtDeptSpent);
     document.getElementById('trTarget').addEventListener('change', checkDebtDeptSpent);
+    // Оплата труда / гонорар: кому и за какие месяцы (833)
+    document.getElementById('trSpentCategory').addEventListener('change', syncTransferPay);
+    document.getElementById('trTarget').addEventListener('change', syncTransferPay);
+    document.getElementById('trSource').addEventListener('change', syncTransferPay);
+    document.getElementById('trPayPerson').addEventListener('change', onTransferPayPerson);
+    document.getElementById('trAmount').addEventListener('input', syncTrPayAmount);
+    document.getElementById('trTargetAmount').addEventListener('input', syncTrPayAmount);
+    bindTrPayMonths();
     document.getElementById('expenseModal').addEventListener('input', updateExpenseRecap);
     document.getElementById('expenseModal').addEventListener('change', updateExpenseRecap);
     // Сменили счёт в строке расхода — канал этой строки встаёт по счёту
