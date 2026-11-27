@@ -231,6 +231,7 @@ const modules = {
             { id: 'shop_goods', items: [
                 { id: 'shop_items', href: 'shop/items.html' },
                 { id: 'shop_receive', href: 'shop/receive.html' },
+                { id: 'shop_suppliers', href: 'shop/suppliers.html' },
                 { id: 'shop_inventory', href: 'shop/inventory.html' }
             ]},
             { id: 'shop_money', items: [
@@ -389,6 +390,7 @@ const pagePermissions = {
     'shop/help.html': 'shop_sell',
     'shop/items.html': ['shop_receive', 'shop_sell'],
     'shop/receive.html': 'shop_receive',
+    'shop/suppliers.html': ['shop_receive', 'shop_manage'],
     'shop/inventory.html': 'shop_manage',
     'shop/owners.html': ['shop_settle', 'shop_receive'],
     'shop/analytics.html': 'shop_analytics',

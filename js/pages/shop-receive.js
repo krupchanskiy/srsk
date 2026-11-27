@@ -6,6 +6,8 @@
  * закупка ШРСК (наш, куплен на деньги ШРСК: цена закупки и скидка поставщика дают
  * себестоимость, выручка идёт в магазин, не в мурти). Цена продажи — в каждой строке:
  * у товара из справочника её можно поменять (доработка, переоценка).
+ * У закупки — поставщик из картотеки и фото образца, как купили (до доработки):
+ * по нему другой закупщик покажет продавцу, что нужно (ВГ 19.11).
  * Товара, которого ещё нет в справочнике, заводить отдельно не нужно — название
  * вводится прямо в строке, рядом спрашиваем категорию и цену продажи.
  */
@@ -16,13 +18,14 @@ const ShopReceive = (() => {
     // новые ключи могут ещё не попасть в кэш переводов — тогда русский текст
     const тр = (k, ru) => { const v = t(k); return v === k ? ru : v; };
 
-    let владельцы = [], товары = [], категории = [], прошлыеЦены = {};
+    let владельцы = [], товары = [], категории = [], прошлыеЦены = {}, поставщики = [];
+    const по = (ru, en, hi) => поЯзыку({ ru, en, hi });
     let занято = false;
     let вид = 'consignment';
     let строки = [пустаяСтрока()];
 
     const $ = s => document.querySelector(s);
-    function пустаяСтрока() { return { название: '', item_id: null, qty: '', cost: '', категория: '', цена: '', закупка: '', скидка: '' }; }
+    function пустаяСтрока() { return { название: '', item_id: null, qty: '', cost: '', категория: '', цена: '', закупка: '', скидка: '', снимок: null, снимокАдрес: null }; }
     /** Себестоимость закупки ШРСК: прайс поставщика минус его скидка. */
     function себестоимость(с) {
         const прайс = parseFloat(с.закупка) || 0;
@@ -33,14 +36,16 @@ const ShopReceive = (() => {
     async function загрузить() {
         const ответы = await Promise.all([
             Layout.db.from('shop_v_owners').select('id, name, loss_policy').eq('is_active', true).order('name'),
-            Layout.db.from('shop_items').select('id, name_ru, source, price, category_id').eq('is_active', true).order('name_ru'),
+            Layout.db.from('shop_items').select('id, name_ru, source, price, category_id, photo_url, sample_photo_url').eq('is_active', true).order('name_ru'),
             Layout.db.from('shop_categories').select('id, name_ru').eq('is_active', true).order('sort_order'),
             Layout.db.from('shop_batches').select('item_id, cost_price, received_on')
                 .not('cost_price', 'is', null).order('received_on', { ascending: false }),
+            Layout.db.from('shop_suppliers').select('id, name, goods_note').eq('is_active', true).order('name'),
         ]);
         if (ShopUtils.ошибка(ответы, t('shop_err_load_receive'))) return false;
 
-        const [{ data: вл }, { data: тов }, { data: кат }, { data: партии }] = ответы;
+        const [{ data: вл }, { data: тов }, { data: кат }, { data: партии }, { data: пост }] = ответы;
+        поставщики = пост || [];
         владельцы = (вл || []).map(в => ({ ...в, имя: в.name || t('shop_unnamed') }));
         товары = тов || [];
         категории = кат || [];
@@ -56,10 +61,12 @@ const ShopReceive = (() => {
         });
 
         const безВладельца = вид !== 'consignment';
-        $('#ownerLabel').textContent = безВладельца ? t('shop_source') : t('shop_owner');
-        $('#ownerSel').disabled = безВладельца;
+        $('#ownerLabel').textContent = вид === 'purchase' ? по('Поставщик', 'Supplier', 'आपूर्तिकर्ता')
+            : безВладельца ? t('shop_source') : t('shop_owner');
+        $('#ownerSel').disabled = вид === 'own';
         $('#ownerSel').innerHTML = вид === 'own' ? `<option>${t('shop_workshop_own')}</option>`
-            : вид === 'purchase' ? `<option>${тр('shop_purchase_src', 'Куплено на деньги ШРСК')}</option>`
+            : вид === 'purchase' ? `<option value="">${по('Поставщик не указан', 'No supplier', 'आपूर्तिकर्ता नहीं')}</option>`
+                + поставщики.map(п => `<option value="${п.id}">${e(п.name)}${п.goods_note ? ' · ' + e(п.goods_note) : ''}</option>`).join('')
             : владельцы.map(в => `<option value="${в.id}">${e(в.имя)} · ${t('shop_losses_word')} ${
                 в.loss_policy === 'compensate' ? t('shop_loss_compensate') : t('shop_loss_owner')}</option>`).join('')
               || `<option value="">${t('shop_no_owners')}</option>`;
@@ -70,6 +77,16 @@ const ShopReceive = (() => {
         $('#purchaseHint').hidden = вид !== 'purchase';
         // заводить владельцев может заведующий (то же право проверяет shop_upsert_owner)
         $('#newOwnerBtn').hidden = безВладельца || !window.hasPermission?.('shop_manage');
+        $('#newSupplierBtn').hidden = вид !== 'purchase' || !window.hasPermission?.('shop_receive');
+    }
+
+    /** Новый поставщик прямо из приёма — сразу выбран. */
+    async function новыйПоставщик() {
+        const п = await SupplierCard.open(null);
+        if (!п) return;
+        if (!await загрузить()) return;
+        рисоватьШапку();
+        $('#ownerSel').value = п.id;
     }
 
     function открытьНовогоВладельца() {
@@ -119,6 +136,7 @@ const ShopReceive = (() => {
                     <div class="w-full">
                         <input class="input input-bordered input-sm w-full" list="itemsList" data-name="${i}"
                                value="${e(с.название)}" placeholder="${t('shop_type_name')}">
+                        ${закупка ? строкаСнимка(с, i) : ''}
                         ${новый ? `
                         <div class="mt-2 flex flex-wrap gap-2 items-center">
                             <span class="badge badge-sm badge-warning">${t('shop_new_item_badge')}</span>
@@ -159,13 +177,44 @@ const ShopReceive = (() => {
         обновитьИтог();
     }
 
+    /** Фото образца, как купили: новое (ещё не загружено) или то, что уже есть у товара. */
+    function строкаСнимка(с, i) {
+        const есть = с.снимокАдрес || товары.find(т => т.id === с.item_id)?.sample_photo_url;
+        return `
+                        <div class="mt-2 flex flex-wrap items-center gap-2">
+                            ${есть ? `<span class="sample-shot bg-base-200"><img src="${e(есть)}" alt=""></span>` : ''}
+                            <label class="btn btn-xs btn-outline gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z"/></svg>
+                                ${есть ? по('Переснять', 'Retake', 'फिर से') : по('Фото образца', 'Sample photo', 'नमूने की फोटो')}
+                                <input type="file" accept="image/*" data-shot="${i}" hidden>
+                            </label>
+                        </div>`;
+    }
+
+    /** После приёма — фото образцов в карточки товаров. Не критично: приём уже прошёл. */
+    async function загрузитьСнимки(годные) {
+        for (const с of годные.filter(x => x.снимок && x.item_id)) {
+            const имя = `${с.item_id}_sample_${Date.now()}.jpg`;
+            const { error } = await Layout.db.storage.from('shop-photos')
+                .upload(имя, с.снимок, { contentType: с.снимок.type || 'image/jpeg', cacheControl: '3600' });
+            if (error) {
+                Layout.showNotification(по('Фото образца не загрузилось: ', 'Sample photo failed: ', 'नमूने की फोटो नहीं गई: ') + error.message, 'warning');
+                continue;
+            }
+            const { data: { publicUrl } } = Layout.db.storage.from('shop-photos').getPublicUrl(имя);
+            const { error: ош } = await Layout.db.from('shop_items').update({ sample_photo_url: publicUrl }).eq('id', с.item_id);
+            if (ош) Layout.handleError(ош, по('Фото образца', 'Sample photo', 'नमूने की फोटो'));
+        }
+    }
+
     async function рисоватьИсторию() {
         const { data, error } = await Layout.db
             .from('shop_receipts')
-            .select('id, number, received_on, kind, owner_id, shop_receipt_items(qty, cost_price)')
+            .select('id, number, received_on, kind, owner_id, supplier_id, shop_receipt_items(qty, cost_price)')
             .order('received_on', { ascending: false }).order('number', { ascending: false }).limit(12);
         if (ShopUtils.ошибка({ error }, t('shop_err_history'))) return;
         const имена = Object.fromEntries(владельцы.map(в => [в.id, в.имя]));
+        const именаПост = Object.fromEntries(поставщики.map(п => [п.id, п.name]));
 
         const строкиИстории = (data || []).map(п => {
             const позиции = п.shop_receipt_items || [];
@@ -174,6 +223,7 @@ const ShopReceive = (() => {
                 : позиции.reduce((s, x) => s + Number(x.qty) * Number(x.cost_price || 0), 0);
             const откуда = п.kind === 'own' ? t('shop_workshop_own_short')
                 : п.kind === 'purchase' ? тр('shop_purchase_kind', 'Закупка ШРСК')
+                    + (именаПост[п.supplier_id] ? ' · ' + именаПост[п.supplier_id] : '')
                 : (имена[п.owner_id] || t('shop_owner_unknown'));
             return `<tr>
                 <td data-label="№" class="nums">${п.number}</td>
@@ -259,13 +309,16 @@ const ShopReceive = (() => {
             })),
         };
         if (вид === 'consignment') payload.owner_id = $('#ownerSel').value;
+        if (вид === 'purchase' && $('#ownerSel').value) payload.supplier_id = $('#ownerSel').value;
 
         const { error } = await Layout.db.rpc('shop_receive_goods', { payload });
         if (error) { Layout.handleError(error, t('shop_err_receive')); return; }
+        await загрузитьСнимки(годные);
 
         Layout.showNotification(вид === 'own' ? t('shop_own_received')
             : вид === 'purchase' ? тр('shop_purchase_received', 'Закупка принята')
             : t('shop_consign_received'), 'success');
+        строки.forEach(с => с.снимокАдрес && URL.revokeObjectURL(с.снимокАдрес));
         строки = [пустаяСтрока()];
         $('#recNote').value = '';
         if (!await загрузить()) return;
@@ -292,6 +345,7 @@ const ShopReceive = (() => {
             if (b.id === 'addRow') { строки.push(пустаяСтрока()); return рисоватьСтроки(); }
             if (b.id === 'saveRec') return принять();
             if (b.id === 'newOwnerBtn') return открытьНовогоВладельца();
+            if (b.id === 'newSupplierBtn') return новыйПоставщик();
             if (b.id === 'ownGo') return сохранитьВладельца();
         });
 
@@ -331,7 +385,20 @@ const ShopReceive = (() => {
             }
         });
 
-        document.addEventListener('change', ev => {
+        document.addEventListener('change', async ev => {
+            if (ev.target.dataset.shot !== undefined) {
+                const с = строки[+ev.target.dataset.shot];
+                const файл = ev.target.files?.[0];
+                ev.target.value = '';
+                if (!с || !файл) return;
+                // повернуть и обрезать — тот же редактор, что в карточке товара
+                const готово = window.PhotoEditor ? await PhotoEditor.open(файл, { соотношение: 1.5 }) : файл;
+                if (!готово) return;
+                if (с.снимокАдрес) URL.revokeObjectURL(с.снимокАдрес);
+                с.снимок = готово;
+                с.снимокАдрес = URL.createObjectURL(готово);
+                return рисоватьСтроки();
+            }
             if (ev.target.dataset.cat !== undefined) {
                 строки[+ev.target.dataset.cat].категория = ev.target.value;
             }
@@ -349,6 +416,7 @@ const ShopReceive = (() => {
     }
 
     async function init() {
+        SupplierCard.перевести();
         $('#recDate').value = DateUtils.toISO(new Date());
         if (!await загрузить()) return;
         слушать();

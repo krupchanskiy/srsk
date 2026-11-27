@@ -18,7 +18,7 @@ const ShopItems = (() => {
     async function загрузить() {
         const ответы = await Promise.all([
             Layout.db.from('shop_items')
-                .select('id, name_ru, name_en, name_hi, price, min_qty, source, photo_url, category_id, is_active')
+                .select('id, name_ru, name_en, name_hi, price, min_qty, source, photo_url, sample_photo_url, category_id, is_active')
                 .order('name_ru'),
             Layout.db.from('shop_categories').select('id, name_ru, name_en, name_hi')
                 .eq('is_active', true).order('sort_order'),
@@ -82,6 +82,22 @@ const ShopItems = (() => {
     let новоеФото = null;          // правленый снимок, ждёт «Сохранить»
     let адресНового = null;
 
+    // образец, как купили (до доработки) — второе фото, по нему закупают (ВГ 19.11)
+    let новыйОбразец = null, адресОбразца = null;
+    function рисоватьОбразец() {
+        if (адресОбразца) { URL.revokeObjectURL(адресОбразца); адресОбразца = null; }
+        const адрес = новыйОбразец ? (адресОбразца = URL.createObjectURL(новыйОбразец)) : правка?.sample_photo_url;
+        $('#fSamplePrev').innerHTML = адрес ? `<img src="${e(адрес)}" alt="">` : '';
+        $('#fSampleLabel').textContent = поЯзыку({ ru: 'Фото образца, как купили', en: 'Sample photo, as bought', hi: 'नमूने की फोटो, जैसा खरीदा' });
+        $('#fSamplePick').textContent = адрес
+            ? поЯзыку({ ru: 'Заменить фото', en: 'Replace photo', hi: 'चित्र बदलें' })
+            : поЯзыку({ ru: 'Выбрать фото', en: 'Choose photo', hi: 'चित्र चुनें' });
+        $('#fSampleHint').textContent = поЯзыку({
+            ru: 'Если товар дорабатывали (масло и т.п.) — как он выглядел при покупке. Без доработки не нужно: закупщику покажем фото выше.',
+            en: 'If the item was reworked (oil etc.) — how it looked when bought. Not needed otherwise: the buyer sees the photo above.',
+            hi: 'यदि सामान में सुधार हुआ (तेल आदि) — खरीदते समय कैसा था। अन्यथा ज़रूरी नहीं।' });
+    }
+
     function рисоватьФото() {
         if (адресНового) { URL.revokeObjectURL(адресНового); адресНового = null; }
         const адрес = новоеФото ? (адресНового = URL.createObjectURL(новоеФото)) : правка?.photo_url;
@@ -118,6 +134,8 @@ const ShopItems = (() => {
         $('#fPhoto').value = '';
         новоеФото = null;
         рисоватьФото();
+        новыйОбразец = null;
+        рисоватьОбразец();
         $('#fCat').innerHTML = категории.map(к =>
             `<option value="${к.id}" ${к.id === правка?.category_id ? 'selected' : ''}>
                 ${e(Layout.getName(к))}</option>`).join('');
@@ -178,6 +196,18 @@ const ShopItems = (() => {
             }
         }
 
+        if (новыйОбразец) {
+            const имяОбразца = `${id}_sample_${Date.now()}.jpg`;
+            const { error: ош } = await Layout.db.storage.from('shop-photos')
+                .upload(имяОбразца, новыйОбразец, { contentType: новыйОбразец.type || 'image/jpeg', cacheControl: '3600' });
+            if (ош) {
+                Layout.showNotification(t('shop_photo_failed') + ' ' + ош.message, 'warning');
+            } else {
+                const { data: { publicUrl } } = Layout.db.storage.from('shop-photos').getPublicUrl(имяОбразца);
+                await Layout.db.from('shop_items').update({ sample_photo_url: publicUrl }).eq('id', id);
+            }
+        }
+
         itemModal.close();
         Layout.showNotification(t('shop_saved'), 'success');
         if (await загрузить()) рисовать();
@@ -201,6 +231,15 @@ const ShopItems = (() => {
             const файл = ev.target.files?.[0];
             ev.target.value = '';            // тот же файл можно выбрать ещё раз
             if (файл) await править(файл);
+        });
+        $('#fSample').addEventListener('change', async ev => {
+            const файл = ev.target.files?.[0];
+            ev.target.value = '';
+            if (!файл) return;
+            const снимок = await PhotoEditor.open(файл, { соотношение: 1.5 });
+            if (!снимок) return;
+            новыйОбразец = снимок;
+            рисоватьОбразец();
         });
         $('#q').addEventListener('input', ev => { фильтр.поиск = ev.target.value; рисовать(); });
         $('#catFilter').addEventListener('change', ev => { фильтр.кат = ev.target.value; рисовать(); });

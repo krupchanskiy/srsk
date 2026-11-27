@@ -126,6 +126,18 @@
                     </div>
                     <span class="text-xs opacity-60 mt-1" data-i18n="shop_photo_hint">Товар на кассе выбирают глазами — фото помогает больше названия</span>
                 </div>
+                <!-- образец, как купили (ВГ 19.11): до доработки товар выглядит иначе — по нему закупают -->
+                <div class="form-control">
+                    <div class="label py-1"><span class="label-text text-sm" id="fSampleLabel">Фото образца, как купили</span></div>
+                    <div class="flex items-center gap-3">
+                        <span class="photo-prev bg-base-200" id="fSamplePrev"></span>
+                        <label class="btn btn-sm btn-outline">
+                            <span id="fSamplePick">Выбрать фото</span>
+                            <input type="file" id="fSample" accept="image/*" hidden>
+                        </label>
+                    </div>
+                    <span class="text-xs opacity-60 mt-1" id="fSampleHint"></span>
+                </div>
                 <label class="label cursor-pointer justify-start gap-2">
                     <input type="checkbox" class="checkbox checkbox-sm" id="fActive" checked>
                     <span class="label-text text-sm" data-i18n="shop_on_sale">В продаже</span>
@@ -144,12 +156,12 @@
     <script src="../js/config.js?v=5"></script>
     <script src="../js/cache.js?v=2"></script>
     <script src="../js/utils.js?v=23"></script>
-    <script src="../js/layout.js?v=135"></script>
+    <script src="../js/layout.js?v=136"></script>
     <script src="../js/auth-check.js?v=18"></script>
     <script src="../js/translit.js"></script>
     <script src="../js/shop-utils.js?v=2"></script>
     <script src="../js/photo-editor.js?v=1"></script>
-    <script src="../js/pages/shop-items.js?v=5"></script>
+    <script src="../js/pages/shop-items.js?v=6"></script>
     <script>
         async function init() {
             await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_items' });
