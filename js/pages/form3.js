@@ -30,6 +30,8 @@ const Form3 = (() => {
     let people = [];      // [{ v, doc, entry, stay, issues, deadline, ... }]
     let unknown = [];
     let submitted = [];
+    let selfStay = [];    // живут сами по шахматке, место у нас не указано (ВГ 26.11)
+    let buildings = [];   // здания с номерами — для «где живёт у нас»
 
     // ==================== ЗАГРУЗКА ====================
     async function load() {
@@ -45,12 +47,13 @@ const Form3 = (() => {
             .order('check_in');
         if (error) { Layout.handleError(error, 'Проживающие'); return; }
 
-        const rows = (res || []).filter(r => r.has_housing !== false);
+        // «Самостоятельное проживание» (has_housing=false) тоже берём: Form III может подавать ШРСК (ВГ 26.11)
+        const rows = res || [];
         const ids = [...new Set(rows.map(r => r.vaishnava_id))];
-        if (!ids.length) { people = []; unknown = []; submitted = []; render(); return; }
+        if (!ids.length) { people = []; unknown = []; submitted = []; selfStay = []; render(); return; }
 
         // Все строки этих людей — чтобы склеить заезд, начавшийся раньше недели назад или продолжающийся дальше
-        const [allRes, vs, docs, entries] = await Promise.all([
+        const [allRes, vs, docs, entries, blds] = await Promise.all([
             Layout.db.from('residents')
                 .select('id, vaishnava_id, check_in, check_out, arrival_time, departure_time, arrived_at, arrived_auto, has_housing, status, rooms(number, buildings(name_ru, name_en, name_hi)), retreats(name_ru, name_en, name_hi)')
                 .in('vaishnava_id', ids).neq('status', 'cancelled').order('check_in'),
@@ -58,23 +61,27 @@ const Form3 = (() => {
                 .select('id, spiritual_name, first_name, last_name, citizenship, birth_date, gender, visa_type, visa_expiry, indian_phone, phone, email, photo_url')
                 .in('id', ids),
             Layout.db.from('vaishnava_documents').select('*').in('vaishnava_id', ids),
-            Layout.db.from('form3_entries').select('*').in('vaishnava_id', ids)
+            Layout.db.from('form3_entries').select('*, rooms(number), buildings(name_ru, name_en, name_hi)').in('vaishnava_id', ids),
+            Layout.db.from('buildings').select('id, name_ru, name_en, name_hi, rooms(id, number)').eq('is_active', true).order('name_ru')
         ]);
-        for (const r of [allRes, vs, docs, entries]) if (r.error) { Layout.handleError(r.error, 'Form III'); return; }
+        for (const r of [allRes, vs, docs, entries, blds]) if (r.error) { Layout.handleError(r.error, 'Form III'); return; }
+        buildings = blds.data;
 
         const byV = new Map(vs.data.map(v => [v.id, v]));
         const docByV = new Map(docs.data.map(d => [d.vaishnava_id, d]));
-        const resByV = new Map();
-        allRes.data.filter(r => r.has_housing !== false).forEach(r => {
-            if (!resByV.has(r.vaishnava_id)) resByV.set(r.vaishnava_id, []);
-            resByV.get(r.vaishnava_id).push(r);
+        const resByV = new Map(), selfByV = new Map();
+        allRes.data.forEach(r => {
+            const m = r.has_housing === false ? selfByV : resByV;
+            if (!m.has(r.vaishnava_id)) m.set(r.vaishnava_id, []);
+            m.get(r.vaishnava_id).push(r);
         });
 
-        people = []; unknown = []; submitted = [];
+        people = []; unknown = []; submitted = []; selfStay = [];
         for (const vid of ids) {
             const v = byV.get(vid);
             if (!v) continue;
-            for (const stay of mergeStays(resByV.get(vid) || [])) {
+            const selfStays = mergeStays(selfByV.get(vid) || []).map(st => ({ ...st, self: true }));
+            for (const stay of [...mergeStays(resByV.get(vid) || []), ...selfStays]) {
                 // берём только заезды, которые уже начались и не закончились больше недели назад
                 if (stay.check_in > today || stay.check_out < weekAgo) continue;
                 const entry = entries.data.find(en => en.vaishnava_id === vid &&
@@ -82,15 +89,18 @@ const Form3 = (() => {
                      (en.arrival_date && en.arrival_date >= stay.check_in && en.arrival_date <= stay.check_out))) || null;
                 const p = { v, doc: docByV.get(vid) || null, entry, stay };
                 if (v.citizenship === 'IND') continue;
-                if (!v.citizenship) { unknown.push(p); continue; }
+                if (!v.citizenship) { if (!stay.self) unknown.push(p); continue; }
                 p.arrival = arrivalOf(p);
                 p.issues = issuesOf(p);
-                if (entry?.submitted_at) submitted.push(p); else people.push(p);
+                if (entry?.submitted_at) submitted.push(p);
+                else if (stay.self && !entry?.building_id) selfStay.push(p);
+                else people.push(p);
             }
         }
         people.sort((a, b) => a.arrival.at - b.arrival.at);
         submitted.sort((a, b) => (b.entry.submitted_at || '').localeCompare(a.entry.submitted_at || ''));
         unknown.sort((a, b) => nameOf(a.v).localeCompare(nameOf(b.v)));
+        selfStay.sort((a, b) => nameOf(a.v).localeCompare(nameOf(b.v)));
         render();
     }
 
@@ -152,6 +162,7 @@ const Form3 = (() => {
         need(v.indian_phone, 'нет индийского телефона');
         need(v.email, 'нет почты');
         need(v.photo_url, 'нет фото');
+        if (p.stay.self && !entry?.building_id) out.push('в шахматке живёт сам — укажите, где живёт у нас');
         const co = expectedCheckout(p);
         if (v.visa_expiry && v.visa_expiry < co) out.push(`виза до ${fmtDate(v.visa_expiry)} — раньше выезда ${fmtDate(co)}`);
         if (doc?.passport_expiry && doc.passport_expiry < co) out.push(`паспорт до ${fmtDate(doc.passport_expiry)} — раньше выезда`);
@@ -178,8 +189,11 @@ const Form3 = (() => {
         return `<span class="badge ${cls} whitespace-nowrap" title="Срок — 24 ч с приезда${e(approx)}">осталось ${h} ч</span>`;
     }
 
-    function placeOf(stay) {
-        const r = stay.rows[stay.rows.length - 1];
+    // Место: из анкеты (если в шахматке «живёт сам», а Form III подаём мы) → из шахматки
+    function placeOf(p) {
+        if (p.entry?.building_id) return [Layout.getName(p.entry.buildings), p.entry.rooms?.number].filter(Boolean).join(', ');
+        if (p.stay.self) return 'живёт сам';
+        const r = p.stay.rows[p.stay.rows.length - 1];
         const b = r.rooms?.buildings ? Layout.getName(r.rooms.buildings) : '';
         return [b, r.rooms?.number].filter(Boolean).join(', ');
     }
@@ -191,7 +205,7 @@ const Form3 = (() => {
         if (!query) return true;
         const hay = [nameOf(p.v), p.v.spiritual_name, p.v.first_name, p.v.last_name,
             p.doc?.passport_surname, p.doc?.passport_given_name, p.v.citizenship,
-            placeOf(p.stay), p.entry?.form3_id].filter(Boolean).join(' ').toLowerCase();
+            placeOf(p), p.entry?.form3_id].filter(Boolean).join(' ').toLowerCase();
         return query.split(/\s+/).every(w => hay.includes(w));
     }
     const nothingFound = '<div class="opacity-60 p-4">По поиску никого не нашлось.</div>';
@@ -201,6 +215,7 @@ const Form3 = (() => {
         document.getElementById('cntSubmit').textContent = people.length ? `(${people.length})` : '';
         document.getElementById('cntUnknown').textContent = unknown.length ? `(${unknown.length})` : '';
         document.getElementById('cntSubmitted').textContent = submitted.length ? `(${submitted.length})` : '';
+        document.getElementById('cntSelf').textContent = selfStay.length ? `(${selfStay.length})` : '';
 
         const overdue = people.filter(p => p.arrival.at.getTime() + 24 * HOUR < Date.now()).length;
         const parts = [];
@@ -215,6 +230,7 @@ const Form3 = (() => {
             document.getElementById('cntSubmit').textContent = `(${cntQ(people)} из ${people.length})`;
             document.getElementById('cntUnknown').textContent = `(${cntQ(unknown)} из ${unknown.length})`;
             document.getElementById('cntSubmitted').textContent = `(${cntQ(submitted)} из ${submitted.length})`;
+            document.getElementById('cntSelf').textContent = `(${cntQ(selfStay)} из ${selfStay.length})`;
         }
         const ready = people.filter(p => !p.issues.length).length;
         const queueBar = people.length ? `<div class="flex flex-wrap items-center gap-2 mb-3">
@@ -227,6 +243,28 @@ const Form3 = (() => {
             : '<div class="opacity-60 p-4">У всех живущих гражданство указано.</div>';
         document.getElementById('listSubmitted').innerHTML = submitted.length ? (cntQ(submitted) ? table(submitted, 'submitted') : nothingFound)
             : '<div class="opacity-60 p-4">Пока нет поданных анкет.</div>';
+        document.getElementById('listSelf').innerHTML = selfStay.length ? (cntQ(selfStay) ? selfTable() : nothingFound)
+            : '<div class="opacity-60 p-4">Нет иностранцев, которые по шахматке живут сами.</div>';
+    }
+
+    // Иностранцы с «Самостоятельным проживанием» в шахматке. Если на деле живут у нас — указать где, и они перейдут в «Подать»
+    function selfTable() {
+        const rows = selfStay.map((p, i) => !matches(p) ? '' : `<tr class="f3-row" data-open="self:${i}">
+            <td><div class="font-medium">${e(nameOf(p.v))}</div><div class="text-xs opacity-70">${e(p.v.citizenship || '')}</div></td>
+            <td class="whitespace-nowrap">${fmtDate(p.stay.check_in)} → ${fmtDate(p.stay.check_out)}</td>
+            <td><button class="btn btn-xs btn-outline whitespace-nowrap">Живёт у нас…</button></td></tr>`).join('');
+        return `<p class="text-sm opacity-70 mb-2">В шахматке у них «Самостоятельное проживание» — Form III подаёт хозяин жилья. Если Form III подаём мы (живут у нас, но в шахматке не в номере) — откройте и укажите, где живёт; шахматка не меняется.</p>
+            <div class="overflow-x-auto bg-base-100 rounded-lg"><table class="table table-sm">
+            <thead><tr><th>Человек</th><th>По шахматке</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+
+    function placeSelect(p) {
+        const cur = p.entry?.room_id ? 'r:' + p.entry.room_id : p.entry?.building_id ? 'b:' + p.entry.building_id : '';
+        const opt = (v, t) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${e(t)}</option>`;
+        return `<select id="fPlace" class="select select-bordered select-sm w-full"><option value="">— живёт сам, не у нас —</option>
+            ${buildings.map(b => `<optgroup label="${e(Layout.getName(b))}">${opt('b:' + b.id, Layout.getName(b) + ' — номер не важен')}
+                ${(b.rooms || []).sort((x, y) => String(x.number).localeCompare(String(y.number), undefined, { numeric: true }))
+                    .map(r => opt('r:' + r.id, Layout.getName(b) + ', ' + r.number)).join('')}</optgroup>`).join('')}</select>`;
     }
 
     function table(list, kind) {
@@ -240,7 +278,7 @@ const Form3 = (() => {
                         <button class="btn btn-xs btn-primary whitespace-nowrap" data-copy="${i}" title="Скопировать данные для закладки «ШРСК → Form III» на портале">Скопировать для портала</button></div>`)
                 : `<span class="font-mono">${e(p.entry.form3_id || '—')}</span> <span class="text-xs opacity-70">${fmtDate(DateUtils.toISO(new Date(p.entry.submitted_at)))}</span>`;
             return `<tr class="f3-row" data-open="${kind}:${i}">
-                <td><div class="font-medium">${e(nameOf(p.v))}</div><div class="text-xs opacity-70">${e(p.v.citizenship || '')} · ${e(placeOf(p.stay))}</div></td>
+                <td><div class="font-medium">${e(nameOf(p.v))}</div><div class="text-xs opacity-70">${e(p.v.citizenship || '')} · ${e(placeOf(p))}</div></td>
                 <td class="whitespace-nowrap">${fmtDate(p.stay.check_in)}${p.arrival.time ? ' ' + e(p.arrival.time) : ''} → ${fmtDate(expectedCheckout(p))}</td>
                 <td>${kind === 'submit' ? deadlineBadge(p) : ''}</td>
                 ${kind === 'submit' ? `<td><button class="btn btn-xs btn-ghost whitespace-nowrap" data-already="${i}" title="Анкета уже подана на портале раньше — убрать из списка">Уже подана</button></td>` : '<td></td>'}
@@ -255,7 +293,7 @@ const Form3 = (() => {
     function unknownTable() {
         const rows = unknown.map((p, i) => !matches(p) ? '' : `<tr>
             <td><a class="link" href="../vaishnavas/person.html?id=${e(p.v.id)}" target="_blank">${e(nameOf(p.v))}</a>
-                <div class="text-xs opacity-70">${e(placeOf(p.stay))}</div></td>
+                <div class="text-xs opacity-70">${e(placeOf(p))}</div></td>
             <td class="whitespace-nowrap">${fmtDate(p.stay.check_in)} → ${fmtDate(p.stay.check_out)}</td>
             <td class="whitespace-nowrap">
                 <button class="btn btn-xs" data-cit="${i}:IND">Индия</button>
@@ -286,7 +324,7 @@ const Form3 = (() => {
                 </div>
                 <div class="flex-1">
                     <h3 class="text-lg font-bold">${e(nameOf(v))}</h3>
-                    <div class="text-sm opacity-70">${e(placeOf(p.stay))} · ${fmtDate(p.stay.check_in)} → ${fmtDate(p.stay.check_out)}</div>
+                    <div class="text-sm opacity-70">${e(placeOf(p))} · ${fmtDate(p.stay.check_in)} → ${fmtDate(p.stay.check_out)}</div>
                     <a class="link text-sm" href="../vaishnavas/person.html?id=${e(v.id)}" target="_blank">Карточка контакта</a>
                     ${p.entry?.submitted_at ? `<div class="mt-1 text-sm">Подана: <b class="font-mono">${e(en.form3_id || '')}</b>, ${fmtDate(DateUtils.toISO(new Date(en.submitted_at)))}</div>` : `<div class="mt-1">${deadlineBadge(p)}</div>`}
                 </div>
@@ -331,6 +369,7 @@ const Form3 = (() => {
                 ${field('Ожидаемый выезд', inp('fCheckout', expectedCheckout(p), 'date'))}
                 ${field('Откуда прибыл', inp('fFrom', en.arrived_from, 'text', 'placeholder="город"'))}
                 ${field('Где жил до этого', inp('fPrev', en.previous_place, 'text'))}
+                ${p.stay.self ? field('Где живёт у нас <span class="opacity-60">(в шахматке — сам)</span>', placeSelect(p)) : ''}
                 ${field('Цель визита', `<select id="fPurpose" class="select select-bordered select-sm w-full"><option value="">— спросить —</option>
                     ${PURPOSES.map(x => `<option ${purpose === x ? 'selected' : ''}>${x}</option>`).join('')}</select>`)}
             </div>
@@ -375,6 +414,13 @@ const Form3 = (() => {
             previous_place: val('fPrev'), purpose: val('fPurpose'),
             updated_at: new Date().toISOString()
         };
+        if (p.stay.self) {
+            const pl = val('fPlace') || '';
+            const room = pl.startsWith('r:') ? pl.slice(2) : null;
+            enRow.room_id = room;
+            enRow.building_id = room ? buildings.find(b => (b.rooms || []).some(r => r.id === room))?.id ?? null
+                : pl.startsWith('b:') ? pl.slice(2) : null;
+        }
 
         const r1 = await Layout.db.from('vaishnavas').update(vUpd).eq('id', p.v.id);
         if (r1.error) { Layout.handleError(r1.error, 'Карточка'); return false; }
@@ -388,7 +434,7 @@ const Form3 = (() => {
         Layout.showNotification('Сохранено', 'success');
         const vid = p.v.id, cin = p.stay.check_in;
         await load();
-        const again = [...people, ...submitted].find(x => x.v.id === vid && x.stay.check_in === cin);
+        const again = [...people, ...submitted, ...selfStay].find(x => x.v.id === vid && x.stay.check_in === cin);
         if (again) openPerson(again); else document.getElementById('personModal').close();
         return true;
     }
@@ -412,7 +458,7 @@ const Form3 = (() => {
             purpose: purposeOf(p), previous_place: p.entry?.previous_place,
             duration_days: days, expected_checkout: co,
             photo_url: v.photo_url || null,
-            room: placeOf(p.stay)
+            room: placeOf(p)
         };
     }
 
@@ -487,7 +533,7 @@ const Form3 = (() => {
             Layout.showNotification('Фото загружено в карточку контакта', 'success');
             const vid = p.v.id, cin = p.stay.check_in;
             await load();
-            const again = [...people, ...submitted].find(x => x.v.id === vid && x.stay.check_in === cin);
+            const again = [...people, ...submitted, ...selfStay].find(x => x.v.id === vid && x.stay.check_in === cin);
             if (again) openPerson(again);
         } catch (err) {
             Layout.handleError(err, 'Фото');
@@ -976,7 +1022,7 @@ const Form3 = (() => {
             const row = ev.target.closest('[data-open]');
             if (row) {
                 const [kind, i] = row.dataset.open.split(':');
-                openPerson((kind === 'submit' ? people : submitted)[+i]);
+                openPerson((kind === 'submit' ? people : kind === 'self' ? selfStay : submitted)[+i]);
                 return;
             }
             const c = ev.target.closest('[data-cit]');

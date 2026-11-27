@@ -46,6 +46,7 @@
             <a role="tab" class="tab tab-active" data-tab="submit">Подать <span id="cntSubmit" class="ml-1"></span></a>
             <a role="tab" class="tab" data-tab="unknown">Гражданство не указано <span id="cntUnknown" class="ml-1"></span></a>
             <a role="tab" class="tab" data-tab="submitted">Поданы <span id="cntSubmitted" class="ml-1"></span></a>
+            <a role="tab" class="tab" data-tab="self">Живут сами <span id="cntSelf" class="ml-1"></span></a>
             <a role="tab" class="tab" data-tab="checkout">Выписка</a>
             <a role="tab" class="tab" data-tab="bookmarks">Закладки</a>
         </div>
@@ -53,6 +54,7 @@
         <section data-pane="submit"><div id="listSubmit"><div class="skeleton h-24 w-full"></div></div></section>
         <section data-pane="unknown" class="hidden"><div id="listUnknown"></div></section>
         <section data-pane="submitted" class="hidden"><div id="listSubmitted"></div></section>
+        <section data-pane="self" class="hidden"><div id="listSelf"></div></section>
         <!-- Вкладка «Выписка» — код в js/pages/form3-checkout.js (сессия «Form III Checkout») -->
         <section data-pane="checkout" class="hidden"><div id="checkout-tab"></div></section>
         <section data-pane="bookmarks" class="hidden"><div id="bookmarksPane"></div></section>
@@ -84,7 +86,7 @@
     <script src="../js/utils.js?v=23"></script>
     <script src="../js/date-utils.js?v=5"></script>
     <script src="../js/layout.js?v=135"></script>
-    <script src="../js/pages/form3.js?v=13"></script>
+    <script src="../js/pages/form3.js?v=14"></script>
     <script src="../js/pages/form3-checkout.js?v=1"></script>
     <script>
         async function init() {
