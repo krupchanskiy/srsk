@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <script src="../js/color-init.js?v=9"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поставщики — ШРСК</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>tailwind.config = { theme: { extend: { screens: { 'desktop': '1200px' } } } }</script>
+    <!-- соединение с базой открывается заранее: иначе первое обращение
+         к ней ждёт DNS и рукопожатие TLS уже после загрузки скриптов -->
+    <link rel="preconnect" href="https://mymrijdfqeevoaocbzfy.supabase.co" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/common.css?v=30">
+    <style>
+        .nums { font-variant-numeric: tabular-nums; }
+        .sup-shot { width: 72px; height: 48px; border-radius: 8px; overflow: hidden; flex: none; }
+        .sup-shot img { width: 100%; height: 100%; object-fit: cover; }
+    </style>
+</head>
+<body class="bg-base-200 min-h-screen flex flex-col">
+
+    <div id="header-placeholder"></div>
+
+    <main class="container mx-auto px-4 py-6 flex-1 max-w-3xl">
+
+        <div class="mb-4 flex flex-wrap items-end gap-3">
+            <div>
+                <h1 class="text-2xl font-bold" data-l="Поставщики|Suppliers|आपूर्तिकर्ता">Поставщики</h1>
+                <p class="text-sm opacity-60" data-l="У кого ШРСК закупает товар. Магазин им ничего не должен — закупка уже оплачена. В карточке — что и почём брали, с фото: можно показать продавцу, что нужно.|Where SRSK buys goods. The shop owes them nothing — the purchase is already paid. The card shows what was bought and at what price, with photos, to show the seller what is needed.|SRSK कहाँ से सामान खरीदता है। दुकान पर उनका कोई बकाया नहीं — खरीद का भुगतान हो चुका। कार्ड में क्या और किस दाम पर खरीदा, फोटो सहित।">У кого ШРСК закупает товар.</p>
+            </div>
+            <button class="btn btn-sm ml-auto" id="newSupplier" data-permission="shop_receive"
+                    style="background: var(--current-color); color: #fff;">+ <span data-l="Новый поставщик|New supplier|नया आपूर्तिकर्ता">Новый поставщик</span></button>
+        </div>
+
+        <input type="search" class="input input-bordered input-sm w-full mb-4" id="q"
+               data-lp="Поиск: имя, телефон, товар|Search: name, phone, goods|खोजें: नाम, फ़ोन, सामान">
+
+        <div class="flex flex-col gap-3" id="list"></div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="../js/config.js?v=5"></script>
+    <script src="../js/cache.js?v=2"></script>
+    <script src="../js/utils.js?v=23"></script>
+    <script src="../js/layout.js?v=135"></script>
+    <script src="../js/date-utils.js?v=5"></script>
+    <script src="../js/auth-check.js?v=18"></script>
+    <script src="../js/shop-utils.js?v=2"></script>
+    <script src="../js/shop-suppliers-card.js?v=1"></script>
+    <script src="../js/pages/shop-suppliers.js?v=1"></script>
+    <script>
+        async function init() {
+            await Layout.init({ module: 'shop', menuId: 'shop_goods', itemId: 'shop_suppliers' });
+            await ShopSuppliers.init();
+        }
+        init();
+    </script>
+</body>
+</html>
