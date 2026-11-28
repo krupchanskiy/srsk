@@ -718,6 +718,57 @@ function payrollOptionsHtml(list, selected) {
     ).join('');
 }
 
+// ==================== МЕСЯЦ ОПЛАТЫ ТРУДА (ВГ, 28.11.2026) ====================
+// У строки «Оплата труда» — за какой месяц платим. Сервер (мигр. 837) ставит его
+// выплате в ведомости или пишет «— за <месяц>» в комментарий разовой оплаты.
+// Окно как в ДДС (мигр. 834): 10 месяцев назад … следующий от даты расхода.
+function draftDateISO(d) {
+    return d?.occurred_on || (d?.created_at || '').slice(0, 10) || FinUtils.todayISO();
+}
+
+function laborMonthOptionsHtml(dateISO, selected) {
+    const d0 = DateUtils.parseDate(dateISO);
+    let html = `<option value="">За какой месяц?</option>`;
+    for (let i = 1; i >= -10; i--) {
+        const d = new Date(d0.getFullYear(), d0.getMonth() + i, 1);
+        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const name = d.toLocaleDateString('ru-RU', { month: 'long' });
+        html += `<option value="${k}" ${k === selected ? 'selected' : ''}>за ${name} ${d.getFullYear()}</option>`;
+    }
+    return html;
+}
+
+// Самый старый месяц позиции, где начислено больше, чем разложено выплатами (как в ДДС)
+async function oldestUnpaidMonthOfPosition(posId) {
+    const [acc, pay] = await Promise.all([
+        Layout.db.from('fin_v_payroll_accruals').select('period, amount').eq('position_id', posId),
+        Layout.db.from('fin_v_payroll_payments').select('is_reversed, periods').eq('position_id', posId)
+    ]);
+    const m = new Map();
+    for (const a of acc.data || []) m.set(a.period.slice(0, 7), (m.get(a.period.slice(0, 7)) || 0) + Number(a.amount));
+    for (const p of pay.data || []) {
+        if (p.is_reversed) continue;
+        for (const x of p.periods || []) m.set(x.period.slice(0, 7), (m.get(x.period.slice(0, 7)) || 0) - Number(x.amount));
+    }
+    return [...m.keys()].sort().find(k => m.get(k) > 0.005) || null;
+}
+
+// Показать/спрятать месяц вместе с полем ведомости; выбран сотрудник, а месяц
+// ещё не трогали — подставить его самый старый неоплаченный
+async function syncLaborMonthField(monthSel, show, payrollSel, draft) {
+    monthSel.classList.toggle('hidden', !show);
+    monthSel.required = show;
+    if (!show) return;
+    const dateISO = draftDateISO(draft);
+    let chosen = monthSel.value;
+    if (!monthSel.dataset.touched && payrollSel.value) chosen = await oldestUnpaidMonthOfPosition(payrollSel.value) || chosen;
+    monthSel.innerHTML = laborMonthOptionsHtml(dateISO, chosen);
+}
+
+function laborPeriod(monthSel) {
+    return !monthSel.classList.contains('hidden') && monthSel.value ? `${monthSel.value}-01` : null;
+}
+
 function outCategoryOptions(selected) {
     return FinUtils.refs.categories
         .filter(c => c.is_active && c.direction === 'out')
@@ -756,6 +807,8 @@ function splitRowHtml(amount, categoryId, objectId, deptId) {
             </label>
             <select class="select select-bordered select-sm flex-1 min-w-0 hidden" data-split-payroll
                     title="${t('fin_payroll_link_title')}"><option value="">${t('fin_payroll_link_none')}</option></select>
+            <select class="select select-bordered select-sm flex-1 min-w-0 hidden" data-split-month
+                    title="За какой месяц оплата труда"></select>
         </div>
         <div class="text-xs text-warning hidden" data-split-warn>⚠️ ${t('fin_split_no_expense_warn')}</div>
     </div>`;
@@ -780,9 +833,11 @@ async function syncSplitPayrollField(row) {
     const catId = row.querySelector('[data-split-cat]').value;
     const show = isLaborCategory(catId);
     sel.classList.toggle('hidden', !show);
-    if (!show) return;
-    const deptId = row.querySelector('[data-split-dept]').value || splitDraft?.department_id;
-    sel.innerHTML = payrollOptionsHtml(await getPayrollPositions(deptId), sel.value);
+    if (show) {
+        const deptId = row.querySelector('[data-split-dept]').value || splitDraft?.department_id;
+        sel.innerHTML = payrollOptionsHtml(await getPayrollPositions(deptId), sel.value);
+    }
+    await syncLaborMonthField(row.querySelector('[data-split-month]'), show, sel, splitDraft);
 }
 
 // Делим поровну в целых рупиях, остаток отдаём последней строке: иначе на
@@ -868,7 +923,8 @@ async function submitSplit(ev) {
             object_id: r.querySelector('[data-split-object]').value || null,
             department_id: dept,
             as_expense: dept ? r.querySelector('[data-split-as-expense]').checked : null,
-            payroll_position_id: r.querySelector('[data-split-payroll]').value || null
+            payroll_position_id: r.querySelector('[data-split-payroll]').value || null,
+            period: laborPeriod(r.querySelector('[data-split-month]'))
         };
     });
     const { data, error } = await Layout.db.rpc('tg_post_draft', {
@@ -1021,6 +1077,8 @@ function refineRowHtml(amount, categoryId, objectId) {
         <select class="select select-bordered select-sm flex-1 min-w-0" data-refine-object>${FinUtils.objectOptions(objectId)}</select>
         <select class="select select-bordered select-sm flex-1 min-w-0 hidden" data-refine-payroll
                 title="${t('fin_payroll_link_title')}"><option value="">${t('fin_payroll_link_none')}</option></select>
+        <select class="select select-bordered select-sm flex-1 min-w-0 hidden" data-refine-month
+                title="За какой месяц оплата труда"></select>
         <button type="button" class="btn btn-ghost btn-sm shrink-0 text-error" data-refine-remove aria-label="${t('delete')}">✕</button>
     </div>`;
 }
@@ -1036,10 +1094,14 @@ async function syncRefinePayrollField(row) {
     const catId = row.querySelector('[data-refine-cat]').value;
     const show = isLaborCategory(catId);
     sel.classList.toggle('hidden', !show);
-    if (!show) return;
-    const list = await getPayrollPositions(refineCostDept());
-    const chosen = sel.value || guessPayrollPositionId(refineDraft?.raw_text, list);
-    sel.innerHTML = payrollOptionsHtml(list, chosen);
+    if (show) {
+        const list = await getPayrollPositions(refineCostDept());
+        const chosen = sel.value || guessPayrollPositionId(refineDraft?.raw_text, list);
+        sel.innerHTML = payrollOptionsHtml(list, chosen);
+    }
+    // месяц нужен только когда «уже потрачено» — иначе строки не проводятся
+    const monthShown = show && document.getElementById('refineSpent').checked;
+    await syncLaborMonthField(row.querySelector('[data-refine-month]'), monthShown, sel, refineDraft);
 }
 
 function syncAllRefinePayrollFields() {
@@ -1193,7 +1255,8 @@ async function submitRefine(ev) {
             amount: Number(r.querySelector('[data-refine-amount]').value),
             category_id: r.querySelector('[data-refine-cat]').value,
             object_id: r.querySelector('[data-refine-object]').value || null,
-            payroll_position_id: r.querySelector('[data-refine-payroll]').value || null
+            payroll_position_id: r.querySelector('[data-refine-payroll]').value || null,
+            period: laborPeriod(r.querySelector('[data-refine-month]'))
         }));
         const res = await Layout.db.rpc('tg_post_draft', { p_id: id, p_rows: rows });
         if (res.error) { Layout.handleError(res.error, t('fin_post_draft')); return; }
@@ -1255,6 +1318,7 @@ async function init() {
     document.getElementById('refineSpent').addEventListener('change', syncRefineSpent);
     document.getElementById('refineSpent').addEventListener('change', checkDebtDeptSpent);
     document.getElementById('refineSpent').addEventListener('change', suggestAllRefineRows);
+    document.getElementById('refineSpent').addEventListener('change', syncAllRefinePayrollFields);
     document.getElementById('refineTarget').addEventListener('change', syncRefineSpent);
     document.getElementById('refineTarget').addEventListener('change', checkDebtDeptSpent);
     document.getElementById('refineTarget').addEventListener('change', loadRefineHolders);
@@ -1278,6 +1342,8 @@ async function init() {
         if (!row) return;
         if (ev.target.matches('[data-refine-object]')) row.dataset.objectAuto = '0';
         else if (ev.target.matches('[data-refine-cat]')) syncRefinePayrollField(row);
+        else if (ev.target.matches('[data-refine-payroll]')) syncRefinePayrollField(row);
+        else if (ev.target.matches('[data-refine-month]')) ev.target.dataset.touched = '1';
     });
     document.getElementById('refineRows').addEventListener('click', ev => {
         const rm = ev.target.closest('[data-refine-remove]');
@@ -1306,6 +1372,8 @@ async function init() {
         if (ev.target.matches('[data-split-object]')) row.dataset.objectAuto = '0';
         else if (ev.target.matches('[data-split-dept]')) { maybeSuggestSplitObject(row); syncSplitPayrollField(row); }
         else if (ev.target.matches('[data-split-cat]')) syncSplitPayrollField(row);
+        else if (ev.target.matches('[data-split-payroll]')) syncSplitPayrollField(row);
+        else if (ev.target.matches('[data-split-month]')) ev.target.dataset.touched = '1';
     });
     document.getElementById('splitRows').addEventListener('click', ev => {
         const rm = ev.target.closest('[data-split-remove]');
