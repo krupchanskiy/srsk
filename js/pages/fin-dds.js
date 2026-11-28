@@ -1953,8 +1953,15 @@ function updateTransferRecap() {
     const src = document.getElementById('trSource').selectedOptions[0];
     const tgt = document.getElementById('trTarget').selectedOptions[0];
     if (!amount || !src || !tgt) { el.textContent = ''; return; }
-    const name = o => (o.textContent || '').replace(/\s*\(.*\)\s*$/, '');
-    el.textContent = `${FinUtils.fmtMoney(amount, src.dataset.currency)} · ${name(src)} → ${name(tgt)}`;
+    // Срезаем только последнюю скобку (остаток), валюта в названии остаётся: «Касса (₹)»
+    const name = o => (o.textContent || '').replace(/\s*\([^()]*\)\s*$/, '');
+    let text = `${FinUtils.fmtMoney(amount, src.dataset.currency)} · ${name(src)} → ${name(tgt)}`;
+    // Разные валюты: показать и сумму получения — «… · € 100»
+    if (src.dataset.currency !== tgt.dataset.currency) {
+        const got = Number(document.getElementById('trTargetAmount').value);
+        if (got) text += ` · ${FinUtils.fmtMoney(got, tgt.dataset.currency)}`;
+    }
+    el.textContent = text;
 }
 
 async function submitTransfer(ev) {
@@ -2120,6 +2127,7 @@ async function init() {
     document.getElementById('trSource').addEventListener('change', () => { rebuildTransferTarget(); updateTransferCurrency(); updateTransferRecap(); syncTransferHolder(); });
     document.getElementById('trTarget').addEventListener('change', () => { updateTransferCurrency(); updateTransferRecap(); syncTransferHolder(); });
     document.getElementById('trAmount').addEventListener('input', updateTransferRecap);
+    document.getElementById('trTargetAmount').addEventListener('input', updateTransferRecap);
     document.getElementById('trSpent').addEventListener('change', toggleTransferSpent);
     document.getElementById('trSpent').addEventListener('change', syncTransferHolder);
     document.getElementById('trSpent').addEventListener('change', checkDebtDeptSpent);
