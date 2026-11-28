@@ -181,6 +181,11 @@ function receiptCardHtml(r) {
            <button class="btn btn-ghost btn-sm" data-action="receipt-dismiss">Не поступление</button>`
         : r.receipt_status === 'dismissed'
         ? `<button class="btn btn-ghost btn-sm" data-action="receipt-restore">Вернуть</button>`
+        // Приход отсторнирован — сам в «новые» не возвращается (837): обычно его уже перепровели
+        : r.op_reversed
+        ? `<span class="badge badge-warning badge-sm">приход отсторнирован</span>
+           <a class="btn btn-ghost btn-sm" href="dds.html?op=${r.operation_id}">Открыть приход</a>
+           <button class="btn btn-outline btn-sm" data-action="receipt-restore">Вернуть в новые</button>`
         : r.operation_id ? `<a class="btn btn-ghost btn-sm" href="dds.html?op=${r.operation_id}">Открыть приход</a>` : '';
     // Куда лягут деньги: касса ДДС у департамента или его подотчёт — видно и правится сразу
     const account = r.is_receipt && r.receipt_status === 'new' ? `
